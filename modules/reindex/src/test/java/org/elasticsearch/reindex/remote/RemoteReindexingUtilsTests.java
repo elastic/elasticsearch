@@ -14,16 +14,21 @@ import org.apache.http.RequestLine;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -31,17 +36,24 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.wrapExceptionToPreserveStatus;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RemoteReindexingUtilsTests extends ESTestCase {
+
+    private static final Logger logger = LogManager.getLogger(RemoteReindexingUtilsTests.class);
+
     private ThreadPool threadPool;
     private RestClient client;
 
@@ -52,6 +64,12 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             @Override
             public ExecutorService executor(String name) {
                 return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+            }
+
+            @Override
+            public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                command.run();
+                return null;
             }
         };
         client = mock(RestClient.class);
@@ -289,6 +307,167 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         IOException actual = expectThrows(IOException.class, () -> RemoteReindexingUtils.bodyMessage(entity));
 
         assertSame(expected, actual);
+    }
+
+    /**
+     * Verifies that lookupRemoteVersionWithRetries retries on 429 and eventually succeeds.
+     */
+    public void testLookupRemoteVersionWithRetriesSucceedsOnRetry() throws Exception {
+        Response successResponse = successResponse("main/1_7_5.json");
+        Response rejectionResponse = rejectionResponse429();
+        AtomicInteger callCount = new AtomicInteger(0);
+
+        doAnswer(inv -> {
+            org.elasticsearch.client.ResponseListener listener = inv.getArgument(1);
+            if (callCount.getAndIncrement() == 0) {
+                listener.onFailure(new org.elasticsearch.client.ResponseException(rejectionResponse));
+            } else {
+                listener.onSuccess(successResponse);
+            }
+            return null;
+        }).when(client).performRequestAsync(any(), any());
+
+        AtomicBoolean success = new AtomicBoolean(false);
+        AtomicInteger retryCount = new AtomicInteger(0);
+
+        RemoteReindexingUtils.lookupRemoteVersionWithRetries(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 1),
+            threadPool,
+            client,
+            retryCount::incrementAndGet,
+            RejectAwareActionListener.wrap(
+                v -> {
+                    assertEquals(Version.fromString("1.7.5"), v);
+                    success.set(true);
+                },
+                e -> fail("unexpected failure"),
+                e -> fail("unexpected rejection")
+            )
+        );
+
+        assertTrue("listener should have received success", success.get());
+        assertEquals("countRetry should be invoked once per retry", 1, retryCount.get());
+        assertEquals("performRequestAsync should be called twice (initial + 1 retry)", 2, callCount.get());
+    }
+
+    /**
+     * Verifies that lookupRemoteVersionWithRetries propagates failure when retries are exhausted.
+     */
+    public void testLookupRemoteVersionWithRetriesExhaustedPropagatesFailure() throws Exception {
+        Response rejectionResponse = rejectionResponse429();
+        doAnswer(inv -> {
+            ((org.elasticsearch.client.ResponseListener) inv.getArgument(1)).onFailure(
+                new org.elasticsearch.client.ResponseException(rejectionResponse)
+            );
+            return null;
+        }).when(client).performRequestAsync(any(), any());
+
+        AtomicBoolean failed = new AtomicBoolean(false);
+
+        RemoteReindexingUtils.lookupRemoteVersionWithRetries(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 1),
+            threadPool,
+            client,
+            () -> {},
+            RejectAwareActionListener.wrap(
+                v -> fail("unexpected success"),
+                e -> {
+                    assertTrue(e instanceof ElasticsearchStatusException);
+                    assertEquals(RestStatus.TOO_MANY_REQUESTS, ((ElasticsearchStatusException) e).status());
+                    failed.set(true);
+                },
+                e -> fail("should have propagated as failure after retries exhausted")
+            )
+        );
+
+        assertTrue("listener should have received failure", failed.get());
+        verify(client, times(2)).performRequestAsync(any(), any());
+    }
+
+    /**
+     * Verifies that non-429 errors do not trigger retries.
+     */
+    public void testLookupRemoteVersionWithRetriesNon429DoesNotRetry() throws Exception {
+        Response badRequestResponse = mock(Response.class);
+        org.apache.http.StatusLine statusLine = mock(org.apache.http.StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(RestStatus.INTERNAL_SERVER_ERROR.getStatus());
+        when(badRequestResponse.getStatusLine()).thenReturn(statusLine);
+        when(badRequestResponse.getEntity()).thenReturn(new StringEntity("error", ContentType.TEXT_PLAIN));
+        RequestLine requestLine = mock(RequestLine.class);
+        when(requestLine.getMethod()).thenReturn("GET");
+        when(badRequestResponse.getRequestLine()).thenReturn(requestLine);
+
+        mockFailure(new org.elasticsearch.client.ResponseException(badRequestResponse));
+
+        RemoteReindexingUtils.lookupRemoteVersionWithRetries(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 5),
+            threadPool,
+            client,
+            () -> fail("countRetry should not be called for non-429"),
+            RejectAwareActionListener.wrap(
+                v -> fail(),
+                e -> {
+                    assertTrue(e instanceof ElasticsearchStatusException);
+                    assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ((ElasticsearchStatusException) e).status());
+                },
+                e -> fail()
+            )
+        );
+
+        verify(client, times(1)).performRequestAsync(any(), any());
+    }
+
+    /**
+     * Verifies that success on the first attempt does not invoke countRetry.
+     */
+    public void testLookupRemoteVersionWithRetriesSucceedsOnFirstCall() throws Exception {
+        Response successResponse = successResponse("main/2_3_3.json");
+        mockSuccess(successResponse);
+
+        AtomicBoolean success = new AtomicBoolean(false);
+
+        RemoteReindexingUtils.lookupRemoteVersionWithRetries(
+            logger,
+            BackoffPolicy.constantBackoff(TimeValue.ZERO, 5),
+            threadPool,
+            client,
+            () -> fail("countRetry should not be called when first attempt succeeds"),
+            RejectAwareActionListener.wrap(
+                v -> {
+                    assertEquals(Version.fromString("2.3.3"), v);
+                    success.set(true);
+                },
+                e -> fail(),
+                e -> fail()
+            )
+        );
+
+        assertTrue("listener should have received success", success.get());
+        verify(client, times(1)).performRequestAsync(any(), any());
+    }
+
+    private Response successResponse(String resource) throws Exception {
+        URL url = Thread.currentThread().getContextClassLoader().getResource("responses/" + resource);
+        assertNotNull("missing test resource [" + resource + "]", url);
+        HttpEntity entity = new InputStreamEntity(FileSystemUtils.openFileURLStream(url), ContentType.APPLICATION_JSON);
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(entity);
+        return response;
+    }
+
+    private Response rejectionResponse429() {
+        Response response = mock(Response.class);
+        when(response.getEntity()).thenReturn(null);
+        org.apache.http.StatusLine statusLine = mock(org.apache.http.StatusLine.class);
+        when(statusLine.getStatusCode()).thenReturn(RestStatus.TOO_MANY_REQUESTS.getStatus());
+        when(response.getStatusLine()).thenReturn(statusLine);
+        RequestLine requestLine = mock(RequestLine.class);
+        when(requestLine.getMethod()).thenReturn("GET");
+        when(response.getRequestLine()).thenReturn(requestLine);
+        return response;
     }
 
     private void mockSuccess(Response response) {

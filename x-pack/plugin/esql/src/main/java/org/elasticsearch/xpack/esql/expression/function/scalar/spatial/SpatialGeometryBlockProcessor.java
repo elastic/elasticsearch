@@ -14,6 +14,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateFilter;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.io.ParseException;
@@ -70,8 +71,24 @@ class SpatialGeometryBlockProcessor {
             builder.appendNull();
         } else {
             final Geometry jtsGeometry = asJtsGeometry(left, p);
+            quantizeCoordinates(jtsGeometry);
             Geometry result = applyOperation(jtsGeometry, parameter);
             builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(result));
+        }
+    }
+
+    /**
+     * Snap coordinates to the Lucene encoding grid, so results match whether the input came from source or from
+     * (already quantized) doc-values. A no-op for {@link SpatialCoordinateTypes#UNSPECIFIED}.
+     */
+    private void quantizeCoordinates(Geometry jtsGeometry) {
+        if (spatialCoordinateType != UNSPECIFIED) {
+            jtsGeometry.apply((CoordinateFilter) coord -> {
+                long encoded = spatialCoordinateType.pointAsLong(coord.x, coord.y);
+                coord.x = spatialCoordinateType.decodeX(encoded);
+                coord.y = spatialCoordinateType.decodeY(encoded);
+            });
+            jtsGeometry.geometryChanged();
         }
     }
 

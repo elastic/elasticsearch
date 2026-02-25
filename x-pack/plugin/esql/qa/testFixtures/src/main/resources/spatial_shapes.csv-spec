@@ -80,13 +80,13 @@ abbrev:keyword | name:text    | location:geo_shape                         | cou
 simpleLoadFromCityBoundaries
 FROM airport_city_boundaries
 | WHERE abbrev == "CPH"
-| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
-| KEEP abbrev, region, city_location, airport, boundary_wkt_length
+| EVAL boundary_length = ST_NPOINTS(city_boundary)
+| KEEP abbrev, region, city_location, airport, boundary_length
 | LIMIT 1
 ;
 
-abbrev:keyword  |  region:text         |  city_location:geo_point |  airport:text  |  boundary_wkt_length:integer
-CPH             |  Københavns Kommune  |  POINT(12.5683 55.6761)  |  Copenhagen    |  265
+abbrev:keyword  |  region:text         |  city_location:geo_point |  airport:text  |  boundary_length:integer
+CPH             |  Københavns Kommune  |  POINT(12.5683 55.6761)  |  Copenhagen    |  15
 ;
 
 ###############################################

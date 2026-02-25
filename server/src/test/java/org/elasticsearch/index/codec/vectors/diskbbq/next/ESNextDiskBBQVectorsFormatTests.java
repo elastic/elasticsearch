@@ -408,7 +408,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         }
     }
 
-    /** Cluster radius is written and read for ESNext format (version 3+). */
+    /** Cluster radius is written and read for ESNext format. */
     public void testClusterRadiusWrittenAndRead() throws IOException {
         int dimensions = random().nextInt(32, 128);
         int numDocs = random().nextInt(200, 500);

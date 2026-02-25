@@ -280,8 +280,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     /**
      * Calculate segment affinity from query-segment relevance only.
-     * Uses best centroid score when available (max similarity to any centroid), else global centroid score.
-     * Affinity is max(0, score); segment size is applied in allocation, not here.
+     * Uses fingerprint score when available (max similarity of anchors to any centroid), else global centroid score.
      */
     private static float calculateSegmentAffinity(SegmentMetadata metadata, float maxAffinityScore) {
         if (metadata.isValid() == false || metadata.similarityFunction() == null) {

@@ -529,16 +529,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     }
 
     /**
-     * Returns the max cluster radius for this segment when available (ESNext format, version 3+).
-     * Used for segment visit budget allocation. Returns null for older segments or non-ESNext formats.
+     * Return the max cluster radius for this segment when available (null for older segments).
      */
     public Float getMaxClusterRadius(FieldInfo fieldInfo) {
         return null;
     }
 
     /**
-     * Returns the mean cluster radius for this segment when available (ESNext format, version 3+).
-     * Returns null for older segments or non-ESNext formats.
+     * Return the mean cluster radius for this segment when available (null for older segments).
      */
     public Float getMeanClusterRadius(FieldInfo fieldInfo) {
         return null;

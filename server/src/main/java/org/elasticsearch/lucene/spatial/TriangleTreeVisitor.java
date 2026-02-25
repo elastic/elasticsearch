@@ -15,6 +15,7 @@ import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.CA_FROM_TRIANG
 
 /** Visitor for triangle interval tree.
  *
+ * @see V2TriangleTreeReader
  * @see TriangleTreeReader
  * */
 public interface TriangleTreeVisitor {

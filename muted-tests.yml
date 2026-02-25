@@ -252,9 +252,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/141034
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
-  method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortManyFields
-  issue: https://github.com/elastic/elasticsearch/issues/141083
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointServiceNodeTests
   method: testGetCheckpointStats
   issue: https://github.com/elastic/elasticsearch/issues/141112
@@ -326,9 +323,6 @@ tests:
 - class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
   method: testAutoModeSupportedVectorType
   issue: https://github.com/elastic/elasticsearch/issues/142072
-- class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
-  method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
-  issue: https://github.com/elastic/elasticsearch/issues/142079
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testMixedSortFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/142077
@@ -338,9 +332,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testFieldDataStats
-  issue: https://github.com/elastic/elasticsearch/issues/142424
 - class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
   method: testWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/142434
@@ -374,23 +365,14 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/TS Command grouping on text field}
   issue: https://github.com/elastic/elasticsearch/issues/142544
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdBadVersion
-  issue: https://github.com/elastic/elasticsearch/issues/142508
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdBadCodec
-  issue: https://github.com/elastic/elasticsearch/issues/142509
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdBadMode
-  issue: https://github.com/elastic/elasticsearch/issues/142510
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdCorrectSettings
-  issue: https://github.com/elastic/elasticsearch/issues/142507
 - class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
   method: testRecursiveDoubleStarAllFiles
   issue: https://github.com/elastic/elasticsearch/issues/142576
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
-  method: testFatalFailureDuringFetch
+  methods:
+  - testFatalFailureDuringFetch
+  - testWithFetchFailures
+  - testAddCompletionListenerScheduleErrorWaitForInitListener
   issue: https://github.com/elastic/elasticsearch/issues/142626
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/suggested_type}
@@ -407,9 +389,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/142739
-- class: org.elasticsearch.index.reindex.ReindexResumeIT
-  method: testLocalResumeReindexFromScroll_slicedAuto
-  issue: https://github.com/elastic/elasticsearch/issues/142749
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testResolveExternalRelationPassesFileSet
   issue: https://github.com/elastic/elasticsearch/issues/142795
@@ -428,30 +407,42 @@ tests:
 - class: org.elasticsearch.action.search.SearchContextInvalidationIT
   method: testScrollReturns404WhenNodeLeavesCluster
   issue: https://github.com/elastic/elasticsearch/issues/142810
-- class: org.elasticsearch.packaging.test.DebMetadataTests
-  method: test05CheckLintian
-  issue: https://github.com/elastic/elasticsearch/issues/142819
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
   method: testWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/142821
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/142843
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRemoveNodeDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/142868
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testAbortSnapshotWhileRemovingNode
-  issue: https://github.com/elastic/elasticsearch/issues/142869
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testDeleteSnapshotWithPausedShardSnapshots
-  issue: https://github.com/elastic/elasticsearch/issues/142870
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testStartRemoveNodeButDoNotComplete
-  issue: https://github.com/elastic/elasticsearch/issues/142871
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testSingleScalarVsVectorized {p0=1024 p1=1 p2=NIO p3=DOT_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142881
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testSingleScalarVsVectorized {p0=384 p1=4 p2=NIO p3=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/142883
+- class: org.elasticsearch.compute.operator.exchange.BatchDriverTests
+  method: testSinglePageSingleBatch
+  issue: https://github.com/elastic/elasticsearch/issues/142895
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/to_aggregate_metric_double with multi_values}
+  issue: https://github.com/elastic/elasticsearch/issues/142964
+- class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
+  method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
+  issue: https://github.com/elastic/elasticsearch/issues/142079
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
+  method: testAccumulateSearchLoad
+  issue: https://github.com/elastic/elasticsearch/issues/142986
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/nested compound retrievers with min_score correctly compute total_hits}
+  issue: https://github.com/elastic/elasticsearch/issues/142997
+- class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
+  method: testDirectoryMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/143061
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/143023
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
+  method: testAccumulateSearchLoad
+  issue: https://github.com/elastic/elasticsearch/issues/143111
 
 # Examples:
 #

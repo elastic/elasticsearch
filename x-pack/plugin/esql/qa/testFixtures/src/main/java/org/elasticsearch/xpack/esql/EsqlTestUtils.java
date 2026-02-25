@@ -586,7 +586,10 @@ public final class EsqlTestUtils {
         return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
     }
 
-    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));
+    public static final Verifier TEST_VERIFIER = new Verifier(
+        new Metrics(new EsqlFunctionRegistry(), true, true),
+        new XPackLicenseState(() -> 0L)
+    );
 
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES;
     static {
@@ -970,7 +973,11 @@ public final class EsqlTestUtils {
     }
 
     public static BufferedReader reader(URL resource) throws IOException {
-        return new BufferedReader(new InputStreamReader(inputStream(resource), StandardCharsets.UTF_8));
+        return reader(inputStream(resource));
+    }
+
+    public static BufferedReader reader(InputStream is) throws IOException {
+        return new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
     }
 
     /**

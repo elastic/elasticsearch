@@ -62,6 +62,8 @@ See [semantic search with ELSER](docs-content://solutions/search/semantic-search
 
 The following parameters are accepted by `sparse_vector` fields:
 
+$$$sparse-vector-index-options$$$
+
 index_options {applies_to}`stack: ga 9.1`
 :   (Optional, object) You can set index options for your  `sparse_vector` field to determine if you should prune tokens, and the parameter configurations for the token pruning. If pruning options are not set in your [`sparse_vector` query](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md), Elasticsearch will use the default options configured for the field, if any.
 

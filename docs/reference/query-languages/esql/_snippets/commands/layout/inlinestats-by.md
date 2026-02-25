@@ -71,30 +71,34 @@ The following [grouping functions](/reference/query-languages/esql/functions-ope
 
 ## Examples
 
-The following example shows how to calculate a statistic on one column and group
-by the values of another column.
+The following examples show common `INLINE STATS` patterns.
+
+### Group by a column
+
+Calculate a statistic on one column and group by the values of another:
+
+:::{include} ../examples/inlinestats.csv-spec/max-salary.md
+:::
 
 :::{note}
 The `languages` column moves to the last position in the output table because it is
 a column overridden by the `INLINE STATS` command (it's the grouping key) and it is the last column defined by it.
 :::
 
-:::{include} ../examples/inlinestats.csv-spec/max-salary.md
-:::
+### Aggregate without grouping
 
-The following example shows how to calculate an aggregation over the entire dataset
-by omitting `BY`. The order of the existing columns is preserved and a new column
-with the calculated maximum salary value is added as the last column:
+Omit `BY` to apply aggregations over the entire dataset. The order of the existing
+columns is preserved and the new column is added last:
 
 :::{include} ../examples/inlinestats.csv-spec/max-salary-without-by.md
 :::
 
-The following example shows how to calculate multiple aggregations with multiple grouping keys:
+### Use multiple aggregations and grouping keys
 
 :::{include} ../examples/inlinestats.csv-spec/multi-agg-multi-grouping.md
 :::
 
-The following example shows how to filter which rows are used for each aggregation, using the `WHERE` clause:
+### Filter rows per aggregation with WHERE
 
 :::{include} ../examples/inlinestats.csv-spec/avg-salaries-where.md
 :::

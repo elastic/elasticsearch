@@ -32,8 +32,14 @@ values. `EVAL` supports various functions for calculating values. Refer to
 
 ## Examples
 
+The following examples show common `EVAL` patterns.
+
+### Append a calculated column
+
 :::{include} ../examples/eval.csv-spec/eval.md
 :::
+
+### Overwrite an existing column
 
 If the specified column already exists, the existing column will be dropped, and
 the new column will be appended to the table:
@@ -41,12 +47,16 @@ the new column will be appended to the table:
 :::{include} ../examples/eval.csv-spec/evalReplace.md
 :::
 
+### Use an expression as the column name
+
 Specifying the output column name is optional. If not specified, the new column
 name is equal to the expression. The following query adds a column named
 `height*3.281`:
 
 :::{include} ../examples/eval.csv-spec/evalUnnamedColumn.md
 :::
+
+### Reference an auto-named column in a subsequent command
 
 Because this name contains special characters,
 [it needs to be quoted](/reference/query-languages/esql/esql-syntax.md#esql-identifiers)

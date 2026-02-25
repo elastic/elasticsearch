@@ -102,7 +102,7 @@ an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operat
 with the
 task type `rerank`.
 
-#### Handling timeouts
+### Handling timeouts
 
 `RERANK` commands may time out when processing large datasets or complex
 queries. The default timeout is 10 minutes, but you can increase this limit if
@@ -146,25 +146,22 @@ If you don't want to increase the timeout limit, try the following:
 
 ## Examples
 
-Rerank search results using a simple query and a single field:
-
+### Rerank with a single field
 
 :::{include} ../examples/rerank.csv-spec/simple-query.md
 :::
 
-Rerank search results using a query and multiple fields, and store the new score
-in a column named `rerank_score`:
+### Rerank with multiple fields and a custom score column
 
 :::{include} ../examples/rerank.csv-spec/two-queries.md
 :::
 
-Combine the original score with the reranked score:
+### Combine original score with reranked score
 
 :::{include} ../examples/rerank.csv-spec/combine.md
 :::
 
-Rerank using snippets extracted from the document with the `TOP_SNIPPETS`
-function:
+### Rerank using document snippets
 
 :::{include} ../examples/rerank.csv-spec/rerank-top-snippets.md
 :::

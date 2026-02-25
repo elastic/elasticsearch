@@ -36,20 +36,24 @@ sort order, `null` values are sorted first. You can change that by providing
 
 ## Examples
 
+The following examples show how to control sort order, tie-breaking, and null placement.
+
+### Sort in default ascending order
+
 :::{include} ../examples/docs.csv-spec/sort.md
 :::
 
-Explicitly sorting in ascending order with `ASC`:
+### Sort in descending order with DESC
 
 :::{include} ../examples/docs.csv-spec/sortDesc.md
 :::
 
-Providing additional sort expressions to act as tie breakers:
+### Break ties with additional sort expressions
 
 :::{include} ../examples/docs.csv-spec/sortTie.md
 :::
 
-Sorting `null` values first using `NULLS FIRST`:
+### Control null placement with NULLS FIRST or NULLS LAST
 
 :::{include} ../examples/docs.csv-spec/sortNullsFirst.md
 :::

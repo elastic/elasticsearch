@@ -52,8 +52,11 @@ For important information about using `LOOKUP JOIN`, refer to [Usage notes](../.
 
 ## Examples
 
-**IP Threat correlation**: This query would allow you to see if any source
-IPs match known malicious addresses.
+The following examples show common `LOOKUP JOIN` use cases.
+
+### IP threat correlation
+
+Check whether source IPs match known malicious addresses:
 
 :::{include} ../examples/docs-lookup-join.csv-spec/lookupJoinSourceIp.md
 :::
@@ -63,26 +66,23 @@ To filter only for those rows that have a matching `threat_list` entry, use `WHE
 :::{include} ../examples/docs-lookup-join.csv-spec/lookupJoinSourceIpWhere.md
 :::
 
-**Host metadata correlation**: This query pulls in environment or
-ownership details for each host to correlate with your metrics data.
+### Host metadata correlation
+
+Pull in environment or ownership details for each host to correlate with metrics data:
 
 :::{include} ../examples/docs-lookup-join.csv-spec/lookupJoinHostNameTwice.md
 :::
 
-**Service ownership mapping**: This query would show logs with the owning
-team or escalation information for faster triage and incident response.
+### Service ownership mapping
+
+Show logs alongside the owning team or escalation information for faster triage:
 
 :::{include} ../examples/docs-lookup-join.csv-spec/lookupJoinServiceId.md
 :::
 
-`LOOKUP JOIN` is generally faster when there are fewer rows to join
-with. {{esql}} will try and perform any `WHERE` clause before the
-`LOOKUP JOIN` where possible.
+### Filter before LOOKUP JOIN
 
-The following two examples will have the same results. One has the
-`WHERE` clause before and the other after the `LOOKUP JOIN`. It does not
-matter how you write your query, our optimizer will move the filter
-before the lookup when possible.
+`LOOKUP JOIN` is generally faster when there are fewer rows to join with. {{esql}} will try to perform any `WHERE` clause before the `LOOKUP JOIN` where possible. The following two queries produce the same results — one filters before the join, the other after — but the optimizer will push the filter before the lookup when possible:
 
 :::{include} ../examples/lookup-join.csv-spec/filterOnLeftSide.md
 :::

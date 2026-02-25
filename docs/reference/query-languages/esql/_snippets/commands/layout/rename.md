@@ -40,15 +40,17 @@ A `RENAME` with multiple column renames is equivalent to multiple sequential `RE
 
 ## Examples
 
+### Rename a single column
+
 :::{include} ../examples/docs.csv-spec/rename.md
 :::
 
-Multiple columns can be renamed with a single `RENAME` command:
+### Rename multiple columns in one command
 
 :::{include} ../examples/docs.csv-spec/renameMultipleColumns.md
 :::
 
-With multiple `RENAME` commands:
+The same result can be achieved with multiple `RENAME` commands:
 
 :::{include} ../examples/docs.csv-spec/renameMultipleColumnsDifferentCommands.md
 :::

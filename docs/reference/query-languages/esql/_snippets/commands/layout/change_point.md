@@ -48,7 +48,7 @@ There must be at least 22 values for change point detection. Fewer than 1,000 is
 
 ## Examples
 
-The following example shows the detection of a step change:
+The following example detects a step change in a metric:
 
 :::{include} ../examples/change_point.csv-spec/changePointForDocs.md
 :::

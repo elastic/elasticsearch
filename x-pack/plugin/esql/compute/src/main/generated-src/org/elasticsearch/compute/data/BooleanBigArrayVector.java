@@ -104,7 +104,7 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     }
 
     @Override
-    public BooleanVector filter(int... positions) {
+    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
         for (int i = 0; i < positions.length; i++) {

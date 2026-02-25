@@ -1,0 +1,5 @@
+pr: 141047
+summary: "[Native] Optimized ARM (SVE) functions for BBQ Int4 to 1-bit dot product"
+area: Vector Search
+type: enhancement
+issues: []

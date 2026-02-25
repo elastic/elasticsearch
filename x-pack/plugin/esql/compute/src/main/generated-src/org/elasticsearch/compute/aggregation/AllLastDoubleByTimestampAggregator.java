@@ -11,8 +11,6 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
@@ -55,8 +53,8 @@ public class AllLastDoubleByTimestampAggregator {
         return "all_last_double_by_timestamp";
     }
 
-    public static AllLongDoubleState initSingle() {
-        return new AllLongDoubleState();
+    public static AllLongDoubleState initSingle(DriverContext driverContext) {
+        return new AllLongDoubleState(driverContext.bigArrays());
     }
 
     private static void overrideState(
@@ -64,26 +62,36 @@ public class AllLastDoubleByTimestampAggregator {
         boolean timestampPresent,
         long timestamp,
         DoubleBlock values,
-        @Position int position
+        int position
     ) {
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
         current.v1Seen(timestampPresent);
-        Releasables.close(current.v2());
         if (values.isNull(position)) {
+            Releasables.close(current.v2());
             current.v2(null);
         } else {
             int count = values.getValueCount(position);
             int offset = values.getFirstValueIndex(position);
-            DoubleArray a = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(count);
-            for (int i = 0; i < count; ++i) {
-                a.set(i, values.getDouble(offset + i));
+            DoubleArray a = null;
+            boolean success = false;
+            try {
+                a = current.bigArrays().newDoubleArray(count);
+                for (int i = 0; i < count; ++i) {
+                    a.set(i, values.getDouble(offset + i));
+                }
+                success = true;
+                Releasables.close(current.v2());
+                current.v2(a);
+            } finally {
+                if (success == false) {
+                    Releasables.close(a);
+                }
             }
-            current.v2(a);
         }
     }
 
-    private static long dominantTimestampAtPosition(@Position int position, LongBlock timestamps) {
+    private static long dominantTimestampAtPosition(int position, LongBlock timestamps) {
         assert timestamps.isNull(position) == false : "The timestamp is null at this position";
         int lo = timestamps.getFirstValueIndex(position);
         int hi = lo + timestamps.getValueCount(position);
@@ -127,7 +135,7 @@ public class AllLastDoubleByTimestampAggregator {
                 // Both observations have null timestamps. No work is needed.
                 return;
             }
-            if ((current.v1Seen() == false && timestampPresent) || timestamp > current.v1()) {
+            if (timestampPresent && (current.v1Seen() == false || timestamp > current.v1())) {
                 overrideState(current, timestampPresent, timestamp, values, 0);
             }
         } else {
@@ -174,16 +182,24 @@ public class AllLastDoubleByTimestampAggregator {
     public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
 
-        // The group-indexed observed flags
+        /**
+         * The group-indexed observed flags
+         */
         private ByteArray observed;
 
-        // The group-indexed timestamps seen flags
+        /**
+         * The group-indexed timestamps seen flags
+         */
         private ByteArray hasTimestamp;
 
-        // The group-indexed timestamps
+        /**
+         * The group-indexed timestamps
+         */
         private LongArray timestamps;
 
-        // The group-indexed values
+        /**
+         * The group-indexed values
+         */
         private ObjectArray<DoubleArray> values;
 
         private int maxGroupId = -1;
@@ -221,6 +237,11 @@ public class AllLastDoubleByTimestampAggregator {
                 success = true;
             } finally {
                 if (success == false) {
+                    if (values != null) {
+                        for (long i = 0; i < values.size(); i++) {
+                            Releasables.close(values.get(i));
+                        }
+                    }
                     Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
                 }
             }
@@ -249,16 +270,25 @@ public class AllLastDoubleByTimestampAggregator {
                 observed.set(group, (byte) 1);
                 hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
                 timestamps.set(group, timestamp);
-                DoubleArray a = null;
-                if (valuesBlock.isNull(position) == false) {
-                    int count = valuesBlock.getValueCount(position);
-                    int offset = valuesBlock.getFirstValueIndex(position);
-                    a = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(count);
-                    for (int i = 0; i < count; ++i) {
-                        a.set(i, valuesBlock.getDouble(i + offset));
+                boolean success = false;
+                DoubleArray groupValues = null;
+                try {
+                    if (valuesBlock.isNull(position) == false) {
+                        int count = valuesBlock.getValueCount(position);
+                        int offset = valuesBlock.getFirstValueIndex(position);
+                        groupValues = bigArrays.newDoubleArray(count);
+                        for (int i = 0; i < count; ++i) {
+                            groupValues.set(i, valuesBlock.getDouble(i + offset));
+                        }
+                    }
+                    success = true;
+                    Releasables.close(values.get(group));
+                    values.set(group, groupValues);
+                } finally {
+                    if (success == false) {
+                        Releasables.close(groupValues);
                     }
                 }
-                values.set(group, a);
             }
             maxGroupId = Math.max(maxGroupId, group);
             trackGroupId(group);
@@ -266,6 +296,9 @@ public class AllLastDoubleByTimestampAggregator {
 
         @Override
         public void close() {
+            for (long i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
             Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
         }
 
@@ -308,26 +341,27 @@ public class AllLastDoubleByTimestampAggregator {
         }
 
         private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
-            var valuesBuilder = blockFactory.newDoubleBlockBuilder(groups.getPositionCount());
-            for (int p = 0; p < groups.getPositionCount(); p++) {
-                int group = groups.getInt(p);
-                int count = 0;
-                if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
-                    count = (int) values.get(group).size();
-                }
-                switch (count) {
-                    case 0 -> valuesBuilder.appendNull();
-                    case 1 -> valuesBuilder.appendDouble(values.get(group).get(0));
-                    default -> {
-                        valuesBuilder.beginPositionEntry();
-                        for (int i = 0; i < count; ++i) {
-                            valuesBuilder.appendDouble(values.get(group).get(i));
+            try (var valuesBuilder = blockFactory.newDoubleBlockBuilder(groups.getPositionCount())) {
+                for (int p = 0; p < groups.getPositionCount(); p++) {
+                    int group = groups.getInt(p);
+                    int count = 0;
+                    if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
+                        count = (int) values.get(group).size();
+                    }
+                    switch (count) {
+                        case 0 -> valuesBuilder.appendNull();
+                        case 1 -> valuesBuilder.appendDouble(values.get(group).get(0));
+                        default -> {
+                            valuesBuilder.beginPositionEntry();
+                            for (int i = 0; i < count; ++i) {
+                                valuesBuilder.appendDouble(values.get(group).get(i));
+                            }
+                            valuesBuilder.endPositionEntry();
                         }
-                        valuesBuilder.endPositionEntry();
                     }
                 }
+                return valuesBuilder.build();
             }
-            return valuesBuilder.build();
         }
     }
 }

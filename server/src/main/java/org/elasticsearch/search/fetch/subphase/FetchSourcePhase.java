@@ -19,7 +19,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public final class FetchSourcePhase implements FetchSubPhase {
@@ -99,13 +98,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 if (field == null || field.getValues().isEmpty()) {
                     return source;
                 }
-                var newSource = source.source();
-                if (newSource instanceof HashMap == false) {
-                    // the map is not mutable
-                    newSource = new HashMap<>(newSource);
-                }
-                newSource.put(InferenceMetadataFieldsMapper.NAME, field.getValues().get(0));
-                return Source.fromMap(newSource, source.sourceContentType());
+                return source.withMutations(map -> map.put(InferenceMetadataFieldsMapper.NAME, field.getValues().get(0)));
             }
 
             @Override

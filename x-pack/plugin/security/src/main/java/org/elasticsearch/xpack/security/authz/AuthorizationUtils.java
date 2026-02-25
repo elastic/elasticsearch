@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.OTEL_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.PROFILING_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.PROMETHEUS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.REINDEX_DATA_STREAM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -90,7 +92,10 @@ public final class AuthorizationUtils {
         // originating action that is not a internal action. We verify that there must be a originating action as an
         // internal action should never be called by user code from a client
         final String originatingAction = ORIGINATING_ACTION_VALUE.get(threadContext);
-        if (originatingAction != null && isInternalAction(originatingAction) == false) {
+        final String effectiveOriginatingAction = (originatingAction != null && TransportActionProxy.isProxyAction(originatingAction))
+            ? TransportActionProxy.unwrapAction(originatingAction)
+            : originatingAction;
+        if (effectiveOriginatingAction != null && isInternalAction(effectiveOriginatingAction) == false) {
             return true;
         }
 
@@ -160,6 +165,7 @@ public final class AuthorizationUtils {
             case PROFILING_ORIGIN:
             case APM_ORIGIN:
             case OTEL_ORIGIN:
+            case PROMETHEUS_ORIGIN:
             case STACK_ORIGIN:
             case SEARCHABLE_SNAPSHOTS_ORIGIN:
             case LOGSTASH_MANAGEMENT_ORIGIN:

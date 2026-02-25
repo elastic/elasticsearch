@@ -58,6 +58,8 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -183,6 +185,7 @@ public final class IndexModule {
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -202,20 +205,21 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final SlowLogFieldProvider slowLogFieldProvider,
+        final ActionLoggingFieldsProvider loggingFieldsProvider,
         final MapperMetrics mapperMetrics,
         final List<SearchOperationListener> searchOperationListeners,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
-        final MergeMetrics mergeMetrics
+        final MergeMetrics mergeMetrics,
+        final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // Need to have a mutable arraylist for plugins to add listeners to it
         this.searchOperationListeners = new ArrayList<>(searchOperationListeners);
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFieldProvider));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFieldProvider));
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, loggingFieldsProvider));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, loggingFieldsProvider));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
@@ -224,6 +228,7 @@ public final class IndexModule {
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
+        this.metricHolder = metricHolder;
     }
 
     /**
@@ -560,7 +565,8 @@ public final class IndexModule {
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
-                mergeMetrics
+                mergeMetrics,
+                metricHolder
             );
             success = true;
             return indexService;

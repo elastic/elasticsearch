@@ -122,11 +122,11 @@ public class VerifierTests extends ESTestCase {
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
-            "1:40: second argument of [a + c] must be [date_nanos, datetime or numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a + c] must be [date_nanos, datetime, numeric or dense_vector], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a + c")
         );
         assertEquals(
-            "1:40: second argument of [a - c] must be [date_nanos, datetime or numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a - c] must be [date_nanos, datetime, numeric or dense_vector], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
         );
     }
@@ -859,6 +859,100 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    /**
+     * Test that null comparisons are valid and don't produce type incompatibility errors.
+     * Null should be compatible with any type in binary comparisons.
+     */
+    public void testNullComparisonValidation() {
+        // null compared with numeric types (all comparison operators)
+        query("from test | where emp_no == ?", new Object[] { null });
+        query("from test | where null == emp_no");
+        query("from test | where emp_no != null");
+        query("from test | where emp_no > null");
+        query("from test | where emp_no < null");
+        query("from test | where emp_no >= null");
+        query("from test | where emp_no <= null");
+
+        // null compared with string types
+        query("from test | where first_name == null");
+        query("from test | where null != first_name");
+
+        // null compared with datetime
+        query("from test | where hire_date == null");
+        query("from test | where null > hire_date");
+
+        // ROW with null comparisons
+        query("ROW x = null, y = \"foo\" | WHERE x == y");
+        query("ROW x = null, y = 1 | WHERE x > y");
+        query("ROW x = null, y = 1 | WHERE x < y");
+        query("ROW x = null, y = 1 | WHERE x >= y");
+        query("ROW x = null, y = 1 | WHERE x <= y");
+        query("ROW x = null, y = 1 | WHERE x != y");
+
+        // Two nulls comparison
+        query("ROW x = null, y = null | WHERE x == y");
+
+        // null on both left and right sides with EVAL
+        query("ROW x = null, y = 1 | EVAL result = x == y");
+        query("ROW x = 1, y = null | EVAL result = x == y");
+
+        // null with different types should all pass validation
+        query("from test | where null == salary");
+        query("from test | where null == languages");
+
+        // null compared with unsigned_long (all comparison operators)
+        // unsigned_long normally can't mix with other numeric types, but null should be compatible
+        query("row ul = to_ul(1) | where ul == null");
+        query("row ul = to_ul(1) | where ul != null");
+        query("row ul = to_ul(1) | where ul > null");
+        query("row ul = to_ul(1) | where ul >= null");
+        query("row ul = to_ul(1) | where ul < null");
+        query("row ul = to_ul(1) | where ul <= null");
+        query("row ul = to_ul(1) | where null == ul");
+        query("row ul = to_ul(1) | where null != ul");
+        query("row ul = to_ul(1) | where null > ul");
+        query("row ul = to_ul(1) | where null < ul");
+
+        // unsigned_long with null in EVAL
+        query("row ul = to_ul(1) | eval result = ul == null");
+        query("row ul = to_ul(1) | eval result = null == ul");
+    }
+
+    /**
+     * Test that null in IN expressions is valid and doesn't produce type incompatibility errors.
+     * Null should be compatible with any type in IN lists.
+     */
+    public void testNullInExpressionValidation() {
+        // null in IN list with integer field
+        query("from test | where emp_no in (1, null)");
+        query("from test | where emp_no in (null)");
+        query("from test | where emp_no in (1, 2, null)");
+
+        // null value tested against IN list
+        query("ROW x = null | WHERE x in (1, 2, 3)");
+        query("ROW x = null | WHERE x in (\"foo\", \"bar\")");
+
+        // null in IN list with keyword field
+        query("from test | where first_name in (\"Georgi\", null)");
+        query("from test | where first_name in (null)");
+
+        // null in IN list with datetime field
+        query("from test | where hire_date in (null)");
+
+        // null in IN list with unsigned_long
+        query("row ul = to_ul(1) | where ul in (to_ul(1), null)");
+        query("row ul = to_ul(1) | where ul in (null)");
+
+        // null value IN unsigned_long list
+        query("ROW x = null | WHERE x in (to_ul(1), to_ul(2))");
+
+        // EVAL with IN containing null
+        query("ROW x = 1 | EVAL result = x in (1, null)");
+        query("ROW x = 1 | EVAL result = x in (null)");
+        query("ROW x = null | EVAL result = x in (1, 2)");
+        query("ROW x = null | EVAL result = x in (null)");
+    }
+
     public void testSumOnDate() {
         assertEquals(
             "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double,"
@@ -872,11 +966,6 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [keyword]",
             error("from test | where emp_no == ?", "foo")
-        );
-
-        assertEquals(
-            "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [null]",
-            error("from test | where emp_no == ?", new Object[] { null })
         );
     }
 
@@ -1197,7 +1286,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, tdigest, histogram, exponential_histogram, or date_range],"
+                    + " [any type except counter types, histogram, or date_range],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -2921,6 +3010,24 @@ public class VerifierTests extends ESTestCase {
             error("FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE"),
             containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
         );
+
+        assertThat(
+            error("FROM test | LIMIT 10 | FUSE"),
+            equalTo(
+                "1:24: FUSE requires a score column, default [_score] column not found.\n"
+                    + "line 1:24: FUSE requires a column to group by, default [_fork] column not found.\n"
+                    + "line 1:24: FUSE requires a key column, default [_id] column not found\n"
+                    + "line 1:24: FUSE requires a key column, default [_index] column not found"
+            )
+        );
+
+        if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
+            assertThat(error("""
+                FROM (FROM test METADATA _index, _id, _score | EVAL label = "query1"),
+                     (FROM test METADATA _index, _id, _score | EVAL label = "query2" | LIMIT 10)
+                | FUSE GROUP BY label
+                """), containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE."));
+        }
     }
 
     public void testNoMetricInStatsByClause() {
@@ -3266,27 +3373,6 @@ public class VerifierTests extends ESTestCase {
         assertThat(errorMessage, containsString("1:6: FORK after subquery is not supported"));
     }
 
-    // InlineStats after subquery is not supported
-    public void testSubqueryInFromWithInlineStatsInMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String errorMessage = error("""
-            FROM test, (FROM test_mixed_types
-                                 | WHERE languages > 0
-                                 | EVAL emp_no = emp_no::int
-                                 | KEEP emp_no)
-            | INLINE STATS cnt = count(*)
-            | SORT emp_no
-            """);
-        assertThat(
-            errorMessage,
-            containsString(
-                "1:6: INLINE STATS after subquery is not supported, "
-                    + "as INLINE STATS cannot be used after an explicit or implicit LIMIT command"
-            )
-        );
-        assertThat(errorMessage, containsString("line 5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"));
-    }
-
     // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet
     // FTF on the join(after subquery) on condition is not visible inside subquery yet. FTF after Fork fails with a similar error.
     public void testSubqueryInFromWithLookupJoinOnFullTextFunction() {
@@ -3323,7 +3409,7 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo(
                 "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                    + "[max_chunk_size] must be a greater than or equal to [20.0];"
+                    + "[max_chunk_size] must be greater than or equal to [20.0];"
             )
         );
         assertThat(
@@ -3334,7 +3420,7 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo(
                 "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                    + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
+                    + "[max_chunk_size] must be greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
             )
         );
         assertThat(
@@ -3531,16 +3617,165 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testMetricsInfoRequiresTsSource() {
+        assertThat(error("FROM test | METRICS_INFO"), containsString("METRICS_INFO can only be used with TS source command"));
+    }
+
+    public void testMetricsInfoWithTsSource() {
+        query("TS k8s | METRICS_INFO", k8s);
+    }
+
+    public void testMetricsInfoCannotBeUsedAfterStats() {
+        assertThat(
+            error("TS k8s | STATS c = count(*) | METRICS_INFO", k8s),
+            containsString("METRICS_INFO cannot be used after STATS command")
+        );
+    }
+
+    public void testMetricsInfoCannotBeUsedAfterLimit() {
+        assertThat(error("TS k8s | LIMIT 10 | METRICS_INFO", k8s), containsString("METRICS_INFO cannot be used after LIMIT command"));
+    }
+
+    public void testMetricsInfoCannotBeUsedAfterSort() {
+        assertThat(error("TS k8s | SORT @timestamp | METRICS_INFO", k8s), containsString("METRICS_INFO cannot be used after SORT command"));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
+    }
+
+    public void testUnsupportedMetadata() {
+        // GroupByAll
+        assertThat(
+            error("FROM k8s METADATA unknown_field"),
+            equalTo("1:1: unresolved metadata fields: [?unknown_field]\nline 1:19: Unresolved metadata pattern [unknown_field]")
+        );
+    }
+
+    public void testMMRDiversifyFieldIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
+
+        assertThat(
+            error("row dense_embedding=\"hello\" | mmr on dense_embedding limit 10", defaultAnalyzer, VerificationException.class),
+            equalTo("1:31: MMR diversify field must be a dense vector field")
+        );
+    }
+
+    public void testMMRLimitIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit -5",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: MMR limit must be a positive integer")
+        );
+    }
+
+    public void testMMRResolvedQueryVectorIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query(
+            "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2]::dense_vector on dense_embedding limit 10"
+        );
+
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10");
+        query("""
+            row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
+            | mmr TEXT_EMBEDDING("some text", "some model") on dense_embedding limit 10
+            """);
+
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"7e7e\" on dense_embedding limit 10");
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [15, 16, 20] on dense_embedding limit 10");
+    }
+
+    public void testMMRLambdaValueIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }");
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"unknown\": true }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: Invalid option [unknown] in <MMR>, expected one of [[lambda]]")
+        );
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with "
+                    + "{ \"lambda\": 0.5, \"unknown_extra\": true }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: Invalid option [unknown_extra] in <MMR>, expected one of [[lambda]]")
+        );
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 2.5 }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+        );
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": -2.5 }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+        );
+    }
+
+    public void testMMRLimitedInput() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        assertThat(error("""
+            FROM test
+            | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
+            | MMR ON dense_embedding LIMIT 10
+            """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
+
+        assertThat(error("""
+            FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
+                 (FROM test METADATA _index, _id, _score | LIMIT 10)
+            | MMR ON dense_embedding LIMIT 10
+            """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
     }
 
     private void query(String query) {
         query(query, defaultAnalyzer);
     }
 
-    private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
+    private void query(String query, Object... params) {
+        query(query, defaultAnalyzer, params);
+    }
+
+    private void query(String query, Analyzer analyzer, Object... params) {
+        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, toQueryParams(params)));
+    }
+
+    private static QueryParams toQueryParams(Object... params) {
+        List<QueryParam> parameters = new ArrayList<>();
+        for (Object param : params) {
+            switch (param) {
+                case null -> parameters.add(paramAsConstant(null, null));
+                case String s -> parameters.add(paramAsConstant(null, s));
+                case Number number -> parameters.add(paramAsConstant(null, number));
+                default -> throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
+            }
+        }
+        return new QueryParams(parameters);
     }
 
     private String error(String query) {
@@ -3560,22 +3795,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public static String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
-        List<QueryParam> parameters = new ArrayList<>();
-        for (Object param : params) {
-            if (param == null) {
-                parameters.add(paramAsConstant(null, null));
-            } else if (param instanceof String) {
-                parameters.add(paramAsConstant(null, param));
-            } else if (param instanceof Number) {
-                parameters.add(paramAsConstant(null, param));
-            } else {
-                throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
-            }
-        }
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, new QueryParams(parameters)))
+            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, toQueryParams(params)))
         );
         assertThat(e, instanceOf(exception));
 

@@ -16,10 +16,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -86,7 +88,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanForceAllocate() {
-        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(randomProjectIdOrDefault(), NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
 
@@ -124,7 +126,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCannotRemainOnReplacedNode() {
-        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(randomProjectIdOrDefault(), NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
 
@@ -150,11 +152,12 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanAllocateToNeitherSourceNorTarget() {
-        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState state = prepareState(projectId, NODE_A.getId(), NODE_B.getName());
         // Source node still has a shard to vacate
         state = ClusterState.builder(state)
             .putRoutingTable(
-                ProjectId.DEFAULT,
+                projectId,
                 RoutingTable.builder()
                     .add(
                         IndexRoutingTable.builder(indexMetadata.getIndex())
@@ -201,12 +204,13 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanAllocateToTargetWhenSourceFinishesVacate() {
-        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
-        // Randomly assigne a shard on NODE_C
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState state = prepareState(projectId, NODE_A.getId(), NODE_B.getName());
+        // Randomly assign a shard on NODE_C
         if (randomBoolean()) {
             state = ClusterState.builder(state)
                 .putRoutingTable(
-                    ProjectId.DEFAULT,
+                    projectId,
                     RoutingTable.builder()
                         .add(
                             IndexRoutingTable.builder(indexMetadata.getIndex())
@@ -259,7 +263,8 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanAllocateToTargetWhenSourceLeftBeforeFinishVacate() {
-        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState state = prepareState(projectId, NODE_A.getId(), NODE_B.getName());
         // Source NODE_A left with unassigned shard
         final var unassignedShardLeftBySourceNode = ShardRouting.newUnassigned(
             new ShardId(indexMetadata.getIndex(), 0),
@@ -282,7 +287,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         state = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes()).remove(NODE_A.getId()).build())
             .putRoutingTable(
-                ProjectId.DEFAULT,
+                projectId,
                 RoutingTable.builder()
                     .add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(unassignedShardLeftBySourceNode).build())
                     .build()
@@ -329,21 +334,24 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             .build();
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
+        var projectId = randomProjectIdOrDefault();
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_C).build())
             .metadata(
                 Metadata.builder()
-                    .put(IndexMetadata.builder(indexMetadata))
+                    .put(ProjectMetadata.builder(projectId).put(IndexMetadata.builder(indexMetadata)))
                     .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(NODE_A.getId(), NODE_B.getName()))
             )
             .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(indexMetadata.getIndex())
-                            .addShard(newShardRouting(shardId, NODE_C.getId(), true, STARTED))
-                            .build()
-                    )
-                    .build()
+                GlobalRoutingTableTestHelper.routingTable(
+                    projectId,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(indexMetadata.getIndex())
+                                .addShard(newShardRouting(shardId, NODE_C.getId(), true, STARTED))
+                                .build()
+                        )
+                )
             )
             .build();
 
@@ -410,18 +418,21 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             .build();
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
+        var projectId = randomProjectIdOrDefault();
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_C).build())
-            .metadata(Metadata.builder().put(IndexMetadata.builder(indexMetadata)))
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(IndexMetadata.builder(indexMetadata))))
             .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(indexMetadata.getIndex())
-                            .addShard(newShardRouting(shardId, NODE_A.getId(), true, STARTED))
-                            .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
-                            .build()
-                    )
-                    .build()
+                GlobalRoutingTableTestHelper.routingTable(
+                    projectId,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(indexMetadata.getIndex())
+                                .addShard(newShardRouting(shardId, NODE_A.getId(), true, STARTED))
+                                .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
+                                .build()
+                        )
+                )
             )
             .build();
 
@@ -487,14 +498,16 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         // when index is relocating
         state = ClusterState.builder(state)
             .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(indexMetadata.getIndex())
-                            .addShard(newShardRouting(shardId, NODE_A.getId(), NODE_B.getId(), true, RELOCATING))
-                            .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
-                            .build()
-                    )
-                    .build()
+                GlobalRoutingTableTestHelper.routingTable(
+                    projectId,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(indexMetadata.getIndex())
+                                .addShard(newShardRouting(shardId, NODE_A.getId(), NODE_B.getId(), true, RELOCATING))
+                                .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
+                                .build()
+                        )
+                )
             )
             .build();
         assertThatAutoExpandReplicasDidNotContract(indexMetadata, createRoutingAllocation(state));
@@ -502,14 +515,16 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         // when index is relocated
         state = ClusterState.builder(state)
             .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(indexMetadata.getIndex())
-                            .addShard(newShardRouting(shardId, NODE_B.getId(), true, STARTED))
-                            .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
-                            .build()
-                    )
-                    .build()
+                GlobalRoutingTableTestHelper.routingTable(
+                    projectId,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(indexMetadata.getIndex())
+                                .addShard(newShardRouting(shardId, NODE_B.getId(), true, STARTED))
+                                .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
+                                .build()
+                        )
+                )
             )
             .build();
         assertThatAutoExpandReplicasDidNotContract(indexMetadata, createRoutingAllocation(state));
@@ -543,12 +558,12 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         );
     }
 
-    private ClusterState prepareState(String sourceNodeId, String targetNodeName) {
+    private ClusterState prepareState(final ProjectId projectId, String sourceNodeId, String targetNodeName) {
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
             .metadata(
                 Metadata.builder()
-                    .put(IndexMetadata.builder(indexMetadata))
+                    .put(ProjectMetadata.builder(projectId).put(IndexMetadata.builder(indexMetadata)))
                     .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(sourceNodeId, targetNodeName))
             )
             .build();

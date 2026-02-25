@@ -415,15 +415,13 @@ public class BlockFactory {
     }
 
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
-        var b = new ConstantBytesRefVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed());
-        return b;
+        return newConstantBytesRefVector(value, positions).asBlock();
     }
 
     public BytesRefVector newConstantBytesRefVector(BytesRef value, int positions) {
-        long preadjusted = ConstantBytesRefVector.ramBytesUsed(value);
+        long preadjusted = ConstantBytesRefVector.ramBytesUsedWithLength(value);
         adjustBreaker(preadjusted);
-        var v = new ConstantBytesRefVector(value, positions, this);
+        var v = new ConstantBytesRefVector(BytesRef.deepCopyOf(value), positions, this);
         assert v.ramBytesUsed() == preadjusted;
         return v;
     }
@@ -432,6 +430,15 @@ public class BlockFactory {
         var b = new ConstantNullBlock(positions, this);
         adjustBreaker(b.ramBytesUsed());
         return b;
+    }
+
+    /**
+     * Create a {@link IntVector} that includes a range of integers from startInclusive (inclusive) to endExclusive (exclusive).
+     */
+    public IntVector newIntRangeVector(int startInclusive, int endExclusive) {
+        IntRangeVector v = new IntRangeVector(this, startInclusive, endExclusive);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
     }
 
     public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {

@@ -22,12 +22,14 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeMap;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -72,7 +74,7 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
         List<TreeMap<Float, String>> expectedTopDocs = new ArrayList<>();
         for (int i = 0; i < numQueries; i++) {
             queries[i] = randomVector(dims);
-            expectedTopDocs.add(new TreeMap<>((o1, o2) -> -Float.compare(o1, o2)));
+            expectedTopDocs.add(new TreeMap<>(Comparator.reverseOrder()));
         }
 
         withLuceneIndex(mapperService, iw -> {
@@ -130,7 +132,7 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
                 for (var doc : topDocs.scoreDocs) {
                     var entry = expectedTopDocs.get(i).pollFirstEntry();
                     assertNotNull(entry);
-                    assertThat(doc.score, equalTo(entry.getKey()));
+                    assertThat((double) doc.score, closeTo(entry.getKey(), 1e-5));
                     var storedDoc = storedFields.document(doc.doc, Set.of("id"));
                     assertThat(storedDoc.getField("id").binaryValue().utf8ToString(), equalTo(entry.getValue()));
                 }
@@ -143,9 +145,9 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
             builder.startObject();
             builder.field("id", id);
             builder.startArray("nested");
-            for (int i = 0; i < vectors.length; i++) {
+            for (float[] vector : vectors) {
                 builder.startObject();
-                builder.field("emb", vectors[i]);
+                builder.field("emb", vector);
                 builder.endObject();
             }
             builder.endArray();

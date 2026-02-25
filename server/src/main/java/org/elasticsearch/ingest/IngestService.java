@@ -109,7 +109,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.core.UpdateForV10.Owner.DATA_MANAGEMENT;
 
 /**
  * Holder class for several ingest related services.
@@ -834,7 +833,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    @UpdateForV10(owner = DATA_MANAGEMENT) // Change deprecation log for special characters in name to a failure
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Change deprecation log for special characters in name to a failure
     void validatePipeline(
         Map<DiscoveryNode, IngestInfo> ingestInfos,
         ProjectId projectId,
@@ -1293,27 +1292,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
-                    for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(project)) {
-                        if (streamType.matchesStreamPrefix(newIndex)
-                            && ingestDocument.getIndexHistory().contains(streamType.getStreamName()) == false) {
-                            exceptionHandler.accept(
-                                new IngestPipelineException(
-                                    pipelineId,
-                                    new IllegalArgumentException(
-                                        format(
-                                            "Pipeline [%s] can't change the target index (from [%s] to [%s] child stream [%s]) "
-                                                + "History: [%s]",
-                                            pipelineId,
-                                            originalIndex,
-                                            streamType.getStreamName(),
-                                            newIndex,
-                                            String.join(", ", ingestDocument.getIndexHistory())
-                                        )
+                    final StreamType subStream = StreamType.enabledParentStreamOf(project, newIndex);
+                    if (subStream != null && ingestDocument.getIndexHistory().contains(subStream.getStreamName()) == false) {
+                        exceptionHandler.accept(
+                            new IngestPipelineException(
+                                pipelineId,
+                                new IllegalArgumentException(
+                                    format(
+                                        "Pipeline [%s] can't change the target index (from [%s] to [%s] child stream [%s]) "
+                                            + "History: [%s]",
+                                        pipelineId,
+                                        originalIndex,
+                                        subStream.getStreamName(),
+                                        newIndex,
+                                        String.join(", ", ingestDocument.getIndexHistory())
                                     )
                                 )
-                            );
-                            return; // document failed!
-                        }
+                            )
+                        );
+                        return; // document failed!
                     }
 
                     // add the index to the document's index history, and check for cycles in the visited indices

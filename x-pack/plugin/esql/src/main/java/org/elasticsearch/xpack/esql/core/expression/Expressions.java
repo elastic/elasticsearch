@@ -31,6 +31,25 @@ public final class Expressions {
         return list;
     }
 
+    /**
+     * @return a list of {@link ReferenceAttribute}s corresponding to the given named expressions.
+     * <p>
+     * The returned ReferenceAttributes will have new {@link NameId}s, also in the case the input contains ReferenceAttributes.
+     */
+    public static List<Attribute> toReferenceAttributes(List<? extends NamedExpression> named) {
+        if (named.isEmpty()) {
+            return emptyList();
+        }
+        List<Attribute> list = new ArrayList<>(named.size());
+        for (NamedExpression exp : named) {
+            ReferenceAttribute refAttr = exp instanceof ReferenceAttribute ra
+                ? (ReferenceAttribute) ra.withId(new NameId())
+                : new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), null, exp.synthetic());
+            list.add(refAttr);
+        }
+        return list;
+    }
+
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
         for (Expression exp : exps) {
             if (exp.anyMatch(predicate)) {

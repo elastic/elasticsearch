@@ -17,6 +17,7 @@ lexer grammar PromqlBaseLexer;
 
 options {
   superClass=LexerConfig;
+  caseInsensitive=true;
 }
 
 // Operators
@@ -63,7 +64,7 @@ GROUP_RIGHT: 'group_right';
 BOOL: 'bool';
 
 // evaluation
-OFFSET  : 'offset' | 'OFFSET';  // the upper-case format seems to be a legacy construct
+OFFSET  : 'offset';
 AT      : '@';
 AT_START: 'start()';
 AT_END  : 'end()';
@@ -98,12 +99,12 @@ DECIMAL_VALUE
     | DOT DIGIT+
     | DIGIT+ (DOT DIGIT*)? EXPONENT
     | DOT DIGIT+ EXPONENT
-    | [iI][nN][fF]
-    | [nN][aA][nN]
+    | 'inf'
+    | 'nan'
     ;
 
 HEXADECIMAL
-    : '0x'[0-9a-fA-F]+
+    : '0x'[0-9a-f]+
     ;
 
 //
@@ -112,18 +113,18 @@ HEXADECIMAL
 
 // hack to allow colon as a time unit separator inside subquery duration to avoid the lexer picking it as an identifier
 TIME_VALUE_WITH_COLON
-    : COLON (DIGIT+ [a-zA-Z]+)+
+    : COLON (DIGIT+ [a-z]+)+
     ;
 
 // similar to the identifier but without a :
 TIME_VALUE
-    : (DIGIT+ [a-zA-Z]+)+
+    : (DIGIT+ [a-z]+)+
     ;
 
 // NB: the parser needs to validates this token based on context
 // (metric vs label vs..) as it can include non-supported characters
 IDENTIFIER
-    : [a-zA-Z_:][a-zA-Z0-9_:.]*
+    : [a-z_:][a-z0-9_:.]*
     ;
 
 NAMED_OR_POSITIONAL_PARAM
@@ -132,7 +133,7 @@ NAMED_OR_POSITIONAL_PARAM
     ;
 
 fragment PARAM_MARKER: '?';
-fragment PARAM_LETTER: [a-zA-Z];
+fragment PARAM_LETTER: [a-z];
 fragment PARAM_UNDERSCORE: '_';
 fragment PARAM_ID_BODY: PARAM_LETTER | DIGIT | PARAM_UNDERSCORE;
 
@@ -158,7 +159,7 @@ fragment DQ
     ;
 
 fragment EXPONENT
-    : [Ee] [+-]? DIGIT+
+    : 'e' [+-]? DIGIT+
     ;
 
 fragment DIGIT

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 
 import java.util.Objects;
 
@@ -84,5 +85,10 @@ public final class LiteralSelector extends Selector {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), literal);
+    }
+
+    @Override
+    public PromqlDataType returnType() {
+        return PromqlDataType.SCALAR;
     }
 }

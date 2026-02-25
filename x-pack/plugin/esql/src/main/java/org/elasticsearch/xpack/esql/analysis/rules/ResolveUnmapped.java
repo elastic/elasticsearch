@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
@@ -28,12 +29,12 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -41,9 +42,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs.insistKeyword;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 /**
  * The rule handles fields that don't show up in the index mapping, but are used within the query. These fields can either be missing
@@ -65,6 +68,10 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+        // In PromQL, queries never fail due to a field not being mapped, instead an empty result is returned.
+        if (plan instanceof PromqlCommand) {
+            return resolve(plan, false);
+        }
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.FAIL -> plan;
             case UnmappedResolution.NULLIFY -> resolve(plan, false);
@@ -81,8 +88,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         if (unresolved.isEmpty()) {
             return plan;
         }
+        var unresolvedLinkedSet = unresolvedLinkedSet(unresolved);
 
-        var transformed = load ? load(plan, unresolved) : nullify(plan, unresolved);
+        var transformed = load ? load(plan, unresolvedLinkedSet) : nullify(plan, unresolvedLinkedSet);
 
         return transformed.equals(plan) ? plan : refreshPlan(transformed, unresolved);
     }
@@ -91,21 +99,17 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * The method introduces {@code EVAL missing_field = NULL}-equivalent into the plan, on top of the source, for every attribute in
      * {@code unresolved}. It also "patches" the introduced attributes through the plan, where needed (like through Fork/UntionAll).
      */
-    private static LogicalPlan nullify(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
-        var nullAliases = nullAliases(unresolved);
-
+    private static LogicalPlan nullify(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // insert an Eval on top of every LeafPlan, if there's a UnaryPlan atop it
         var transformed = plan.transformUp(
             n -> n instanceof UnaryPlan unary && unary.child() instanceof LeafPlan,
-            p -> evalUnresolvedUnary((UnaryPlan) p, nullAliases)
+            p -> evalUnresolvedAtopUnary((UnaryPlan) p, nullAliases(unresolved))
         );
         // insert an Eval on top of those LeafPlan that are children of n-ary plans (could happen with UnionAll)
-        transformed = transformed.transformUp(
+        return transformed.transformUp(
             n -> n instanceof UnaryPlan == false && n instanceof LeafPlan == false,
-            nAry -> evalUnresolvedNary(nAry, nullAliases)
+            nAry -> evalUnresolvedAtopNary(nAry, nullAliases(unresolved))
         );
-
-        return transformed.transformUp(Fork.class, f -> patchFork(f, Expressions.asAttributes(nullAliases)));
     }
 
     /**
@@ -115,95 +119,73 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * <p>
      * It also "patches" the introduced attributes through the plan, where needed (like through Fork/UntionAll).
      */
-    private static LogicalPlan load(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
+    private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
-        var transformed = plan.transformUp(EsRelation.class, esr -> {
+        return plan.transformUp(EsRelation.class, esr -> {
             if (esr.indexMode() == IndexMode.LOOKUP) {
                 return esr;
             }
-            List<FieldAttribute> fieldsToLoad = fieldsToLoad(unresolved, esr.outputSet().names());
+            List<FieldAttribute> fieldsToLoad = fieldsToLoad(unresolved, Expressions.names(esr.output()));
             // there shouldn't be any duplicates, we can just merge the two lists
             return fieldsToLoad.isEmpty() ? esr : esr.withAttributes(combine(esr.output(), fieldsToLoad));
         });
-
-        return transformed.transformUp(Fork.class, f -> patchFork(f, Expressions.asAttributes(fieldsToLoad(unresolved, Set.of()))));
     }
 
-    private static List<FieldAttribute> fieldsToLoad(List<UnresolvedAttribute> unresolved, Set<String> exclude) {
+    private static List<FieldAttribute> fieldsToLoad(Set<UnresolvedAttribute> unresolved, List<String> exclude) {
         List<FieldAttribute> insisted = new ArrayList<>(unresolved.size());
-        Set<String> names = new LinkedHashSet<>(unresolved.size());
         for (var ua : unresolved) {
-            // some plans may reference the same UA multiple times (Aggregate groupings in aggregates, Eval)
-            if (names.contains(ua.name()) == false && exclude.contains(ua.name()) == false) {
+            if (exclude.contains(ua.name()) == false) {
                 insisted.add(insistKeyword(ua));
-                names.add(ua.name());
             }
         }
         return insisted;
     }
 
-    // TODO: would an alternative to this be to drop the current Fork and have ResolveRefs#resolveFork re-resolve it. We might need
-    // some plan delimiters/markers to make it unequivocal which nodes belong to "make Fork work" - like (Limit-Project[-Eval])s - and
-    // which don't.
-    private static Fork patchFork(Fork fork, List<Attribute> aliasAttributes) {
-        // if no child outputs the attribute, don't patch it through at all.
-        aliasAttributes.removeIf(a -> fork.children().stream().anyMatch(f -> descendantOutputsAttribute(f, a)) == false);
-        if (aliasAttributes.isEmpty()) {
-            return fork;
-        }
-
+    // TODO: would an alternative to this be to have ResolveRefs#resolveFork re-resolve the Fork?
+    // We might need some plan delimiters/markers to make it unequivocal which nodes belong to
+    // "make Fork work" - like ([Limit -] Project [- Eval])s - and which don't.
+    // PruneColumns does the same dance. There's some fragility w.r.t. assuming there to be a top Project and danger of the outputs not
+    // being aligned after applying the changes.
+    /**
+     * Update the Fork's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
+     */
+    private static Fork patchFork(Fork fork) {
         List<LogicalPlan> newChildren = new ArrayList<>(fork.children().size());
+        boolean childrenChanged = false;
         for (var child : fork.children()) {
             Holder<Boolean> patched = new Holder<>(false);
-            child = child.transformDown(
+            var transformed = child.transformDown(
                 // TODO add a suitable forEachDownMayReturnEarly equivalent
                 n -> patched.get() == false && n instanceof Project, // process top Project only (Fork-injected)
                 n -> {
                     patched.set(true);
-                    return patchForkProject((Project) n, aliasAttributes);
+                    return patchForkProject((Project) n);
                 }
             );
-            if (patched.get() == false) { // assert
-                throw new EsqlIllegalArgumentException("Fork child misses a top projection");
-            }
-            newChildren.add(child);
+            childrenChanged |= transformed != child;
+            newChildren.add(transformed);
         }
-
-        return fork.replaceSubPlansAndOutput(newChildren, combine(fork.output(), aliasAttributes));
-    }
-
-    private static Project patchForkProject(Project project, List<Attribute> aliasAttributes) {
-        // refresh the IDs for each UnionAll child (needed for correct resolution of convert functions; see collectConvertFunctions())
-        aliasAttributes = aliasAttributes.stream().map(a -> a.withId(new NameId())).toList();
-
-        project = project.withProjections(combine(project.projections(), aliasAttributes));
-
-        // If Project's child doesn't output the attribute, introduce a null-Eval'ing. This is similar to what Fork-resolution does.
-        List<Alias> nullAliases = new ArrayList<>(aliasAttributes.size());
-        for (var attribute : aliasAttributes) {
-            if (descendantOutputsAttribute(project, attribute) == false) {
-                nullAliases.add(nullAlias(attribute));
-            }
-        }
-        return nullAliases.isEmpty() ? project : project.replaceChild(new Eval(project.source(), project.child(), nullAliases));
+        return childrenChanged ? fork.withSubPlans(newChildren) : fork;
     }
 
     /**
-     * Fork injects a {@code Limit - Project (- Eval)} top structure into its subtrees. Skip the top Limit (if present) and Project in
-     * the {@code plan} and look at the output of the remaining fragment.
-     * @return {@code true} if this fragment's output contains the {@code attribute}.
+     * Add any missing attributes that are found in the child's output but not in the Project's output. These have been injected before
+     * by the evalUnresolvedAtopXXX methods and need to be "let through" the Project.
      */
-    private static boolean descendantOutputsAttribute(LogicalPlan plan, Attribute attribute) {
-        plan = plan instanceof Limit limit ? limit.child() : plan;
-        if (plan instanceof Project project) {
-            return project.child().outputSet().names().contains(attribute.name());
+    private static Project patchForkProject(Project project) {
+        var projectOutput = project.output();
+        var childOutput = project.child().output();
+        if (projectOutput.equals(childOutput) == false) {
+            List<Attribute> delta = new ArrayList<>(childOutput);
+            delta.removeAll(projectOutput);
+            project = project.withProjections(mergeOutputAttributes(delta, projectOutput));
         }
-        throw new EsqlIllegalArgumentException("unexpected node type [{}]", plan); // assert
+        return project;
     }
 
     private static LogicalPlan refreshPlan(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
         var refreshed = refreshUnresolved(plan, unresolved);
-        return refreshChildren(refreshed);
+        return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
     }
 
     /**
@@ -223,24 +205,9 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * @return A plan having all nodes recreated (no properties changed, otherwise). This is needed to clear internal, lazy-eval'd and
-     * cached state, such as the output. The rule inserts new attributes in the plan, so the output of all the nodes downstream these
-     * insertions need be recomputed.
-     */
-    private static LogicalPlan refreshChildren(LogicalPlan plan) {
-        var planChildren = plan.children();
-        if (planChildren.isEmpty()) {
-            return plan;
-        }
-        List<LogicalPlan> newChildren = new ArrayList<>(planChildren.size());
-        planChildren.forEach(child -> newChildren.add(refreshChildren(child)));
-        return plan.replaceChildren(newChildren);
-    }
-
-    /**
      * Inserts an Eval atop each child of the given {@code nAry}, if the child is a LeafPlan.
      */
-    private static LogicalPlan evalUnresolvedNary(LogicalPlan nAry, List<Alias> nullAliases) {
+    private static LogicalPlan evalUnresolvedAtopNary(LogicalPlan nAry, List<Alias> nullAliases) {
         List<LogicalPlan> newChildren = new ArrayList<>(nAry.children().size());
         boolean changed = false;
         for (var child : nAry.children()) {
@@ -257,7 +224,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     /**
      * Inserts an Eval atop the given {@code unaryAtopSource}, if this isn't an Eval already. Otherwise it merges the nullAliases into it.
      */
-    private static LogicalPlan evalUnresolvedUnary(UnaryPlan unaryAtopSource, List<Alias> nullAliases) {
+    private static LogicalPlan evalUnresolvedAtopUnary(UnaryPlan unaryAtopSource, List<Alias> nullAliases) {
         assertSourceType(unaryAtopSource.child());
         if (unaryAtopSource instanceof Eval eval && eval.resolved()) { // if this Eval isn't resolved, insert a new (resolved) one
             List<Alias> pre = new ArrayList<>(nullAliases.size());
@@ -291,27 +258,41 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         }
     }
 
-    private static List<Alias> nullAliases(List<UnresolvedAttribute> unresolved) {
-        Map<String, Alias> aliasesMap = new LinkedHashMap<>(unresolved.size());
-        unresolved.forEach(u -> aliasesMap.computeIfAbsent(u.name(), k -> nullAlias(u)));
-        return new ArrayList<>(aliasesMap.values());
+    private static List<Alias> nullAliases(Set<UnresolvedAttribute> unresolved) {
+        List<Alias> aliases = new ArrayList<>(unresolved.size());
+        unresolved.forEach(u -> aliases.add(nullAlias(u)));
+        return aliases;
     }
 
-    private static Alias nullAlias(Attribute attribute) {
+    private static Alias nullAlias(NamedExpression attribute) {
         return new Alias(attribute.source(), attribute.name(), NULLIFIED);
+    }
+
+    // Some plans may reference the same UA multiple times (Aggregate groupings in aggregates, Eval): dedupe
+    private static LinkedHashSet<UnresolvedAttribute> unresolvedLinkedSet(List<UnresolvedAttribute> unresolved) {
+        Map<String, UnresolvedAttribute> aliasesMap = new LinkedHashMap<>(unresolved.size());
+        unresolved.forEach(u -> aliasesMap.putIfAbsent(u.name(), u));
+        return new LinkedHashSet<>(aliasesMap.values());
     }
 
     /**
      * @return all the {@link UnresolvedAttribute}s in the given node / {@code plan}, but excluding the {@link UnresolvedPattern} and
      * {@link UnresolvedTimestamp} subtypes.
      */
-    private static List<UnresolvedAttribute> collectUnresolved(LogicalPlan plan) {
+    public static List<UnresolvedAttribute> collectUnresolved(LogicalPlan plan) {
         List<UnresolvedAttribute> unresolved = new ArrayList<>();
-        plan.forEachExpression(UnresolvedAttribute.class, ua -> {
+        Consumer<UnresolvedAttribute> collectUnresolved = ua -> {
             if ((ua instanceof UnresolvedPattern || ua instanceof UnresolvedTimestamp) == false) {
                 unresolved.add(ua);
             }
-        });
+        };
+        if (plan instanceof PromqlCommand promqlCommand) {
+            // The expressions of the PromqlCommand itself are not relevant here.
+            // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
+            promqlCommand.promqlPlan().forEachExpressionDown(UnresolvedAttribute.class, collectUnresolved);
+        } else {
+            plan.forEachExpression(UnresolvedAttribute.class, collectUnresolved);
+        }
         return unresolved;
     }
 }

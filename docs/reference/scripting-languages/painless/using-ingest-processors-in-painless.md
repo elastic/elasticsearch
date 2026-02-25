@@ -1,13 +1,35 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-ingest.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
 # Using ingest processors in Painless [painless-ingest]
 
-Some [ingest processors](/reference/enrich-processor/index.md) expose behavior through Painless methods that can be called in Painless scripts that execute in ingest pipelines.
+Painless scripts in [ingest pipelines](https://www.elastic.co/docs/manage-data/ingest/transform-enrich/ingest-pipelines) can access certain [ingest processor](https://www.elastic.co/docs/reference/scripting-languages/painless/painless-ingest-processor-context) functionality through the `Processors` namespace, enabling custom logic while leveraging {{es}} built-in transformations. Scripts execute within the `ctx` context to modify documents during ingestion.
+
+Only a subset of ingest processors expose methods in the `Processors` namespace for use in Painless scripts. The following ingest processors expose methods in Painless:
+
+* Bytes  
+* Lowercase  
+* Uppercase  
+* Json 
+
+
+## When to choose each approach
+
+
+| Method | Use for | Pros  | Cons |
+| :---- | :---- | :---- | :---- |
+| [script processor](/reference/enrich-processor/script-processor.md) (Painless) | * complex logic <br>* conditional operations <br>* multi-field validation | * full control <br>* custom business logic <br>* cross-field operations | * performance overhead <br>* complexity |
+| [ingest processor](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md) | * common transformations <br>* standard operations | * optimized performance <br>* built-in validation <br>* simple configuration | * limited logic <br>* single-field focus |
+| [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) | * query-time calculations <br>* schema flexibility | * no reindexing required * dynamic computation during queries | * query-time performance cost <br>* read-only operations <br>* not used in ingest pipeline.  |
+
+**Performance considerations:** Script processors can impact pipeline performance. Prefer ingest processors for simple transformations.
 
 ## Method usage [_method_usage]
 
@@ -71,20 +93,50 @@ String uppercase(String value);
 
 ### JSON parsing [_json_parsing]
 
-Use the [JSON processor](/reference/enrich-processor/json-processor.md) to convert JSON strings to structured JSON objects. The first `json` method accepts a map and a key. The processor converts the JSON string in the map as specified by the `key` parameter to structured JSON content. That content is added directly to the `map` object.
-
-The second `json` method accepts a JSON string in the `value` parameter and returns a structured JSON object.
+Use the [JSON processor](/reference/enrich-processor/json-processor.md) to parse a string containing JSON data into a structured object, string, or other value. There are two `json` methods:
 
 ```painless
 void json(Map<String, Object> map, String key);
 Object json(Object value);
 ```
 
+The first `json` method accepts a map and a key. The processor parses the JSON string in the given map at the given key to a structured object. The entries in that object are added directly to the given map.
+
+For example, if the input document looks like this:
+
+```js
+{
+  "foo": {
+    "inputJsonString": "{\"bar\": 999}"
+  }
+}
+```
+% NOTCONSOLE
+
+then executing this script:
+
+```painless
+Processors.json(ctx.foo, 'inputJsonString');
+```
+
+will result in this document:
+
+```js
+{
+  "foo": {
+    "inputJsonString": "{\"bar\": 999}",
+    "bar" : 999
+  }
+}
+```
+% NOTCONSOLE
+
+The second `json` method accepts a JSON string in the `value` parameter and returns a structured object or other value.
+
 You can then add this object to the document through the context object:
 
 ```painless
-Object json = Processors.json(ctx.inputJsonString);
-ctx.structuredJson = json;
+ctx.parsedJson = Processors.json(ctx.inputJsonString);
 ```
 
 

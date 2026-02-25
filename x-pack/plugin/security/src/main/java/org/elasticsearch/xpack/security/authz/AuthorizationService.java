@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -240,11 +241,12 @@ public class AuthorizationService {
     public void retrieveUserPrivileges(
         Subject subject,
         AuthorizationInfo authorizationInfo,
+        RoleReference.ApiKeyRoleType unwrapLimitedRole,
         ActionListener<GetUserPrivilegesResponse> listener
     ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
         // TODO the AuthorizationInfo is associated to the Subject; the argument is redundant and a possible source of conflict
-        authorizationEngine.getUserPrivileges(authorizationInfo, wrapPreservingContext(listener, threadContext));
+        authorizationEngine.getUserPrivileges(authorizationInfo, unwrapLimitedRole, wrapPreservingContext(listener, threadContext));
     }
 
     public void getRoleDescriptorsIntersectionForRemoteCluster(

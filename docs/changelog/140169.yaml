@@ -1,0 +1,5 @@
+pr: 140169
+summary: Use native operations for scoring floats
+area: Vector Search
+type: enhancement
+issues: []

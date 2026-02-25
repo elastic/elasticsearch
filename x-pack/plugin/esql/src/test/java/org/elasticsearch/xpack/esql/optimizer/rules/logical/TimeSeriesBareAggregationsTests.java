@@ -277,6 +277,24 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         );
     }
 
+    public void testBucketWithRenamedTimestampThrowsError() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+
+        var error = expectThrows(IllegalArgumentException.class, () -> { planK8s("""
+            TS k8s
+            | EVAL renamed_ts = @timestamp
+            | STATS min = min(last_over_time(network.total_bytes_out)) BY bucket = bucket(renamed_ts, 1hour)
+            """); });
+
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "Time-series aggregations require direct use of @timestamp which was not found. "
+                    + "If @timestamp was renamed in EVAL, use the original @timestamp field instead."
+            )
+        );
+    }
+
     private TimeSeriesAggregate findTimeSeriesAggregate(LogicalPlan plan) {
         Holder<TimeSeriesAggregate> tsAggregateHolder = new Holder<>();
         plan.forEachDown(TimeSeriesAggregate.class, tsAggregateHolder::set);

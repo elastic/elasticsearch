@@ -35,6 +35,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -259,6 +260,24 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         SHARED_CACHE_SETTINGS_PREFIX + "max_freq",
         100,                       // default
         1,                            // min
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SHARED_CACHE_INITIAL_DECAYS_SETTING = Setting.intSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "initial_decays",
+        4,
+        0,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Fraction of the total number of regions. When the number of entries at frequency 0 falls below
+     * {@code max(1, numRegions * this ratio)}, a decay and new epoch is scheduled.
+     */
+    public static final Setting<Float> SHARED_CACHE_DECAY_FREQ0_THRESHOLD_RATIO_SETTING = Setting.floatSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "decay.freq0_threshold_ratio",
+        0.05f,
+        0f,
         Setting.Property.NodeScope
     );
 
@@ -1009,6 +1028,24 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         /**
+         * Optimistically try to load the data from the region into main memory using madvise system call.
+         * @return true if successful, i.e., not evicted and data available, false if evicted or mmap is not used underneath.
+         */
+        boolean tryPrefetch(long offset, long length) throws IOException {
+            SharedBytes.IO ioRef = nonVolatileIO();
+            if (ioRef != null) {
+                ioRef.prefetch(blobCacheService.getRegionRelativePosition(offset), length);
+                if (isEvicted()) {
+                    return false;
+                }
+                return true;
+            } else {
+                // taken by someone else
+                return false;
+            }
+        }
+
+        /**
          * Optimistically try to read from the region
          * @return true if successful, i.e., not evicted and data available, false if evicted
          */
@@ -1217,20 +1254,43 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
     }
 
+    public interface CacheMissHandler {
+        CacheMissHandler NOOP = new CacheMissHandler() {
+            @Override
+            public Releasable record(long bytes) {
+                return Releasables.wrap();
+            }
+
+            @Override
+            public CacheMissHandler copy() {
+                return this;
+            }
+        };
+
+        /**
+         * @param bytes number of bytes needed
+         * @return Releasable that is invoked when data is available.
+         */
+        Releasable record(long bytes);
+
+        CacheMissHandler copy();
+    }
+
     public class CacheFile {
 
         private final KeyType cacheKey;
         private final long length;
-
+        private final CacheMissHandler cacheMissMetricHandler;
         private CacheEntry<CacheFileRegion<KeyType>> lastAccessedRegion;
 
-        private CacheFile(KeyType cacheKey, long length) {
+        private CacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissMetricHandler) {
             this.cacheKey = cacheKey;
             this.length = length;
+            this.cacheMissMetricHandler = cacheMissMetricHandler;
         }
 
         public CacheFile copy() {
-            return new CacheFile(cacheKey, length);
+            return new CacheFile(cacheKey, length, cacheMissMetricHandler.copy());
         }
 
         public long getLength() {
@@ -1239,6 +1299,36 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         public KeyType getCacheKey() {
             return cacheKey;
+        }
+
+        public boolean tryPrefetch(long offset, long length) throws IOException {
+            assert assertOffsetsWithinFileLength(offset, length, this.length);
+            final int startRegion = getRegion(offset);
+            final long end = offset + length;
+            final int endRegion = getEndingRegion(end);
+            final var rangeToRead = ByteRange.of(offset, offset + length);
+            for (int region = startRegion; region <= endRegion; region++) {
+                final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
+                if (subRangeToRead.isEmpty()) {
+                    // nothing to read, skip
+                    continue;
+                }
+                var fileRegion = lastAccessedRegion;
+                try {
+                    fileRegion = cache.get(cacheKey, this.length, region);
+                } catch (AlreadyClosedException exc) {
+                    // consider missing
+                    continue;
+                }
+                final var chunk = fileRegion.chunk;
+                if (chunk.tracker.checkAvailable(subRangeToRead.length()) == false) {
+                    continue;
+                }
+                if (chunk.tryPrefetch(subRangeToRead.start(), subRangeToRead.length())) {
+                    length -= subRangeToRead.length();
+                }
+            }
+            return length == 0;
         }
 
         public boolean tryRead(ByteBuffer buf, long offset) throws IOException {
@@ -1345,14 +1435,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
             final CacheFileRegion<KeyType> fileRegion = get(cacheKey, length, region);
             final long regionStart = getRegionStart(region);
+            ByteRange regionRangeToRead = mapSubRangeToRegion(rangeToRead, region);
             fileRegion.populateAndRead(
                 mapSubRangeToRegion(rangeToWrite, region),
-                mapSubRangeToRegion(rangeToRead, region),
+                regionRangeToRead,
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
                 metricRecordingWriter(writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))),
                 ioExecutor,
                 readFuture
             );
+            if (readFuture.isDone() == false) {
+                long bytes = fileRegion.tracker.getAbsentBytesWithin(regionRangeToRead);
+                if (bytes > 0) {
+                    return recordWait(bytes, readFuture);
+                }
+            }
             return readFuture.get();
         }
 
@@ -1366,6 +1463,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         ) throws InterruptedException, ExecutionException {
             final PlainActionFuture<Void> readsComplete = new PlainActionFuture<>();
             final AtomicInteger bytesRead = new AtomicInteger();
+            List<CacheFileRegion<KeyType>> regions = new ArrayList<>(endRegion - startRegion);
             try (var listeners = new RefCountingListener(1, readsComplete)) {
                 for (int region = startRegion; region <= endRegion; region++) {
                     final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
@@ -1376,6 +1474,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     ActionListener<Integer> listener = listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)));
                     try {
                         final CacheFileRegion<KeyType> fileRegion = get(cacheKey, length, region);
+                        regions.add(fileRegion);
                         final long regionStart = getRegionStart(region);
                         fileRegion.populateAndRead(
                             mapSubRangeToRegion(rangeToWrite, region),
@@ -1393,8 +1492,34 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     }
                 }
             }
+            if (readsComplete.isDone() == false) {
+                long bytes = regions.stream()
+                    .mapToLong(
+                        fileRegion -> fileRegion.tracker.getAbsentBytesWithin(
+                            mapSubRangeToRegion(rangeToRead, fileRegion.regionKey.region())
+                        )
+                    )
+                    .sum();
+                if (bytes > 0) {
+                    recordWait(bytes, readsComplete);
+                }
+
+            }
             readsComplete.get();
             return bytesRead.get();
+        }
+
+        /**
+         * Record a wait with the give number of bytes, with duration of the wait for the future given. This method will
+         * wait for the `future` to complete.
+         * @param bytes The bytes to record
+         * @param future the future to wait for.
+         * @return the result of the future.get()
+         */
+        public <T> T recordWait(long bytes, PlainActionFuture<T> future) throws InterruptedException, ExecutionException {
+            try (var dummy = cacheMissMetricHandler.record(bytes)) {
+                return future.get();
+            }
         }
 
         private RangeMissingHandler writerWithOffset(RangeMissingHandler writer, CacheFileRegion<KeyType> fileRegion, int writeOffset) {
@@ -1501,8 +1626,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
     }
 
-    public CacheFile getCacheFile(KeyType cacheKey, long length) {
-        return new CacheFile(cacheKey, length);
+    public CacheFile getCacheFile(KeyType cacheKey, long length, CacheMissHandler cacheMissHandler) {
+        return new CacheFile(cacheKey, length, cacheMissHandler);
     }
 
     @FunctionalInterface
@@ -1619,6 +1744,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     private class LFUCache implements Cache<KeyType, CacheFileRegion<KeyType>> {
 
+        /**
+         * Per-frequency level: holds the count of entries and the head of the doubly-linked list for that level.
+         */
+        private class FreqLevel {
+            int count;
+            LFUCacheEntry head;
+        }
+
         class LFUCacheEntry extends CacheEntry<CacheFileRegion<KeyType>> {
             LFUCacheEntry prev;
             LFUCacheEntry next;
@@ -1645,17 +1778,32 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         private final KeyMapping<ShardId, RegionKey<KeyType>, LFUCacheEntry> keyMapping = new KeyMapping<>();
-        private final LFUCacheEntry[] freqs;
+        private final FreqLevel[] freqs;
         private final int maxFreq;
+        private final int freq0DecayScheduleThreshold;
         private final DecayAndNewEpochTask decayAndNewEpochTask;
 
         private final AtomicLong epoch = new AtomicLong();
+        private final AtomicLong initialFreeRegions = new AtomicLong();
+        private final long initialDecayPollCount;
 
         @SuppressWarnings("unchecked")
         LFUCache(Settings settings) {
             this.maxFreq = SHARED_CACHE_MAX_FREQ_SETTING.get(settings);
-            freqs = (LFUCacheEntry[]) Array.newInstance(LFUCacheEntry.class, maxFreq);
-            decayAndNewEpochTask = new DecayAndNewEpochTask(threadPool.generic());
+            this.freqs = (FreqLevel[]) Array.newInstance(FreqLevel.class, maxFreq);
+            for (int i = 0; i < maxFreq; i++) {
+                freqs[i] = new FreqLevel();
+            }
+            float thresholdRatio = SHARED_CACHE_DECAY_FREQ0_THRESHOLD_RATIO_SETTING.get(settings);
+            this.freq0DecayScheduleThreshold = Math.max(1, (int) (numRegions * thresholdRatio));
+            this.decayAndNewEpochTask = new DecayAndNewEpochTask(threadPool.generic());
+            int initialDecays = SHARED_CACHE_INITIAL_DECAYS_SETTING.get(settings);
+            if (initialDecays > 0) {
+                initialDecayPollCount = Math.max(numRegions / initialDecays, 1);
+                initialFreeRegions.set(numRegions);
+            } else {
+                initialDecayPollCount = 0;
+            }
         }
 
         @Override
@@ -1797,7 +1945,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert entry.freq == 1;
             assert entry.prev == null;
             assert entry.next == null;
-            final SharedBytes.IO freeSlot = freeRegions.poll();
+            final SharedBytes.IO freeSlot = pollFreeRegionAndMaybeDecay();
             if (freeSlot != null) {
                 // no need to evict an item, just add
                 assignToSlot(entry, freeSlot);
@@ -1822,6 +1970,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return entry;
         }
 
+        private SharedBytes.IO pollFreeRegionAndMaybeDecay() {
+            if (initialFreeRegions.getOpaque() > 0) {
+                if (initialFreeRegions.decrementAndGet() % initialDecayPollCount == 0) {
+                    maybeScheduleDecayAndNewEpoch(epoch.get());
+                }
+            }
+            return freeRegions.poll();
+        }
+
         private void assignToSlot(LFUCacheEntry entry, SharedBytes.IO freeSlot) {
             assert regionOwners.put(freeSlot, entry.chunk) == null;
             synchronized (SharedBlobCacheService.this) {
@@ -1842,9 +1999,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert invariant(entry, false);
             assert entry.prev == null;
             assert entry.next == null;
-            final LFUCacheEntry currFront = freqs[entry.freq];
+            final FreqLevel level = freqs[entry.freq];
+            assert level != null : entry.freq;
+            final LFUCacheEntry currFront = level.head;
             if (currFront == null) {
-                freqs[entry.freq] = entry;
+                level.head = entry;
                 entry.prev = entry;
                 entry.next = null;
             } else {
@@ -1855,8 +2014,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 entry.prev = last;
                 entry.next = null;
             }
-            assert freqs[entry.freq].prev == entry;
-            assert freqs[entry.freq].prev.next == null;
+            level.count++;
+            assert freqs[entry.freq].head.prev == entry;
+            assert freqs[entry.freq].head.prev.next == null;
             assert entry.prev != null;
             assert entry.prev.next == null || entry.prev.next == entry;
             assert entry.next == null;
@@ -1866,10 +2026,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private synchronized boolean invariant(final LFUCacheEntry e, boolean present) {
             boolean found = false;
             for (int i = 0; i < maxFreq; i++) {
-                assert freqs[i] == null || freqs[i].prev != null;
-                assert freqs[i] == null || freqs[i].prev != freqs[i] || freqs[i].next == null;
-                assert freqs[i] == null || freqs[i].prev.next == null;
-                for (LFUCacheEntry entry = freqs[i]; entry != null; entry = entry.next) {
+                FreqLevel level = freqs[i];
+                assert level.head == null || level.head.prev != null;
+                assert level.head == null || level.head.prev != level.head || level.head.next == null;
+                assert level.head == null || level.head.prev.next == null;
+                for (LFUCacheEntry entry = level.head; entry != null; entry = entry.next) {
                     assert entry.next == null || entry.next.prev == entry;
                     assert entry.prev != null;
                     assert entry.prev.next == null || entry.prev.next == entry;
@@ -1878,7 +2039,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         found = true;
                     }
                 }
-                for (LFUCacheEntry entry = freqs[i]; entry != null && entry.prev != freqs[i]; entry = entry.prev) {
+                for (LFUCacheEntry entry = level.head; entry != null && entry.prev != level.head; entry = entry.prev) {
                     assert entry.next == null || entry.next.prev == entry;
                     assert entry.prev != null;
                     assert entry.prev.next == null || entry.prev.next == entry;
@@ -1920,10 +2081,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert Thread.holdsLock(SharedBlobCacheService.this);
             assert invariant(entry, true);
             assert entry.prev != null;
-            final LFUCacheEntry currFront = freqs[entry.freq];
+            final FreqLevel level = freqs[entry.freq];
+            final LFUCacheEntry currFront = level.head;
             assert currFront != null;
             if (currFront == entry) {
-                freqs[entry.freq] = entry.next;
+                level.head = entry.next;
                 if (entry.next != null) {
                     assert entry.prev != entry;
                     entry.next.prev = entry.prev;
@@ -1937,6 +2099,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     currFront.prev = entry.prev;
                 }
             }
+            level.count--;
+            assert level.count >= 0 && level.count <= numRegions;
             entry.next = null;
             entry.prev = null;
             assert invariant(entry, false);
@@ -1944,11 +2108,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         private void appendLevel1ToLevel0() {
             assert Thread.holdsLock(SharedBlobCacheService.this);
-            var front0 = freqs[0];
-            var front1 = freqs[1];
+            FreqLevel level0 = freqs[0];
+            FreqLevel level1 = freqs[1];
+            var front0 = level0.head;
+            var front1 = level1.head;
             if (front0 == null) {
-                freqs[0] = front1;
-                freqs[1] = null;
+                level0.head = front1;
+                level0.count = level1.count;
+                level1.head = null;
+                level1.count = 0;
                 decrementFreqList(front1);
                 assert front1 == null || invariant(front1, true);
             } else if (front1 != null) {
@@ -1966,7 +2134,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 front1.prev = back0;
                 assert back1.next == null;
 
-                freqs[1] = null;
+                level0.count += level1.count;
+                level1.head = null;
+                level1.count = 0;
 
                 assert invariant(front0, true);
                 assert invariant(front1, true);
@@ -1994,8 +2164,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert Thread.holdsLock(SharedBlobCacheService.this);
             long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
             SharedBytes.IO freq0 = maybeEvictAndTakeForFrequency(evictedNotification, 0);
-            if (freqs[0] == null) {
-                // no frequency 0 entries, let us switch epoch and decay so we get some for next time.
+            if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
+                // frequency 0 is running low and no free regions; schedule decay and new epoch ahead of time.
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
             }
             if (freq0 != null) {
@@ -2017,7 +2187,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         private SharedBytes.IO maybeEvictAndTakeForFrequency(Runnable evictedNotification, int currentFreq) {
-            for (LFUCacheEntry entry = freqs[currentFreq]; entry != null; entry = entry.next) {
+            for (LFUCacheEntry entry = freqs[currentFreq].head; entry != null; entry = entry.next) {
                 boolean evicted = entry.chunk.tryEvictNoDecRef();
                 if (evicted) {
                     try {
@@ -2064,7 +2234,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          */
         public boolean maybeEvictLeastUsed() {
             synchronized (SharedBlobCacheService.this) {
-                for (LFUCacheEntry entry = freqs[0]; entry != null; entry = entry.next) {
+                for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
                         unlink(entry);
@@ -2084,11 +2254,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 afterLock = threadPool.rawRelativeTimeInMillis();
                 appendLevel1ToLevel0();
                 for (int i = 2; i < maxFreq; i++) {
-                    assert freqs[i - 1] == null;
-                    freqs[i - 1] = freqs[i];
-                    freqs[i] = null;
-                    decrementFreqList(freqs[i - 1]);
-                    assert freqs[i - 1] == null || invariant(freqs[i - 1], true);
+                    assert freqs[i - 1].head == null;
+                    freqs[i - 1].head = freqs[i].head;
+                    freqs[i - 1].count = freqs[i].count;
+                    freqs[i].head = null;
+                    freqs[i].count = 0;
+                    decrementFreqList(freqs[i - 1].head);
+                    assert freqs[i - 1].head == null || invariant(freqs[i - 1].head, true);
                 }
             }
             end = threadPool.rawRelativeTimeInMillis();

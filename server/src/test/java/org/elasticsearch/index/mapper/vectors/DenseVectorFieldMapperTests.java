@@ -646,27 +646,35 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testAggregatableConsistency() {}
 
     public void testIVFParsing() throws IOException {
+        Settings experimentalEnabled = Settings.builder()
+            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
+            .build();
+        Settings experimentalDisabled = Settings.builder()
+            .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), false)
+            .build();
         {
-            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+            DocumentMapper mapperService = createMapperService(experimentalEnabled, fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 128);
                 b.field("index", true);
                 b.field("similarity", "dot_product");
                 b.startObject("index_options");
                 b.field("type", "bbq_disk");
+                b.field("bits", 4);
                 b.endObject();
-            }));
+            })).documentMapper();
 
             DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
             DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
                 .fieldType()
                 .getIndexOptions();
-            assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
+            assertEquals(4, indexOptions.bits, 0.0F);
+            assertNull(indexOptions.rescoreVector);
             assertEquals(ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
             assertEquals(DYNAMIC_VISIT_RATIO, indexOptions.defaultVisitPercentage, 0.0);
         }
         {
-            DocumentMapper mapperService = createDocumentMapper(fieldMapping(b -> {
+            DocumentMapper mapperService = createMapperService(experimentalDisabled, fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 128);
                 b.field("index", true);
@@ -677,7 +685,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b.field("default_visit_percentage", 5.0);
                 b.field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 2.0f));
                 b.endObject();
-            }));
+            })).documentMapper();
 
             DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) mapperService.mappers().getMapper("field");
             DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
@@ -686,6 +694,41 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertEquals(2F, indexOptions.rescoreVector.oversample(), 0.0F);
             assertEquals(1000, indexOptions.clusterSize);
             assertEquals(5.0, indexOptions.defaultVisitPercentage, 0.0);
+            assertEquals(1, indexOptions.bits, 0.0);
+        }
+        {
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(experimentalDisabled, fieldMapping(b -> {
+                    b.field("type", "dense_vector");
+                    b.field("dims", 128);
+                    b.field("index", true);
+                    b.field("similarity", "dot_product");
+                    b.startObject("index_options");
+                    b.field("type", "bbq_disk");
+                    b.field("bits", 4);
+                    b.endObject();
+                }))
+            );
+            assertThat(e.getMessage(), containsString("unsupported parameters"));
+            assertThat(e.getMessage(), containsString("bits"));
+        }
+        {
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(experimentalDisabled, fieldMapping(b -> {
+                    b.field("type", "dense_vector");
+                    b.field("dims", 128);
+                    b.field("index", true);
+                    b.field("similarity", "dot_product");
+                    b.startObject("index_options");
+                    b.field("type", "bbq_disk");
+                    b.field("precondition", true);
+                    b.endObject();
+                }))
+            );
+            assertThat(e.getMessage(), containsString("unsupported parameters"));
+            assertThat(e.getMessage(), containsString("precondition"));
         }
     }
 
@@ -1338,9 +1381,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
         int dimensions = randomIntBetween(64, 1024);
         // Build a dense vector field mapper with float element type, which will trigger int8 HNSW index options
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current(), false, List.of()).elementType(
-            ElementType.FLOAT
-        ).dimensions(dimensions).build(context);
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("test", IndexVersion.current(), false, false, List.of())
+            .elementType(ElementType.FLOAT)
+            .dimensions(dimensions)
+            .build(context);
 
         // Change the element type to byte, which is incompatible with int8 HNSW index options
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
@@ -1925,7 +1969,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + ", beamWidth="
             + (setEfConstruction ? efConstruction : DEFAULT_BEAM_WIDTH)
             + ", flatVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 
@@ -1967,12 +2012,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 + ", compressed="
                 + quantizedFlatFormat.equals("int4_flat")
                 + ", flatVectorScorer=ESQuantizedFlatVectorsScorer("
-                + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer())"
+                + "delegate=ScalarQuantizedVectorScorer(nonQuantizedDelegate="
+                + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))"
                 + ", factory="
                 + (factory != null ? factory : "null")
                 + "), "
                 + "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer())))";
+                + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+                + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer()))))";
             assertThat(knnVectorsFormat, hasToString(expectedString));
         }
     }
@@ -2018,11 +2065,13 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + (setConfidenceInterval ? confidenceInterval : null)
             + ", bits=7, compressed=false, "
             + "flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
-            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer()), "
+            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())), "
             + "factory="
             + (factory != null ? factory : "null")
             + "), rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer()))))";
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))))";
         assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
@@ -2121,10 +2170,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             + ", flatVectorFormat=ES93ScalarQuantizedVectorsFormat(name=ES93ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : 0.0f)
             + ", bits=4, compressed=true, flatVectorScorer=ESQuantizedFlatVectorsScorer(delegate="
-            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate=Lucene99MemorySegmentFlatVectorsScorer()), factory="
+            + "ScalarQuantizedVectorScorer(nonQuantizedDelegate="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())), factory="
             + (factory != null ? factory : "null")
             + "), rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
-            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=Lucene99MemorySegmentFlatVectorsScorer()))))";
+            + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
+            + "ES93FlatVectorScorer(delegate=Lucene99MemorySegmentFlatVectorsScorer())))))";
         assertThat(knnVectorsFormat, hasToString(expectedString));
     }
 
@@ -2148,10 +2199,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         TestDenseVectorIndexOptions testIndexOptions = new TestDenseVectorIndexOptions(
             new DenseVectorFieldMapper.HnswIndexOptions(16, 200)
         );
-        var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), true, List.of()).indexOptions(testIndexOptions)
-            .dimensions(128)
-            .elementType(ElementType.FLOAT)
-            .build(MapperBuilderContext.root(false, false));
+        var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), true, false, List.of()).indexOptions(
+            testIndexOptions
+        ).dimensions(128).elementType(ElementType.FLOAT).build(MapperBuilderContext.root(false, false));
         final IndexSettings enabled = IndexSettingsModule.newIndexSettings(
             "foo",
             Settings.builder().put(IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING.getKey(), true).build()

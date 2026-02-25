@@ -27,42 +27,75 @@ import java.util.function.Supplier;
  */
 public final class DecodeBenchmark extends AbstractTSDBCodecBenchmark {
 
-    private ByteArrayDataInput dataInput;
-    private long[] output;
+    private ByteArrayDataInput[] dataInputs;
+    private long[][] outputs;
     private byte[] encodedBuffer;
+
+    private int blocksPerInvocation;
+
+    /**
+     * Checksum of decoded values for the last benchmark invocation.
+     * Accumulates a value from each decoded block to create a data dependency on all iterations,
+     * preventing the JIT from optimizing away any decode operations.
+     */
+    private long lastDecodedChecksum;
 
     @Override
     public void setupTrial(Supplier<long[]> arraySupplier) throws IOException {
-        this.output = new long[blockSize];
         long[] input = arraySupplier.get();
 
         byte[] tempBuffer = new byte[Long.BYTES * blockSize + EXTRA_METADATA_SIZE];
-        ByteArrayDataOutput dataOutput = new ByteArrayDataOutput(tempBuffer);
+        final ByteArrayDataOutput dataOutput = new ByteArrayDataOutput(tempBuffer);
         encoder.encode(input, dataOutput);
         int encodedLength = dataOutput.getPosition();
 
         this.encodedBuffer = new byte[encodedLength];
         System.arraycopy(tempBuffer, 0, encodedBuffer, 0, encodedLength);
-        this.dataInput = new ByteArrayDataInput(this.encodedBuffer);
     }
 
+    /**
+     * Configures how many blocks are decoded in each measured benchmark invocation.
+     *
+     * <p>This is intentionally controlled by the JMH harness and may be tuned without
+     * changing benchmark logic.
+     */
     @Override
-    public void setupInvocation() {
-        this.dataInput.reset(this.encodedBuffer);
+    public void setBlocksPerInvocation(int blocksPerInvocation) {
+        if (this.blocksPerInvocation == blocksPerInvocation) {
+            return; // already configured, skip reallocation
+        }
+        this.blocksPerInvocation = blocksPerInvocation;
+
+        this.dataInputs = new ByteArrayDataInput[blocksPerInvocation];
+        this.outputs = new long[blocksPerInvocation][blockSize];
+
+        for (int i = 0; i < blocksPerInvocation; i++) {
+            this.dataInputs[i] = new ByteArrayDataInput(encodedBuffer);
+        }
     }
 
     @Override
     public void run() throws IOException {
-        encoder.decode(this.dataInput, this.output);
+        long checksum = 0;
+        for (int i = 0; i < blocksPerInvocation; i++) {
+            dataInputs[i].reset(encodedBuffer);
+            encoder.decode(dataInputs[i], outputs[i]);
+            checksum ^= outputs[i][0]; // xor is fast
+        }
+        lastDecodedChecksum = checksum;
     }
 
     @Override
     protected Object getOutput() {
-        return this.output;
+        return lastDecodedChecksum;
     }
 
     @Override
     public int getEncodedSize() {
         return encodedBuffer.length;
+    }
+
+    public int getBlocksPerInvocation() {
+        return blocksPerInvocation;
     }
 }

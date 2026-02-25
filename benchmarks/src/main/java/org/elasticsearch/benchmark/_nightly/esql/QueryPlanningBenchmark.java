@@ -96,7 +96,8 @@ public class QueryPlanningBenchmark {
             false,
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
-            null
+            null,
+            Map.of()
         );
 
         var fields = 10_000;
@@ -125,7 +126,7 @@ public class QueryPlanningBenchmark {
                 minimumVersion,
                 UNMAPPED_FIELDS.defaultValue()
             ),
-            new Verifier(new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
+            new Verifier(new Metrics(functionRegistry, true, true), new XPackLicenseState(() -> 0L))
         );
         defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), minimumVersion));
     }

@@ -223,8 +223,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
                 fromSeqNo,
                 toSeqNo,
                 requiredFullRange,
-                accessStats,
-                indexVersionCreated
+                accessStats
             );
         } else {
             return new LuceneChangesSnapshot(
@@ -235,8 +234,7 @@ public class SemanticInferenceMetadataFieldsRecoveryTests extends EngineTestCase
                 toSeqNo,
                 requiredFullRange,
                 singleConsumer,
-                accessStats,
-                indexVersionCreated
+                accessStats
             );
         }
     }

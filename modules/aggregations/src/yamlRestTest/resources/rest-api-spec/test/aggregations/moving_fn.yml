@@ -823,3 +823,24 @@ bad path:
                 buckets_path: "the_avg"
                 window: 1
                 script: "MovingFunctions.max(values)"
+
+---
+invalid parent aggregation:
+  - do:
+      catch: /moving_fn aggregation \[d\] must have a histogram, date_histogram or auto_date_histogram as parent/
+      search:
+        body:
+          aggs:
+            a:
+              filter:
+                term:
+                  a: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                d:
+                  moving_fn:
+                    buckets_path: "b"
+                    window: 1
+                    script: "MovingFunctions.max(values)"

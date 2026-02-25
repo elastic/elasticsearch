@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase {
 
@@ -186,6 +187,78 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         assertEquals("2", events.get(0).get("_id"));
 
         deleteIndexWithProvisioningClient("test");
+    }
+
+    @SuppressWarnings({ "unchecked", "checkstyle:LineLength" })
+    public void testMissingEvents() throws Exception {
+        createIndex("missing", (String) null);
+
+        String bulk = """
+            {"index": {"_index": "missing", "_id": 1}}
+            {"event":{"category":"process"},"@timestamp":"2020-09-04T12:34:56Z","log" : "foo"}
+            {"index": {"_index": "missing", "_id": 2}}
+            {"event":{"category":"process"},"@timestamp":"2020-09-04T12:35:57Z","log" : "bar"}
+            """;
+        bulkIndex(bulk);
+
+        String endpoint = "/" + indexPattern("missing") + "/_eql/search";
+
+        {
+            Request request = new Request("GET", endpoint);
+            request.setJsonEntity("""
+                {"query":"sequence with maxspan=10s [any where log == \\"foo\\"] ![any where true]"}
+                """);
+            Response response = client().performRequest(request);
+
+            Map<String, Object> responseMap;
+            try (InputStream content = response.getEntity().getContent()) {
+                responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+            }
+            Map<String, Object> hits = (Map<String, Object>) responseMap.get("hits");
+            List<Map<String, Object>> sequences = (List<Map<String, Object>>) hits.get("sequences");
+            assertThat(sequences.size(), is(1));
+            Map<String, Object> sequence = sequences.get(0);
+            List<Map<String, Object>> events = (List<Map<String, Object>>) sequence.get("events");
+            assertThat(events.size(), is(2));
+            assertThat(events.get(0).get("missing"), is(nullValue()));
+            Map<String, Object> src = (Map<String, Object>) events.get(0).get("_source");
+            assertThat(src.get("log"), is("foo"));
+            assertThat(events.get(0).get("_index"), is(indexPattern("missing")));
+            assertThat(events.get(1).get("missing"), is(true));
+            assertThat(events.get(1).get("_index"), is(""));
+        }
+
+        {
+            Request request = new Request("GET", endpoint);
+            request.setJsonEntity(
+                """
+                    {"query":"sequence with maxspan=10m [any where log == \\"foo\\"] ![any where log == \\"baz\\"] [any where log == \\"bar\\"]"}"""
+            );
+            Response response = client().performRequest(request);
+
+            Map<String, Object> responseMap;
+            try (InputStream content = response.getEntity().getContent()) {
+                responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+            }
+            Map<String, Object> hits = (Map<String, Object>) responseMap.get("hits");
+            List<Map<String, Object>> sequences = (List<Map<String, Object>>) hits.get("sequences");
+            assertThat(sequences.size(), is(1));
+            Map<String, Object> sequence = sequences.get(0);
+            List<Map<String, Object>> events = (List<Map<String, Object>>) sequence.get("events");
+            assertThat(events.size(), is(3));
+            assertThat(events.get(0).get("missing"), is(nullValue()));
+            assertThat(events.get(0).get("_index"), is(indexPattern("missing")));
+            Map<String, Object> src = (Map<String, Object>) events.get(0).get("_source");
+            assertThat(src.get("log"), is("foo"));
+            assertThat(events.get(1).get("missing"), is(true));
+            assertThat(events.get(1).get("_index"), is(""));
+            assertThat(events.get(2).get("missing"), is(nullValue()));
+            assertThat(events.get(2).get("_index"), is(indexPattern("missing")));
+            src = (Map<String, Object>) events.get(2).get("_source");
+            assertThat(src.get("log"), is("bar"));
+        }
+
+        deleteIndexWithProvisioningClient("missing");
     }
 
     private static void bulkIndex(String bulk) throws IOException {

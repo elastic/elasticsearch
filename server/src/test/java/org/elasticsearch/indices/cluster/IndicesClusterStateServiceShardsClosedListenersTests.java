@@ -24,6 +24,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.test.transport.MockTransport;
@@ -158,7 +159,8 @@ public class IndicesClusterStateServiceShardsClosedListenersTests extends Abstra
                     new ClusterService(Settings.EMPTY, ClusterSettings.createBuiltInClusterSettings(), threadPool, null),
                     mock(RepositoriesService.class),
                     MockTransportService.createMockTransportService(new MockTransport(), threadPool),
-                    mock(IndicesService.class)
+                    mock(IndicesService.class),
+                    mock(SnapshotShardContextFactory.class)
                 ),
                 mock(PrimaryReplicaSyncer.class),
                 RetentionLeaseSyncer.EMPTY,

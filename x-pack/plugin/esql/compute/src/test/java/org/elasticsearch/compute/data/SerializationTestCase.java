@@ -54,7 +54,7 @@ public abstract class SerializationTestCase extends ESTestCase {
     }
 
     <T extends Block> T serializeDeserializeBlock(T origBlock) throws IOException {
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         return serializeDeserializeBlockWithVersion(origBlock, version);
     }
 
@@ -66,6 +66,17 @@ public abstract class SerializationTestCase extends ESTestCase {
             try (BlockStreamInput in = blockStreamInput(out)) {
                 in.setTransportVersion(version);
                 return (T) Block.readTypedBlock(in);
+            }
+        }
+    }
+
+    Page serializeDeserializePageWithVersion(Page origPage, TransportVersion version) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            origPage.writeTo(out);
+            try (BlockStreamInput in = blockStreamInput(out)) {
+                in.setTransportVersion(version);
+                return new Page(in);
             }
         }
     }

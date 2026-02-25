@@ -1,0 +1,7 @@
+pr: 143030
+summary: "ESQL: Fix incorrectly optimized fork with nullify unmapped_fields"
+area: ES|QL
+type: bug
+issues:
+  - 142543
+  - 142762

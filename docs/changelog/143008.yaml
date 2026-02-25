@@ -1,5 +1,0 @@
-area: Allocation
-issues: []
-pr: 143008
-summary: "Allocation: add active 0 for hotspot status metrics"
-type: enhancement

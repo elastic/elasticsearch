@@ -7,31 +7,30 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIFTH;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 
 public class Sparkline extends AggregateFunction implements AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -39,40 +38,36 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         "Sparkline",
         Sparkline::new
     );
-    private final Expression key;
-    private final Expression buckets;
-    private final Expression from;
-    private final Expression to;
 
     @FunctionInfo(
-        returnType = "double",
-        description = "The average of a numeric field.",
+        returnType = { "integer", "long", "double", "float" },
+        description = "The values representing the y-axis values of a sparkline graph for a given aggregation over a period of time.",
         type = FunctionType.AGGREGATE,
-        examples = {
-            @Example(file = "stats", tag = "avg"),
-            @Example(
-                description = "The expression can use inline functions. For example, to calculate the average "
-                    + "over a multivalued column, first use `MV_AVG` to average the multiple values per row, "
-                    + "and use the result with the `AVG` function",
-                file = "stats",
-                tag = "docsStatsAvgNestedExpression"
-            ) }
+        examples = { @Example(file = "stats_sparkline", tag = "sparkline") }
     )
     public Sparkline(
         Source source,
         @Param(
-            name = "number",
-            type = { "aggregate_metric_double", "exponential_histogram", "tdigest", "double", "integer", "long" },
-            description = "Expression that outputs values to average."
+            name = "field",
+            type = { "integer", "long", "double", "float" },
+            description = "Expression that calculates the y-axis value of the sparkline graph for each datapoint."
         ) Expression field,
+        @Param(name = "field", type = { "date" }, description = "Numeric or date expression from which to derive buckets.") Expression key,
         @Param(
-            name = "key",
-            type = { "keyword", "text" },
-            description = "Expression that outputs the key for the sparkline."
-        ) Expression key,
-        Expression buckets,
-        Expression from,
-        Expression to
+            name = "buckets",
+            type = { "integer" },
+            description = "Target number of buckets, or desired bucket size if `from` and `to` parameters are omitted."
+        ) Expression buckets,
+        @Param(
+            name = "from",
+            type = { "keyword", "text", "date" },
+            description = "Start of the range. Can be a number, a date or a date expressed as a string."
+        ) Expression from,
+        @Param(
+            name = "to",
+            type = { "keyword", "text", "date" },
+            description = "End of the range. Can be a number, a date or a date expressed as a string."
+        ) Expression to
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, key, buckets, from, to);
     }
@@ -88,10 +83,6 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         Expression to
     ) {
         super(source, field, filter, window, List.of(key, buckets, from, to));
-        this.key = key;
-        this.buckets = buckets;
-        this.from = from;
-        this.to = to;
     }
 
     @Override
@@ -99,29 +90,43 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         if (childrenResolved() == false) {
             return new Expression.TypeResolution("Unresolved children");
         }
-        return isType(
+
+        TypeResolution resolution = isType(
             field(),
-            dt -> (dt.isNumeric() && dt != DataType.UNSIGNED_LONG)
-                || dt == AGGREGATE_METRIC_DOUBLE
-                || dt == EXPONENTIAL_HISTOGRAM
-                || dt == DataType.TDIGEST,
+            dt -> dt == DataType.LONG || dt == DataType.INTEGER,
             sourceText(),
-            DEFAULT,
-            "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types"
-        );
+            FIRST,
+            "long or integer"
+        ).and(isDate(key(), sourceText(), SECOND))
+            .and(isWholeNumber(buckets(), sourceText(), THIRD))
+            .and(
+                isType(
+                    from(),
+                    dt -> dt == DataType.KEYWORD || dt == DataType.TEXT || dt == DataType.DATETIME,
+                    sourceText(),
+                    FOURTH,
+                    "string or datetime"
+                )
+            )
+            .and(
+                isType(
+                    to(),
+                    dt -> dt == DataType.KEYWORD || dt == DataType.TEXT || dt == DataType.DATETIME,
+                    sourceText(),
+                    FIFTH,
+                    "string or datetime"
+                )
+            );
+
+        if (resolution.unresolved()) {
+            return resolution;
+        } else {
+            return TypeResolution.TYPE_RESOLVED;
+        }
     }
 
     private Sparkline(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            readWindow(in)
-        ); // TODO: Update this
+        super(in);
     }
 
     @Override
@@ -131,28 +136,28 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
 
     @Override
     public DataType dataType() {
-        return DataType.LONG;
+        return field().dataType();
     }
 
     @Override
     protected NodeInfo<Sparkline> info() {
-        return NodeInfo.create(this, Sparkline::new, field(), key, filter(), window(), buckets, from, to);
+        return NodeInfo.create(this, Sparkline::new, field(), filter(), window(), key(), buckets(), from(), to());
     }
 
     public Expression key() {
-        return key;
+        return parameters().get(0);
     }
 
     public Expression buckets() {
-        return buckets;
+        return parameters().get(1);
     }
 
     public Expression from() {
-        return from;
+        return parameters().get(2);
     }
 
     public Expression to() {
-        return to;
+        return parameters().get(3);
     }
 
     @Override
@@ -171,41 +176,6 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
 
     @Override
     public Sparkline withFilter(Expression filter) {
-        return new Sparkline(source(), field(), key, filter, window(), buckets, from, to);
-    }
-
-    /*@Override
-    public final AggregatorFunctionSupplier supplier() {
-        DataType type = field().dataType();
-        if (type != LONG) {
-            // If the type checking did its job, this should never happen
-            throw EsqlIllegalArgumentException.illegalDataType(type);
-        }
-
-        AggregatorFunctionSupplier supplier = null;
-        if (field() instanceof ToAggregator toAggregator) {
-            supplier = toAggregator.supplier();
-        } else {
-            throw new ElasticsearchStatusException(
-                Strings.format("Cannot create aggregator for [{}] of type [{}]", getWriteableName(), field().dataType()),
-                RestStatus.INTERNAL_SERVER_ERROR
-            );
-        }
-
-        var bucketExpr = new Bucket(source(), key, buckets, from, to, ConfigurationAware.CONFIGURATION_MARKER);
-        var rounding = bucketExpr.getDateRounding(FoldContext.small(), null, null);
-        var minDate = foldToLong(FoldContext.small(), bucketExpr.from());
-        var maxDate = foldToLong(FoldContext.small(), bucketExpr.to());
-        return new SparklineAggregatorFunction.SparklineAggregatorFunctionSupplier(rounding, minDate, maxDate, supplier);
-    }*/
-
-    private long foldToLong(FoldContext ctx, Expression e) {
-        Object value = Foldables.valueOf(ctx, e);
-        return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
-    }
-
-    @Override
-    public boolean resolved() {
-        return key.resolved() && buckets.resolved();
+        return new Sparkline(source(), field(), filter, window(), key(), buckets(), from(), to());
     }
 }

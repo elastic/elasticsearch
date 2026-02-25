@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.planner.ConstantShardContextIndexedByShardId;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
@@ -742,7 +743,11 @@ public class CsvTests extends ESTestCase {
     // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
     private void opportunisticallyAssertPlanSerialization(PhysicalPlan plan) {
         if (plan.anyMatch(
-            p -> p instanceof LocalSourceExec || p instanceof HashJoinExec || p instanceof ChangePointExec || p instanceof MergeExec
+            p -> p instanceof LocalSourceExec
+                || p instanceof HashJoinExec
+                || p instanceof ChangePointExec
+                || p instanceof MergeExec
+                || p instanceof SparklineGenerateEmptyBucketsExec
         )) {
             return;
         }

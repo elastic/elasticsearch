@@ -383,8 +383,7 @@ public class EsqlFunctionRegistry {
                 def(Values.class, uni(Values::new), "values"),
                 def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
                 def(Present.class, uni(Present::new), "present"),
-                def(Absent.class, uni(Absent::new), "absent"),
-                def(Sparkline.class, Sparkline::new, 0, "sparkline") },
+                def(Absent.class, uni(Absent::new), "absent") },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
@@ -593,7 +592,8 @@ public class EsqlFunctionRegistry {
                 def(Last.class, bi(Last::new), "last"),
                 // dense vector functions
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
-                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };
+                def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange"),
+                def(Sparkline.class, Sparkline::new, 0, "sparkline") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

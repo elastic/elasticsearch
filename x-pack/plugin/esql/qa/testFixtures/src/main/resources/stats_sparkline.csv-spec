@@ -1,0 +1,105 @@
+sparklineWithCountAll
+required_capability: agg_sparkline
+// tag::sparkline[]
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+// end::sparkline[]
+;
+
+// tag::sparkline-result[]
+sparkline:long
+[0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0]
+// end::sparkline-result[]
+;
+
+sparklineWithIntegerAggregate
+required_capability: agg_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(MAX(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:integer
+[0, 66174, 0, 0, 44817, 0, 62405, 0, 49095, 54329, 74999, 0]
+;
+
+sparklineWithLongAggregate
+required_capability: agg_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(SUM(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:long
+[0, 92610, 0, 0, 44817, 0, 62405, 0, 49095, 103064, 218159, 0]
+;
+
+sparklineWithGrouping
+required_capability: agg_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z") BY gender
+| SORT gender
+;
+
+sparkline:long                         | gender:keyword
+[0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0] | F
+[0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0] | M
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0] | null
+;
+
+sparklineWithInlineFilter
+required_capability: agg_sparkline
+FROM employees
+| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z") WHERE gender == "M"
+;
+
+sparkline:long
+[0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0]
+;
+
+sparklineWithMultipleSparklines
+required_capability: agg_sparkline
+FROM employees
+| STATS s1 = SPARKLINE(MAX(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        s2 = SPARKLINE(MIN(salary), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+s1:integer                                                      | s2:integer
+[0, 66174, 0, 0, 44817, 0, 62405, 0, 49095, 54329, 74999, 0]  | [0, 26436, 0, 0, 44817, 0, 62405, 0, 49095, 48735, 33956, 0]
+;
+
+sparklineWithNonSparklineAggregates
+required_capability: agg_sparkline
+FROM employees
+| STATS s = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        c = COUNT(*),
+        m = MAX(salary)
+;
+
+s:long                                 | c:long | m:integer
+[0, 2, 0, 0, 1, 0, 1, 0, 1, 2, 4, 0]   | 100    | 74999
+;
+
+sparklineWithNonSparklineAggregatesAndGrouping
+required_capability: agg_sparkline
+FROM employees
+| STATS s = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z"),
+        c = COUNT(*),
+        m = MAX(salary) BY gender
+| SORT gender
+;
+
+s:long                                 | c:long | m:integer | gender:keyword
+[0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0]   | 33     | 74572     | F
+[0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0]   | 57     | 74999     | M
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0]   | 10     | 73717     | null
+;
+
+sparklineEmptyNoRows
+required_capability: agg_sparkline
+FROM employees
+| WHERE hire_date < "1900-01-01T00:00:00Z"
+| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z")
+;
+
+sparkline:long
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+;

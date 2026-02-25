@@ -62,9 +62,11 @@ import java.util.Map;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.test.AbstractSearchCancellationTestCase.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
@@ -115,7 +117,12 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.concatLists(
-            List.of(TestSystemIndexPlugin.class, DataStreamsPlugin.class, TestSystemDataStreamPlugin.class),
+            List.of(
+                TestSystemIndexPlugin.class,
+                DataStreamsPlugin.class,
+                TestSystemDataStreamPlugin.class,
+                SearchTimeoutIT.SearchTimeoutPlugin.class
+            ),
             super.nodePlugins()
         );
     }
@@ -134,6 +141,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertMessageSuccess(message, "search", "fox");
             assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("1"));
             assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(""));
+            assertNull(message.get(ES_FIELDS_PREFIX + "timed_out"));
         }
 
         // Match
@@ -144,6 +152,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertMessageSuccess(message, "search", "quick");
             assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
             assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
+            assertNull(message.get(ES_FIELDS_PREFIX + "timed_out"));
         }
     }
 
@@ -306,6 +315,52 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
                 new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME)
             ).actionGet();
         }
+    }
+
+    public void testSearchHasAggregationsLog() {
+        setupIndex();
+
+        // Search without aggregations: search.has_aggregations must not be present
+        assertSearchHitsWithoutFailures(prepareSearch(INDEX_NAME).setQuery(matchQuery("field1", "quick")), "1", "2", "3");
+        var eventNoAgg = appender.getLastEventAndReset();
+        Map<String, String> messageNoAgg = getMessageData(eventNoAgg);
+        assertMessageSuccess(messageNoAgg, "search", "quick");
+        assertNull(messageNoAgg.get(SearchLogProducer.SEARCH_HAS_AGGREGATIONS_FIELD));
+
+        // Search with aggregations: search.has_aggregations must be true
+        assertResponse(
+            prepareSearch(INDEX_NAME).setSize(0).setQuery(matchAllQuery()).addAggregation(filter("agg_filter", matchAllQuery())),
+            ElasticsearchAssertions::assertNoFailures
+        );
+        var eventWithAgg = appender.getLastEventAndReset();
+        Map<String, String> messageWithAgg = getMessageData(eventWithAgg);
+        assertMessageSuccess(messageWithAgg, "search", "match_all");
+        assertThat(messageNoAgg.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
+        assertThat(messageWithAgg.get(SearchLogProducer.SEARCH_HAS_AGGREGATIONS_FIELD), equalTo("true"));
+    }
+
+    public void testSearchTimedOutLog() {
+        setupIndex();
+        final String timedOutField = ES_FIELDS_PREFIX + "timed_out";
+
+        // Search that times out (using plugin that throws TimeExceededException): timed_out must be true
+        SearchResponse timedOutResponse = null;
+        try {
+            timedOutResponse = client().prepareSearch(INDEX_NAME)
+                .setQuery(new SearchTimeoutIT.BulkScorerTimeoutQuery(false))
+                .setTimeout(TimeValue.timeValueSeconds(10))
+                .setAllowPartialSearchResults(true)
+                .get();
+            assertThat(timedOutResponse.isTimedOut(), equalTo(true));
+        } finally {
+            if (timedOutResponse != null) {
+                timedOutResponse.decRef();
+            }
+        }
+        var eventTimedOut = appender.getLastEventAndReset();
+        Map<String, String> messageTimedOut = getMessageData(eventTimedOut);
+        assertMessageSuccess(messageTimedOut, "search", "timeout");
+        assertThat(messageTimedOut.get(timedOutField), equalTo("true"));
     }
 
     private void setupIndex() {

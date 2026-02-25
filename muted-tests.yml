@@ -443,6 +443,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
   method: testAccumulateSearchLoad
   issue: https://github.com/elastic/elasticsearch/issues/143111
+- class: org.elasticsearch.index.mapper.IpFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/143123
 
 # Examples:
 #

@@ -42,8 +42,8 @@ public class MarkIndexForDLMForceMergeAction {
          */
         public Request(String originalIndex, String indexToBeForceMerged) {
             super(INFINITE_MASTER_NODE_TIMEOUT);
-            this.originalIndex = Strings.requireNonBlank(originalIndex, "original index must have text");
-            this.indexToBeForceMerged = Strings.requireNonBlank(indexToBeForceMerged, "index to be force merged must have text");
+            this.originalIndex = Strings.requireNonBlank(originalIndex, "originalIndex must have text");
+            this.indexToBeForceMerged = Strings.requireNonBlank(indexToBeForceMerged, "indexToBeForceMerged must have text");
         }
 
         public Request(StreamInput in) throws IOException {

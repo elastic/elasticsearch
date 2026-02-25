@@ -77,7 +77,6 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
     }
 
     public void testRequestValidation() {
-        ProjectId projectId = randomProjectIdOrDefault();
         String sourceIndex = "test-index";
         String targetIndex = "clone-index";
 
@@ -86,32 +85,46 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
         assertThat(validRequest.validate(), is(nullValue()));
 
         // Null source index
-        IllegalArgumentException e2 = expectThrows(
+        IllegalArgumentException e1 = expectThrows(
             IllegalArgumentException.class,
             () -> new MarkIndexForDLMForceMergeAction.Request(null, targetIndex)
         );
-        assertThat(e2.getMessage(), containsString("originalIndex must not be null or empty"));
+        assertThat(e1.getMessage(), containsString("originalIndex must have text"));
 
         // Empty source index
-        IllegalArgumentException e3 = expectThrows(
+        IllegalArgumentException e2 = expectThrows(
             IllegalArgumentException.class,
             () -> new MarkIndexForDLMForceMergeAction.Request("", targetIndex)
         );
-        assertThat(e3.getMessage(), containsString("originalIndex must not be null or empty"));
+        assertThat(e2.getMessage(), containsString("originalIndex must have text"));
+
+        // Whitespace source index
+        IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MarkIndexForDLMForceMergeAction.Request(" ", targetIndex)
+        );
+        assertThat(e3.getMessage(), containsString("originalIndex must have text"));
 
         // Null target index
         IllegalArgumentException e4 = expectThrows(
             IllegalArgumentException.class,
             () -> new MarkIndexForDLMForceMergeAction.Request(sourceIndex, null)
         );
-        assertThat(e4.getMessage(), containsString("indexToBeForceMerged must not be null or empty"));
+        assertThat(e4.getMessage(), containsString("indexToBeForceMerged must have text"));
 
         // Empty target index
         IllegalArgumentException e5 = expectThrows(
             IllegalArgumentException.class,
             () -> new MarkIndexForDLMForceMergeAction.Request(sourceIndex, "")
         );
-        assertThat(e5.getMessage(), containsString("indexToBeForceMerged must not be null or empty"));
+        assertThat(e5.getMessage(), containsString("indexToBeForceMerged must have text"));
+
+        // Whitespace target index
+        IllegalArgumentException e6 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MarkIndexForDLMForceMergeAction.Request(sourceIndex, " ")
+        );
+        assertThat(e6.getMessage(), containsString("indexToBeForceMerged must have text"));
     }
 
     public void testUpdateTaskWithMissingIndex() {
@@ -125,11 +138,15 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
             .build();
 
         AtomicReference<AcknowledgedResponse> responseRef = new AtomicReference<>();
-        DataStreamLifecycleService.MarkIndexForDlmForceMergeTask task = new DataStreamLifecycleService.MarkIndexForDlmForceMergeTask(
+        MarkIndexForDlmForceMergeTask task = new MarkIndexForDlmForceMergeTask(
             ActionListener.wrap(responseRef::set, e -> fail("Should not fail when index is missing")),
             projectId,
             new MarkIndexForDLMForceMergeAction.Request(sourceIndex, targetIndex)
         );
+
+        ClusterState resultState = task.execute(initialState);
+        // Since the index is missing, cluster state should remain unchanged
+        assertThat(resultState, sameInstance(initialState));
     }
 
     public void testUpdateTaskWithExistingIndex() {
@@ -143,7 +160,7 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
         ClusterState initialState = createClusterState(projectId, indexMetadata, cloneIndexMetadata);
 
         AtomicReference<AcknowledgedResponse> responseRef = new AtomicReference<>();
-        DataStreamLifecycleService.MarkIndexForDlmForceMergeTask task = new DataStreamLifecycleService.MarkIndexForDlmForceMergeTask(
+        MarkIndexForDlmForceMergeTask task = new MarkIndexForDlmForceMergeTask(
             ActionListener.wrap(responseRef::set, e -> fail("Should not fail: " + e.getMessage())),
             projectId,
             new MarkIndexForDLMForceMergeAction.Request(sourceIndex, targetIndex)
@@ -174,7 +191,7 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
         ClusterState initialState = createClusterState(projectId, indexMetadata, cloneIndexMetadata);
 
         AtomicReference<AcknowledgedResponse> responseRef = new AtomicReference<>();
-        DataStreamLifecycleService.MarkIndexForDlmForceMergeTask task = new DataStreamLifecycleService.MarkIndexForDlmForceMergeTask(
+        MarkIndexForDlmForceMergeTask task = new MarkIndexForDlmForceMergeTask(
             ActionListener.wrap(responseRef::set, e -> fail("Should not fail: " + e.getMessage())),
             projectId,
             new MarkIndexForDLMForceMergeAction.Request(sourceIndex, targetIndex)
@@ -208,7 +225,7 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
         ClusterState initialState = createClusterState(projectId, indexMetadata, cloneIndexMetadata);
 
         AtomicReference<AcknowledgedResponse> responseRef = new AtomicReference<>();
-        DataStreamLifecycleService.MarkIndexForDlmForceMergeTask task = new DataStreamLifecycleService.MarkIndexForDlmForceMergeTask(
+        MarkIndexForDlmForceMergeTask task = new MarkIndexForDlmForceMergeTask(
             ActionListener.wrap(responseRef::set, e -> fail("Should not fail: " + e.getMessage())),
             projectId,
             new MarkIndexForDLMForceMergeAction.Request(sourceIndex, targetIndex)
@@ -236,7 +253,7 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
         ClusterState initialState = createClusterState(projectId, indexMetadata, newCloneIndexMetadata);
 
         AtomicReference<AcknowledgedResponse> responseRef = new AtomicReference<>();
-        DataStreamLifecycleService.MarkIndexForDlmForceMergeTask task = new DataStreamLifecycleService.MarkIndexForDlmForceMergeTask(
+        MarkIndexForDlmForceMergeTask task = new MarkIndexForDlmForceMergeTask(
             ActionListener.wrap(responseRef::set, e -> fail("Should not fail: " + e.getMessage())),
             projectId,
             new MarkIndexForDLMForceMergeAction.Request(sourceIndex, newTargetIndex)

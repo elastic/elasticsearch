@@ -36,6 +36,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 
 import java.util.Optional;
 
@@ -89,7 +90,7 @@ public class CloneStep implements DlmStep {
                 indexName
             );
             // mark the index to be force merged directly
-            markIndexToBeForceMerged(indexName, indexName, stepContext, ActionListener.wrap(resp -> {
+            maybeMarkIndexToBeForceMerged(indexName, indexName, stepContext, ActionListener.wrap(resp -> {
                 logger.info("DLM successfully marked index [{}] to be force merged", indexName);
             }, err -> {
                 logger.error(() -> Strings.format("DLM failed to mark index [%s] to be force merged", indexName), err);
@@ -105,7 +106,7 @@ public class CloneStep implements DlmStep {
             return;
         }
 
-        cloneIndex(
+        maybeCloneIndex(
             indexName,
             cloneIndex,
             ActionListener.wrap(
@@ -143,13 +144,7 @@ public class CloneStep implements DlmStep {
             return;
         }
 
-        Long cloneCreationTime = getCloneIndexCreationTime(cloneIndex, cloneIndexMetadata, projectMetadata);
-
-        if (cloneCreationTime == null) {
-            throw new IllegalStateException(
-                Strings.format("DLM unable to determine creation time for clone index [%s] of index [%s]", cloneIndex, indexName)
-            );
-        }
+        long cloneCreationTime = getCloneIndexCreationTime(cloneIndex, cloneIndexMetadata, projectMetadata);
 
         long currentTime = stepContext.clock().millis();
         long timeSinceCreation = currentTime - cloneCreationTime;
@@ -166,7 +161,7 @@ public class CloneStep implements DlmStep {
                 CLONE_TIMEOUT.toHumanReadableString(2),
                 CLONE_TIMEOUT.millis()
             );
-            deleteCloneIndexIfExists(
+            maybeDeleteCloneIndex(
                 stepContext,
                 ActionListener.wrap(
                     resp -> logger.info("DLM successfully cleaned up clone index [{}] for index [{}]", cloneIndex, indexName),
@@ -209,6 +204,10 @@ public class CloneStep implements DlmStep {
             && timeSinceCreation > CLONE_TIMEOUT.millis();
     }
 
+    /**
+     * Listener for the clone index action that will mark the cloned index to be force merged on success within the index metadata of the
+     * original index, or clean up the clone index on failure.
+     */
     private static class CloneIndexResizeActionListener implements ActionListener<CreateIndexResponse> {
         private final String originalIndex;
         private final String cloneIndex;
@@ -239,7 +238,7 @@ public class CloneStep implements DlmStep {
             }
             logger.info("DLM successfully cloned index [{}] to index [{}]", originalIndex, cloneIndex);
             // on success, write the cloned index name to the custom metadata of the index metadata of original index
-            markIndexToBeForceMerged(originalIndex, cloneIndex, stepContext, listener.delegateFailure((l, v) -> {
+            maybeMarkIndexToBeForceMerged(originalIndex, cloneIndex, stepContext, listener.delegateFailure((l, v) -> {
                 logger.info("DLM successfully marked index [{}] to be force merged for source index [{}]", cloneIndex, originalIndex);
                 l.onResponse(null);
             }));
@@ -249,7 +248,7 @@ public class CloneStep implements DlmStep {
         public void onFailure(Exception e) {
             logger.error(() -> Strings.format("DLM failed to clone index [%s] to index [%s]", originalIndex, cloneIndex), e);
             stepContext.errorStore().recordError(stepContext.projectId(), originalIndex, e);
-            deleteCloneIndexIfExists(stepContext, listener.delegateFailure((l, v) -> {
+            maybeDeleteCloneIndex(stepContext, listener.delegateFailure((l, v) -> {
                 logger.info(
                     "DLM successfully deleted clone index [{}] after failed attempt to clone index [{}]",
                     cloneIndex,
@@ -260,17 +259,22 @@ public class CloneStep implements DlmStep {
         }
     }
 
-    private void cloneIndex(String originalIndex, String cloneIndex, ActionListener<Void> listener, DlmStepContext stepContext) {
+    private void maybeCloneIndex(String originalIndex, String cloneIndex, ActionListener<Void> listener, DlmStepContext stepContext) {
         ResizeRequest cloneIndexRequest = formCloneRequest(originalIndex, cloneIndex);
         stepContext.executeDeduplicatedRequest(
             TransportResizeAction.TYPE.name(),
             cloneIndexRequest,
             Strings.format("DLM service encountered an error when trying to clone index [%s]", originalIndex),
-            (req, unused) -> cloneIndex(stepContext.projectId(), cloneIndexRequest, listener, stepContext)
+            (req, unused) -> maybeCloneIndex(stepContext.projectId(), cloneIndexRequest, listener, stepContext)
         );
     }
 
-    private void cloneIndex(ProjectId projectId, ResizeRequest cloneRequest, ActionListener<Void> listener, DlmStepContext stepContext) {
+    private void maybeCloneIndex(
+        ProjectId projectId,
+        ResizeRequest cloneRequest,
+        ActionListener<Void> listener,
+        DlmStepContext stepContext
+    ) {
         assert cloneRequest.indices() != null && cloneRequest.indices().length == 1 : "DLM should clone one index at a time";
         String originalIndex = cloneRequest.getSourceIndex();
         String cloneIndex = cloneRequest.getTargetIndexRequest().index();
@@ -288,7 +292,7 @@ public class CloneStep implements DlmStep {
      * Updates the custom metadata of the index metadata of the source index to mark the target index as that to be force merged by DLM.
      * This method performs the update asynchronously using a transport action.
      */
-    private static void markIndexToBeForceMerged(
+    private static void maybeMarkIndexToBeForceMerged(
         String originalIndex,
         String indexToBeForceMerged,
         DlmStepContext stepContext,
@@ -306,11 +310,11 @@ public class CloneStep implements DlmStep {
                 indexToBeForceMerged,
                 originalIndex
             ),
-            (req, unused) -> markIndexToBeForceMerged(markIndexForForceMergeRequest, stepContext, listener)
+            (req, unused) -> maybeMarkIndexToBeForceMerged(markIndexForForceMergeRequest, stepContext, listener)
         );
     }
 
-    private static void markIndexToBeForceMerged(
+    private static void maybeMarkIndexToBeForceMerged(
         MarkIndexForDLMForceMergeAction.Request request,
         DlmStepContext stepContext,
         ActionListener<Void> listener
@@ -339,7 +343,7 @@ public class CloneStep implements DlmStep {
             }, listener::onFailure));
     }
 
-    private static void deleteCloneIndexIfExists(DlmStepContext stepContext, ActionListener<Void> listener) {
+    private static void maybeDeleteCloneIndex(DlmStepContext stepContext, ActionListener<Void> listener) {
         String cloneIndex = getDLMCloneIndexName(stepContext.indexName());
         if (stepContext.projectState().metadata().indices().containsKey(cloneIndex) == false) {
             logger.debug("Clone index [{}] does not exist, no need to delete", cloneIndex);
@@ -376,6 +380,12 @@ public class CloneStep implements DlmStep {
                 }
             }, err -> {
                 logger.error(() -> Strings.format("DLM failed to delete clone index [%s]", cloneIndex), err);
+                if (err instanceof IndexNotFoundException) {
+                    // If the index was not found, it means it was already deleted, so we can consider this a success
+                    logger.debug("Clone index [{}] was not found during DLM delete attempt, it may have already been deleted", cloneIndex);
+                    listener.onResponse(null);
+                    return;
+                }
                 listener.onFailure(err);
             }));
     }
@@ -424,14 +434,16 @@ public class CloneStep implements DlmStep {
     }
 
     /**
-     * Gets the creation time of a clone index.
+     * Gets the creation time of the clone index in milliseconds. If the clone index is part of a data stream, it attempts
+     * to get the creation time from the data stream's generation lifecycle date for the clone index. If that is not available,
+     * it falls back to the creation date of the clone index metadata.
      *
      * @param cloneIndex the name of the clone index
      * @param cloneIndexMetadata the metadata of the clone index
      * @param projectMetadata the project metadata containing data stream information
-     * @return the creation time in milliseconds, or null if it cannot be determined
+     * @return the creation time in milliseconds
      */
-    protected static Long getCloneIndexCreationTime(String cloneIndex, IndexMetadata cloneIndexMetadata, ProjectMetadata projectMetadata) {
+    protected static long getCloneIndexCreationTime(String cloneIndex, IndexMetadata cloneIndexMetadata, ProjectMetadata projectMetadata) {
         return Optional.ofNullable(projectMetadata.getIndicesLookup())
             .map(indicesLookup -> indicesLookup.get(cloneIndex))
             .map(IndexAbstraction::getParentDataStream)

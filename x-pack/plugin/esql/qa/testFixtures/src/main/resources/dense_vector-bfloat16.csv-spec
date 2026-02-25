@@ -76,7 +76,7 @@ id:l | v:dense_vector
 coalesceBfloat16VectorTwoColumns
 required_capability: coalesce_dense_vector
 
-FROM dense_vector_bfloat16
+FROM dense_vector_coalesce
 | EVAL v = COALESCE(bfloat16_vector, bfloat16_vector)
 | KEEP id, v
 | SORT id

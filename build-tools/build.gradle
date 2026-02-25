@@ -143,6 +143,7 @@ dependencies {
     implementation buildLibs.asm
     implementation buildLibs.jackson.core
     implementation buildLibs.jackson.databind
+    implementation "io.opentelemetry.proto:opentelemetry-proto:1.9.0-alpha"
 
     testFixturesApi buildLibs.commmons.io
     testFixturesApi gradleApi()

@@ -112,15 +112,6 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             "By",
             ProcessProbe::getTotalVirtualMemorySize
         );
-
-        metrics.add(
-            registry.registerLongGauge(
-                "jvm.gc.alloc",
-                "An approximation of the total amount of memory, in bytes, allocated in heap memory.",
-                "By",
-                ALLOCATED_BYTES_METRICS::readAllocatedBytes
-            )
-        );
     }
 
     private void registerCgroupMemoryMetrics() {
@@ -175,6 +166,15 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                     }
                     return measurements;
                 }
+            )
+        );
+
+        metrics.add(
+            registry.registerLongGauge(
+                "jvm.gc.alloc",
+                "An approximation of the total amount of memory, in bytes, allocated in heap memory.",
+                "By",
+                ALLOCATED_BYTES_METRICS::readAllocatedBytes
             )
         );
     }

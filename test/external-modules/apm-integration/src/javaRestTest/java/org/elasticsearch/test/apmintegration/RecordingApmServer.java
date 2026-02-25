@@ -9,6 +9,11 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+import io.opentelemetry.proto.metrics.v1.Metric;
+import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
+import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
@@ -52,16 +57,16 @@ public class RecordingApmServer extends ExternalResource {
 
     private Thread consumerThread() {
         return new Thread(() -> {
-            while (running) {
+            while (running && Thread.currentThread().isInterrupted() == false) {
                 if (consumer != null) {
                     try {
                         String msg = received.poll(1L, TimeUnit.SECONDS);
                         if (msg != null && msg.isEmpty() == false) {
                             consumer.accept(msg);
                         }
-
                     } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                        Thread.currentThread().interrupt();
+                        return;
                     }
                 }
             }
@@ -71,21 +76,30 @@ public class RecordingApmServer extends ExternalResource {
     @Override
     protected void after() {
         running = false;
-        server.stop(1);
+        messageConsumerThread.interrupt();
+        if (server != null) {
+            server.stop(1);
+        }
         consumer = null;
+        try {
+            messageConsumerThread.join(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
+            String path = exchange.getRequestURI().getPath();
             if (running) {
-                try {
-                    try (InputStream requestBody = exchange.getRequestBody()) {
-                        if (requestBody != null) {
-                            var read = readJsonMessages(requestBody);
-                            received.addAll(read);
+                try (InputStream requestBody = exchange.getRequestBody()) {
+                    if (requestBody != null) {
+                        if ("/v1/metrics".equals(path)) {
+                            parseOtlpMetrics(requestBody);
+                        } else {
+                            received.addAll(readJsonMessages(requestBody));
                         }
                     }
-
                 } catch (Throwable t) {
                     // The lifetime of HttpServer makes message handling "brittle": we need to start handling and recording received
                     // messages before the test starts running. We should also stop handling them before the test ends (and the test
@@ -98,6 +112,17 @@ public class RecordingApmServer extends ExternalResource {
                 }
             }
             exchange.sendResponseHeaders(201, 0);
+        }
+    }
+
+    private void parseOtlpMetrics(InputStream input) throws IOException {
+        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.parseFrom(input);
+        for (ResourceMetrics resourceMetrics : request.getResourceMetricsList()) {
+            for (ScopeMetrics scopeMetrics : resourceMetrics.getScopeMetricsList()) {
+                for (Metric metric : scopeMetrics.getMetricsList()) {
+                    received.offer(metric.getName());
+                }
+            }
         }
     }
 

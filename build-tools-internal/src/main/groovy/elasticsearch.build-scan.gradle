@@ -41,6 +41,22 @@ develocity {
     def gitRevision = buildParams.gitRevision
     def testSeed = buildParams.testSeed
 
+    // Store test seed in Buildkite metadata early (outside build scan hooks)
+    // This ensures retries can retrieve the seed even if the original build failed before publishing a scan
+    if (onCI) {
+      def jobId = System.getenv('BUILDKITE_JOB_ID')
+      if (jobId) {
+        try {
+          new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "tests-seed-${jobId}", testSeed)
+            .start()
+            .waitFor()
+        } catch (Exception e) {
+          // Ignore failures - this is best-effort
+          logger.warn("Failed to store test seed in Buildkite metadata: ${e.message}")
+        }
+      }
+    }
+
     background {
       tag OS.current().name()
       tag Architecture.current().name()

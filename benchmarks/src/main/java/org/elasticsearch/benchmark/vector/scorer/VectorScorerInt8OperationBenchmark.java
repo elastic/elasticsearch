@@ -9,8 +9,6 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.simdvec.VectorSimilarityType;

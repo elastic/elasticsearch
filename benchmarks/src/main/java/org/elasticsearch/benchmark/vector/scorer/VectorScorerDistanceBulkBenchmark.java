@@ -10,7 +10,6 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;

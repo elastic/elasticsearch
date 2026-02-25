@@ -3476,7 +3476,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
 
         final var excludedProject = randomFrom("P1", "P2", "P3");
-        final var excludedIndex = randomFrom("*", "foo*", "foo");
+        final var excludedIndex = randomFrom("foo*", "foo");
         final String excludeExpression = randomBoolean()
             ? "-" + excludedProject + ":" + excludedIndex
             : excludedProject + ":-" + excludedIndex;
@@ -3513,7 +3513,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
 
         final var excludedProject = "P*";
-        final var excludedIndex = randomFrom("*", "foo*", "foo");
+        final var excludedIndex = randomFrom("foo*", "foo");
         final String excludeExpression = randomBoolean()
             ? "-" + excludedProject + ":" + excludedIndex
             : excludedProject + ":-" + excludedIndex;

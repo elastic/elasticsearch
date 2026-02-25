@@ -62,7 +62,8 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
         this(source, field, Literal.TRUE, NO_WINDOW, NONE);
     }
 
-    private SpatialCentroid(Source source, Expression field, Expression filter, Expression window, FieldExtractPreference preference) {
+    // Public for use in EsqlNodeSubclassTests and nodeInfo
+    public SpatialCentroid(Source source, Expression field, Expression filter, Expression window, FieldExtractPreference preference) {
         super(source, field, filter, window, preference);
     }
 
@@ -99,12 +100,12 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
 
     @Override
     protected NodeInfo<SpatialCentroid> info() {
-        return NodeInfo.create(this, SpatialCentroid::new, field());
+        return NodeInfo.create(this, SpatialCentroid::new, field(), filter(), window(), fieldExtractPreference);
     }
 
     @Override
     public SpatialCentroid replaceChildren(List<Expression> newChildren) {
-        return new SpatialCentroid(source(), newChildren.get(0));
+        return new SpatialCentroid(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), fieldExtractPreference);
     }
 
     @Override

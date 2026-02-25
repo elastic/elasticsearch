@@ -416,6 +416,11 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return resolution.type();
+        }
+
+        @Override
         public DateFieldMapper build(MapperBuilderContext context) {
             final String fullFieldName = context.buildFullName(leafName());
             IndexType indexType = indexType(fullFieldName);

@@ -14,7 +14,7 @@ setup:
             settings:
               index:
                 time_series:
-                  start_time: 2024-07-01T13:03:08.138Z
+                  start_time: 2026-01-01T00:00:00
 ---
 "Test index template exists":
   - do:
@@ -29,7 +29,7 @@ setup:
         refresh: true
         body:
           - create: { }
-          - "@timestamp": "2024-07-18T14:48:33.467654000Z"
+          - "@timestamp": "2026-01-01T00:00:00"
             data_stream:
               dataset: "generic.prometheus"
               namespace: "default"
@@ -53,8 +53,8 @@ setup:
         index: metrics-generic.prometheus-default
         refresh: true
         body:
-          - create: {"dynamic_templates":{"node_cpu_seconds_total":"counter"}}
-          - "@timestamp": "2024-07-18T14:48:33.467654000Z"
+          - create: {}
+          - "@timestamp": "2026-01-01T00:00:00"
             data_stream:
               dataset: "generic.prometheus"
               namespace: "default"
@@ -63,7 +63,8 @@ setup:
               job: "node_exporter"
               instance: "localhost:9100"
               __name__: "node_cpu_seconds_total"
-            node_cpu_seconds_total: 12345.67
+            metrics:
+              node_cpu_seconds_total: 12345.67
   - is_false: errors
   - do:
       search:
@@ -83,8 +84,8 @@ setup:
       indices.get_mapping:
         index: $idx0name
         expand_wildcards: hidden
-  - match: { .$idx0name.mappings.properties.node_cpu_seconds_total.type: 'double' }
-  - match: { .$idx0name.mappings.properties.node_cpu_seconds_total.time_series_metric: 'counter' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.node_cpu_seconds_total.type: 'double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.node_cpu_seconds_total.time_series_metric: 'counter' }
 ---
 "Test gauge metric":
   - do:
@@ -92,8 +93,8 @@ setup:
         index: metrics-generic.prometheus-default
         refresh: true
         body:
-          - create: {"dynamic_templates":{"node_memory_MemFree_bytes":"gauge"}}
-          - "@timestamp": "2024-07-18T14:48:33.467654000Z"
+          - create: {}
+          - "@timestamp": "2026-01-01T00:00:00"
             data_stream:
               dataset: "generic.prometheus"
               namespace: "default"
@@ -102,7 +103,8 @@ setup:
               job: "node_exporter"
               instance: "localhost:9100"
               __name__: "node_memory_MemFree_bytes"
-            node_memory_MemFree_bytes: 8589934592
+            metrics:
+              node_memory_MemFree_bytes: 8589934592
   - is_false: errors
   - do:
       search:
@@ -122,5 +124,105 @@ setup:
       indices.get_mapping:
         index: $idx0name
         expand_wildcards: hidden
-  - match: { .$idx0name.mappings.properties.node_memory_MemFree_bytes.type: 'double' }
-  - match: { .$idx0name.mappings.properties.node_memory_MemFree_bytes.time_series_metric: 'gauge' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.node_memory_MemFree_bytes.type: 'double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.node_memory_MemFree_bytes.time_series_metric: 'gauge' }
+---
+"Custom template can mark additional fields as counters":
+  - do:
+      cluster.put_component_template:
+        name: metrics-prometheus@custom
+        body:
+          template:
+            settings:
+              index:
+                time_series:
+                  start_time: 2024-07-01T13:03:08.138Z
+            mappings:
+              dynamic_templates:
+                - counter:
+                    path_match: [ "metrics.*_counter" ]
+                    mapping:
+                      type: double
+                      time_series_metric: counter
+  - do:
+      bulk:
+        index: metrics-generic.prometheus-custom
+        refresh: true
+        body:
+          - create: { }
+          - "@timestamp": "2026-01-01T00:00:00"
+            data_stream:
+              dataset: "generic.prometheus"
+              namespace: "custom"
+              type: "metrics"
+            labels:
+              job: "node_exporter"
+              instance: "localhost:9100"
+            metrics:
+              # doesn't match the default counter patterns, but should be mapped as a counter due to the custom template
+              http_requests_counter: 42
+              # also test that the custom template doesn't interfere with default counter mappings
+              http_requests_total: 42
+              # and that it doesn't interfere with gauge mappings either
+              http_requests_gauge: 42
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.prometheus-custom
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.metrics.properties.http_requests_counter.type: 'double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.http_requests_counter.time_series_metric: 'counter' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.http_requests_total.type: 'double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.http_requests_total.time_series_metric: 'counter' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.http_requests_gauge.type: 'double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.http_requests_gauge.time_series_metric: 'gauge' }
+---
+"Passthrough fields support foo and foo.bar prefixes":
+  - do:
+      bulk:
+        index: metrics-generic.prometheus-default
+        refresh: true
+        body:
+          - create: { }
+          - "@timestamp": "2026-01-01T00:00:00"
+            data_stream:
+              dataset: "generic.prometheus"
+              namespace: "default"
+              type: "metrics"
+            labels:
+              foo: "label_root"
+            metrics:
+              metric_root: 10
+          - create: { }
+          - "@timestamp": "2026-01-01T00:00:00"
+            data_stream:
+              dataset: "generic.prometheus"
+              namespace: "default"
+              type: "metrics"
+            labels:
+              foo.bar: "label_nested"
+            metrics:
+              metric_root.nested: 20
+  - is_false: errors
+  - is_false: items.0.create.failure_store
+  - is_false: items.1.create.failure_store
+  - do:
+      search:
+        index: metrics-generic.prometheus-default
+        body:
+          query:
+            exists:
+              field: foo
+  - length: { hits.hits: 1 }
+  - do:
+      search:
+        index: metrics-generic.prometheus-default
+        body:
+          query:
+            exists:
+              field: foo.bar
+  - length: { hits.hits: 1 }

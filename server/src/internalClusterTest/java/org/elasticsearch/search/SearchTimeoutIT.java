@@ -335,7 +335,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             .setTimeout(new TimeValue(10, TimeUnit.SECONDS))
             .setKnnSearch(
                 List.of(
-                    new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, 100,null, null).addFilterQuery(
+                    new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, 100, null, null).addFilterQuery(
                         new DfsKnnTimeoutQuery()
                     )
                 )

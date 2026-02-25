@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StSimplify}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator.class);
+public final class StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator.class);
 
   private final Source source;
 
@@ -34,7 +34,7 @@ public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator im
 
   private Warnings warnings;
 
-  public StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator(Source source,
+  public StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator geometry, double tolerance, DriverContext driverContext) {
     this.source = source;
     this.geometry = geometry;
@@ -68,7 +68,7 @@ public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator im
           continue position;
         }
         try {
-          StSimplify.processNonFoldableGeometryAndConstantTolerance(result, p, geometryBlock, this.tolerance);
+          StSimplify.processCartesianShapeAndConstantTolerance(result, p, geometryBlock, this.tolerance);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -80,7 +80,7 @@ public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator im
 
   @Override
   public String toString() {
-    return "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[" + "geometry=" + geometry + ", tolerance=" + tolerance + "]";
+    return "StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator[" + "geometry=" + geometry + ", tolerance=" + tolerance + "]";
   }
 
   @Override
@@ -110,13 +110,14 @@ public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator im
     }
 
     @Override
-    public StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator get(DriverContext context) {
-      return new StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator(source, geometry.get(context), tolerance, context);
+    public StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator get(
+        DriverContext context) {
+      return new StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator(source, geometry.get(context), tolerance, context);
     }
 
     @Override
     public String toString() {
-      return "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[" + "geometry=" + geometry + ", tolerance=" + tolerance + "]";
+      return "StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator[" + "geometry=" + geometry + ", tolerance=" + tolerance + "]";
     }
   }
 }

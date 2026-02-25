@@ -96,15 +96,13 @@ public class StYMax extends SpatialUnaryDocValuesFunction {
             ? new SpatialEnvelopeResults.Factory<DoubleBlock.Builder>(GEO, () -> new GeoPointVisitor(WRAP))
             : new SpatialEnvelopeResults.Factory<DoubleBlock.Builder>(CARTESIAN, CartesianPointVisitor::new);
         var spatial = toEvaluator.apply(spatialField());
-        if (spatialDocValues) {
-            if (isSpatialPoint(spatialField().dataType())) {
-                // Both use linear optimization with different decode functions
-                return isSpatialGeo(spatialField().dataType())
-                    ? new StYMaxFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get)
-                    : new StYMaxFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
-            }
-            throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
+        if (spatialDocValues && isSpatialPoint(spatialField().dataType())) {
+            // Both use linear optimization with different decode functions
+            return isSpatialGeo(spatialField().dataType())
+                ? new StYMaxFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get)
+                : new StYMaxFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
         }
+        // spatialDocValues for shapes is provided as WKB
         return new StYMaxFromWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
     }
 

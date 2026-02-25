@@ -96,15 +96,13 @@ public class StXMin extends SpatialUnaryDocValuesFunction {
             ? new SpatialEnvelopeResults.Factory<DoubleBlock.Builder>(GEO, () -> new GeoPointVisitor(WRAP))
             : new SpatialEnvelopeResults.Factory<DoubleBlock.Builder>(CARTESIAN, CartesianPointVisitor::new);
         var spatial = toEvaluator.apply(spatialField());
-        if (spatialDocValues) {
-            if (isSpatialPoint(spatialField().dataType())) {
-                // Cartesian: use linear optimization; Geo: use envelope visitor for longitude wrapping
-                return isSpatialGeo(spatialField().dataType())
-                    ? new StXMinFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get)
-                    : new StXMinFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
-            }
-            throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
+        if (spatialDocValues && isSpatialPoint(spatialField().dataType())) {
+            // Cartesian: use linear optimization; Geo: use envelope visitor for longitude wrapping
+            return isSpatialGeo(spatialField().dataType())
+                ? new StXMinFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get)
+                : new StXMinFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
         }
+        // spatialDocValues for shapes is provided as WKB
         return new StXMinFromWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
     }
 

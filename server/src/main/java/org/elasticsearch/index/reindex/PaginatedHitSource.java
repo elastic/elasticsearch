@@ -135,7 +135,7 @@ public abstract class PaginatedHitSource {
         }
     }
 
-    public final void cleanUpWithoutClosingPagination(final Runnable onCompletion) {
+    public final void cleanupWithoutClosingPagination(final Runnable onCompletion) {
         cleanup(onCompletion);
     }
 

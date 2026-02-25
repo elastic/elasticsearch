@@ -151,8 +151,7 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertFieldsFetchReturnsValues(List<String> expectedValues)
-        throws IOException {
+    private static void assertFieldsFetchReturnsValues(List<String> expectedValues) throws IOException {
         Request searchRequest = new Request("GET", "/" + "logs-test-pattern-text" + "/_search");
         searchRequest.setJsonEntity("""
             {

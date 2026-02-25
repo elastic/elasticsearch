@@ -181,6 +181,12 @@ public abstract class PatternTextFallbackDocValues extends BinaryDocValues {
         }
     }
 
+    /**
+     * It is not ideal that we are wrapping the stored fields loader in binary doc values. This is acceptable for this use case
+     * because combining a pattern_text doc values with its fallbacks is complicated and error-prone. Doing this in a single
+     * location reduces the chance of errors. Also, stored fields are only used as a fallback for proper pattern_text, either when
+     * a value exceeds 32kb, or templating is disabled.
+     */
     private static BinaryDocValues storedFieldAsBinaryDocValues(LeafReaderContext context, String fieldName) throws IOException {
         var loader = StoredFieldLoader.create(false, Set.of(fieldName));
         var leafLoader = loader.getLoader(context, null);

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
+import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -264,6 +265,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
         task.setExecutionInfo(createEsqlExecutionInfo(request));
         ActionListener.run(listener, l -> innerExecute(task, request, l));
+    }
+
+    @Override
+    public void onResponseAfterTimeout(EsqlQueryResponse response) {
+        EsqlResponseListener.logPartialFailures("/_query/async", Map.of(), response.getExecutionInfo());
+    }
+
+    @Override
+    public void onFailureAfterTimeout(Exception exception) {
+        EsqlResponseListener.logOnFailure(exception);
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {

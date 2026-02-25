@@ -64,12 +64,11 @@ dependencies {
   clusterModules project(xpackModule('mapper-aggregate-metric'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
   clusterModules project(xpackModule('mapper-counted-keyword'))
-  clusterModules project(xpackModule('mapper-exponential-histogram'))
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('wildcard'))
   clusterModules project(xpackModule('mapper-version'))
 
-  def otelVersion = "1.53.0"
+  def otelVersion = "1.57.0"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-api:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-common:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-context:$otelVersion"

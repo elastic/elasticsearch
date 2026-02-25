@@ -432,7 +432,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
 
         MetaStateWriterUtils.writeIndex(nodeEnv, "test index being created", indexMetadata);
-        final Metadata metadata = Metadata.builder(clusterService.state().metadata()).put(indexMetadata, true).build();
+        final Metadata current = clusterService.state().metadata();
+        final ProjectMetadata updatedProject = ProjectMetadata.builder(current.getProject(ProjectId.DEFAULT))
+            .put(indexMetadata, true)
+            .build();
+        final Metadata metadata = Metadata.builder(current).put(updatedProject).build();
         final ClusterState csWithIndex = new ClusterState.Builder(clusterService.state()).metadata(metadata).build();
         try {
             indicesService.verifyIndexIsDeleted(index, csWithIndex);
@@ -820,7 +824,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testLoadSlowLogFieldProvider() {
+    public void testLoadLoggingFieldsProvider() {
         TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
         TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of("key2", "value2"));
 

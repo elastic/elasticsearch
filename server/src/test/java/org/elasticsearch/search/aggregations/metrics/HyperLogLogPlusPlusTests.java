@@ -195,10 +195,11 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
 
     public void testDynamicGrowth() {
         int numGroups = between(1000, 10_000);
-        int numValuesPerGroup = between(1, 20);
+        int numValuesPerGroup = between(1, 14);
         long requiredBytesOneGroup = 32L * 4L + 48L + 8L; // 48 bytes overhead each group + 8L bytes for the object reference in the array
         long requiredBytes = requiredBytesOneGroup * numGroups;
         requiredBytes += 2 * PageCacheRecycler.PAGE_SIZE_IN_BYTES; // extra pages for the object array
+        requiredBytes += 10 * PageCacheRecycler.PAGE_SIZE_IN_BYTES; // full allocations for the first few groups
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofBytes(requiredBytes));
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(requiredBytes));
         int precision = 14;

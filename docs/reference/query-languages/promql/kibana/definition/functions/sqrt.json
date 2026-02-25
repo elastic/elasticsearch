@@ -1,0 +1,25 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "value_transformation",
+  "name" : "sqrt",
+  "description" : "Calculates the square root of all elements in the input vector.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "sqrt(http_requests_total)"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

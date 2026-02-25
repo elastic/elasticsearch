@@ -367,7 +367,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                                     anchors
                                 );
                             }
-                            affinityScore = SegmentFingerprintAnchors.affinityFromFingerprints(queryFingerprint, segmentFp, queryVector.length);
+                            affinityScore = SegmentFingerprintAnchors.affinityFromFingerprints(
+                                queryFingerprint,
+                                segmentFp,
+                                queryVector.length
+                            );
                         } else {
                             affinityScore = Float.NaN;
                         }

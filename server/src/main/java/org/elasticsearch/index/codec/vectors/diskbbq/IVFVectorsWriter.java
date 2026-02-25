@@ -263,9 +263,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             writePreconditioner(preconditioner, ivfCentroids);
             long preconditionerLength = ivfCentroids.getFilePointer() - preconditionerOffset;
             // write meta file (with segment fingerprint for allocation when version supports it)
-            float[][] anchors = SegmentFingerprintAnchors.getAnchors(
-                fieldWriter.fieldInfo.getVectorDimension()
-            );
+            float[][] anchors = SegmentFingerprintAnchors.getAnchors(fieldWriter.fieldInfo.getVectorDimension());
             float[] segmentFingerprint = writeVersion >= ESNextDiskBBQVectorsFormat.VERSION_CLUSTER_FINGERPRINTS_RADIUS
                 ? SegmentFingerprintAnchors.computeSegmentFingerprint(
                     centroidAssignments.centroids(),
@@ -525,9 +523,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     writePreconditioner(preconditioner, ivfCentroids);
                     long preconditionerLength = ivfCentroids.getFilePointer() - preconditionerOffset;
                     // write meta (with segment fingerprint for allocation when version supports it)
-                    float[][] mergeAnchors = SegmentFingerprintAnchors.getAnchors(
-                        fieldInfo.getVectorDimension()
-                    );
+                    float[][] mergeAnchors = SegmentFingerprintAnchors.getAnchors(fieldInfo.getVectorDimension());
                     float[] mergeSegmentFingerprint = writeVersion >= ESNextDiskBBQVectorsFormat.VERSION_CLUSTER_FINGERPRINTS_RADIUS
                         ? SegmentFingerprintAnchors.computeSegmentFingerprint(
                             centroidSupplier,

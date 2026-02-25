@@ -31,6 +31,8 @@ import org.elasticsearch.search.profile.dfs.DfsTimingType;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.ProfileCollectorManager;
 import org.elasticsearch.search.profile.query.QueryProfiler;
+import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
@@ -63,6 +65,8 @@ public class DfsPhase {
             if (context.getProfilers() != null) {
                 context.dfsResult().profileResult(context.getProfilers().getDfsProfiler().buildDfsPhaseResults());
             }
+        } catch (SearchTimeoutException e) {
+            throw e;
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context.shardTarget(), "Exception during dfs phase", e);
         }
@@ -199,17 +203,39 @@ public class DfsPhase {
         final long beforeQueryTime = System.nanoTime();
         var opsListener = context.indexShard().getSearchOperationListener();
         opsListener.onPreQueryPhase(context);
+
+        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(context);
+        if (timeoutRunnable != null) {
+            context.searcher().addQueryCancellation(timeoutRunnable);
+        }
         try {
             for (int i = 0; i < knnSearch.size(); i++) {
                 String knnField = knnVectorQueryBuilders.get(i).getFieldName();
                 String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
                 Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
                 knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+
+                // Re-throw so the catch block below can handle KNN timeout consistently.
+                if (context.searcher().timeExceeded()) {
+                    context.searcher().throwTimeExceededException();
+                }
             }
             afterQueryTime = System.nanoTime();
             opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
             opsListener = null;
+        } catch (ContextIndexSearcher.TimeExceededException e) {
+            context.dfsResult().knnResults(List.of());
+            if (context.request().allowPartialSearchResults() == false) {
+                throw new SearchTimeoutException(context.shardTarget(), "Time exceeded");
+            }
+            context.dfsResult().searchTimedOut(true);
+            opsListener.onQueryPhase(context, System.nanoTime() - beforeQueryTime);
+            opsListener = null;
+            return;
         } finally {
+            if (timeoutRunnable != null) {
+                context.searcher().removeQueryCancellation(timeoutRunnable);
+            }
             if (opsListener != null) {
                 opsListener.onFailedQueryPhase(context);
             }

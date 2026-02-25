@@ -19,11 +19,11 @@ import org.elasticsearch.index.IndexVersions;
  */
 public final class TSDBDocValuesFormatFactory {
 
-    private static final DocValuesFormat ES_819_2_TSDB_DOC_VALUES_FORMAT = ES819TSDBDocValuesFormat.getInstance(false);
-    private static final DocValuesFormat ES_819_2_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = ES819TSDBDocValuesFormat.getInstance(true);
+    static final DocValuesFormat ES_819_2_TSDB_DOC_VALUES_FORMAT = ES819TSDBDocValuesFormat.getInstance(false);
+    static final DocValuesFormat ES_819_2_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = ES819TSDBDocValuesFormat.getInstance(true);
 
-    private static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT = new ES819Version3TSDBDocValuesFormat();
-    private static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = new ES819Version3TSDBDocValuesFormat(true);
+    static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT = new ES819Version3TSDBDocValuesFormat();
+    static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = new ES819Version3TSDBDocValuesFormat(true);
 
     private TSDBDocValuesFormatFactory() {}
 

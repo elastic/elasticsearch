@@ -24,11 +24,14 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class SplitSourceServiceTests extends ESTestCase {
+    AtomicLong nowInMillis = new AtomicLong();
+
     // test that a RefCountingAcquirer will only acquire the resource once if multiple acquirers arrive while the resource is held
     public void testRefCountedAcquirerAcquiresAndReleasesOnce() throws Exception {
         final var numAcquirers = randomIntBetween(1, 10);
@@ -52,7 +55,11 @@ public class SplitSourceServiceTests extends ESTestCase {
                 logger.info("releasing {}", released.get());
             });
         }).start();
-        var refCountedAcquirer = new SplitSourceService.RefCountedAcquirer(acquirer);
+        var refCountedAcquirer = new SplitSourceService.RefCountedAcquirer(
+            acquirer,
+            nowInMillis::incrementAndGet,
+            duration -> assertEquals(1, duration)
+        );
 
         var threads = new Thread[numAcquirers];
         // creates numAcquirers threads that will enter acquire and then complete
@@ -88,7 +95,7 @@ public class SplitSourceServiceTests extends ESTestCase {
         var refCountedAcquirer = new SplitSourceService.RefCountedAcquirer(listener -> {
             acquired.incrementAndGet();
             listener.onResponse(released::incrementAndGet);
-        });
+        }, nowInMillis::incrementAndGet, duration -> assertEquals(1, duration));
 
         var acquiredLatch = new CountDownLatch(1);
         refCountedAcquirer.acquire(runAndRelease(acquiredLatch::countDown));
@@ -124,7 +131,11 @@ public class SplitSourceServiceTests extends ESTestCase {
             listener.onResponse(releaseCount::incrementAndGet);
         }).start();
 
-        SplitSourceService.RefCountedAcquirer refCountedAcquirer = new SplitSourceService.RefCountedAcquirer(acquirer);
+        SplitSourceService.RefCountedAcquirer refCountedAcquirer = new SplitSourceService.RefCountedAcquirer(
+            acquirer,
+            nowInMillis::incrementAndGet,
+            duration -> assertEquals(1, duration)
+        );
 
         int numThreads = randomIntBetween(1, 10);
         Thread[] threads = new Thread[numThreads];
@@ -165,7 +176,7 @@ public class SplitSourceServiceTests extends ESTestCase {
         SplitSourceService.RefCountedAcquirer acquirer = new SplitSourceService.RefCountedAcquirer(listener -> {
             acquired.incrementAndGet();
             throw new IllegalStateException("oops");
-        });
+        }, nowInMillis::incrementAndGet, duration -> assertEquals(1, duration));
 
         acquirer.acquire(runAndRelease(withResource::incrementAndGet));
         acquirer.acquire(runAndRelease(withResource::incrementAndGet));

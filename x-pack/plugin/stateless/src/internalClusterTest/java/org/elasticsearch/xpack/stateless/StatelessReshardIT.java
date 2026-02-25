@@ -88,6 +88,8 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -104,6 +106,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitStateRequest;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
@@ -3205,12 +3208,54 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
+    public void testReshardMetrics() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        startSearchNodes(1);
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numShards = randomIntBetween(1, 10);
+        createIndex(indexName, indexSettings(numShards, 1).build());
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(100, 1000);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        waitForReshardCompletion(indexName);
+
+        var telemetryPlugin = getTelemetryPlugin(indexNode);
+        assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_COUNT, getTelemetryPlugin(indexNode)), equalTo(1L));
+
+        var cloneDurationHistogram = telemetryPlugin.getDoubleHistogramMeasurement(ReshardMetrics.RESHARD_TARGET_CLONE_DURATION);
+        assertEquals(numShards, cloneDurationHistogram.size());
+        var cloneDurationStats = cloneDurationHistogram.stream().mapToDouble(Measurement::getDouble).summaryStatistics();
+        assertThat(cloneDurationStats.getMin(), greaterThanOrEqualTo(0.0));
+        assertThat(cloneDurationStats.getMax(), lessThanOrEqualTo(30.0)); // timeout
+
+        final List<String> durationHistograms = List.of(
+            ReshardMetrics.RESHARD_INDEXING_BLOCKED_DURATION,
+            ReshardMetrics.RESHARD_TARGET_HANDOFF_DURATION,
+            ReshardMetrics.RESHARD_TARGET_SPLIT_DURATION
+        );
+        for (String durationHistogram : durationHistograms) {
+            var histogram = telemetryPlugin.getLongHistogramMeasurement(durationHistogram);
+            assertEquals(numShards, histogram.size());
+            var stats = histogram.stream().mapToLong(Measurement::getLong).summaryStatistics();
+            assertThat(stats.getMin(), greaterThanOrEqualTo(0L));
+            assertThat(stats.getMax(), lessThanOrEqualTo(TimeValue.THIRTY_SECONDS.millis())); // timeout
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(DataStreamsPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         plugins.add(EsqlPlugin.class);
+        plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }
 

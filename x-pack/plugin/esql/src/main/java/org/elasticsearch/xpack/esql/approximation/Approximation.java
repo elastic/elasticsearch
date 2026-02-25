@@ -431,14 +431,18 @@ public class Approximation {
                     // The STATS function should be replaced by a STATS COUNT(*).
                     encounteredStats.set(true);
                     List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, "$count_p=" + sampleProbability, COUNT_ALL_ROWS));
-                    plan = new SampledAggregate(
-                        Source.EMPTY,
-                        aggregate.child(),
-                        List.of(),
-                        aggregations,
-                        aggregations,
-                        Literal.fromDouble(Source.EMPTY, sampleProbability)
-                    );
+                    if (sampleProbability == 1.0) {
+                        plan = new Aggregate(Source.EMPTY, aggregate.child(), List.of(), aggregations);
+                    } else {
+                        plan = new SampledAggregate(
+                            Source.EMPTY,
+                            aggregate.child(),
+                            List.of(),
+                            aggregations,
+                            aggregations,
+                            Literal.fromDouble(Source.EMPTY, sampleProbability)
+                        );
+                    }
                 }
             } else {
                 // Strip everything after the STATS command.

@@ -117,7 +117,7 @@ public class ApproximationPlan {
      * A placeholder expression in the main approximation plan, that is replaced
      * by the actual value after subplan execution.
      */
-    private static class SampleProbabilityPlaceHolder extends LeafExpression {
+    static class SampleProbabilityPlaceHolder extends LeafExpression {
 
         SampleProbabilityPlaceHolder() {
             super(Source.EMPTY);

@@ -86,7 +86,7 @@ docker run \
 
 ## Monitoring
 ```{applies_to}
-stack: 9.3.2
+stack: ga 9.3.2
 ```
 
 Use the `GET _xpack/usage` API to monitor GPU vector indexing status and usage

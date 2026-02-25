@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -95,13 +94,13 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         """;
 
     public void testUseBloomFilter() throws IOException {
-        boolean timeSeries = randomBoolean();
-        boolean syntheticId = syntheticId(timeSeries);
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, timeSeries, false, syntheticId);
+        final boolean timeSeries = randomBoolean();
+        final boolean randomSyntheticId = syntheticId(timeSeries);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(false, timeSeries, false, randomSyntheticId);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(
             perFieldMapperCodec.getPostingsFormatForField("_id"),
-            instanceOf(syntheticId ? TSDBSyntheticIdPostingsFormat.class : ES87BloomFilterPostingsFormat.class)
+            instanceOf(randomSyntheticId ? TSDBSyntheticIdPostingsFormat.class : ES87BloomFilterPostingsFormat.class)
         );
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
 
@@ -110,34 +109,34 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled() throws IOException {
-        boolean timeSeries = true;
-        boolean useSyntheticId = syntheticId(timeSeries);
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, timeSeries, false, useSyntheticId);
+        final boolean timeSeries = true;
+        final boolean randomSyntheticId = syntheticId(timeSeries);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, timeSeries, false, randomSyntheticId);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(
             perFieldMapperCodec.getPostingsFormatForField("_id"),
-            instanceOf(useSyntheticId ? TSDBSyntheticIdPostingsFormat.class : ES87BloomFilterPostingsFormat.class)
+            instanceOf(randomSyntheticId ? TSDBSyntheticIdPostingsFormat.class : ES87BloomFilterPostingsFormat.class)
         );
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(ES812PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
-        boolean timeSeries = false;
-        boolean syntheticId = syntheticId(timeSeries);
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, timeSeries, false, syntheticId);
+        final boolean timeSeries = false;
+        final boolean randomSyntheticId = syntheticId(timeSeries);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, timeSeries, false, randomSyntheticId);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {
-        boolean timeSeries = true;
-        boolean useSyntheticId = syntheticId(timeSeries);
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, timeSeries, true, useSyntheticId);
+        final boolean timeSeries = true;
+        final boolean randomSyntheticId = syntheticId(timeSeries);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, timeSeries, true, randomSyntheticId);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
         assertThat(
             perFieldMapperCodec.getPostingsFormatForField("_id"),
-            instanceOf(useSyntheticId ? TSDBSyntheticIdPostingsFormat.class : ES812PostingsFormat.class)
+            instanceOf(randomSyntheticId ? TSDBSyntheticIdPostingsFormat.class : ES812PostingsFormat.class)
         );
         assertWarnings(
             "[index.bloom_filter_for_id_field.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
@@ -177,27 +176,34 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         for (int i = 0; i < numIterations; i++) {
             var indexMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES);
             String mapping = randomFrom(MAPPING_1, MAPPING_2, MAPPING_3);
-            PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(randomBoolean(), randomBoolean(), indexMode, mapping);
+            final boolean randomSyntheticId = syntheticId(indexMode.equals(IndexMode.TIME_SERIES));
+            PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
+                randomBoolean(),
+                randomBoolean(),
+                indexMode,
+                mapping,
+                randomSyntheticId
+            );
             var result = perFieldMapperCodec.getPostingsFormatForField("_id");
             if (result instanceof ES87BloomFilterPostingsFormat es87BloomFilterPostingsFormat) {
                 Function<String, PostingsFormat> postingsFormats = es87BloomFilterPostingsFormat.getPostingsFormats();
                 result = postingsFormats.apply("_id");
             }
-            assertThat(result, anyOf(instanceOf(ES812PostingsFormat.class), instanceOf(TSDBSyntheticIdPostingsFormat.class)));
+            assertThat(result, (instanceOf(randomSyntheticId ? TSDBSyntheticIdPostingsFormat.class : ES812PostingsFormat.class)));
         }
     }
 
     public void testUseES87TSDBEncodingForTimestampField() throws IOException {
-        boolean timeSeries = true;
-        boolean useSyntheticId = syntheticId(timeSeries);
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, timeSeries, true, useSyntheticId);
+        final boolean timeSeries = true;
+        final boolean randomSyntheticId = syntheticId(timeSeries);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, timeSeries, true, randomSyntheticId);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
     }
 
     public void testDoNotUseES87TSDBEncodingForTimestampFieldNonTimeSeriesIndex() throws IOException {
-        boolean timeSeries = false;
-        boolean syntheticId = syntheticId(timeSeries);
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, timeSeries, true, syntheticId);
+        final boolean timeSeries = false;
+        final boolean randomSyntheticId = syntheticId(timeSeries);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, timeSeries, true, randomSyntheticId);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(false));
     }
 
@@ -264,7 +270,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testUseTimeSeriesDocValuesCodecSetting() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, null, false, IndexMode.STANDARD, MAPPING_2);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, null, false, IndexMode.STANDARD, MAPPING_2, false);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("counter")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("gauge")), is(true));
@@ -308,7 +314,17 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         IndexMode mode,
         String mapping
     ) throws IOException {
-        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, mode, mapping);
+        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, mode, mapping, null);
+    }
+
+    private PerFieldFormatSupplier createFormatSupplier(
+        Boolean enableES87TSDBCodec,
+        Boolean useEs812PostingsFormat,
+        IndexMode mode,
+        String mapping,
+        boolean syntheticId
+    ) throws IOException {
+        return createFormatSupplier(null, enableES87TSDBCodec, useEs812PostingsFormat, mode, mapping, syntheticId);
     }
 
     private PerFieldFormatSupplier createFormatSupplier(
@@ -316,16 +332,16 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         Boolean enableES87TSDBCodec,
         Boolean useEs812PostingsFormat,
         IndexMode mode,
-        String mapping
+        String mapping,
+        Boolean syntheticId
     ) throws IOException {
         Settings.Builder settings = Settings.builder();
         settings.put(IndexSettings.MODE.getKey(), mode);
         if (mode == IndexMode.TIME_SERIES) {
             settings.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field");
         }
-        Boolean useSyntheticId = (mode == IndexMode.TIME_SERIES) ? syntheticId(true) : null;
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && useSyntheticId != null) {
-            settings.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && syntheticId != null) {
+            settings.put(IndexSettings.SYNTHETIC_ID.getKey(), syntheticId);
         }
         if (enableES87TSDBCodec != null) {
             settings.put(IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING.getKey(), enableES87TSDBCodec);

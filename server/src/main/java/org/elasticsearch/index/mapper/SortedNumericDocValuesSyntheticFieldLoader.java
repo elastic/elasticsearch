@@ -13,7 +13,6 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,34 +34,17 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
     private Values values = NO_VALUES;
 
     /**
-     * Build a loader from doc values and, optionally, a stored field for malformed values.
+     * Build a loader from doc values and, optionally, a stored field.
      * @param name the name of the field to load from doc values
      * @param simpleName the name to give the field in the rendered {@code _source}
      * @param loadIgnoreMalformedValues should we load values skipped by {@code ignore_malformed}
      */
     protected SortedNumericDocValuesSyntheticFieldLoader(String name, String simpleName, boolean loadIgnoreMalformedValues) {
-        this(name, simpleName, loadIgnoreMalformedValues ? IgnoreMalformedStoredValues.stored(name) : IgnoreMalformedStoredValues.empty());
-    }
-
-    protected SortedNumericDocValuesSyntheticFieldLoader(
-        String name,
-        String simpleName,
-        boolean loadIgnoreMalformedValues,
-        IndexVersion indexVersion
-    ) {
-        this(
-            name,
-            simpleName,
-            loadIgnoreMalformedValues
-                ? IgnoreMalformedStoredValues.forSyntheticSource(name, indexVersion)
-                : IgnoreMalformedStoredValues.empty()
-        );
-    }
-
-    private SortedNumericDocValuesSyntheticFieldLoader(String name, String simpleName, IgnoreMalformedStoredValues ignoreMalformedValues) {
         this.name = name;
         this.simpleName = simpleName;
-        this.ignoreMalformedValues = ignoreMalformedValues;
+        this.ignoreMalformedValues = loadIgnoreMalformedValues
+            ? IgnoreMalformedStoredValues.stored(name)
+            : IgnoreMalformedStoredValues.empty();
     }
 
     protected abstract void writeValue(XContentBuilder b, long value) throws IOException;
@@ -74,19 +56,6 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-        DocValuesLoader fieldLoader = fieldDocValuesLoader(reader, docIdsInLeaf);
-        DocValuesLoader malformedLoader = ignoreMalformedValues.docValuesLoader(reader);
-
-        if (fieldLoader != null && malformedLoader != null) {
-            return docId -> fieldLoader.advanceToDoc(docId) | malformedLoader.advanceToDoc(docId);
-        } else if (malformedLoader != null) {
-            return malformedLoader;
-        } else {
-            return fieldLoader;
-        }
-    }
-
-    private DocValuesLoader fieldDocValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
         SortedNumericDocValues dv = docValuesOrNull(reader, name);
         if (dv == null) {
             values = NO_VALUES;

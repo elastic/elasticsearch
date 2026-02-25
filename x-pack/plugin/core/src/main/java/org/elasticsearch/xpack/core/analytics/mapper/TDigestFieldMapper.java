@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
@@ -97,11 +96,9 @@ public class TDigestFieldMapper extends FieldMapper {
          * Only the metric type histogram is supported.
          */
         private final Parameter<TimeSeriesParams.MetricType> metric;
-        private final IndexVersion indexCreatedVersion;
 
-        public Builder(String name, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
+        public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
-            this.indexCreatedVersion = indexCreatedVersion;
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
@@ -160,7 +157,7 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.getIndexSettings().getIndexVersionCreated()),
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -169,7 +166,6 @@ public class TDigestFieldMapper extends FieldMapper {
     private final TDigestExecutionHint digestType;
     private final double compression;
     private final TimeSeriesParams.MetricType metricType;
-    private final IndexVersion indexCreatedVersion;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
@@ -178,7 +174,6 @@ public class TDigestFieldMapper extends FieldMapper {
         this.digestType = builder.digestType.getValue();
         this.compression = builder.compression.getValue();
         this.metricType = builder.metric.get();
-        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     @Override
@@ -201,7 +196,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, indexCreatedVersion).metric(metricType).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault).metric(metricType).init(this);
     }
 
     @Override
@@ -477,7 +472,7 @@ public class TDigestFieldMapper extends FieldMapper {
             }
 
             if (malformedDataForSyntheticSource != null) {
-                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
+                context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), malformedDataForSyntheticSource));
             }
 
             context.addIgnoredField(fieldType().name());
@@ -573,7 +568,7 @@ public class TDigestFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new TDigestSyntheticFieldLoader(),
-                CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion)
+                new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
             )
         );
     }

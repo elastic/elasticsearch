@@ -652,7 +652,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
                         // Save a copy of the field so synthetic source can load it
-                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
                     }
                     return;
                 } else {
@@ -685,7 +685,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.name());
                 if (isSourceSynthetic) {
                     // Save a copy of the field so synthetic source can load it
-                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
                 }
                 return;
             } else {
@@ -854,16 +854,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 )
             );
             if (ignoreMalformed.value()) {
-                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
             }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return new SortedNumericDocValuesSyntheticFieldLoader(
-                fullPath(),
-                leafName(),
-                ignoreMalformed.value(),
-                indexSettings.getIndexVersionCreated()
-            ) {
+            return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
                 @Override
                 protected void writeValue(XContentBuilder b, long value) throws IOException {
                     b.value(decodeForSyntheticSource(value, scalingFactor));

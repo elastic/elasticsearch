@@ -657,7 +657,7 @@ public class IpFieldMapper extends FieldMapper {
                 context.addIgnoredField(fieldType().name());
                 if (storeIgnored) {
                     // Save a copy of the field so synthetic source can load it
-                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
                 }
                 return;
             } else {
@@ -753,7 +753,7 @@ public class IpFieldMapper extends FieldMapper {
                 }
 
                 if (ignoreMalformed) {
-                    layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
+                    layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
                 }
                 return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });

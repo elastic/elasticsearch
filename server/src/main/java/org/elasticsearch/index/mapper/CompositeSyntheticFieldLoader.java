@@ -11,8 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -175,23 +173,11 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     }
 
     /**
-     * Returns the appropriate malformed values layer for the given index version.
-     * Uses binary doc values for new indices and stored fields for old indices.
-     */
-    public static Layer malformedValuesLayer(String fieldName, IndexVersion indexVersion) {
-        if (indexVersion.onOrAfter(IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES)) {
-            return new MalformedValuesBinaryDocValuesLayer(fieldName);
-        } else {
-            return new MalformedValuesStoredFieldLayer(fieldName);
-        }
-    }
-
-    /**
-     * Layer that loads malformed values from stored fields for synthetic source.
+     * Layer that loads malformed values stored in a dedicated field with a conventional name.
      * @see IgnoreMalformedStoredValues
      */
-    private static class MalformedValuesStoredFieldLayer extends StoredFieldLayer {
-        MalformedValuesStoredFieldLayer(String fieldName) {
+    public static class MalformedValuesLayer extends StoredFieldLayer {
+        public MalformedValuesLayer(String fieldName) {
             super(IgnoreMalformedStoredValues.name(fieldName));
         }
 
@@ -202,20 +188,6 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
             } else {
                 b.value(value);
             }
-        }
-    }
-
-    /**
-     * Layer that loads malformed values from binary doc values for synthetic source.
-     */
-    private static class MalformedValuesBinaryDocValuesLayer extends BinaryDocValuesSyntheticFieldLoaderLayer {
-        MalformedValuesBinaryDocValuesLayer(String fieldName) {
-            super(IgnoreMalformedStoredValues.name(fieldName));
-        }
-
-        @Override
-        protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
-            XContentDataHelper.decodeAndWrite(b, value);
         }
     }
 

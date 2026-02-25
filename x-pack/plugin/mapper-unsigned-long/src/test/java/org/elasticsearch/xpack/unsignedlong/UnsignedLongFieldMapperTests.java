@@ -34,7 +34,6 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -446,15 +445,10 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
                 .map(Value::output)
                 .sorted()
                 .toList();
-            // Malformed values are stored as BytesRef with a type-prefix byte and sorted lexicographically.
-            List<Object> malformedOutput = values.stream()
-                .filter(v -> v.malformedOutput != null)
-                .map(Value::malformedOutput)
-                .sorted(Comparator.comparing(Object::toString))
-                .toList();
+            Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
 
             // Malformed values are always last in the implementation.
-            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
+            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
             return new SyntheticSourceExample(in, out, this::mapping);

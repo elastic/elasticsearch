@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
+public final class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
     private final String name;
     private SortedBinaryDocValues bytesValues;
@@ -42,7 +42,6 @@ public class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSynthe
         }
 
         bytesValues = MultiValuedSortedBinaryDocValues.from(leafReader, name, docValues);
-
         return docId -> {
             hasValue = bytesValues.advanceExact(docId);
             return hasValue;
@@ -62,15 +61,8 @@ public class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSynthe
 
         for (int i = 0; i < bytesValues.docValueCount(); ++i) {
             BytesRef value = bytesValues.nextValue();
-            writeValue(b, value);
+            b.utf8Value(value.bytes, value.offset, value.length);
         }
-    }
-
-    /**
-     * Write a single value to the builder. Subclasses can override to change the write format.
-     */
-    protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
-        b.utf8Value(value.bytes, value.offset, value.length);
     }
 
     @Override

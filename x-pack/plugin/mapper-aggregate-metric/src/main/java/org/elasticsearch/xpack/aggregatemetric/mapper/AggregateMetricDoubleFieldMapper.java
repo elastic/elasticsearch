@@ -787,7 +787,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 }
 
                 if (malformedDataForSyntheticSource != null) {
-                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
+                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), malformedDataForSyntheticSource));
                 }
 
                 context.addIgnoredField(fullPath());
@@ -818,7 +818,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new AggregateMetricSyntheticFieldLoader(fullPath(), metrics),
-                CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated())
+                new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
             )
         );
     }

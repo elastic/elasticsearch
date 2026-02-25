@@ -648,7 +648,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         throws IOException {
         super.onMalformedValue(context, malformedDataForSyntheticSource, cause);
         if (malformedDataForSyntheticSource != null) {
-            IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
+            context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), malformedDataForSyntheticSource));
         }
     }
 
@@ -656,12 +656,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
             return new SyntheticSourceSupport.Native(
-                () -> new SortedNumericDocValuesSyntheticFieldLoader(
-                    fullPath(),
-                    leafName(),
-                    ignoreMalformed(),
-                    indexSettings.getIndexVersionCreated()
-                ) {
+                () -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed()) {
                     final GeoPoint point = new GeoPoint();
 
                     @Override

@@ -1,0 +1,4 @@
+pr: 143072
+summary: Refactored UnifiedCompletionRequest structure by extracting nested classes into separate files
+area: Inference
+type: enhancement

@@ -123,6 +123,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChun
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOffsetsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_JINA_V5_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_ELSER_ID;
 
@@ -159,6 +160,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;
+    public static final String DEFAULT_EIS_ELSER_INFERENCE_ID = DEFAULT_ELSER_ENDPOINT_ID_V2;
     public static final String DEFAULT_EIS_JINA_V5_INFERENCE_ID = DEFAULT_JINA_V5_ENDPOINT_ID;
 
     public static final String UNSUPPORTED_INDEX_MESSAGE = "["

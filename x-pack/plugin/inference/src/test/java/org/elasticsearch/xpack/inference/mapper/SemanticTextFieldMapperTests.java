@@ -342,8 +342,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
 
-        IndexVersion preJinaV3Version = IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
-        MapperService mapperService = createMapperServiceWithIndexVersion(fieldMapping, useLegacyFormat, preJinaV3Version);
+        IndexVersion preJinaV5Version = IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
+        MapperService mapperService = createMapperServiceWithIndexVersion(fieldMapping, useLegacyFormat, preJinaV5Version);
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
     }
 

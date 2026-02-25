@@ -23,9 +23,9 @@ import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_
 
 public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> {
 
-    public static final String LOGGER_NAME = "search.activitylog";
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
     public static final String SEARCH_HAS_AGGREGATIONS_FIELD = ES_FIELDS_PREFIX + "search.has_aggregations";
+    public static final String SEARCH_IS_SYSTEM_FIELD = ES_FIELDS_PREFIX + "search.is_system";
 
     private boolean logSystemSearches = false;
     private final Predicate<String> systemChecker;
@@ -50,25 +50,21 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
             return Optional.empty();
         }
         // Exclude system searches, based on option
-        if (logSystemSearches == false && context.isSystemSearch(systemChecker)) {
+        boolean isSystemSearch = context.isSystemSearch(systemChecker);
+        if (logSystemSearches == false && isSystemSearch) {
             return Optional.empty();
         }
         ESLogMessage msg = produceCommon(context, additionalFields);
-        msg.field(ES_FIELDS_PREFIX + "query", context.getQuery());
-        msg.field(ES_FIELDS_PREFIX + "indices", context.getIndices());
-        msg.field(ES_FIELDS_PREFIX + "hits", context.getHits());
-        if (context.isSystemSearch(systemChecker)) {
-            msg.field(ES_FIELDS_PREFIX + "is_system", true);
+        msg.field(ES_QUERY_FIELDS_PREFIX + "query", context.getQuery());
+        msg.field(ES_QUERY_FIELDS_PREFIX + "indices", context.getIndices());
+        msg.field(ES_QUERY_FIELDS_PREFIX + "hits", context.getHits());
+        if (isSystemSearch) {
+            msg.field(SEARCH_IS_SYSTEM_FIELD, true);
         }
         if (context.hasAggregations()) {
             msg.field(SEARCH_HAS_AGGREGATIONS_FIELD, true);
         }
         return Optional.of(msg);
-    }
-
-    @Override
-    public String loggerName() {
-        return LOGGER_NAME;
     }
 
     public void setLogSystemSearches(boolean logSystemSearches) {

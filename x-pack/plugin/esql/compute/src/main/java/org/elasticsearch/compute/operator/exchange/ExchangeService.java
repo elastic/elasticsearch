@@ -84,12 +84,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
-    /**
-     * Tracks the original index expressions that each exchange sink was opened for.
-     * When a {@link CcsExchangeRequest} arrives, its {@link CcsExchangeRequest#originalQueryIndices()}
-     * must match the indices recorded here. This prevents a caller from consuming pages from an
-     * exchange sink opened by a different query by guessing the session ID.
-     */
     private final Map<String, Set<String>> sinkExpectedIndices = ConcurrentCollections.newConcurrentMap();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
@@ -172,15 +166,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         sinkExpectedIndices.put(exchangeId, Set.copyOf(indices));
     }
 
-    /**
-     * Validates that the given original query indices match the indices the exchange sink was opened for.
-     * This prevents an exchange sink opened for index X from being consumed by a query for index Y.
-     * <p>
-     * If no expected indices were recorded (e.g., the sink was opened by a node on a transport version
-     * older than {@link CcsExchangeRequest}), the check is bypassed.
-     *
-     * @throws ResourceNotFoundException if the indices do not match
-     */
     public void validateSinkIndices(String exchangeId, String[] queryIndices) {
         final Set<String> expectedIndices = sinkExpectedIndices.get(exchangeId);
         if (expectedIndices == null) {

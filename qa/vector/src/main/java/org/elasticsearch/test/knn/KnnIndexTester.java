@@ -159,14 +159,7 @@ public class KnnIndexTester {
 
         format = switch (args.indexType()) {
             case IVF -> {
-                ESNextDiskBBQVectorsFormat.QuantEncoding encoding = switch (quantizeBits) {
-                    case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
-                    case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
-                    case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
-                    default -> throw new IllegalArgumentException(
-                        "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + quantizeBits
-                    );
-                };
+                var encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
                 yield new ESNextDiskBBQVectorsFormat(
                     encoding,
                     args.ivfClusterSize(),

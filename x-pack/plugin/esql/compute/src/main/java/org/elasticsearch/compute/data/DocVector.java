@@ -550,10 +550,6 @@ public final class DocVector extends AbstractVector implements Vector {
             }
         }
 
-        public long estimatedBytes() {
-            return shards.estimatedBytes() + segments.estimatedBytes() + docs.estimatedBytes();
-        }
-
         @Override
         public void close() {
             Releasables.closeExpectNoException(shards, segments, docs);

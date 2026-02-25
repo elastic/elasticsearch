@@ -326,8 +326,8 @@ public class TsInfoOperatorTests extends OperatorTestCase {
             assertNotNull(dimensions);
             assertTrue("Should start with {: " + dimensions, dimensions.startsWith("{"));
             assertTrue("Should end with }: " + dimensions, dimensions.endsWith("}"));
-            assertTrue("Should contain host: " + dimensions, dimensions.contains("\"host\": \"server1\""));
-            assertTrue("Should contain region: " + dimensions, dimensions.contains("\"region\": \"eu\""));
+            assertTrue("Should contain host: " + dimensions, dimensions.contains("\"host\":\"server1\""));
+            assertTrue("Should contain region: " + dimensions, dimensions.contains("\"region\":\"eu\""));
 
             output.releaseBlocks();
         } finally {

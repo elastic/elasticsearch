@@ -9,15 +9,19 @@ package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -155,6 +159,7 @@ public class TsInfoOperator implements Operator {
         }
     }
 
+    // TODO: Improve memory tracking
     static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TsInfoKey.class) + RamUsageEstimator.shallowSizeOfInstance(
         TsInfoEntry.class
     );
@@ -349,34 +354,17 @@ public class TsInfoOperator implements Operator {
         }
     }
 
-    /**
-     * Builds a JSON object string from dimension key-value pairs.
-     * Keys are sorted for deterministic output.
-     */
     private static String buildDimensionsJson(Map<String, String> dimensionKeyValues) {
-        if (dimensionKeyValues.isEmpty()) {
-            return "{}";
-        }
-        StringBuilder sb = new StringBuilder("{");
-        boolean first = true;
-        for (Map.Entry<String, String> entry : dimensionKeyValues.entrySet()) {
-            if (first == false) {
-                sb.append(", ");
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            builder.startObject();
+            for (Map.Entry<String, String> entry : dimensionKeyValues.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
             }
-            first = false;
-            sb.append('"').append(escapeJson(entry.getKey())).append("\": ");
-            if (entry.getValue() == null) {
-                sb.append("null");
-            } else {
-                sb.append('"').append(escapeJson(entry.getValue())).append('"');
-            }
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        sb.append('}');
-        return sb.toString();
-    }
-
-    private static String escapeJson(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     /** FINAL mode: read the 7-column output from data nodes and accumulate into entriesByKey. */
@@ -571,7 +559,7 @@ public class TsInfoOperator implements Operator {
             parser.nextToken();
             return parser.mapOrdered();
         } catch (Exception e) {
-            return null;
+            throw new IllegalStateException("failed to parse _timeseries_metadata at position [" + position + "]", e);
         }
     }
 

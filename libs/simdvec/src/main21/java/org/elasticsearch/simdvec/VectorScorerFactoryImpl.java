@@ -110,7 +110,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
                 case EUCLIDEAN -> Optional.of(new FloatVectorScorerSupplier.EuclideanSupplier(adapter, values));
                 case MAXIMUM_INNER_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.MaxInnerProductSupplier(adapter, values));
             };
-        } else if (SUPPORTS_HEAP_SEGMENTS){
+        } else if (SUPPORTS_HEAP_SEGMENTS) {
             var adapter = new MemorySegmentHeapAdapter(values);
             return switch (similarityType) {
                 case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(adapter, values));

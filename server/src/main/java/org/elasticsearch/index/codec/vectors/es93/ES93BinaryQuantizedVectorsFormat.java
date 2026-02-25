@@ -90,9 +90,7 @@ public class ES93BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat 
 
     public static final String NAME = "ES93BinaryQuantizedVectorsFormat";
 
-    private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
-        ES93FlatVectorScorer.INSTANCE
-    );
+    private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(ES93FlatVectorScorer.INSTANCE);
 
     private final ES93GenericFlatVectorsFormat rawFormat;
 

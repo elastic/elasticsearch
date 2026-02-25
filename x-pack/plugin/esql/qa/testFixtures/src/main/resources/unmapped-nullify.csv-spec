@@ -15,6 +15,7 @@ null
 keepMapped
 required_capability: date_nanos_type
 required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_fix_unmapped_field_detection
 
 SET unmapped_fields="nullify"; FROM date_nanos | SORT millis ASC | WHERE millis < "2000-01-01" | EVAL nanos = MV_MIN(nanos) | KEEP nanos; 
 

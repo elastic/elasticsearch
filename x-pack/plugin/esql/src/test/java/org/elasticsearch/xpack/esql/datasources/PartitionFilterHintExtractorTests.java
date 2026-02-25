@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -44,7 +45,7 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertNotNull(pathHints);
         assertEquals(1, pathHints.size());
         assertEquals("year", pathHints.get(0).columnName());
-        assertEquals("=", pathHints.get(0).operator());
+        assertEquals(Operator.EQUALS, pathHints.get(0).operator());
         assertEquals(List.of(2024), pathHints.get(0).values());
     }
 
@@ -59,7 +60,7 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertEquals(1, hints.size());
         List<PartitionFilterHint> pathHints = hints.get("s3://bucket/data/*.parquet");
         assertEquals(1, pathHints.size());
-        assertEquals("!=", pathHints.get(0).operator());
+        assertEquals(Operator.NOT_EQUALS, pathHints.get(0).operator());
         assertEquals("deleted", pathHints.get(0).values().get(0));
     }
 
@@ -70,7 +71,7 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
         List<PartitionFilterHint> pathHints = hints.get("s3://bucket/data/*.parquet");
         assertEquals(1, pathHints.size());
-        assertEquals(">", pathHints.get(0).operator());
+        assertEquals(Operator.GREATER_THAN, pathHints.get(0).operator());
     }
 
     public void testGreaterThanOrEqualHint() {
@@ -80,14 +81,14 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         );
 
         List<PartitionFilterHint> pathHints = PartitionFilterHintExtractor.extract(plan).get("s3://bucket/data/*.parquet");
-        assertEquals(">=", pathHints.get(0).operator());
+        assertEquals(Operator.GREATER_THAN_OR_EQUAL, pathHints.get(0).operator());
     }
 
     public void testLessThanHint() {
         LogicalPlan plan = filterAboveExternal(new LessThan(SRC, unresolved("year"), intLiteral(2025)), "s3://bucket/data/*.parquet");
 
         List<PartitionFilterHint> pathHints = PartitionFilterHintExtractor.extract(plan).get("s3://bucket/data/*.parquet");
-        assertEquals("<", pathHints.get(0).operator());
+        assertEquals(Operator.LESS_THAN, pathHints.get(0).operator());
     }
 
     public void testLessThanOrEqualHint() {
@@ -97,17 +98,16 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         );
 
         List<PartitionFilterHint> pathHints = PartitionFilterHintExtractor.extract(plan).get("s3://bucket/data/*.parquet");
-        assertEquals("<=", pathHints.get(0).operator());
+        assertEquals(Operator.LESS_THAN_OR_EQUAL, pathHints.get(0).operator());
     }
 
     public void testReversedComparison() {
-        // Literal on the left: 2020 < year => year > 2020
         LogicalPlan plan = filterAboveExternal(new LessThan(SRC, intLiteral(2020), unresolved("year")), "s3://bucket/data/*.parquet");
 
         List<PartitionFilterHint> pathHints = PartitionFilterHintExtractor.extract(plan).get("s3://bucket/data/*.parquet");
         assertEquals(1, pathHints.size());
         assertEquals("year", pathHints.get(0).columnName());
-        assertEquals(">", pathHints.get(0).operator());
+        assertEquals(Operator.GREATER_THAN, pathHints.get(0).operator());
     }
 
     public void testInHint() {
@@ -121,7 +121,7 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         List<PartitionFilterHint> pathHints = hints.get("s3://bucket/data/*.parquet");
         assertEquals(1, pathHints.size());
         assertEquals("month", pathHints.get(0).columnName());
-        assertEquals("IN", pathHints.get(0).operator());
+        assertEquals(Operator.IN, pathHints.get(0).operator());
         assertEquals(List.of(1, 2, 3), pathHints.get(0).values());
     }
 
@@ -137,9 +137,9 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         List<PartitionFilterHint> pathHints = PartitionFilterHintExtractor.extract(plan).get("s3://bucket/data/*.parquet");
         assertEquals(2, pathHints.size());
         assertEquals("year", pathHints.get(0).columnName());
-        assertEquals("=", pathHints.get(0).operator());
+        assertEquals(Operator.EQUALS, pathHints.get(0).operator());
         assertEquals("month", pathHints.get(1).columnName());
-        assertEquals("IN", pathHints.get(1).operator());
+        assertEquals(Operator.IN, pathHints.get(1).operator());
     }
 
     public void testNoFilterReturnsEmpty() {
@@ -178,7 +178,7 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         List<PartitionFilterHint> pathHints = hints.get("s3://bucket/data/*.parquet");
         assertEquals(1, pathHints.size());
         assertEquals("country", pathHints.get(0).columnName());
-        assertEquals("=", pathHints.get(0).operator());
+        assertEquals(Operator.EQUALS, pathHints.get(0).operator());
         Object value = pathHints.get(0).values().get(0);
         assertFalse("hint value should not be a BytesRef", value instanceof BytesRef);
         assertEquals("US", value);
@@ -194,7 +194,7 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
         List<PartitionFilterHint> pathHints = hints.get("s3://bucket/data/*.parquet");
         assertEquals(1, pathHints.size());
-        assertEquals("IN", pathHints.get(0).operator());
+        assertEquals(Operator.IN, pathHints.get(0).operator());
         for (Object val : pathHints.get(0).values()) {
             assertFalse("hint value should not be a BytesRef", val instanceof BytesRef);
         }

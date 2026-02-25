@@ -164,53 +164,63 @@ final class GlobExpander {
     }
 
     static String rewriteGlobWithHints(String pattern, List<PartitionFilterHint> hints) {
-        Map<String, PartitionFilterHint> hintsByColumn = new HashMap<>();
-        for (PartitionFilterHint hint : hints) {
-            if ("=".equals(hint.operator()) || "IN".equals(hint.operator())) {
-                hintsByColumn.putIfAbsent(hint.columnName(), hint);
-            }
-        }
-
-        if (hintsByColumn.isEmpty()) {
+        Map<String, PartitionFilterHint> rewritableHints = indexRewritableHints(hints);
+        if (rewritableHints.isEmpty()) {
             return pattern;
         }
 
+        String[] segments = pattern.split("/");
         StringBuilder result = new StringBuilder();
-        String[] parts = pattern.split("/");
-        for (int i = 0; i < parts.length; i++) {
+        for (int i = 0; i < segments.length; i++) {
             if (i > 0) {
                 result.append('/');
             }
-            String part = parts[i];
-            int eqIdx = part.indexOf('=');
-            if (eqIdx > 0 && eqIdx < part.length() - 1) {
-                String key = part.substring(0, eqIdx);
-                String valuePart = part.substring(eqIdx + 1);
-                PartitionFilterHint hint = hintsByColumn.get(key);
-                if (hint != null && isWildcard(valuePart)) {
-                    if ("=".equals(hint.operator()) && hint.values().size() == 1) {
-                        result.append(key).append('=').append(escapeGlobMeta(String.valueOf(hint.values().get(0))));
-                    } else if ("IN".equals(hint.operator()) && hint.values().size() > 1) {
-                        result.append(key).append("={");
-                        for (int j = 0; j < hint.values().size(); j++) {
-                            if (j > 0) {
-                                result.append(',');
-                            }
-                            result.append(escapeGlobMeta(String.valueOf(hint.values().get(j))));
-                        }
-                        result.append('}');
-                    } else if ("IN".equals(hint.operator()) && hint.values().size() == 1) {
-                        result.append(key).append('=').append(escapeGlobMeta(String.valueOf(hint.values().get(0))));
-                    } else {
-                        result.append(part);
-                    }
-                    continue;
-                }
+            result.append(rewriteSegment(segments[i], rewritableHints));
+        }
+        return result.toString();
+    }
+
+    private static Map<String, PartitionFilterHint> indexRewritableHints(List<PartitionFilterHint> hints) {
+        Map<String, PartitionFilterHint> byColumn = new HashMap<>();
+        for (PartitionFilterHint hint : hints) {
+            if (hint.operator().canRewriteGlob()) {
+                byColumn.putIfAbsent(hint.columnName(), hint);
             }
-            result.append(part);
+        }
+        return byColumn;
+    }
+
+    private static String rewriteSegment(String segment, Map<String, PartitionFilterHint> rewritableHints) {
+        int eqIdx = segment.indexOf('=');
+        if (eqIdx <= 0 || eqIdx >= segment.length() - 1) {
+            return segment;
         }
 
-        return result.toString();
+        String key = segment.substring(0, eqIdx);
+        String valuePart = segment.substring(eqIdx + 1);
+        if ("*".equals(valuePart) == false) {
+            return segment;
+        }
+
+        PartitionFilterHint hint = rewritableHints.get(key);
+        if (hint == null) {
+            return segment;
+        }
+
+        List<Object> values = hint.values();
+        if (hint.isSingleValue()) {
+            return key + "=" + escapeGlobMeta(String.valueOf(values.get(0)));
+        }
+
+        // Multiple values: use glob brace syntax key={v1,v2,...}
+        StringBuilder sb = new StringBuilder(key).append("={");
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(escapeGlobMeta(String.valueOf(values.get(i))));
+        }
+        return sb.append('}').toString();
     }
 
     private static String escapeGlobMeta(String value) {
@@ -227,9 +237,5 @@ final class GlobExpander {
             }
         }
         return sb.toString();
-    }
-
-    private static boolean isWildcard(String value) {
-        return "*".equals(value);
     }
 }

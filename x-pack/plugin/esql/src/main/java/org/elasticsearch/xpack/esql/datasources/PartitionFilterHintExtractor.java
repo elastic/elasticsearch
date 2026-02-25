@@ -44,7 +44,21 @@ public final class PartitionFilterHintExtractor {
 
     private PartitionFilterHintExtractor() {}
 
-    public record PartitionFilterHint(String columnName, String operator, List<Object> values) {
+    public enum Operator {
+        EQUALS,
+        NOT_EQUALS,
+        GREATER_THAN,
+        GREATER_THAN_OR_EQUAL,
+        LESS_THAN,
+        LESS_THAN_OR_EQUAL,
+        IN;
+
+        boolean canRewriteGlob() {
+            return this == EQUALS || this == IN;
+        }
+    }
+
+    public record PartitionFilterHint(String columnName, Operator operator, List<Object> values) {
         public PartitionFilterHint {
             if (columnName == null) {
                 throw new IllegalArgumentException("columnName cannot be null");
@@ -53,6 +67,10 @@ public final class PartitionFilterHintExtractor {
                 throw new IllegalArgumentException("operator cannot be null");
             }
             values = values != null ? List.copyOf(values) : List.of();
+        }
+
+        boolean isSingleValue() {
+            return values.size() == 1;
         }
     }
 
@@ -122,7 +140,7 @@ public final class PartitionFilterHintExtractor {
             return;
         }
 
-        String operator = operatorSymbol(comparison, reversed);
+        Operator operator = toOperator(comparison, reversed);
         if (operator != null) {
             hints.add(new PartitionFilterHint(columnName, operator, List.of(normalizeValue(literalValue))));
         }
@@ -145,7 +163,7 @@ public final class PartitionFilterHintExtractor {
         }
 
         if (literalValues.isEmpty() == false) {
-            hints.add(new PartitionFilterHint(attr.name(), "IN", literalValues));
+            hints.add(new PartitionFilterHint(attr.name(), Operator.IN, literalValues));
         }
     }
 
@@ -153,24 +171,24 @@ public final class PartitionFilterHintExtractor {
         return value instanceof BytesRef br ? BytesRefs.toString(br) : value;
     }
 
-    private static String operatorSymbol(EsqlBinaryComparison comparison, boolean reversed) {
+    private static Operator toOperator(EsqlBinaryComparison comparison, boolean reversed) {
         if (comparison instanceof Equals) {
-            return "=";
+            return Operator.EQUALS;
         }
         if (comparison instanceof NotEquals) {
-            return "!=";
+            return Operator.NOT_EQUALS;
         }
         if (comparison instanceof GreaterThan) {
-            return reversed ? "<" : ">";
+            return reversed ? Operator.LESS_THAN : Operator.GREATER_THAN;
         }
         if (comparison instanceof GreaterThanOrEqual) {
-            return reversed ? "<=" : ">=";
+            return reversed ? Operator.LESS_THAN_OR_EQUAL : Operator.GREATER_THAN_OR_EQUAL;
         }
         if (comparison instanceof LessThan) {
-            return reversed ? ">" : "<";
+            return reversed ? Operator.GREATER_THAN : Operator.LESS_THAN;
         }
         if (comparison instanceof LessThanOrEqual) {
-            return reversed ? ">=" : "<=";
+            return reversed ? Operator.GREATER_THAN_OR_EQUAL : Operator.LESS_THAN_OR_EQUAL;
         }
         return null;
     }

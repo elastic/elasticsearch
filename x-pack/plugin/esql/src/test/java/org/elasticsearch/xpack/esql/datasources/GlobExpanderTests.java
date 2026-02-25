@@ -100,42 +100,34 @@ public class GlobExpanderTests extends ESTestCase {
     // -- partition-aware glob rewriting --
 
     public void testRewriteGlobWithEqualsHint() {
-        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
-            new PartitionFilterHintExtractor.PartitionFilterHint("year", "=", List.of(2024))
-        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
         assertEquals("s3://bucket/year=2024/*.parquet", rewritten);
     }
 
     public void testRewriteGlobWithInHint() {
-        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
-            new PartitionFilterHintExtractor.PartitionFilterHint("year", "IN", List.of(2023, 2024))
-        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2023, 2024));
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
         assertEquals("s3://bucket/year={2023,2024}/*.parquet", rewritten);
     }
 
     public void testRewriteGlobWithRangeHintNoRewrite() {
-        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
-            new PartitionFilterHintExtractor.PartitionFilterHint("year", ">=", List.of(2020))
-        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020));
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
         assertEquals("s3://bucket/year=*/*.parquet", rewritten);
     }
 
     public void testRewriteGlobMultipleHints() {
-        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
-            new PartitionFilterHintExtractor.PartitionFilterHint("year", "=", List.of(2024)),
-            new PartitionFilterHintExtractor.PartitionFilterHint("month", "IN", List.of(1, 2, 3))
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024),
+            hint("month", PartitionFilterHintExtractor.Operator.IN, 1, 2, 3)
         );
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/month=*/*.parquet", hints);
         assertEquals("s3://bucket/year=2024/month={1,2,3}/*.parquet", rewritten);
     }
 
     public void testRewriteGlobNonWildcardNotRewritten() {
-        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
-            new PartitionFilterHintExtractor.PartitionFilterHint("year", "=", List.of(2024))
-        );
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=2023/*.parquet", hints);
         assertEquals("s3://bucket/year=2023/*.parquet", rewritten);
     }
@@ -187,6 +179,14 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     // -- helpers --
+
+    private static PartitionFilterHintExtractor.PartitionFilterHint hint(
+        String column,
+        PartitionFilterHintExtractor.Operator op,
+        Object... values
+    ) {
+        return new PartitionFilterHintExtractor.PartitionFilterHint(column, op, List.of(values));
+    }
 
     private static StorageEntry entry(String path, long length) {
         return new StorageEntry(StoragePath.of(path), length, Instant.EPOCH);

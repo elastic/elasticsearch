@@ -50,10 +50,8 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -360,17 +358,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 true,
                 0
             );
-            CancellableTask parentTask = new EsqlQueryTask(
-                1,
-                "test",
-                "test",
-                "test",
-                null,
-                Map.of(),
-                Map.of(),
-                new AsyncExecutionId("test", TaskId.EMPTY_TASK_ID),
-                TEST_REQUEST_TIMEOUT
-            );
+            CancellableTask parentTask = new CancellableTask(1, "test", "test", "test", null, Map.of());
             final String finalNodeWithShard = nodeWithShard;
             boolean expressionJoin = EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() ? randomBoolean() : false;
             List<MatchConfig> matchFields = new ArrayList<>();

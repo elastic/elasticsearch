@@ -127,7 +127,7 @@ public class GeometryDocValueWriter {
 
         // 2. Build and write extent + treeLength + tree (vertex table builder is populated during tree build)
         final VertexLookupTable.Builder vertexTableBuilder = VertexLookupTable.builder();
-        TriangleTreeWriter.writeTo(out, fields, vertexTableBuilder);
+        V2TriangleTreeWriter.writeTo(out, fields, vertexTableBuilder);
 
         // 3. Write connectivity (may add vertices to the builder for coordinates in the normalized geometry
         // that don't appear in any tessellated triangle). We write a dummy length before the data, which we fill in later.
@@ -166,7 +166,7 @@ public class GeometryDocValueWriter {
         out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
 
         // Extent + triangle tree with coordinate deltas
-        TriangleTreeWriter.writeLegacy(out, fields);
+        TriangleTreeWriter.writeTo(out, fields);
 
         return out.bytes().toBytesRef();
     }

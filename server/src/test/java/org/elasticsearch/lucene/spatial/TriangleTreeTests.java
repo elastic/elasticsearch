@@ -42,7 +42,7 @@ public class TriangleTreeTests extends ESTestCase {
         // Write using V2 format: tree + vertex table
         VertexLookupTable.Builder vtBuilder = VertexLookupTable.builder();
         BytesStreamOutput output = new BytesStreamOutput();
-        TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
+        V2TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
         vtBuilder.writeTo(output);
 
         // Read tree (extent → treeLength → tree) then vertex table
@@ -58,7 +58,7 @@ public class TriangleTreeTests extends ESTestCase {
 
         input.setPosition(treeStart);
         TriangleCounterVisitor visitor = new TriangleCounterVisitor();
-        TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY(), vertexTable);
+        V2TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY(), vertexTable);
         assertThat(fieldList.size(), equalTo(visitor.counter));
     }
 
@@ -70,7 +70,7 @@ public class TriangleTreeTests extends ESTestCase {
 
         // Write using legacy format: coordinate deltas
         BytesStreamOutput output = new BytesStreamOutput();
-        TriangleTreeWriter.writeLegacy(output, fieldList);
+        TriangleTreeWriter.writeTo(output, fieldList);
 
         // Read tree
         ByteArrayStreamInput input = new ByteArrayStreamInput();
@@ -79,7 +79,7 @@ public class TriangleTreeTests extends ESTestCase {
         Extent extent = new Extent();
         Extent.readFromCompressed(input, extent);
         TriangleCounterVisitor visitor = new TriangleCounterVisitor();
-        TriangleTreeReader.visitLegacy(input, visitor, extent.maxX(), extent.maxY());
+        TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY());
         assertThat(fieldList.size(), equalTo(visitor.counter));
     }
 
@@ -91,7 +91,7 @@ public class TriangleTreeTests extends ESTestCase {
 
         VertexLookupTable.Builder vtBuilder = VertexLookupTable.builder();
         BytesStreamOutput output = new BytesStreamOutput();
-        TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
+        V2TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
 
         // Builder should have 4 unique vertices, regardless of how many triangles reference them
         assertThat(vtBuilder.size(), equalTo(4));

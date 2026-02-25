@@ -170,12 +170,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         );
 
         // When we parse the persisted config, if the chunking settings were null they will be defaulted to OLD_DEFAULT_SETTINGS
-        ElasticsearchInternalModel roundTripModel = (ElasticsearchInternalModel) elserService.parsePersistedConfigWithSecrets(
-            modelHolder.get().inferenceEntityId(),
-            modelHolder.get().taskType(),
-            modelHolder.get().settings(),
-            modelHolder.get().secrets()
-        );
+        ElasticsearchInternalModel roundTripModel = (ElasticsearchInternalModel) elserService.parsePersistedConfig(modelHolder.get());
 
         assertElserModelsEqual(roundTripModel, model);
     }
@@ -308,7 +303,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             .collect(Collectors.toSet());
         modelHolder.get().forEach(m -> {
             assertTrue(sparseIds.contains(m.inferenceEntityId()));
-            assertThat(m.secrets().keySet(), empty());
+            assertThat(m.secrets(), is(nullValue()));
         });
 
         blockingCall(listener -> modelRegistry.getModelsByTaskType(TaskType.TEXT_EMBEDDING, listener), modelHolder, exceptionHolder);
@@ -319,7 +314,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             .collect(Collectors.toSet());
         modelHolder.get().forEach(m -> {
             assertTrue(denseIds.contains(m.inferenceEntityId()));
-            assertThat(m.secrets().keySet(), empty());
+            assertThat(m.secrets(), is(nullValue()));
         });
     }
 
@@ -328,7 +323,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var createdModels = new ArrayList<Model>();
         int modelCount = randomIntBetween(30, 100);
 
-        AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         for (int i = 0; i < modelCount; i++) {
@@ -349,7 +343,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             assertEquals(createdModels.get(i).getInferenceEntityId(), getAllModels.get(i).inferenceEntityId());
             assertEquals(createdModels.get(i).getTaskType(), getAllModels.get(i).taskType());
             assertEquals(createdModels.get(i).getConfigurations().getService(), getAllModels.get(i).service());
-            assertThat(getAllModels.get(i).secrets().keySet(), empty());
+            assertThat(getAllModels.get(i).secrets(), is(nullValue()));
         }
     }
 
@@ -372,7 +366,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         // get model without secrets
         blockingCall(listener -> modelRegistry.getModel(inferenceEntityId, listener), modelHolder, exceptionHolder);
-        assertThat(modelHolder.get().secrets().keySet(), empty());
+        assertThat(modelHolder.get().secrets(), is(nullValue()));
         assertReturnModelIsModifiable(modelHolder.get());
     }
 
@@ -1093,7 +1087,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertEquals("foo", modelConfig.service());
         assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
         assertNotNull(modelConfig.settings().keySet());
-        assertThat(modelConfig.secrets().keySet(), empty());
+        assertThat(modelConfig.secrets(), is(nullValue()));
     }
 
     public void testStoreModel_ReturnsTrue_WhenNoFailuresOccur() {

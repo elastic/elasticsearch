@@ -24,8 +24,8 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MvMaxBooleansFromDocValuesBlockLoaderTests extends AbstractBooleansFromDocValuesBlockLoaderTests {
-    public MvMaxBooleansFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        super(blockAtATime, multiValues, missingValues);
+    public MvMaxBooleansFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
+        super(multiValues, missingValues);
     }
 
     @Override
@@ -39,10 +39,7 @@ public class MvMaxBooleansFromDocValuesBlockLoaderTests extends AbstractBooleans
             var mvMaxBooleansReader = mvMaxBooleansLoader.reader(breaker, ctx);
         ) {
             assertThat(mvMaxBooleansReader, readerMatcher());
-            try (
-                TestBlock booleans = read(booleansLoader, booleansReader, ctx, docs);
-                TestBlock maxBooleans = read(mvMaxBooleansLoader, mvMaxBooleansReader, ctx, docs);
-            ) {
+            try (TestBlock booleans = read(booleansReader, docs); TestBlock maxBooleans = read(mvMaxBooleansReader, docs);) {
                 checkBlocks(booleans, maxBooleans);
             }
         }
@@ -57,10 +54,7 @@ public class MvMaxBooleansFromDocValuesBlockLoaderTests extends AbstractBooleans
                     docsArray[d] = i + d;
                 }
                 docs = TestBlock.docs(docsArray);
-                try (
-                    TestBlock booleans = read(booleansLoader, booleansReader, ctx, docs);
-                    TestBlock maxBooleans = read(mvMaxBooleansLoader, mvMaxBooleansReader, ctx, docs);
-                ) {
+                try (TestBlock booleans = read(booleansReader, docs); TestBlock maxBooleans = read(mvMaxBooleansReader, docs);) {
                     checkBlocks(booleans, maxBooleans);
                 }
             }

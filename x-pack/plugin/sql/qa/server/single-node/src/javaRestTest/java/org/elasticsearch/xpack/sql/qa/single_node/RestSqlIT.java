@@ -15,8 +15,11 @@ import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Integration test for the rest sql action. The one that speaks json directly to a
@@ -96,5 +99,54 @@ public class RestSqlIT extends RestSqlTestCase {
             () -> toMap(client().performRequest(request), "plain"),
             containsString("Invalid request content type: Accept=[application/fff]")
         );
+    }
+
+    /**
+     * Verifies the fix for https://github.com/elastic/elasticsearch/issues/137365
+     * DATE_ADD with a field reference in a range bound should work via script query.
+     */
+    @SuppressWarnings("unchecked")
+    public void testDateAddWithFieldInRangeBound() throws IOException {
+        // Create index with date fields
+        Request createIndex = new Request("PUT", "/test_date_add");
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "event_date": { "type": "date", "format": "yyyy-MM-dd" },
+                  "base_date": { "type": "date", "format": "yyyy-MM-dd" },
+                  "name": { "type": "keyword" }
+                }
+              }
+            }""");
+        provisioningClient().performRequest(createIndex);
+
+        // Index test documents
+        Request bulk = new Request("POST", "/test_date_add/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.setJsonEntity("""
+            {"index":{}}
+            {"event_date":"2024-01-15","base_date":"2024-01-05","name":"within_range"}
+            {"index":{}}
+            {"event_date":"2024-03-05","base_date":"2024-01-05","name":"outside_range"}
+            {"index":{}}
+            {"event_date":"2024-02-01","base_date":"2024-02-01","name":"same_date"}
+            """);
+        provisioningClient().performRequest(bulk);
+
+        // Query: find documents where event_date is within 30 days after base_date
+        // This uses DATE_ADD with a field reference, which requires script query fallback
+        String mode = randomMode();
+        String sql = "SELECT name FROM test_date_add "
+            + "WHERE event_date BETWEEN base_date AND DATE_ADD('days', 30, base_date) ORDER BY name";
+        Map<String, Object> result = runSql(new StringEntity(query(sql).mode(mode).toString(), ContentType.APPLICATION_JSON), "", mode);
+
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertThat(rows, hasSize(2));
+        assertEquals("same_date", rows.get(0).get(0));
+        assertEquals("within_range", rows.get(1).get(0));
+
+        // Cleanup
+        provisioningClient().performRequest(new Request("DELETE", "/test_date_add"));
     }
 }

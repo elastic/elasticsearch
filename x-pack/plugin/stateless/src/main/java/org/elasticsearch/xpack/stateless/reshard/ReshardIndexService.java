@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -387,15 +388,23 @@ public class ReshardIndexService {
         final Index index
     ) {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
-        IndexMetadata indexMetadata = projectMetadataBuilder.getSafe(index);
-        // Note that the IndexMetadata:version is incremented by the put operation
-        return projectMetadataBuilder.put(
-            IndexMetadata.builder(indexMetadata)
-                .reshardingMetadata(reshardingMetadata)
-                .reshardAddShards(reshardingMetadata.shardCountAfter())
-                // adding shards is a settings change
-                .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+        final var indexMetadata = projectMetadataBuilder.getSafe(index);
+        final var newIndexMetadata = IndexMetadata.builder(indexMetadata)
+            .reshardingMetadata(reshardingMetadata)
+            .reshardAddShards(reshardingMetadata.shardCountAfter())
+            // adding shards is a settings change
+            .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+            .build();
+        // For Reasons, IndexMetadataBuilder does not validate settings at build time, so we do it here to make sure that
+        // the changed shard count doesn't conflict with existing settings. For example, if MODE is lookup then
+        // the shard count must be 1.
+        IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(
+            newIndexMetadata.getSettings(),
+            /* validateValues */ true,
+            /* ignorePrivateSettings */ true,
+            /* ignoreArchivedSettings */ true
         );
+        return projectMetadataBuilder.put(newIndexMetadata, true);
     }
 
     /**

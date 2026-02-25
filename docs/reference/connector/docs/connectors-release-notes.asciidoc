@@ -10,6 +10,21 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-19-12]]
+=== 8.19.12
+
+[discrete]
+[[es-connectors-release-notes-8-19-12-bug-fixes]]
+===== Bug fixes
+
+* Fixed an issue where advanced sync rules would fail to execute due to a missing parameter. 
+See: https://github.com/elastic/connectors/pull/3044[*PR 3044*]
+* Fixed an issue where an AttributeError was incorrectly thrown in the logs when too many jobs were scheduled.
+See: https://github.com/elastic/connectors/pull/3356[*PR 3356*]
+* Fixed an issue where MultiService would enter an unresponsive "braindead" state instead of shutting down cleanly when a managed service crashed with an unhandled exception.
+See: https://github.com/elastic/connectors/pull/3940[*PR 3940*], https://github.com/elastic/connectors/issues/3939[*Issue 3939*]
+
+[discrete]
 [[es-connectors-release-notes-8-19-11]]
 === 8.19.11
 

@@ -29,6 +29,9 @@ import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -118,8 +121,12 @@ public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
         setScroll(scrollResumeInfo.scrollId());
     }
 
+    public Optional<Version> remoteVersion() {
+        return Optional.ofNullable(remoteVersion);
+    }
+
     // Exposed for testing
-    void onStartResponse(RejectAwareActionListener<Response> searchListener, Response response) {
+    private void onStartResponse(RejectAwareActionListener<Response> searchListener, Response response) {
         if (Strings.hasLength(response.getScrollId()) && response.getHits().isEmpty()) {
             logger.debug("First response looks like a scan response. Jumping right to the second. scroll=[{}]", response.getScrollId());
             doStartNextScroll(response.getScrollId(), timeValueMillis(0), searchListener);

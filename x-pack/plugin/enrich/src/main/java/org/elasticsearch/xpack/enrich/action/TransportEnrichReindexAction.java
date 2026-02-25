@@ -65,6 +65,11 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             client,
             transportService,
             new ReindexSslConfig(settings, environment, watcherService),
+            null,
+            // no relocation support as of now. to do so, create a ReindexRelocationNodePicker instance here, similar to Reindex plugin.
+            // same idea as SSL config above, you can't inject into constructor because (my understanding) classloader isolation between the
+            // enrich plugin and reindex module means Guice bindings registered by ReindexPlugin won't match the Class identity seen here.
+            // also, if you add relocation support here, remove `@Nullable` annotations from reindex on ReindexRelocationNodePicker.
             null
         );
         this.bulkClient = new OriginSettingClient(client, ENRICH_ORIGIN);

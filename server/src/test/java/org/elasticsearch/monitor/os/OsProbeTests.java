@@ -323,6 +323,23 @@ public class OsProbeTests extends ESTestCase {
         assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(memTotalInKb * 1024L));
     }
 
+    public void testGetActualFreePhysicalMemory() {
+        int cgroupsVersion = 1;
+
+        var meminfoLines = Arrays.asList(
+            "MemFree:         8467692 kB",
+            "MemAvailable:   39646240 kB",
+            "Buffers:         4699504 kB",
+            "Cached:         23290380 kB"
+        );
+        OsProbe probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
+        assertThat(probe.getActualFreePhysicalMemorySize(), equalTo(39646240 * 1024L));
+
+        meminfoLines = Arrays.asList("MemFree:         10 kB", "Buffers:         20 kB", "Cached:         30 kB");
+        probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
+        assertThat(probe.getActualFreePhysicalMemorySize(), equalTo((10 + 20 + 30) * 1024L));
+    }
+
     public void testTotalMemoryOverride() {
         assertThat(OsProbe.getTotalMemoryOverride("123456789"), is(123456789L));
         assertThat(OsProbe.getTotalMemoryOverride("123456789123456789"), is(123456789123456789L));

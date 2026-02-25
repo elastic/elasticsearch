@@ -16,20 +16,22 @@ import io.opentelemetry.api.metrics.Meter;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 
 import java.util.function.Supplier;
 
 public class APMMeterService extends AbstractLifecycleComponent {
-    private final APMMeterRegistry meterRegistry;
+    static final String OTEL_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.otel.metrics.enabled";
 
+    private final APMMeterRegistry meterRegistry;
     private final Supplier<Meter> otelMeterSupplier;
     private final Supplier<Meter> noopMeterSupplier;
 
     protected volatile boolean enabled;
 
     public APMMeterService(Settings settings) {
-        this(settings, APMMeterService.otelMeter(), APMMeterService.noopMeter());
+        this(settings, createOtelMeterSupplier(settings), () -> OpenTelemetry.noop().getMeter("noop"));
     }
 
     public APMMeterService(Settings settings, Supplier<Meter> otelMeterSupplier, Supplier<Meter> noopMeterSupplier) {
@@ -40,7 +42,14 @@ public class APMMeterService extends AbstractLifecycleComponent {
         this.enabled = enabled;
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
-        this.meterRegistry = new APMMeterRegistry(enabled ? createOtelMeter() : createNoopMeter());
+        this.meterRegistry = new APMMeterRegistry(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
+    }
+
+    private static Supplier<Meter> createOtelMeterSupplier(Settings settings) {
+        if (Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false) {
+            return () -> GlobalOpenTelemetry.get().getMeter("elasticsearch");
+        }
+        return new OTelSdkMeterSupplier(settings);
     }
 
     public APMMeterRegistry getMeterRegistry() {
@@ -52,11 +61,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
      */
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        if (enabled) {
-            meterRegistry.setProvider(createOtelMeter());
-        } else {
-            meterRegistry.setProvider(createNoopMeter());
-        }
+        meterRegistry.setProvider(enabled ? otelMeterSupplier.get() : noopMeterSupplier.get());
     }
 
     @Override
@@ -64,29 +69,16 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-        meterRegistry.setProvider(createNoopMeter());
+        if (otelMeterSupplier instanceof AutoCloseable closeable) {
+            try {
+                closeable.close();
+            } catch (Exception e) {
+                // TODO
+            }
+        }
+        meterRegistry.setProvider(noopMeterSupplier.get());
     }
 
     @Override
     protected void doClose() {}
-
-    protected Meter createOtelMeter() {
-        assert this.enabled;
-        return otelMeterSupplier.get();
-    }
-
-    protected Meter createNoopMeter() {
-        return noopMeterSupplier.get();
-    }
-
-    protected static Supplier<Meter> noopMeter() {
-        return () -> OpenTelemetry.noop().getMeter("noop");
-    }
-
-    // to be used within doPrivileged block
-    private static Supplier<Meter> otelMeter() {
-        var openTelemetry = GlobalOpenTelemetry.get();
-        var meter = openTelemetry.getMeter("elasticsearch");
-        return () -> meter;
-    }
 }

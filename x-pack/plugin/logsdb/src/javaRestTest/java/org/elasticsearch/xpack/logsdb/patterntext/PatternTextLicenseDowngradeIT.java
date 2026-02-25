@@ -68,7 +68,7 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
         indexDocs(dataStreamName, preDowngradeDocs);
 
         // Verify search returns pre-downgrade docs
-        assertSearchReturnsValues(dataStreamName, preDowngradeDocs);
+        assertSearchReturnsValues(preDowngradeDocs);
 
         startBasic();
 
@@ -79,7 +79,7 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
         // Verify search returns all docs from before and after downgrade
         List<String> allDocsBeforeRollover = new ArrayList<>(preDowngradeDocs);
         allDocsBeforeRollover.addAll(postDowngradeDocs);
-        assertSearchReturnsValues(dataStreamName, allDocsBeforeRollover);
+        assertSearchReturnsValues(allDocsBeforeRollover);
 
         // Original backing index settings remain unchanged after downgrade
         {
@@ -110,12 +110,12 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
         // Verify search across all backing indices returns every doc
         List<String> allDocs = new ArrayList<>(allDocsBeforeRollover);
         allDocs.addAll(postRolloverDocs);
-        assertSearchReturnsValues(dataStreamName, allDocs);
+        assertSearchReturnsValues(allDocs);
 
         // Fetch pattern_field via the "fields" parameter, which exercises the valueFetcher() code path.
         // With disabled templating, valueFetcher must load values from binary doc values or stored fields
         // rather than from pattern_text template+args doc values.
-        assertFieldsFetchReturnsValues(dataStreamName, "pattern_field", allDocs);
+        assertFieldsFetchReturnsValues(allDocs);
     }
 
     private static void indexDocs(String dataStreamName, List<String> values) throws IOException {
@@ -128,8 +128,8 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertSearchReturnsValues(String dataStreamName, List<String> expectedValues) throws IOException {
-        Request searchRequest = new Request("GET", "/" + dataStreamName + "/_search");
+    private static void assertSearchReturnsValues(List<String> expectedValues) throws IOException {
+        Request searchRequest = new Request("GET", "/" + "logs-test-pattern-text" + "/_search");
         searchRequest.setJsonEntity("""
             {
                 "query": {"match_all": {}},
@@ -151,16 +151,16 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertFieldsFetchReturnsValues(String dataStreamName, String field, List<String> expectedValues)
+    private static void assertFieldsFetchReturnsValues(List<String> expectedValues)
         throws IOException {
-        Request searchRequest = new Request("GET", "/" + dataStreamName + "/_search");
+        Request searchRequest = new Request("GET", "/" + "logs-test-pattern-text" + "/_search");
         searchRequest.setJsonEntity("""
             {
                 "query": {"match_all": {}},
-                "fields": ["%field%"],
+                "fields": ["pattern_field"],
                 "size": 100
             }
-            """.replace("%field%", field));
+            """);
         Response response = client().performRequest(searchRequest);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
@@ -170,7 +170,7 @@ public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCa
         Set<String> actual = new HashSet<>();
         for (Map<String, Object> hit : hits) {
             Map<String, Object> fields = (Map<String, Object>) hit.get("fields");
-            List<String> values = (List<String>) fields.get(field);
+            List<String> values = (List<String>) fields.get("pattern_field");
             assertThat(values.size(), equalTo(1));
             actual.add(values.get(0));
         }

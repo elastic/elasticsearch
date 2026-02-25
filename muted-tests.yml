@@ -363,9 +363,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingStandardSource
   issue: https://github.com/elastic/elasticsearch/issues/143017
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
 
 # Examples:
 #

@@ -1,0 +1,10 @@
+area: Data streams
+deprecation:
+  area: REST API
+  details: The 'logs' stream type has been disabled in favor of finer-grained streams 'logs.otel' and 'logs.ecs'. Please switch to those stream names.
+  impact: Users enabling or disabling the 'logs' stream type with the `POST /_streams/logs/enable` API will receive a deprecation warning. The 'logs' stream will be removed in a later release.
+  title: Deprecate the 'logs' stream type
+issues: []
+pr: 142148
+summary: Deprecate the 'logs' stream type
+type: deprecation

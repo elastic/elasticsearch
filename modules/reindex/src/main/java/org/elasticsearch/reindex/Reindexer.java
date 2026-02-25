@@ -157,7 +157,36 @@ public class Reindexer {
         // for update-by-query and delete-by-query
         final ActionListener<BulkByScrollResponse> listenerWithRelocations = listenerWithRelocations(task, request, listener);
 
-        Consumer<Version> workerAction = remoteVersion -> {
+        final boolean isRemote = request.getRemoteInfo() != null;
+        Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, listenerWithRelocations, startTime, isRemote);
+
+        // Point-in-time searching is not enabled, so default to scroll
+        if (REINDEX_PIT_SEARCH_ENABLED == false) {
+            executePaginatedSearch(task, request, listenerWithRelocations, workerAction, null);
+        }
+        // Point-in-time searching is enabled, and this is a remote request
+        else if (isRemote) {
+            lookupRemoteVersionAndExecute(task, request, bulkClient, listenerWithRelocations, workerAction, startTime);
+        }
+        // Point-in-time searching is enabled, and this is a local request
+        else {
+            openPitAndExecute(task, request, bulkClient, listenerWithRelocations, startTime);
+        }
+    }
+
+    /**
+     * Creates the worker action that runs the reindex. The listener is invoked on success or failure; for PIT paths,
+     * the listener should include runAfter logic to close the PIT.
+     */
+    private Consumer<Version> createWorkerAction(
+        BulkByScrollTask task,
+        ReindexRequest request,
+        Client bulkClient,
+        ActionListener<BulkByScrollResponse> listener,
+        long startTime,
+        boolean isRemote
+    ) {
+        return remoteVersion -> {
             ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
             ParentTaskAssigningClient assigningBulkClient = new ParentTaskAssigningClient(bulkClient, clusterService.localNode(), task);
             AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(
@@ -170,24 +199,11 @@ public class Reindexer {
                 projectResolver.getProjectState(clusterService.state()),
                 reindexSslConfig,
                 request,
-                workerListenerWithRelocationAndMetrics(listenerWithRelocations, startTime, request.getRemoteInfo() != null),
+                workerListenerWithRelocationAndMetrics(listener, startTime, isRemote),
                 remoteVersion
             );
             searchAction.start();
         };
-
-        // Point-in-time searching is not enabled, so default to scroll
-        if (REINDEX_PIT_SEARCH_ENABLED == false) {
-            executePaginatedSearch(task, request, listenerWithRelocations, workerAction, null);
-        }
-        // Point-in-time searching is enabled, and this is a remote request
-        else if (request.getRemoteInfo() != null) {
-            lookupRemoteVersionAndExecute(task, request, listenerWithRelocations, workerAction);
-        }
-        // Point-in-time searching is enabled, and this is a local request
-        else {
-            openPitAndExecute(task, request, listenerWithRelocations, workerAction);
-        }
     }
 
     /**
@@ -197,7 +213,6 @@ public class Reindexer {
         return request.getScrollTime() != null ? request.getScrollTime() : TimeValue.timeValueMinutes(5);
     }
 
-    // TODO - If we refactor and only use once, then inline
     /**
      * Runs the sliced action using scroll.
      */
@@ -226,8 +241,9 @@ public class Reindexer {
     private void openPitAndExecute(
         BulkByScrollTask task,
         ReindexRequest request,
+        Client bulkClient,
         ActionListener<BulkByScrollResponse> listenerWithRelocations,
-        Consumer<Version> workerAction
+        long startTime
     ) {
         SearchRequest searchRequest = request.getSearchRequest();
         String[] indices = searchRequest.indices();
@@ -243,7 +259,8 @@ public class Reindexer {
                     ActionListener.wrap(r -> {}, e -> logger.warn("Failed to close local PIT", e))
                 )
             );
-            executePaginatedSearch(task, request, listenerWithClosePit, workerAction, null);
+            Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit, startTime, false);
+            executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
         }));
     }
 
@@ -255,8 +272,10 @@ public class Reindexer {
     private void lookupRemoteVersionAndExecute(
         BulkByScrollTask task,
         ReindexRequest request,
+        Client bulkClient,
         ActionListener<BulkByScrollResponse> listenerWithRelocations,
-        Consumer<Version> workerAction
+        Consumer<Version> workerAction,
+        long startTime
     ) {
         RemoteInfo remoteInfo = request.getRemoteInfo();
         assert reindexSslConfig != null : "Reindex ssl config must be set";
@@ -266,7 +285,7 @@ public class Reindexer {
             public void onResponse(Version version) {
                 boolean canUsePit = version.onOrAfter(Version.V_7_10_0);
                 if (canUsePit) {
-                    openRemotePitAndExecute(task, request, listenerWithRelocations, workerAction, restClient, version);
+                    openRemotePitAndExecute(task, request, bulkClient, listenerWithRelocations, restClient, version, startTime);
                 } else {
                     closeRestClientAndRun(
                         restClient,
@@ -302,10 +321,11 @@ public class Reindexer {
     private void openRemotePitAndExecute(
         BulkByScrollTask task,
         ReindexRequest request,
+        Client bulkClient,
         ActionListener<BulkByScrollResponse> listenerWithRelocations,
-        Consumer<Version> workerAction,
         RestClient restClient,
-        Version remoteVersion
+        Version remoteVersion,
+        long startTime
     ) {
         String[] indices = request.getSearchRequest().indices();
         openPit(indices, pitKeepAlive(request), RejectAwareActionListener.wrap(pitId -> {
@@ -319,7 +339,8 @@ public class Reindexer {
                     closeRestClientAndRun(restClient, () -> {});
                 }), threadPool, restClient)
             );
-            executePaginatedSearch(task, request, listenerWithClosePit, workerAction, remoteVersion);
+            Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit, startTime, true);
+            executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, remoteVersion);
         },
             e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e)),
             e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e))

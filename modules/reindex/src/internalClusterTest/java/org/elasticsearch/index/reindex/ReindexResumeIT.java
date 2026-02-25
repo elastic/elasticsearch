@@ -89,7 +89,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
         // Resume reindexing from the manual scroll search
         BulkByScrollTask.Status randomStats = randomStats();
         // random start time in the past to ensure that "took" is updated
-        long startTime = System.nanoTime() - randomTimeValue(2, 10, TimeUnit.HOURS).nanos();
+        long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
         ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
             .setShouldStoreResult(true)
             .setEligibleForRelocationOnShutdown(true)
@@ -136,7 +136,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
         // Resume reindexing from the manual scroll with remote search
         BulkByScrollTask.Status randomStats = randomStats();
         // random start time in the past to ensure that "took" is updated
-        long startTime = System.nanoTime() - randomTimeValue(2, 10, TimeUnit.HOURS).nanos();
+        long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
         InetSocketAddress remoteAddress = randomFrom(cluster().httpAddresses());
         ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
             .setShouldStoreResult(true)
@@ -185,7 +185,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
 
         Map<Integer, SliceStatus> sliceStatus = new HashMap<>();
         Map<Integer, Long> sliceFirstBatchDocs = new HashMap<>();
-        final long startTime = System.nanoTime() - randomTimeValue(2, 10, TimeUnit.HOURS).nanos();
+        final long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
 
         // Manually create scroll slices and pass their scroll IDs in resume info
         for (int sliceId = 0; sliceId < numSlices; sliceId++) {
@@ -256,7 +256,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
         }
 
         // Manually create scroll slices for the remaining slices that are not completed, and pass their scroll IDs in resume info
-        final long startTime = System.nanoTime() - randomTimeValue(2, 10, TimeUnit.HOURS).nanos();
+        final long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
         for (int sliceId = numCompletedSlices; sliceId < numSlices; sliceId++) {
             SearchRequest searchRequest = new SearchRequest(sourceIndex).source(
                 new SearchSourceBuilder().slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices)).size(batchSize)
@@ -314,7 +314,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
 
         Map<Integer, SliceStatus> sliceStatus = new HashMap<>();
         Map<Integer, Long> sliceFirstBatchDocs = new HashMap<>();
-        final long startTime = System.nanoTime() - randomTimeValue(2, 10, TimeUnit.HOURS).nanos();
+        final long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
 
         for (int sliceId = 0; sliceId < numSlices; sliceId++) {
             SearchRequest searchRequest = new SearchRequest(sourceIndex).source(
@@ -375,7 +375,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
         createIndex(sourceIndex);
         indexRandom(true, sourceIndex, totalDocs);
 
-        final long startTime = System.nanoTime() - randomTimeValue(2, 10, TimeUnit.HOURS).nanos();
+        final long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
         long firstBatchDocsTotal = 0;
 
         for (int sliceId = 0; sliceId < numSlices; sliceId++) {
@@ -692,5 +692,9 @@ public class ReindexResumeIT extends ESIntegTestCase {
 
     private static float floatFromMap(Map<String, Object> map, String key) {
         return ((Number) map.get(key)).floatValue();
+    }
+
+    private static long timeAgo(TimeValue period) {
+        return System.currentTimeMillis() - period.millis();
     }
 }

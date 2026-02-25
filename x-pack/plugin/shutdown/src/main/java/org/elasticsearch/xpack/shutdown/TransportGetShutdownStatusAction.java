@@ -280,7 +280,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
 
         // Get all shard explanations
         final Function<ShardRouting, ShardAllocationDecision> allocationExplainFunction = allocationService
-            .explainAssignedShardAllocationAsync(allocation);
+            .explainAssignedShardAllocationFunction(allocation);
 
         var unmovableShards = currentState.getRoutingNodes()
             .node(nodeId)

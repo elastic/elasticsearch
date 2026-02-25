@@ -799,9 +799,9 @@ public class AllocationService {
         }
     }
 
-    public Function<ShardRouting, ShardAllocationDecision> explainAssignedShardAllocationAsync(RoutingAllocation allocation) {
+    public Function<ShardRouting, ShardAllocationDecision> explainAssignedShardAllocationFunction(RoutingAllocation allocation) {
         assert allocation.debugDecision();
-        return shardsAllocator.explainShardAllocationAsync(allocation);
+        return shardsAllocator.explainShardAllocationFunction(allocation);
     }
 
     private AllocateUnassignedDecision explainUnassignedShardAllocation(ShardRouting shardRouting, RoutingAllocation routingAllocation) {

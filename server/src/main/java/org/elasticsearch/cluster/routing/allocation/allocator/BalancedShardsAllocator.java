@@ -289,7 +289,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public Function<ShardRouting, ShardAllocationDecision> explainShardAllocationAsync(final RoutingAllocation allocation) {
+    public Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction(final RoutingAllocation allocation) {
         final Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,

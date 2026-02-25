@@ -87,7 +87,7 @@ public interface ShardsAllocator {
     /**
      * Bulk explain over a bunch of shards
      */
-    default Function<ShardRouting, ShardAllocationDecision> explainShardAllocationAsync(final RoutingAllocation allocation) {
+    default Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction(final RoutingAllocation allocation) {
         return new Function<ShardRouting, ShardAllocationDecision>() {
             @Override
             public ShardAllocationDecision apply(ShardRouting shardRouting) {

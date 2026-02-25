@@ -11,7 +11,6 @@ package org.elasticsearch.simdvec.internal;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
@@ -28,29 +27,27 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 public abstract sealed class FloatVectorScorerSupplier implements RandomVectorScorerSupplier {
 
     final int dims;
-    final int maxOrd;
-    final MemorySegmentAccessInput input;
+    final MemorySegmentAccessor input;
     final FloatVectorValues values;
     final VectorSimilarityFunction fallbackScorer;
 
-    static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+    public static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
-    protected FloatVectorScorerSupplier(MemorySegmentAccessInput input, FloatVectorValues values, VectorSimilarityFunction fallbackScorer) {
+    protected FloatVectorScorerSupplier(MemorySegmentAccessor input, FloatVectorValues values, VectorSimilarityFunction fallbackScorer) {
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
-        this.maxOrd = values.size();
         this.fallbackScorer = fallbackScorer;
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord > maxOrd) {
+        if (ord < 0 || ord > values.size()) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }
 
     final void bulkScoreFromOrds(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
-        MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
+        MemorySegment vectorsSeg = input.entireSegmentOrNull();
         if (vectorsSeg == null) {
             // we might be able to get segments for individual vectors, so try separately
             scoreSeparately(firstOrd, ordinals, scores, numNodes);
@@ -84,11 +81,9 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
     }
 
     private void scoreSeparately(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
-        final int length = dims * Float.BYTES;
-        long firstByteOffset = (long) firstOrd * Float.BYTES;
         float[] firstVector = null;
 
-        MemorySegment firstSeg = input.segmentSliceOrNull(firstByteOffset, length);
+        MemorySegment firstSeg = input.segmentForEntryOrNull(firstOrd);
         if (firstSeg == null) {
             firstVector = values.vectorValue(firstOrd).clone();
             for (int i = 0; i < numNodes; i++) {
@@ -96,8 +91,8 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
             }
         } else {
             for (int i = 0; i < numNodes; i++) {
-                long secondByteOffset = (long) ordinals[i] * Float.BYTES;
-                MemorySegment secondSeg = input.segmentSliceOrNull(secondByteOffset, length);
+
+                MemorySegment secondSeg = input.segmentForEntryOrNull(ordinals[i]);
                 if (secondSeg == null) {
                     if (firstVector == null) {
                         firstVector = values.vectorValue(firstOrd).clone();
@@ -111,16 +106,12 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
     }
 
     final float scoreFromOrds(int firstOrd, int secondOrd) throws IOException {
-        final int length = dims * Float.BYTES;
-        long firstByteOffset = (long) firstOrd * length;
-        long secondByteOffset = (long) secondOrd * length;
-
-        MemorySegment firstSeg = input.segmentSliceOrNull(firstByteOffset, length);
+        MemorySegment firstSeg = input.segmentForEntryOrNull(firstOrd);
         if (firstSeg == null) {
             return fallbackScore(firstOrd, secondOrd);
         }
 
-        MemorySegment secondSeg = input.segmentSliceOrNull(secondByteOffset, length);
+        MemorySegment secondSeg = input.segmentForEntryOrNull(secondOrd);
         if (secondSeg == null) {
             return fallbackScore(firstOrd, secondOrd);
         }
@@ -172,7 +163,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
 
     public static final class EuclideanSupplier extends FloatVectorScorerSupplier {
 
-        public EuclideanSupplier(MemorySegmentAccessInput input, FloatVectorValues values) {
+        public EuclideanSupplier(MemorySegmentAccessor input, FloatVectorValues values) {
             super(input, values, EUCLIDEAN);
         }
 
@@ -207,9 +198,18 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         }
     }
 
+    public interface MemorySegmentAccessor {
+
+        MemorySegment entireSegmentOrNull() throws IOException;
+
+        MemorySegment segmentForEntryOrNull(int ordinal) throws IOException;
+
+        MemorySegmentAccessor clone();
+    }
+
     public static final class DotProductSupplier extends FloatVectorScorerSupplier {
 
-        public DotProductSupplier(MemorySegmentAccessInput input, FloatVectorValues values) {
+        public DotProductSupplier(MemorySegmentAccessor input, FloatVectorValues values) {
             super(input, values, DOT_PRODUCT);
         }
 
@@ -246,7 +246,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
 
     public static final class MaxInnerProductSupplier extends FloatVectorScorerSupplier {
 
-        public MaxInnerProductSupplier(MemorySegmentAccessInput input, FloatVectorValues values) {
+        public MaxInnerProductSupplier(MemorySegmentAccessor input, FloatVectorValues values) {
             super(input, values, MAXIMUM_INNER_PRODUCT);
         }
 

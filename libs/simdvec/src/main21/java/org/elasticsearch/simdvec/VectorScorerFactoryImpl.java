@@ -26,7 +26,11 @@ import org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier;
 
+import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.util.Optional;
+
+import static org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier.SUPPORTS_HEAP_SEGMENTS;
 
 final class VectorScorerFactoryImpl implements VectorScorerFactory {
 
@@ -38,20 +42,80 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         INSTANCE = NativeAccess.instance().getVectorSimilarityFunctions().map(ignore -> new VectorScorerFactoryImpl()).orElse(null);
     }
 
+    static class MemorySegmentAccessInputAdapter implements FloatVectorScorerSupplier.MemorySegmentAccessor {
+        private final MemorySegmentAccessInput input;
+        private final long length;
+        private final int dims;
+
+        MemorySegmentAccessInputAdapter(MemorySegmentAccessInput input, int dims) {
+            this.input = input;
+            this.length = (long) dims * Float.BYTES;
+            this.dims = dims;
+        }
+
+        @Override
+        public MemorySegment entireSegmentOrNull() throws IOException {
+            return input.segmentSliceOrNull(0, input.length());
+        }
+
+        @Override
+        public MemorySegment segmentForEntryOrNull(int ordinal) throws IOException {
+            return input.segmentSliceOrNull((long) ordinal * length, length);
+        }
+
+        @Override
+        public FloatVectorScorerSupplier.MemorySegmentAccessor clone() {
+            return new MemorySegmentAccessInputAdapter(input.clone(), dims);
+        }
+    }
+
+    static class MemorySegmentHeapAdapter implements FloatVectorScorerSupplier.MemorySegmentAccessor {
+        private final FloatVectorValues values;
+
+        MemorySegmentHeapAdapter(FloatVectorValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public MemorySegment entireSegmentOrNull() throws IOException {
+            return null;
+        }
+
+        @Override
+        public MemorySegment segmentForEntryOrNull(int ordinal) throws IOException {
+            return MemorySegment.ofArray(values.vectorValue(ordinal));
+        }
+
+        @Override
+        public FloatVectorScorerSupplier.MemorySegmentAccessor clone() {
+            return new MemorySegmentHeapAdapter(values);
+        }
+    }
+
     @Override
     public Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
         FloatVectorValues values
     ) {
-        input = FilterIndexInput.unwrapOnlyTest(input);
-        input = MemorySegmentAccessInputAccess.unwrap(input);
+        if (input != null) {
+            input = FilterIndexInput.unwrapOnlyTest(input);
+            input = MemorySegmentAccessInputAccess.unwrap(input);
+        }
         if (input instanceof MemorySegmentAccessInput msInput) {
             checkInvariants(values.size(), values.dimension(), input);
+            var adapter = new MemorySegmentAccessInputAdapter(msInput, values.dimension());
             return switch (similarityType) {
-                case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(msInput, values));
-                case EUCLIDEAN -> Optional.of(new FloatVectorScorerSupplier.EuclideanSupplier(msInput, values));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
+                case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(adapter, values));
+                case EUCLIDEAN -> Optional.of(new FloatVectorScorerSupplier.EuclideanSupplier(adapter, values));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.MaxInnerProductSupplier(adapter, values));
+            };
+        } else if (SUPPORTS_HEAP_SEGMENTS){
+            var adapter = new MemorySegmentHeapAdapter(values);
+            return switch (similarityType) {
+                case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(adapter, values));
+                case EUCLIDEAN -> Optional.of(new FloatVectorScorerSupplier.EuclideanSupplier(adapter, values));
+                case MAXIMUM_INNER_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.MaxInnerProductSupplier(adapter, values));
             };
         }
         return Optional.empty();
@@ -63,6 +127,11 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         ByteVectorValues values
     ) {
+        // TODO: update to use MemorySegmentAccessor
+        if (input == null) {
+            return Optional.empty();
+        }
+
         input = FilterIndexInput.unwrapOnlyTest(input);
         input = MemorySegmentAccessInputAccess.unwrap(input);
         if (input instanceof MemorySegmentAccessInput msInput) {

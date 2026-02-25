@@ -197,6 +197,8 @@ For example, the second item in this list is in technical preview as of version 
 
 ### Adding a new command
 
+For the full implementation checklist (grammar, parser, logical and physical plan, mapper, execution planner, tests, etc.), see the internal developer guide [Writing ES|QL commands](../../../../x-pack/plugin/esql/docs/writing-commands.md).
+
 When adding a new command, for example adding the `CHANGE_POINT` command, do the following:
 1. Create a new file in the `_snippets/commands/layout` directory with the name of the command, for example `change_point.md`.
 2. Ensure to specify what versions the command applies to. See [Version differentiation in Docs V3](#version-differentiation-in-docs-v3) for details. [Example PR](https://github.com/elastic/elasticsearch/pull/130314/files#diff-0ab90b6202c5d9eeea75dc95a7cb71dc4d720230342718bff887816771a5a803R3-R6).

@@ -911,7 +911,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
         // Saturate the utility thread pool so the async taskManager.unregister() in
         // stopDeploymentHelper cannot execute between the two clusterChanged() calls.
-        int maxPoolSize = 4;
+        int maxPoolSize = threadPool.info(UTILITY_THREAD_POOL_NAME).getMax();
         CountDownLatch blockPool = new CountDownLatch(1);
         CountDownLatch threadsStarted = new CountDownLatch(maxPoolSize);
         for (int i = 0; i < maxPoolSize; i++) {
@@ -924,7 +924,8 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 }
             });
         }
-        assertTrue("Timed out waiting for pool threads to start", threadsStarted.await(10, TimeUnit.SECONDS));
+        final long threadsStartTimeoutSeconds = 10L;
+        assertTrue("Timed out waiting for pool threads to start", threadsStarted.await(threadsStartTimeoutSeconds, TimeUnit.SECONDS));
 
         try {
             ClusterChangedEvent routeRemoved = new ClusterChangedEvent(

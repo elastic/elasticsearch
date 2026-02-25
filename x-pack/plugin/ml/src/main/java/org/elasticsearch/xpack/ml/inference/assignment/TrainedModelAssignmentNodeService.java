@@ -289,11 +289,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         // Removing the entry from the map to avoid the possibility of a node shutdown triggering a concurrent graceful stopping of the
         // process while we are attempting to forcefully stop the native process
         // The graceful stopping will only occur if there is an entry in the map
-        deploymentIdToTask.remove(task.getDeploymentId());
-        // Unregister synchronously to maintain the invariant: if deploymentIdToTask has no entry for a deployment,
-        // then taskManager has no task for that deployment. This prevents a subsequent clusterChanged() from
-        // creating a duplicate task while the old one is still registered.
-        taskManager.unregister(task);
+        unregisterTaskAndRemoveFromMap(task);
         ActionListener<AcknowledgedResponse> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(
             task.getDeploymentId(),
             reason,
@@ -449,8 +445,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     private void prepareAssignmentForRestart(TrainedModelAssignment trainedModelAssignment) {
         // This is a failed assignment and we are restarting it. For this we need to remove the task first.
-        taskManager.unregister(deploymentIdToTask.get(trainedModelAssignment.getDeploymentId()));
-        deploymentIdToTask.remove(trainedModelAssignment.getDeploymentId());
+        TrainedModelDeploymentTask task = deploymentIdToTask.get(trainedModelAssignment.getDeploymentId());
+        if (task != null) {
+            unregisterTaskAndRemoveFromMap(task);
+        }
     }
 
     private boolean shouldLoadModel(RoutingInfo routingInfo, String deploymentId, boolean isResetMode) {
@@ -623,8 +621,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             return;
         }
         task.markAsStopped(reason);
-        taskManager.unregister(task);
-        deploymentIdToTask.remove(task.getDeploymentId());
+        unregisterTaskAndRemoveFromMap(task);
 
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
@@ -641,6 +638,14 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         ActionListener<AcknowledgedResponse> listener
     ) {
         stopDeploymentHelper(task, reason, deploymentManager::stopAfterCompletingPendingWork, listener);
+    }
+
+    private void unregisterTaskAndRemoveFromMap(TrainedModelDeploymentTask task) {
+        // Unregister synchronously to maintain the invariant: if deploymentIdToTask has no entry for a deployment,
+        // then taskManager has no task for that deployment. This prevents a subsequent clusterChanged() from
+        // creating a duplicate task while the old one is still registered.
+        taskManager.unregister(task);
+        deploymentIdToTask.remove(task.getDeploymentId());
     }
 
     private void updateNumberOfAllocations(TrainedModelAssignmentMetadata assignments) {

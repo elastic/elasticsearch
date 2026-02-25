@@ -263,9 +263,9 @@ to communicate with Elasticsearch.
 
 # Cluster Coordination
 
-(Sketch of important classes? Might inform more sections to add for details.)
+### Node Roles
 
-(A node can coordinate a search across several other nodes, when the node itself does not have the data, and then return a result to the caller. Explain this coordinating role)
+#### Master Nodes
 
 ### Cluster State
 
@@ -273,13 +273,405 @@ to communicate with Elasticsearch.
 
 [Metadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
 
-(Detail the different components of the [ClusterState] and its persisted [Metadata])
+[PersistedClusterStateService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java
 
-### Node Roles
+[IndexMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java
 
-(Explain the
-distinct [node roles](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles)
-an elasticsearch node can be assigned and their implication)
+The [ClusterState] is the portion of the cluster state which is held in-memory by every node. To ensure
+correctness, updates to the `ClusterState` require strong
+consistency ([linearizability](https://en.wikipedia.org/wiki/Linearizability)). Without strong consistency, nodes could
+observe conflicting cluster states (eg two nodes could believe they both hold the primary for the same shard, or apply
+different mappings to the same index) leading to data loss or corruption.
+
+The `ClusterState` is (conceptually) immutable: every update produces a new instance of the `ClusterState` class. The
+elected master is responsible for coordinating all cluster state updates and publishing the latest to the other nodes in
+the cluster. Note that `ClusterState` updates are expensive, often taking hundreds of milliseconds or more, so they
+should only be executed when absolutely necessary.
+
+The [Metadata] part of the `ClusterState` is persisted to disk via the [PersistedClusterStateService] and will survive
+restarts. The rest of the `ClusterState` components are in-memory only, and need to be rebuilt every time there is a
+full cluster restart.
+
+#### Persisted State
+
+[ClusterState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+
+[Metadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
+
+[ProjectMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/ProjectMetadata.java
+
+The [Metadata] of a [ClusterState] is persisted on disk and comprises information from two categories:
+
+1. Cluster-scoped information
+
+A few standouts are:
+
+- `clusterUUID`: the cluster unique id.
+- `coordinationMetadata`: the current term, voting configurations ... etc. (see [Master Elections](#master-elections)
+  section).
+- `persistentSettings`: cluster-level settings applied
+  via [the cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings).
+- `customs`: cluster-level custom metadata: `NodesShutdownMetadata`, `RepositoriesMetadata` .. etc.
+
+2. Project-scoped information (located in the [ProjectMetadata])
+
+Notable components of the `ProjectMetadata` include:
+
+- `id`: the project unique id.
+- `indices`: map of index name to [IndexMetadata] (settings, mappings, aliases, number of shards/replicas, etc.).
+  Contains all indices in this project.
+- `aliasedIndices` and `templates`. See [aliases](https://www.elastic.co/docs/manage-data/data-store/aliases)
+  and [templates](https://www.elastic.co/docs/manage-data/data-store/templates) for more details.
+- `customs`: project-level custom metadata. Includes data stream definitions (via `DataStreamMetadata` project custom),
+  index lifecycle metadata (`IndexLifecycleMetadata`) and others.
+
+Note that some concepts are applicable to both cluster and project scopes, e.g. [persistent tasks](#persistent-tasks).
+
+#### Ephemeral State
+
+[DiscoveryNodes]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java
+
+[GlobalRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/GlobalRoutingTable.java
+
+[RoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/RoutingTable.java
+
+[IndexRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexRoutingTable.java
+
+[IndexShardRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexShardRoutingTable.java
+
+[ShardRouting]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/ShardRouting.java
+
+[ClusterBlocks]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/block/ClusterBlocks.java
+
+[SnapshotsInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/SnapshotsInProgress.java
+
+[RestoreInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/RestoreInProgress.java
+
+[SnapshotDeletionsInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/SnapshotDeletionsInProgress.java
+
+[HealthMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadata.java
+
+[CompatibilityVersions]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/version/CompatibilityVersions.java
+
+[TransportVersion]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/TransportVersion.java
+
+[ClusterFeatures]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterFeatures.java
+
+The rest of the [ClusterState] is ephemeral, it is not persisted to disk and is rebuilt from scratch if the cluster
+restarts. Some key components are:
+
+- `nodes` ([DiscoveryNodes])
+
+The set of all nodes currently in the cluster. Tracks the `masterNodeId`, the `localNodeId` and categorizes nodes by
+role (master-eligible, data and ingest). Also records the minimum and maximum node versions and supported index versions
+across the cluster.
+
+- `routingTable` ([GlobalRoutingTable])
+
+Maps each project to its [RoutingTable], which itself maps each index to an [IndexRoutingTable] containing
+an [IndexShardRoutingTable] per shard. Each `IndexShardRoutingTable` lists the [ShardRouting] entries for a shard,
+detailing which node owns its, its state (`UNASSIGNED`,`INITIALIZING`, `STARTED` or `RELOCATING`), and whether
+it is a primary or replica.
+
+- `blocks` ([ClusterBlocks])
+
+Cluster-level, project-level and index-level blocks that restrict certain operations for the relevant scope. For
+example, an index can be blocked for writes during a close operation, or the entire cluster can be set to read-only.
+Blocks operate at
+five [levels](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/block/ClusterBlockLevel.java):
+`READ`, `WRITE`, `METADATA_READ`, `METADATA_WRITE`, and `REFRESH`.
+
+- `customs`
+
+Additional custom ephemeral state. Examples
+include [SnapshotsInProgress], [RestoreInProgress], [SnapshotDeletionsInProgress], and [HealthMetadata].
+
+- `compatibilityVersions` and `minVersions` ([CompatibilityVersions])
+
+Per-node and cluster-wide min [TransportVersion] and system index mappings versions used to figure out serialization
+compatibility across the cluster.
+
+- `clusterFeatures` ([ClusterFeatures])
+
+Info on what features are present throughout the cluster.
+
+- Cluster state version fields
+
+The `version` field is
+a [monotonically increasing](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java#L162)
+`long` that uniquely identifies committed states. It is technically persisted to disk by [PersistedClusterStateService],
+which stores it as `last_accepted_version` in the Lucene commit user data alongside the cluster metadata. On node
+startup, this version is loaded back and used to initialize the in-memory cluster state, so the monotonically-increasing
+property is preserved across restarts.
+The `stateUUID` field uniquely identifies every state, including uncommitted ones. It is not persisted.
+
+#### Master Service
+
+[MasterService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java
+
+[Priority]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/Priority.java
+
+[SnapshotsService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/SnapshotsService.java
+
+[ClusterStateTaskExecutor]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateTaskExecutor.java
+
+The [MasterService] is the single-threaded coordinator for all cluster state updates on the master node. It organizes
+pending cluster state update tasks into [Priority]-based queues: `IMMEDIATE`, `URGENT`, `HIGH`, `NORMAL`, `LOW`, and
+`LANGUID`. It processes them in that order, highest priority first.
+
+The `MasterService` uses a batching framework that groups multiple cluster state update tasks together, processing them
+as a single batch and publishing only one resulting `ClusterState` update. This avoids triggering a distinct publication
+for each individual task, which would be very costly.
+
+Producers of cluster state update tasks, such as [SnapshotsService], can
+then [define](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1516)
+their own task queues, priority and batch executors ([ClusterStateTaskExecutor]), which the `MasterService` uses to
+group and process related tasks together.
+
+A [queue processor](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1313),
+backed by a single-threaded `java.util.concurrent.ExecutorService`, processes batches one at a time.
+The [executeAndPublishBatch](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L336)
+method takes the next batch, invokes the batch's `ClusterStateTaskExecutor` to compute a new [ClusterState], and
+publishes the result.
+
+If the new state is identical to the previous one (by reference), no publication takes place. Otherwise, the master
+assigns a new `version` and `stateUUID` to the state and proceeds to publication.
+
+#### Cluster State Publication
+
+```mermaid
+sequenceDiagram
+    participant M as Master Node
+    participant F as Follower Node
+
+    rect rgb(255, 248, 240)
+    Note over M,F: Phase 1 — Publish
+    M->>F: PublishRequest (diff or full state)
+    M->>M: Local PublishRequest/Response
+    Note right of F: PublicationTransportHandler<br/>::handleIncomingPublishRequest<br/>Deserializes state
+    Note right of F: CoordinationState<br/>::handlePublishRequest<br/>Validates term/version,<br/>persists as lastAcceptedState
+    F->>M: PublishResponse (term, version)
+    Note left of M: CoordinationState<br/>::handlePublishResponse<br/>Collects responses until quorum
+    end
+
+    rect rgb(255, 220, 220)
+    alt Quorum not reached
+        Note over M: FailedToCommitClusterStateException<br/>Master steps down, new election begins
+    end
+    end
+
+    rect rgb(255, 248, 240)
+    Note over M,F: Phase 2 — Commit
+    M->>F: ApplyCommitRequest
+    M->>M: Local ApplyCommitRequest/Response
+    Note right of F: Coordinator::handleApplyCommit<br/>Marks last accepted state as committed
+    Note right of F: ClusterApplierService<br/>::onNewClusterState<br/>Applies new ClusterState
+    F->>M: ACK (after application completes)
+    Note left of M: ClusterApplierService<br/>::onNewClusterState<br/>Master applies its own state
+    end
+```
+
+[Coordinator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java
+
+[Publication]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java
+
+[PublicationTransportHandler]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java
+
+[CoordinationState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java
+
+[ClusterStatePublisher]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterStatePublisher.java
+
+[ApplyCommitRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ApplyCommitRequest.java
+
+[ClusterStateDiff]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+
+[PublishRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublishRequest.java#L19
+
+[CoordinatorPublication]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1944
+
+[PublishResponse]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublishResponse.java#L21
+
+Once the [MasterService] has computed a new [ClusterState], it passes it to the [Coordinator], which is responsible for
+then sharing with it with all nodes in the cluster.
+This [publication](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1620)
+process follows a two-step commit protocol.
+The progress of the publication for each follower node is tracked via
+a [PublicationTarget](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L235)
+object which maintains a
+[PublicationTargetState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L226)
+state.
+
+The `Coordinator` creates
+a [PublicationContext](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L261)
+via the [PublicationTransportHandler], which pre-serializes the cluster state into shared, reference-counted byte
+buffers. A [ClusterStateDiff] against the previous state is prepared. A full serialization is also prepared when
+the previous state's `blocks` had its disable state persistence flag set, or when a node present in the new state was
+absent from the previous one (since that node will not have a previous state to apply a diff against).
+It then builds a [PublishRequest] and creates a [CoordinatorPublication]
+to [coordinate](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1711)
+the protocol.
+
+1. **Publish**
+
+The master
+then [sends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L374)
+the serialized cluster state to every node in the cluster. As an optimization, the diff is sent to nodes that were
+already part of the cluster, while new nodes receive the full state directly. If a node
+responds
+with [IncompatibleClusterStateVersionException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/IncompatibleClusterStateVersionException.java#L20)
+the `PublicationTransportHandler`
+then [retries](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L484)
+with the full state.
+
+The recipient
+nodes [verify](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L125)
+the received state is valid, compare it against their local state
+via [CoordinationState.handlePublishRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L377)
+and send back a [PublishResponse] containing the new cluster state term and version. At that point, the recipient nodes
+have [persisted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L405)
+the new state but have not yet applied it.
+
+2. **Commit**
+
+Once the master has collected enough `PublishResponse`s from master-eligible nodes to satisfy quorum (
+see [Quorum](#quorum) section), it creates an [ApplyCommitRequest]. The master then sends this commit message to all
+nodes that responded to the `PublishRequest`.
+
+When receiving this request, each
+node [marks this last accepted state as committed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517)
+and proceeds to apply the new state (see [Cluster State Application](#cluster-state-application) section). The node
+only ACKs the `ApplyCommitRequest` back to the master after application completes (i.e. after
+`ClusterApplierService.onNewClusterState` finishes).
+
+If the master cannot achieve a [PublishResponse] quorum (e.g. too many nodes are faulty), the [Publication] will fail
+the entire publication with
+a [FailedToCommitClusterStateException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FailedToCommitClusterStateException.java).
+The master will then step down (it can no longer be master if it is not able to publish cluster states) and a new
+election begins.
+
+Once the `ApplyCommitRequest`s have been sent, the master will
+try [waiting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L103)
+for all nodes to apply the new state
+before [applying its own state](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L2056)
+and moving on. No quorum of responses is needed at that point. If follower nodes time out, the master will still
+move on to applying the new cluster state locally.
+
+#### Cluster State Application
+
+[ClusterApplierService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java
+
+[ClusterStateApplier]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateApplier.java
+
+[ClusterStateListener]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateListener.java
+
+[ClusterChangedEvent]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterChangedEvent.java
+
+When a new [ClusterState] is committed, the follower nodes need to apply the committed state locally.
+This is the responsibility of the [ClusterApplierService] class, which runs on
+a [single dedicated thread](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L159).
+
+When [receiving](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L412)
+an [ApplyCommitRequest] from the master, the [Coordinator] will hand over the committed state to
+the `ClusterApplierService`, which
+will [submit](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L374)
+an [UpdateTask](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L399)
+to the executor. If the new state differs from the currently applied state (by reference), the
+service [applies](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L538)
+the changes through the following sequence of steps:
+
+1. A [ClusterChangedEvent] is created, holding the new state, the previous state, and their deltas.
+
+2. The
+   node [opens](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L551)
+   network connections to newly added nodes (blocking call).
+
+3. If needed, the updated cluster settings
+   are [applied](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L559).
+
+4. [ClusterStateApplier]s (which update the node's internal state) are
+   invoked [in priority order](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L590).
+   Example high-priority appliers are [IndicesClusterStateService], which creates, deletes and updates local shard
+   copies, and [RepositoriesService], which manages snapshot repository lifecycle.
+
+5. Transport connections to nodes that are no longer in the cluster are closed (non-blocking call).
+
+6. `ClusterApplierService::state`
+   is [updated](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L569)
+   to the new state, making it visible to the rest of the classes on the node.
+
+7. [ClusterStateListener]s
+   are [notified](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L571).
+   Unlike appliers, listeners run _after_ the state is visible. Examples include the [PersistentTasksNodeService] which
+   reacts to changes in persistent tasks, and the [SnapshotShardsService] which watches for snapshot-related shard
+   assignments.
+
+Once application completes, the `Coordinator`'s
+callback [onClusterStateApplied](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L463)
+closes the election scheduler (if active) and stops peer finding, since the node is now part of a cluster with a
+functioning master.
+
+#### Persistence
+
+[LucenePersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/GatewayMetaState.java#L533
+
+[AsyncPersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/GatewayMetaState.java#L391
+
+[PersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L540
+
+As mentioned in previous sections, only the [Metadata] portion of the [ClusterState] is persisted to disk (
+see [Persisted State](#persisted-state)). The rest of the `ClusterState` (routing table, node membership, in-progress
+snapshots ... etc.) is ephemeral and rebuilt from scratch after each full cluster restart.
+
+The [PersistedClusterStateService] is responsible for storing the cluster metadata in a simple Lucene index in each of
+the node's data paths, under the
+`_state` [directory](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L172).
+The metadata is split across several documents and is written incrementally where possible.
+
+The `PersistedClusterStateService` uses 3 types of documents, each identified by a `type` string field: `global`,
+`index` and `mapping`. Each document type stores its content in the `data` field as compressed SMILE-encoded XContent.
+All documents are paged (default 1MB per page).
+
+The `global` document serializes almost all the Metadata object: coordination metadata, persistent settings, customs,
+all project-scoped data, except individual index metadata and mappings. The `index` documents (one document per index,
+keyed by `index_uuid`) store all the [IndexMetadata]: settings, aliases, number of shards, etc., except for
+the index mapping. The `mapping` documents (one document per mapping, keyed by `mapping_hash`) store index mappings.
+Storing mappings separately is a deduplication optimization: multiple indices that share the same mapping (common
+occurrence, eg in data streams) all reference the same mapping hash, so only one copy is stored.
+
+During [incremental writes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1011),
+the `PersistedClusterStateService` will first add new mappings and delete obsolete ones. It will then compare the index
+metadata for each index UUID between the old and new state. If the version changed, the old document is deleted and a
+fresh one is written. Unchanged indices are skipped entirely. The `global` document update is not incremental. If the
+new state's `global` fields differ from the old ones, the `global` document
+is [deleted and rewritten entirely](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1080).
+
+Each Lucene commit
+also [records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L884)
+the current term, the last accepted cluster state version, the node ID, the node version, the oldest index version (used
+for compatibility checks on node startup) and the cluster UUID in
+the [commit user data](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/index/IndexWriter.html#setLiveCommitData(java.lang.Iterable)).
+
+The coordination layer interacts with the recorded state on disk through the [PersistedState] interface, which
+the [CoordinationState] calls at three key points during the publication protocol:
+
+- [setCurrentTerm](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L195):
+  when the node joins a new term (via `handleStartJoin`).
+- [setLastAcceptedState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L405):
+  after the node receives a [PublishRequest] from the master. The new state is persisted before
+  the node sends its [PublishResponse].
+- [markLastAcceptedStateAsCommitted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517):
+  when the node processes an [ApplyCommitRequest] from the master.
+
+On master-eligible nodes, the `PersistedState` implementation is [LucenePersistedState], which writes synchronously on
+the cluster coordination thread. On non-master-eligible nodes, the [AsyncPersistedState] wrapper is used instead. It
+applies updates to an in-memory state immediately and queues the disk write to a background thread. This avoids blocking
+the coordination thread on disk I/O for nodes that do not participate in master elections.
+
+On startup, the
+node [reads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L432)
+the Lucene index, selects the persisted state with the highest accepted term, and reconstructs the
+`Metadata` from the stored documents and commit user data. This metadata is then used to build the initial
+`ClusterState` that the node starts with.
 
 ### Master Elections
 
@@ -677,22 +1069,6 @@ solely [checks](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/
 the latest heartbeat from the blob store and starts the election if it's older than the configured threshold (default 30
 seconds). To become master, the candidate node will atomically override the current term in the blob store via a CAS
 operation.
-
-### Master Service
-
-#### Cluster State Publication
-
-(Majority consensus to apply, what happens if a master-eligible node falls behind / is incommunicado.)
-
-#### Cluster State Application
-
-(Go over the two kinds of listeners -- ClusterStateApplier and ClusterStateListener?)
-
-#### Persistence
-
-(Sketch ephemeral vs persisted cluster state.)
-
-(What's the format for persisted metadata)
 
 ### New Cluster Formation
 

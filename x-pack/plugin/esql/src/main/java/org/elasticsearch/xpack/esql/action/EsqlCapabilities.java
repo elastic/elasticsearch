@@ -1494,9 +1494,14 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
-         * Decay function for custom scoring
+         * Decay function for custom scoring.
          */
         DECAY_FUNCTION,
+
+        /**
+         * Fix conversions for parameters for {@code DECAY}.
+         */
+        DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
          * Support correct counting of skipped shards.

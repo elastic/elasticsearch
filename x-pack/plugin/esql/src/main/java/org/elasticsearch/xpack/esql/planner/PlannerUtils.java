@@ -248,8 +248,6 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
-        // TODO add a test assertion for the consistency checker (after https://github.com/elastic/elasticsearch/issues/141654, see
-        // https://github.com/elastic/elasticsearch/pull/141082/changes#r2745334028);
         var isCoordPlan = new Holder<>(Boolean.TRUE);
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
@@ -292,7 +290,6 @@ public class PlannerUtils {
         });
 
         PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
-
         return resultPlan;
     }
 

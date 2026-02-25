@@ -16,6 +16,21 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
+
+## 9.3.1 [elasticsearch-9.3.1-deprecations]
+```{applies_to}
+stack: ga 9.3.1
+```
+
+There are no deprecations associated with this release.
+
+## 9.2.6 [elasticsearch-9.2.6-deprecations]
+```{applies_to}
+stack: ga 9.2.6
+```
+
+There are no deprecations associated with this release.
+
 ## 9.3.0 [elasticsearch-9.3.0-deprecations]
 
 ILM:
@@ -23,6 +38,8 @@ ILM:
 
 Infra/Logging:
 * Add deprecation lenient booleans usage for analysis boolean setting (3rd party plugins) and boolean system properties. [#137885](https://github.com/elastic/elasticsearch/pull/137885) (issue: [#128993](https://github.com/elastic/elasticsearch/issues/128993))
+
+
 
 ## 9.2.5 [elasticsearch-9.2.5-deprecations]
 

@@ -9,21 +9,19 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 /**
  * Loads the MIN {@code keyword} in each doc from high-cardinality binary doc values.
@@ -42,34 +40,14 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE, "load blocks");
-        long release = BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE;
-        try {
-            BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-            if (values == null) {
-                return ConstantNull.READER;
-            }
-
-            String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-            DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-            assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-            if (countsSkipper.maxValue() == 1) {
-                release = 0;
-                return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(
-                    breaker,
-                    BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE,
-                    values
-                );
-            }
-
-            breaker.addEstimateBytesAndMaybeBreak(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE, "load blocks");
-            release += AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
-            NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-            release = 0;
-            return new MinFromBinarySeparateCount(breaker, values, counts);
-        } finally {
-            breaker.addWithoutBreaking(-release);
+        BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
+        if (bc == null) {
+            return ConstantNull.READER;
         }
+        if (bc.counts() == null) {
+            return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
+        }
+        return new MinFromBinarySeparateCount(bc.binary(), bc.counts());
     }
 
     @Override
@@ -78,33 +56,31 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
     }
 
     private static class MinFromBinarySeparateCount extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
-        private final NumericDocValues counts;
+        private final TrackingNumericDocValues counts;
         private final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
-        MinFromBinarySeparateCount(CircuitBreaker breaker, BinaryDocValues docValues, NumericDocValues counts) {
-            super(breaker, docValues);
+        MinFromBinarySeparateCount(TrackingBinaryDocValues docValues, TrackingNumericDocValues counts) {
+            super(docValues);
             this.counts = counts;
         }
 
         @Override
         public void read(int doc, BytesRefBuilder builder) throws IOException {
-            if (false == counts.advanceExact(doc)) {
+            if (false == counts.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
 
-            boolean advanced = docValues.advanceExact(doc);
+            boolean advanced = docValues.docValues().advanceExact(doc);
             assert advanced;
 
-            int count = (int) counts.longValue();
-            reader.readMin(docValues.binaryValue(), count, builder);
+            int count = (int) counts.docValues().longValue();
+            reader.readMin(docValues.docValues().binaryValue(), count, builder);
         }
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(
-                -(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE + BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE)
-            );
+            Releasables.close(super::close, counts);
         }
 
         @Override

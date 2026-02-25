@@ -355,12 +355,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     }
 
     private static long mappingSize(Metadata metadata) {
-        return metadata.getProject()
-            .getMappingsByHash()
-            .values()
-            .stream()
-            .mapToLong(v -> v.source().compressed().length)
-            .sum();
+        return metadata.getProject().getMappingsByHash().values().stream().mapToLong(v -> v.source().compressed().length).sum();
     }
 
     private static String scriptAsJSON(String script) {

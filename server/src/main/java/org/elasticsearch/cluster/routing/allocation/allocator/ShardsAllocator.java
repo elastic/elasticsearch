@@ -97,11 +97,6 @@ public interface ShardsAllocator {
      * the computational cost of explain.
      */
     default Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction(final RoutingAllocation allocation) {
-        return new Function<ShardRouting, ShardAllocationDecision>() {
-            @Override
-            public ShardAllocationDecision apply(ShardRouting shardRouting) {
-                return explainShardAllocation(shardRouting, allocation);
-            }
-        };
+        throw new UnsupportedOperationException("explainShardAllocationFunction not implemented in this allocator");
     }
 }

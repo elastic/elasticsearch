@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
@@ -33,6 +34,11 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BlockLoaderTestCase {
                 public int generateChildFieldCount() {
                     // guarantee always at least 1 child field
                     return ESTestCase.randomIntBetween(1, request.specification().maxFieldCountPerLevel());
+                }
+
+                @Override
+                public String generateFieldName() {
+                    return ESTestCase.randomAlphaOfLengthBetween(5, 10);
                 }
             };
         }
@@ -64,7 +70,7 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BlockLoaderTestCase {
     };
 
     public FlattenedFieldKeyedBlockLoaderTests(Params params) {
-        super("flattened", List.of(FLATTENED_DATA_GENERATOR), params);
+        super("flattened", List.of(FLATTENED_DATA_GENERATOR, new ASCIIStringsHandler()), params);
     }
 
     @SuppressWarnings("unchecked")
@@ -98,30 +104,26 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BlockLoaderTestCase {
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
         if (value == null) {
-            return convert(null, nullValue);
+            return convert(null, nullValue, Integer.MAX_VALUE);
         }
 
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        int ignoreAbove = fieldMapping.get("ignore_above") != null && hasDocValues
+            ? ((Number) fieldMapping.get("ignore_above")).intValue()
+            : Integer.MAX_VALUE;
+
         if (value instanceof List<?> valueList) {
-            var valueStream = valueList.stream()
-                .map(v -> v == null ? nullValue : v)
-                .filter(Objects::nonNull)
-                .map(Object::toString)
-                .map(BytesRef::new);
-
-            boolean hasDocValues = hasDocValues(fieldMapping, true);
-            boolean useDocValues = params.syntheticSource() && testContext.forceFallbackSyntheticSource() == false;
-
-            if (hasDocValues && useDocValues) {
+            var valueStream = valueList.stream().map(v -> convert(v, nullValue, ignoreAbove)).filter(Objects::nonNull);
+            if (hasDocValues) {
                 valueStream = valueStream.distinct().sorted();
             }
-
             return maybeFoldList(valueStream.toList());
         }
 
-        return convert(value, nullValue);
+        return convert(value, nullValue, ignoreAbove);
     }
 
-    private static BytesRef convert(Object value, String nullValue) {
+    private static BytesRef convert(Object value, String nullValue, int ignoreAbove) {
         if (value == null) {
             if (nullValue != null) {
                 value = nullValue;
@@ -130,7 +132,9 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BlockLoaderTestCase {
             }
         }
 
-        return new BytesRef(value.toString());
+        String valueStr = value.toString();
+
+        return valueStr.length() <= ignoreAbove ? new BytesRef(valueStr) : null;
     }
 
     @Override

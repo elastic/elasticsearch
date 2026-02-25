@@ -26,6 +26,7 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.needsQuoting;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.quote;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomName;
+import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.isFromSource;
 
 /**
  * Generates random full-text search expressions (match/match_phrase/qstr/kql/multi_match/:).
@@ -40,7 +41,7 @@ public final class FullTextFunctionGenerator {
         if (previousCommands == null || previousCommands.isEmpty()) {
             return false;
         }
-        if ("from".equals(previousCommands.get(0).commandName()) == false) {
+        if (isFromSource(previousCommands.get(0)) == false) {
             return false;
         }
         for (CommandGenerator.CommandDescription cmd : previousCommands) {

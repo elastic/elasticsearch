@@ -133,7 +133,7 @@ public class FunctionGenerator {
      * Generates a clamp function (clamp, clamp_min, clamp_max).
      * Unmapped fields (NULL type) are not allowed for clamp's field argument.
      */
-    public static String clampFunction(List<Column> columns, boolean allowUnmapped) {
+    public static String clampFunction(List<Column> columns) {
         return MathFunctionGenerator.clampFunction(columns);
     }
 

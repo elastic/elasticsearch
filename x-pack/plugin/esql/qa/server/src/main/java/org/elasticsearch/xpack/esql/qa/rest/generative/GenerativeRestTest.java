@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_O
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_TYPE;
 import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
 import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.SET_UNMAPPED_FIELDS_PREFIX;
+import static org.elasticsearch.xpack.esql.generator.command.source.FromGenerator.isFromSource;
 
 public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
@@ -230,7 +231,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         continueExecuting = true;
                         currentSchema = result.outputSchema();
                     }
-                    if (previousCommands.isEmpty() && continueExecuting) {
+                    if (previousCommands.isEmpty() && continueExecuting && isFromSource(current)) {
                         current.context()
                             .put(
                                 FromGenerator.INDEX_FIELD_NAMES,
@@ -293,15 +294,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return EsqlQueryGenerator.sourceCommand();
     }
 
-    private record FailureContext(
-        String errorMessage,
-        String query,
-        List<CommandGenerator.CommandDescription> commandsForFieldOriginTracing,
-        List<CommandGenerator.CommandDescription> commandsForPlacementChecks
-    ) {
+    private record FailureContext(String errorMessage, String query, List<CommandGenerator.CommandDescription> previousCommands) {
         FailureContext {
-            commandsForFieldOriginTracing = commandsForFieldOriginTracing == null ? List.of() : commandsForFieldOriginTracing;
-            commandsForPlacementChecks = commandsForPlacementChecks == null ? List.of() : commandsForPlacementChecks;
+            previousCommands = previousCommands == null ? List.of() : previousCommands;
         }
     }
 
@@ -317,7 +312,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isScalarTypeMismatchError(ctx.errorMessage),
         ctx -> isFirstLastSameFieldError(ctx.errorMessage, ctx.query),
         ctx -> isForkOptimizationBugWithUnmappedFields(ctx.errorMessage, ctx.query),
-        ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.commandsForFieldOriginTracing),
+        ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.previousCommands),
         ctx -> isFullTextAfterSampleBug(ctx.errorMessage, ctx.query),
         ctx -> isFullTextAfterWhereBugs(ctx.errorMessage),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.errorMessage, ctx.query), };
@@ -341,10 +336,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         QueryExecuted previousResult,
         QueryExecuted result
     ) {
-        List<CommandGenerator.CommandDescription> commands = new ArrayList<>(previousCommands.size() + 1);
-        commands.addAll(previousCommands);
-        commands.add(commandDescription);
-
         CommandGenerator.ValidationResult outputValidation = commandGenerator.validateOutput(
             previousCommands,
             commandDescription,
@@ -354,7 +345,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             result.result()
         );
         if (outputValidation.success() == false) {
-            if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands, commands))) {
+            if (isAllowedFailure(new FailureContext(outputValidation.errorMessage(), result.query(), previousCommands))) {
                 return outputValidation;
             }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
@@ -363,7 +354,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     protected void checkException(QueryExecuted query, List<CommandGenerator.CommandDescription> previousCommands) {
-        if (isAllowedFailure(new FailureContext(query.exception().getMessage(), query.query(), previousCommands, previousCommands))) {
+        if (isAllowedFailure(new FailureContext(query.exception().getMessage(), query.query(), previousCommands))) {
             return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());

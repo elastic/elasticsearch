@@ -650,7 +650,7 @@ public class EsqlQueryGenerator {
             case 13 -> greatestLeastFunction(previousOutput, allowUnmapped);
             case 14 -> mvSliceZipFunction(previousOutput, allowUnmapped);
             case 15 -> splitFunction(previousOutput, allowUnmapped);
-            case 16 -> clampFunction(previousOutput, allowUnmapped);
+            case 16 -> clampFunction(previousOutput);
             case 17 -> dateDiffFunction(previousOutput, allowUnmapped);
             default -> ipPrefixFunction(previousOutput, allowUnmapped);
         };

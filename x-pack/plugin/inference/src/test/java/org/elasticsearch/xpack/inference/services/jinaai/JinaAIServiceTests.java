@@ -39,6 +39,7 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
@@ -434,14 +435,14 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfigWithSecrets_createsEmbeddingsModel_textEmbedding() throws IOException {
-        testParsePersistedConfigWithSecrets_createsEmbeddingModel(TEXT_EMBEDDING);
+        testParsePersistedConfig_WithSecrets_createsEmbeddingModel(TEXT_EMBEDDING);
     }
 
     public void testParsePersistedConfigWithSecrets_createsEmbeddingsModel_embedding() throws IOException {
-        testParsePersistedConfigWithSecrets_createsEmbeddingModel(TaskType.EMBEDDING);
+        testParsePersistedConfig_WithSecrets_createsEmbeddingModel(TaskType.EMBEDDING);
     }
 
-    private void testParsePersistedConfigWithSecrets_createsEmbeddingModel(TaskType taskType) throws IOException {
+    private void testParsePersistedConfig_WithSecrets_createsEmbeddingModel(TaskType taskType) throws IOException {
         try (var service = createJinaAIService()) {
             var modelName = randomAlphanumericOfLength(8);
             var requestsPerMinute = randomNonNegativeInt();
@@ -477,11 +478,14 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(apiKey)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                taskType,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    taskType,
+                    JinaAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertEmbeddingModelSettings(
@@ -501,7 +505,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_createsRerankModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_createsRerankModel() throws IOException {
         try (var service = createJinaAIService()) {
             var modelName = randomAlphanumericOfLength(8);
             var requestsPerMinute = randomNonNegativeInt();
@@ -515,11 +519,14 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(apiKey)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.RERANK,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.RERANK,
+                    JinaAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertRerankModelSettings(
@@ -533,14 +540,14 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfigWithSecrets_onlyRequiredSettings_createsEmbeddingsModel_textEmbedding() throws IOException {
-        testParsePersistedConfigWithSecrets_onlyRequiredSettings_createsEmbeddingModel(TEXT_EMBEDDING);
+        testParsePersistedConfig_WithSecrets_onlyRequiredSettings_createsEmbeddingModel(TEXT_EMBEDDING);
     }
 
     public void testParsePersistedConfigWithSecrets_onlyRequiredSettings_createsEmbeddingsModel_embedding() throws IOException {
-        testParsePersistedConfigWithSecrets_onlyRequiredSettings_createsEmbeddingModel(TaskType.EMBEDDING);
+        testParsePersistedConfig_WithSecrets_onlyRequiredSettings_createsEmbeddingModel(TaskType.EMBEDDING);
     }
 
-    private void testParsePersistedConfigWithSecrets_onlyRequiredSettings_createsEmbeddingModel(TaskType taskType) throws IOException {
+    private void testParsePersistedConfig_WithSecrets_onlyRequiredSettings_createsEmbeddingModel(TaskType taskType) throws IOException {
         try (var service = createJinaAIService()) {
             var modelName = randomAlphanumericOfLength(8);
             var apiKey = randomAlphanumericOfLength(8);
@@ -553,11 +560,14 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(apiKey)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                taskType,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    taskType,
+                    JinaAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertEmbeddingModelSettings(
@@ -577,25 +587,28 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_onlyRequiredSettings_createsRerankModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_onlyRequiredSettings_createsRerankModel() throws IOException {
         try (var service = createJinaAIService()) {
             var modelName = randomAlphanumericOfLength(8);
             var apiKey = randomAlphanumericOfLength(8);
 
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(modelName, null), Map.of(), getSecretSettingsMap(apiKey));
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                TaskType.RERANK,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.RERANK,
+                    JinaAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertRerankModelSettings(model, modelName, DEFAULT_RATE_LIMIT_SETTINGS, apiKey, JinaAIRerankTaskSettings.EMPTY_SETTINGS);
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_ThrowsErrorWithUnsupportedTaskType() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_ThrowsErrorWithUnsupportedTaskType() throws IOException {
         try (var service = createJinaAIService()) {
             var unsupportedTaskType = randomValueOtherThanMany(
                 t -> service.supportedTaskTypes().contains(t),
@@ -605,11 +618,14 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfigWithSecrets(
-                    INFERENCE_ENTITY_ID_VALUE,
-                    unsupportedTaskType,
-                    persistedConfig.config(),
-                    persistedConfig.secrets()
+                () -> service.parsePersistedConfig(
+                    new UnparsedModel(
+                        INFERENCE_ENTITY_ID_VALUE,
+                        unsupportedTaskType,
+                        JinaAIService.NAME,
+                        persistedConfig.config(),
+                        persistedConfig.secrets()
+                    )
                 )
             );
 
@@ -621,7 +637,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createJinaAIService()) {
             String modelName = MODEL_NAME_VALUE;
             String apiKey = "secret";
@@ -636,7 +652,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (var service = createJinaAIService()) {
             String modelName = MODEL_NAME_VALUE;
             String apiKey = "secret";
@@ -677,7 +693,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInChunkingSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_NotThrowWhenAnExtraKeyExistsInChunkingSettings() throws IOException {
         try (var service = createJinaAIService()) {
             String modelName = MODEL_NAME_VALUE;
             String apiKey = "secret";
@@ -689,11 +705,14 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 getSecretSettingsMap(apiKey)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ENTITY_ID_VALUE,
-                randomEmbeddingTaskType(),
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    randomEmbeddingTaskType(),
+                    JinaAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model.getServiceSettings().modelId(), is(modelName));
@@ -744,7 +763,15 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 null
             );
 
-            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, taskType, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    taskType,
+                    JinaAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             assertEmbeddingModelSettings(
                 model,
@@ -776,7 +803,15 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 null
             );
 
-            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.RERANK, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.RERANK,
+                    JinaAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             assertRerankModelSettings(
                 model,
@@ -798,7 +833,15 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, unsupportedTaskType, persistedConfig.config())
+                () -> service.parsePersistedConfig(
+                    new UnparsedModel(
+                        INFERENCE_ENTITY_ID_VALUE,
+                        unsupportedTaskType,
+                        JinaAIService.NAME,
+                        persistedConfig.config(),
+                        persistedConfig.secrets()
+                    )
+                )
             );
 
             assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [jinaai] service"));
@@ -853,7 +896,15 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 null
             );
 
-            var model = service.parsePersistedConfig(INFERENCE_ENTITY_ID_VALUE, randomEmbeddingTaskType(), persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    randomEmbeddingTaskType(),
+                    JinaAIService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             assertThat(model.getServiceSettings().modelId(), is(modelName));
             assertThat(model.apiKey().toString(), is(""));
@@ -2215,11 +2266,14 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         String modelName,
         String apiKey
     ) {
-        var model = service.parsePersistedConfigWithSecrets(
-            INFERENCE_ENTITY_ID_VALUE,
-            randomFrom(service.supportedTaskTypes()),
-            persistedConfig.config(),
-            persistedConfig.secrets()
+        var model = service.parsePersistedConfig(
+            new UnparsedModel(
+                INFERENCE_ENTITY_ID_VALUE,
+                randomFrom(service.supportedTaskTypes()),
+                JinaAIService.NAME,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            )
         );
 
         assertThat(model.getServiceSettings().modelId(), is(modelName));
@@ -2232,9 +2286,13 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         String modelName
     ) {
         var model = service.parsePersistedConfig(
-            INFERENCE_ENTITY_ID_VALUE,
-            randomFrom(service.supportedTaskTypes()),
-            persistedConfig.config()
+            new UnparsedModel(
+                INFERENCE_ENTITY_ID_VALUE,
+                randomFrom(service.supportedTaskTypes()),
+                JinaAIService.NAME,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            )
         );
 
         assertThat(model.getServiceSettings().modelId(), is(modelName));

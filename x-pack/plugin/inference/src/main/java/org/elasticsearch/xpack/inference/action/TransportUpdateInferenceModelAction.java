@@ -143,11 +143,14 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             .<Boolean>andThen((listener, existingUnparsedModel) -> {
 
                 Model existingParsedModel = service.get()
-                    .parsePersistedConfigWithSecrets(
-                        existingUnparsedModel.inferenceEntityId(),
-                        existingUnparsedModel.taskType(),
-                        new HashMap<>(existingUnparsedModel.settings()),
-                        new HashMap<>(existingUnparsedModel.secrets())
+                    .parsePersistedConfig(
+                        new UnparsedModel(
+                            existingUnparsedModel.inferenceEntityId(),
+                            existingUnparsedModel.taskType(),
+                            existingUnparsedModel.service(),
+                            new HashMap<>(existingUnparsedModel.settings()),
+                            new HashMap<>(existingUnparsedModel.secrets())
+                        )
                     );
 
                 validateResolvedTaskType(existingParsedModel, resolvedTaskType);
@@ -191,11 +194,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                                 )
                             );
                         } else {
-                            listener.onResponse(
-                                service.get()
-                                    .parsePersistedConfig(inferenceEntityId, resolvedTaskType, new HashMap<>(unparsedModel.settings()))
-                                    .getConfigurations()
-                            );
+                            listener.onResponse(service.get().parsePersistedConfig(unparsedModel).getConfigurations());
                         }
                     }, listener::onFailure));
                 } else {

@@ -28,6 +28,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -196,11 +197,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             ValidationException.class,
             () -> parsePersistedConfig("""
                 {
-                  "service_settings": {
-                  },
-                  "secret_settings": {
-                    "api_key": "12345"
-                  }
+                  "service_settings": {}
                 }
                 """)
         );
@@ -210,13 +207,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
         assertThrows(
             "Validation Failed: 1: [service_settings] does not contain the required setting [model];",
             ElasticsearchStatusException.class,
-            () -> parsePersistedConfig("""
-                {
-                  "secret_settings": {
-                    "api_key": "12345"
-                  }
-                }
-                """)
+            () -> parsePersistedConfig("{}")
         );
     }
 
@@ -407,7 +398,9 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
 
     private DeepSeekChatCompletionModel parsePersistedConfig(String json) throws IOException {
         try (var service = createService()) {
-            var model = service.parsePersistedConfig("inference-id", TaskType.CHAT_COMPLETION, map(json));
+            var model = service.parsePersistedConfig(
+                new UnparsedModel("inference-id", TaskType.CHAT_COMPLETION, DeepSeekService.NAME, map(json), null)
+            );
             assertThat(model, isA(DeepSeekChatCompletionModel.class));
             return (DeepSeekChatCompletionModel) model;
         }
@@ -430,7 +423,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
     }
 
     private DeepSeekChatCompletionModel createModel(DeepSeekService service, TaskType taskType) throws URISyntaxException, IOException {
-        var model = service.parsePersistedConfigWithSecrets("inference-id", taskType, map(Strings.format("""
+        var model = service.parsePersistedConfig(new UnparsedModel("inference-id", taskType, DeepSeekService.NAME, map(Strings.format("""
             {
               "service_settings": {
                 "model_id": "some-cool-model",
@@ -443,7 +436,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
                 "api_key": "12345"
               }
             }
-            """));
+            """)));
         assertThat(model, isA(DeepSeekChatCompletionModel.class));
         return (DeepSeekChatCompletionModel) model;
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -332,7 +333,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_createsRerankModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_createsRerankModel() throws IOException {
         try (var service = createMixedbreadService()) {
             var modelName = randomAlphanumericOfLength(8);
             var requestsPerMinute = randomNonNegativeInt();
@@ -346,11 +347,14 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                 getSecretSettingsMap(apiKey)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ID_VALUE,
-                TaskType.RERANK,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ID_VALUE,
+                    TaskType.RERANK,
+                    MixedbreadService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model.getSecretSettings().apiKey().toString(), is(apiKey));
@@ -364,18 +368,21 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_onlyRequiredSettings_createsRerankModel() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_onlyRequiredSettings_createsRerankModel() throws IOException {
         try (var service = createMixedbreadService()) {
             var modelName = randomAlphanumericOfLength(8);
             var apiKey = randomAlphanumericOfLength(8);
 
             var persistedConfig = getPersistedConfigMap(getServiceSettingsMap(modelName, null), Map.of(), getSecretSettingsMap(apiKey));
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ID_VALUE,
-                TaskType.RERANK,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ID_VALUE,
+                    TaskType.RERANK,
+                    MixedbreadService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model.getSecretSettings().apiKey().toString(), is(apiKey));
@@ -402,7 +409,15 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                 null
             );
 
-            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.RERANK, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ID_VALUE,
+                    TaskType.RERANK,
+                    MixedbreadService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             assertRerankModelSettings(
                 model,
@@ -507,7 +522,15 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
 
             var persistedConfig = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, RERANK, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ID_VALUE,
+                    TaskType.RERANK,
+                    MixedbreadService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             assertThat(model, CoreMatchers.instanceOf(MixedbreadRerankModel.class));
 
@@ -527,7 +550,15 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
 
             var persistedConfig = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, RERANK, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ID_VALUE,
+                    TaskType.RERANK,
+                    MixedbreadService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             assertThat(model, CoreMatchers.instanceOf(MixedbreadRerankModel.class));
 
@@ -547,7 +578,15 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
 
             var persistedConfig = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, RERANK, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ID_VALUE,
+                    TaskType.RERANK,
+                    MixedbreadService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
 
             assertThat(model, CoreMatchers.instanceOf(MixedbreadRerankModel.class));
 
@@ -557,7 +596,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         var serviceSettings = getServiceSettingsMap(MODEL_NAME_VALUE, REQUESTS_PER_MINUTE);
         var taskSettings = getTaskSettingsMap(TOP_N, RETURN_DOCUMENTS_TRUE);
         var secretSettings = getSecretSettingsMap(API_KEY);
@@ -567,11 +606,8 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
 
             var persistedConfig = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ID_VALUE,
-                RERANK,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, RERANK, MixedbreadService.NAME, persistedConfig.config(), persistedConfig.secrets())
             );
 
             assertThat(model, CoreMatchers.instanceOf(MixedbreadRerankModel.class));
@@ -583,7 +619,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         var serviceSettings = getServiceSettingsMap(MODEL_NAME_VALUE, REQUESTS_PER_MINUTE);
         var taskSettings = getTaskSettingsMap(TOP_N, RETURN_DOCUMENTS_TRUE);
         var secretSettings = getSecretSettingsMap(API_KEY);
@@ -593,11 +629,8 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
 
             var persistedConfig = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ID_VALUE,
-                RERANK,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, RERANK, MixedbreadService.NAME, persistedConfig.config(), persistedConfig.secrets())
             );
 
             assertThat(model, CoreMatchers.instanceOf(MixedbreadRerankModel.class));
@@ -609,7 +642,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         var serviceSettings = getServiceSettingsMap(MODEL_NAME_VALUE, REQUESTS_PER_MINUTE);
         var taskSettings = getTaskSettingsMap(TOP_N, RETURN_DOCUMENTS_TRUE);
         var secretSettings = getSecretSettingsMap(API_KEY);
@@ -619,11 +652,8 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
 
             var persistedConfig = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets(
-                INFERENCE_ID_VALUE,
-                RERANK,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(INFERENCE_ID_VALUE, RERANK, MixedbreadService.NAME, persistedConfig.config(), persistedConfig.secrets())
             );
 
             assertThat(model, CoreMatchers.instanceOf(MixedbreadRerankModel.class));

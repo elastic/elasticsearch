@@ -11,6 +11,7 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.inference.metadata.EndpointMetadata;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -33,5 +34,24 @@ public record UnparsedModel(
         Map<String, Object> secrets
     ) {
         this(inferenceEntityId, taskType, service, settings, secrets, EndpointMetadata.EMPTY_INSTANCE);
+    }
+
+    public UnparsedModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        Map<String, Object> settings,
+        Map<String, Object> secrets,
+        EndpointMetadata endpointMetadata
+    ) {
+        this.inferenceEntityId = inferenceEntityId;
+        this.taskType = taskType;
+        this.service = service;
+
+        // We ensure that settings and secrets maps are modifiable because during parsing we are removing from them
+        this.settings = settings == null ? null : new HashMap<>(settings);
+        this.secrets = secrets == null ? null : new HashMap<>(secrets);
+
+        this.endpointMetadata = endpointMetadata;
     }
 }

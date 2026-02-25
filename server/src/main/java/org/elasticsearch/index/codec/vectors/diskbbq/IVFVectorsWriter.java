@@ -32,6 +32,7 @@ import org.apache.lucene.util.LongValues;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -43,7 +44,6 @@ import java.util.function.Consumer;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_SEGMENT_FINGERPRINT;
 
 /**
  * Base class for IVF vectors writer.
@@ -267,18 +267,14 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 fieldWriter.fieldInfo.getVectorDimension(),
                 fieldWriter.fieldInfo.getVectorSimilarityFunction()
             );
-            float[] segmentFingerprint = writeVersion >= VERSION_SEGMENT_FINGERPRINT
+            float[] segmentFingerprint = writeVersion >= ESNextDiskBBQVectorsFormat.VERSION_CLUSTER_FINGERPRINTS_RADIUS
                 ? SegmentFingerprintAnchors.computeSegmentFingerprint(
                     centroidAssignments.centroids(),
                     fieldWriter.fieldInfo.getVectorSimilarityFunction(),
                     anchors
                 )
                 : null;
-            float[] clusterRadiusSummary = getClusterRadiusSummary(
-                fieldWriter.fieldInfo,
-                centroidAssignments,
-                floatVectorValues
-            );
+            float[] clusterRadiusSummary = getClusterRadiusSummary(fieldWriter.fieldInfo, centroidAssignments, floatVectorValues);
             writeMeta(
                 fieldWriter.fieldInfo,
                 centroidSupplier.size(),
@@ -359,7 +355,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             ivfMeta.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(globalCentroid, globalCentroid)));
         }
         // Write fingerprint before doWriteMeta so format-specific meta (e.g. ESNext bulkSize/quantEncoding) follows it
-        if (writeVersion >= VERSION_SEGMENT_FINGERPRINT && segmentFingerprint != null && segmentFingerprint.length == SegmentFingerprintAnchors.ancoraDirections) {
+        if (writeVersion >= ESNextDiskBBQVectorsFormat.VERSION_CLUSTER_FINGERPRINTS_RADIUS
+            && segmentFingerprint != null
+            && segmentFingerprint.length == SegmentFingerprintAnchors.ancoraDirections) {
             for (float v : segmentFingerprint) {
                 ivfMeta.writeInt(Float.floatToIntBits(v));
             }
@@ -467,19 +465,19 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             String centroidTempName = null;
             IndexOutput centroidTemp = null;
 
-                centroidTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "civf_", IOContext.DEFAULT);
-                centroidTempName = centroidTemp.getName();
-                CentroidAssignments centroidAssignments = calculateCentroids(fieldInfo, floatVectorValues, mergeState);
-                // write the centroids to a temporary file so we are not holding them on heap
-                final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-                for (float[] centroid : centroidAssignments.centroids()) {
-                    buffer.asFloatBuffer().put(centroid);
-                    centroidTemp.writeBytes(buffer.array(), buffer.array().length);
-                }
-                numCentroids = centroidAssignments.numCentroids();
-                assignments = centroidAssignments.assignments();
-                calculatedGlobalCentroid = centroidAssignments.globalCentroid();
-                overspillAssignments = centroidAssignments.overspillAssignments();
+            centroidTemp = mergeState.segmentInfo.dir.createTempOutput(mergeState.segmentInfo.name, "civf_", IOContext.DEFAULT);
+            centroidTempName = centroidTemp.getName();
+            CentroidAssignments centroidAssignments = calculateCentroids(fieldInfo, floatVectorValues, mergeState);
+            // write the centroids to a temporary file so we are not holding them on heap
+            final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            for (float[] centroid : centroidAssignments.centroids()) {
+                buffer.asFloatBuffer().put(centroid);
+                centroidTemp.writeBytes(buffer.array(), buffer.array().length);
+            }
+            numCentroids = centroidAssignments.numCentroids();
+            assignments = centroidAssignments.assignments();
+            calculatedGlobalCentroid = centroidAssignments.globalCentroid();
+            overspillAssignments = centroidAssignments.overspillAssignments();
             try {
                 if (numCentroids == 0) {
                     centroidOffset = ivfCentroids.getFilePointer();
@@ -531,7 +529,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                         fieldInfo.getVectorDimension(),
                         fieldInfo.getVectorSimilarityFunction()
                     );
-                    float[] mergeSegmentFingerprint = writeVersion >= VERSION_SEGMENT_FINGERPRINT
+                    float[] mergeSegmentFingerprint = writeVersion >= ESNextDiskBBQVectorsFormat.VERSION_CLUSTER_FINGERPRINTS_RADIUS
                         ? SegmentFingerprintAnchors.computeSegmentFingerprint(
                             centroidSupplier,
                             fieldInfo.getVectorSimilarityFunction(),

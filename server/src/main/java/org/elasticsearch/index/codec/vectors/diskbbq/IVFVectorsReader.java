@@ -31,6 +31,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
@@ -53,8 +54,8 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
  */
 public abstract class IVFVectorsReader extends KnnVectorsReader {
 
-    /** Maximum IVF meta/data version supported across all format implementations (e.g. ESNext may use 3). */
-    private static final int IVF_SUPPORTED_VERSION_MAX = 3;
+    // max IVF meta/data version supported across all format implementations (e.g. ESNext may use 3)
+    private static final int IVF_SUPPORTED_VERSION_MAX = ESNextDiskBBQVectorsFormat.VERSION_CURRENT;
 
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;

@@ -22,7 +22,6 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
@@ -50,7 +49,6 @@ import java.util.Objects;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata.NO_ORDINAL;
 import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
-import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 
 /**
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
@@ -220,7 +218,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
     ) throws IOException {
         Float maxClusterRadius = null;
         Float meanClusterRadius = null;
-        if (versionMeta >= ESNextDiskBBQVectorsFormat.VERSION_CLUSTER_RADII) {
+        if (versionMeta >= ESNextDiskBBQVectorsFormat.VERSION_CLUSTER_FINGERPRINTS_RADIUS) {
             maxClusterRadius = Float.intBitsToFloat(input.readInt());
             meanClusterRadius = Float.intBitsToFloat(input.readInt());
         }

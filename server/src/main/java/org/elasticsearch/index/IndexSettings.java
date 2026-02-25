@@ -984,6 +984,13 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    public static final Setting<Boolean> DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING = Setting.boolSetting(
+        "index.dense_vector.experimental_features",
+        Build.current().isSnapshot(),
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final Setting<Boolean> INTRA_MERGE_PARALLELISM_ENABLED_SETTING = Setting.boolSetting(
         "index.merge.intra_merge_parallelism_enabled",
         // default to true with snapshot for now, false otherwise.
@@ -1202,6 +1209,14 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = scopedSettings.get(MODE);
+        if (scopedSettings.get(DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING)
+            && DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.exists(indexMetadata.getSettings())) {
+            logger.warn(
+                "The setting [{}] is enabled; backwards compatibility is not guaranteed for index [{}]",
+                DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(),
+                index.getName()
+            );
+        }
         this.timestampBounds = mode.getTimestampBound(indexMetadata);
         if (timestampBounds != null) {
             scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, endTime -> {

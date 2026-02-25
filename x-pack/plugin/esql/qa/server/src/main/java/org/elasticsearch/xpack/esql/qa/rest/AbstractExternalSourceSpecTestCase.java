@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import fixture.gcs.GoogleCloudStorageHttpFixture;
 import fixture.gcs.TestUtils;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -39,6 +40,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
@@ -275,8 +277,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
-        // skip nothing
-        // super skips tests for the "regular" CsvTest/EsqlSpecIT suites
+        checkCapabilities(adminClient(), testFeatureService, testName, testCase);
+        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
 
     /**
@@ -365,7 +367,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 // Local path: file:///absolute/path/to/iceberg-fixtures/standalone/employees.parquet
                 if (localFixturesPath != null) {
                     Path localFile = localFixturesPath.resolve(relativePath);
-                    return "file://" + localFile.toAbsolutePath().toString();
+                    return localFile.toUri().toString();
                 } else {
                     // Fallback to S3 if local path not available
                     logger.warn("Local fixtures path not available, falling back to S3");

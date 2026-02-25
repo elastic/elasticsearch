@@ -286,16 +286,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private class ExchangeTransportAction implements TransportRequestHandler<ExchangeRequest> {
         @Override
         public void messageReceived(ExchangeRequest request, TransportChannel channel, Task exchangeTask) {
-            final String exchangeId = request.exchangeId();
-            ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
-            final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
-            if (sinkHandler == null) {
-                listener.onResponse(new ExchangeResponse(blockFactory, null, true));
-            } else {
-                final CancellableTask task = (CancellableTask) exchangeTask;
-                task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
-                sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
-            }
+            fetchFromSink(request.exchangeId(), request.sourcesFinished(), channel, exchangeTask);
         }
     }
 
@@ -309,17 +300,20 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private class CcsExchangeTransportAction implements TransportRequestHandler<CcsExchangeRequest> {
         @Override
         public void messageReceived(CcsExchangeRequest request, TransportChannel channel, Task exchangeTask) {
-            final String exchangeId = request.exchangeId();
-            ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
-            final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
-            if (sinkHandler == null) {
-                listener.onResponse(new ExchangeResponse(blockFactory, null, true));
-            } else {
-                validateSinkIndices(exchangeId, request.originalQueryIndices());
-                final CancellableTask task = (CancellableTask) exchangeTask;
-                task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
-                sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
-            }
+            validateSinkIndices(request.exchangeId(), request.originalQueryIndices());
+            fetchFromSink(request.exchangeId(), request.sourcesFinished(), channel, exchangeTask);
+        }
+    }
+
+    private void fetchFromSink(String exchangeId, boolean sourcesFinished, TransportChannel channel, Task exchangeTask) {
+        ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
+        final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
+        if (sinkHandler == null) {
+            listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+        } else {
+            final CancellableTask task = (CancellableTask) exchangeTask;
+            task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
+            sinkHandler.fetchPageAsync(sourcesFinished, listener);
         }
     }
 

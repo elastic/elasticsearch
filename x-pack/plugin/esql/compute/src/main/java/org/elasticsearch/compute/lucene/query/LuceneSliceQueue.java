@@ -32,7 +32,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Function;
@@ -84,11 +83,8 @@ public final class LuceneSliceQueue {
     public static final int MIN_DOCS_PER_SLICE = 50_000; // copied from IndexSearcher
     public static final int MAX_DOCS_PER_SLICE = 250_000; // copied from IndexSearcher
     public static final int MAX_SEGMENTS_PER_SLICE = 5; // copied from IndexSearcher
-    static final double MINIMUM_DOCS_PERCENT_PER_SLICE = 0.1;
 
     private final int maxShardIndex;
-    // make sure each slice has at least 10% of the documents as a way to limit the max number of
-    // threads, adapted from ContextIndexSearcher
 
     private final IntFunction<ShardContext> shardContexts;
     private final int totalSlices;
@@ -384,60 +380,14 @@ public final class LuceneSliceQueue {
     /**
      * Computes segment groups ensuring at most {@code maxSliceNum} groups are created.
      * Each group contains at least {@code max(minDocsPerSlice, 10% * totalDocs)} documents.
-     * Uses a greedy bin-packing algorithm: sorts segments by maxDoc descending, accumulates
-     * them into groups, and redistributes orphans to the smallest groups via a priority queue.
-     * <p>
-     * Adapted from {@link org.elasticsearch.search.internal.ContextIndexSearcher#computeSlices}.
+     * Delegates to {@link ContextIndexSearcher#computeLeafGroups} for the core bin-packing
+     * algorithm and converts the result to {@link PartialLeafReaderContext}.
      */
     static List<List<PartialLeafReaderContext>> computeSegmentGroups(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
-        if (maxSliceNum < 1) {
-            throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
-        }
-        if (maxSliceNum == 1 || leaves.isEmpty()) {
-            return List.of(leaves.stream().map(PartialLeafReaderContext::new).toList());
-        }
-        // total number of documents to be searched
-        final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
-        // percentage of documents per slice, minimum 10%
-        final double percentageDocsPerThread = Math.max(MINIMUM_DOCS_PERCENT_PER_SLICE, 1.0 / maxSliceNum);
-        final int effectiveMinDocs = Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs));
-
-        // sort leaves by maxDoc descending
-        List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
-        sortedLeaves.sort((c1, c2) -> Integer.compare(c2.reader().maxDoc(), c1.reader().maxDoc()));
-
-        // greedy bin-packing with a priority queue ordered by total docs per group
-        final PriorityQueue<List<LeafReaderContext>> queue = new PriorityQueue<>(
-            Comparator.comparingInt(group -> group.stream().mapToInt(l -> l.reader().maxDoc()).sum())
-        );
-        long docSum = 0;
-        List<LeafReaderContext> group = new ArrayList<>();
-        for (LeafReaderContext ctx : sortedLeaves) {
-            group.add(ctx);
-            docSum += ctx.reader().maxDoc();
-            if (docSum > effectiveMinDocs) {
-                queue.add(group);
-                group = new ArrayList<>();
-                docSum = 0;
-            }
-        }
-
-        // redistribute orphan leaves to the smallest existing groups
-        if (group.isEmpty() == false) {
-            if (queue.isEmpty()) {
-                queue.add(group);
-            } else {
-                for (LeafReaderContext ctx : group) {
-                    final List<LeafReaderContext> head = queue.poll();
-                    head.add(ctx);
-                    queue.add(head);
-                }
-            }
-        }
-
-        List<List<PartialLeafReaderContext>> result = new ArrayList<>(queue.size());
-        for (List<LeafReaderContext> g : queue) {
-            result.add(g.stream().map(PartialLeafReaderContext::new).toList());
+        List<List<LeafReaderContext>> groups = ContextIndexSearcher.computeLeafGroups(leaves, maxSliceNum, minDocsPerSlice);
+        List<List<PartialLeafReaderContext>> result = new ArrayList<>(groups.size());
+        for (List<LeafReaderContext> group : groups) {
+            result.add(group.stream().map(PartialLeafReaderContext::new).toList());
         }
         return result;
     }

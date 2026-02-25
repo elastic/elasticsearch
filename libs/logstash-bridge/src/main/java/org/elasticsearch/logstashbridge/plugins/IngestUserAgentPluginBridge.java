@@ -26,9 +26,7 @@ public final class IngestUserAgentPluginBridge implements IngestPluginBridge {
     public Map<String, ProcessorFactoryBridge> getProcessors(final ProcessorParametersBridge parameters) {
         return Map.of(
             UserAgentProcessor.TYPE,
-            ProcessorFactoryBridge.fromInternal(
-                new UserAgentProcessor.Factory(parameters.toInternal().userAgentParserRegistry)
-            )
+            ProcessorFactoryBridge.fromInternal(new UserAgentProcessor.Factory(parameters.toInternal().userAgentParserRegistry))
         );
     }
 }

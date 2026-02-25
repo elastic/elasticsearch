@@ -1047,8 +1047,8 @@ public class ComputeService {
         }
 
         // The split produces two sub-plans:
-        //   finalPlan:  runs in each of the N FINAL drivers (agg + optional partial TopN)
-        //   outputPlan: runs once after all partitions merge (global TopN/Limit, Project, Output)
+        // finalPlan: runs in each of the N FINAL drivers (agg + optional partial TopN)
+        // outputPlan: runs once after all partitions merge (global TopN/Limit, Project, Output)
         PhysicalPlan finalPlan = split.v1();
         PhysicalPlan outputPlan = split.v2();
 
@@ -1061,9 +1061,9 @@ public class ComputeService {
         // --- Exchange plumbing for the 3-stage pipeline ---
         //
         // Data flow:
-        //   data nodes → [ExchangeSource] → Router driver → [PartitionedExchangeSink]
-        //     → per-partition buffers → [PartitionedExchangeSource] → FINAL drivers
-        //     → [shared ExchangeSink] → [ExchangeSource] → Output driver → results
+        // data nodes → [ExchangeSource] → Router driver → [PartitionedExchangeSink]
+        // → per-partition buffers → [PartitionedExchangeSource] → FINAL drivers
+        // → [shared ExchangeSink] → [ExchangeSource] → Output driver → results
 
         // The partitioned sink routes each page (by partitionId) to the correct driver's buffer
         var partitionedSinkHandler = new PartitionedExchangeSinkHandler(

@@ -39,7 +39,6 @@ import java.util.stream.LongStream;
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     @Override

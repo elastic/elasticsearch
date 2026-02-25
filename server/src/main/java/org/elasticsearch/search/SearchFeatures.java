@@ -33,6 +33,7 @@ public final class SearchFeatures implements FeatureSpecification {
     static final NodeFeature MULTI_MATCH_CHECKS_POSITIONS = new NodeFeature("search.multi.match.checks.positions");
     public static final NodeFeature BBQ_HNSW_DEFAULT_INDEXING = new NodeFeature("search.vectors.mappers.default_bbq_hnsw");
     public static final NodeFeature SEARCH_WITH_NO_DIMENSIONS_BUGFIX = new NodeFeature("search.vectors.no_dimensions_bugfix");
+    public static final NodeFeature HNSW_FLAT_INDEX_THRESHOLD = new NodeFeature("search.vectors.flat_index_threshold");
     public static final NodeFeature SEARCH_RESCORE_SCRIPT = new NodeFeature("search.rescore.script");
     public static final NodeFeature NEGATIVE_FUNCTION_SCORE_BAD_REQUEST = new NodeFeature("search.negative.function.score.bad.request");
     public static final NodeFeature INDICES_BOOST_REMOTE_INDEX_FIX = new NodeFeature("search.indices_boost_remote_index_fix");
@@ -61,6 +62,7 @@ public final class SearchFeatures implements FeatureSpecification {
             MULTI_MATCH_CHECKS_POSITIONS,
             BBQ_HNSW_DEFAULT_INDEXING,
             SEARCH_WITH_NO_DIMENSIONS_BUGFIX,
+            HNSW_FLAT_INDEX_THRESHOLD,
             SEARCH_RESCORE_SCRIPT,
             NEGATIVE_FUNCTION_SCORE_BAD_REQUEST,
             INDICES_BOOST_REMOTE_INDEX_FIX,

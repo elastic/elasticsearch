@@ -437,6 +437,9 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/nested compound retrievers with min_score correctly compute total_hits}
   issue: https://github.com/elastic/elasticsearch/issues/142997
+- class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
+  method: testDirectoryMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/143061
 
 # Examples:
 #

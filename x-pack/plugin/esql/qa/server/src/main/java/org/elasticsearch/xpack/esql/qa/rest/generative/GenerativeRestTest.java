@@ -146,11 +146,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Pattern.DOTALL
     );
     /**
-     * Matches "... argument of [X] must be [Y], found value [unmapped_field] type [Z]" errors.
+     * Matches "... argument of [X] must be [Y], found value [Z] type [T]" errors.
      * This happens when an unmapped field ends up with a different data type that doesn't match the one of the function's argument(s).
+     * The unmapped field name may appear either in the function expression(group 1) or in the found-value position (group 2).
      */
     private static final Pattern ANY_TYPE_MISMATCH_PATTERN = Pattern.compile(
-        ".*argument of \\[.*] must be \\[.*], found value \\[([^]]+)] type \\[.*].*",
+        ".*argument of \\[([^]]+)] must be \\[.*], found value \\[([^]]+)] type \\[.*].*",
         Pattern.DOTALL
     );
     /**
@@ -424,8 +425,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
         matcher = ANY_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
         if (matcher.matches()) {
-            String expression = matcher.group(1);
-            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+            String functionExpression = matcher.group(1);
+            String foundValue = matcher.group(2);
+            return UNMAPPED_NAMES.stream().anyMatch(name -> functionExpression.contains(name) || foundValue.contains(name));
         }
 
         return false;

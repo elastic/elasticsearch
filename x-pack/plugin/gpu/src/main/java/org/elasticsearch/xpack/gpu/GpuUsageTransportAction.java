@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -28,7 +29,7 @@ import org.elasticsearch.xpack.core.gpu.GpuVectorIndexingFeatureSetUsage;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.gpu.GpuVectorIndexingFeatureSetUsage.GPU_VECTOR_INDEXING_TELEMETRY;
+import static org.elasticsearch.xpack.gpu.GPUFeatures.VECTORS_INDEXING_GPU_MONITORING;
 
 /**
  * Handles the {@code _xpack/usage} request for the GPU vector indexing feature.
@@ -40,6 +41,7 @@ public class GpuUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final Client client;
     private final XPackLicenseState licenseState;
+    private final FeatureService featureService;
 
     @Inject
     public GpuUsageTransportAction(
@@ -48,11 +50,13 @@ public class GpuUsageTransportAction extends XPackUsageFeatureTransportAction {
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Client client,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        FeatureService featureService
     ) {
         super(XPackUsageFeatureAction.GPU_VECTOR_INDEXING.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
         this.licenseState = licenseState;
+        this.featureService = featureService;
     }
 
     @Override
@@ -62,7 +66,7 @@ public class GpuUsageTransportAction extends XPackUsageFeatureTransportAction {
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        if (clusterService.state().getMinTransportVersion().supports(GPU_VECTOR_INDEXING_TELEMETRY)) {
+        if (featureService.clusterHasFeature(clusterService.state(), VECTORS_INDEXING_GPU_MONITORING)) {
             new ParentTaskAssigningClient(client, clusterService.localNode(), task).execute(
                 GpuStatsAction.INSTANCE,
                 new GpuStatsRequest(),

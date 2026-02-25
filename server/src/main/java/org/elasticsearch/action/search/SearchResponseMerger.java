@@ -209,9 +209,7 @@ public final class SearchResponseMerger implements Releasable {
         try {
             setSuggestShardIndex(shards, groupedSuggestions);
             Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-            final List<SearchHits> topHitsToRelease = (aggs.isEmpty() || aggReduceContextBuilder == null)
-                ? null
-                : new ArrayList<>();
+            final List<SearchHits> topHitsToRelease = (aggs.isEmpty() || aggReduceContextBuilder == null) ? null : new ArrayList<>();
             InternalAggregations reducedAggs = aggs.isEmpty()
                 ? InternalAggregations.EMPTY
                 : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction(topHitsToRelease));

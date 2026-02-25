@@ -160,29 +160,25 @@ public class SearchHitCursor implements Cursor {
             // Retain a reference so the response stays alive until the closePointInTime callback runs;
             // the transport releases its ref when this listener returns, but we consume in the callback.
             response.incRef();
-            closePointInTime(
-                client,
-                response.pointInTimeId(),
-                new ActionListener<Boolean>() {
-                    @Override
-                    public void onResponse(Boolean r) {
-                        try {
-                            listener.onResponse(Page.last(rowSet));
-                        } finally {
-                            response.decRef();
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            listener.onFailure(e);
-                        } finally {
-                            response.decRef();
-                        }
+            closePointInTime(client, response.pointInTimeId(), new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean r) {
+                    try {
+                        listener.onResponse(Page.last(rowSet));
+                    } finally {
+                        response.decRef();
                     }
                 }
-            );
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        listener.onFailure(e);
+                    } finally {
+                        response.decRef();
+                    }
+                }
+            });
         } else {
             updateSearchAfter(response.getHits().getHits(), source);
             // Refresh the PIT ID with the new value returned in the response

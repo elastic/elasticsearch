@@ -6,13 +6,13 @@ stack: ga
 The `EVAL` processing command enables you to append new columns with calculated
 values.
 
-**Syntax**
+## Syntax
 
 ```esql
 EVAL [column1 =] value1[, ..., [columnN =] valueN]
 ```
 
-**Parameters**
+## Parameters
 
 `columnX`
 :   The column name.
@@ -24,13 +24,13 @@ EVAL [column1 =] value1[, ..., [columnN =] valueN]
     [function](/reference/query-languages/esql/esql-functions-operators.md#esql-functions).
     Can use columns defined left of this one.
 
-**Description**
+## Description
 
 The `EVAL` processing command enables you to append new columns with calculated
 values. `EVAL` supports various functions for calculating values. Refer to
 [Functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions) for more information.
 
-**Examples**
+## Examples
 
 :::{include} ../examples/eval.csv-spec/eval.md
 :::

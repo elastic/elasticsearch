@@ -5,18 +5,18 @@ stack: ga
 
 The `DROP` processing command removes one or more columns.
 
-**Syntax**
+## Syntax
 
 ```esql
 DROP columns
 ```
 
-**Parameters**
+## Parameters
 
 `columns`
 :   A comma-separated list of columns to remove. Supports wildcards.
 
-**Examples**
+## Examples
 
 :::{include} ../examples/drop.csv-spec/height.md
 :::

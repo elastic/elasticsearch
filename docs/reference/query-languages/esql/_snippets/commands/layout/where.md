@@ -14,18 +14,18 @@ there is no value at all. For example: `WHERE field != "value"` will be interpre
 ::::
 
 
-**Syntax**
+## Syntax
 
 ```esql
 WHERE expression
 ```
 
-**Parameters**
+## Parameters
 
 `expression`
 :   A boolean expression.
 
-**Examples**
+## Examples
 
 :::{include} ../examples/docs.csv-spec/where.md
 :::

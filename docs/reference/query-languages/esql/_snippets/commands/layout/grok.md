@@ -5,13 +5,13 @@ stack: ga
 
 `GROK` enables you to [extract structured data out of a string](/reference/query-languages/esql/esql-process-data-with-dissect-grok.md).
 
-**Syntax**
+## Syntax
 
 ```esql
 GROK input "pattern"
 ```
 
-**Parameters**
+## Parameters
 
 `input`
 :   The column that contains the string you want to structure. If the column has
@@ -22,7 +22,7 @@ GROK input "pattern"
     If a field name is used more than once, a multi-valued column will be created with one value
     per each occurrence of the field name.
 
-**Description**
+## Description
 
 `GROK` enables you to [extract structured data out of a string](/reference/query-languages/esql/esql-process-data-with-dissect-grok.md).
 `GROK` matches the string against patterns, based on regular expressions,
@@ -30,7 +30,7 @@ and extracts the specified patterns as columns.
 
 Refer to [Process data with `GROK`](/reference/query-languages/esql/esql-process-data-with-dissect-grok.md#esql-process-data-with-grok) for the syntax of grok patterns.
 
-**Examples**
+## Examples
 
 The following example parses a string that contains a timestamp, an IP address,
 an email address, and a number:

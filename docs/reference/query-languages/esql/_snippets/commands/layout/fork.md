@@ -6,13 +6,13 @@ stack: preview 9.1.0
 The `FORK` processing command creates multiple execution branches to operate
 on the same input data and combines the results in a single output table.
 
-**Syntax**
+## Syntax
 
 ```esql
 FORK ( <processing_commands> ) ( <processing_commands> ) ... ( <processing_commands> )
 ```
 
-**Description**
+## Description
 
 The `FORK` processing command creates multiple execution branches to operate
 on the same input data and combines the results in a single output table. A discriminator column (`_fork`) is added to identify which branch each row came from.
@@ -38,13 +38,13 @@ Together with the [`FUSE`](/reference/query-languages/esql/commands/fuse.md) com
 `FORK` branches default to `LIMIT 1000` if no `LIMIT` is provided.
 ::::
 
-**Limitations**
+## Limitations
 
 - `FORK` supports at most 8 execution branches.
 - In versions older than 9.3.0 using remote cluster references and `FORK` is not supported.
 - Using more than one `FORK` command in a query is not supported.
 
-**Examples**
+## Examples
 
 In the following example, each `FORK` branch returns one row.
 Notice how `FORK` adds a `_fork` column that indicates which row the branch originates from:

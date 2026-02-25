@@ -3,7 +3,7 @@ serverless: preview
 stack: preview 9.2.0
 ```
 
-**Brief description**
+## Brief description
 
 The `TS` source command is similar to the [`FROM`](/reference/query-languages/esql/commands/from.md)
 source command, with the following key differences:
@@ -12,13 +12,13 @@ source command, with the following key differences:
  - Enables the use of [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md) inside the
    [STATS](/reference/query-languages/esql/commands/stats-by.md) command
 
-**Syntax**
+## Syntax
 
 ```esql
 TS index_pattern [METADATA fields]
 ```
 
-**Parameters**
+## Parameters
 
 `index_pattern`
 :   A list of indices, data streams or aliases. Supports wildcards and date math.
@@ -26,7 +26,7 @@ TS index_pattern [METADATA fields]
 `fields`
 :   A comma-separated list of [metadata fields](/reference/query-languages/esql/esql-metadata-fields.md) to retrieve.
 
-**Description**
+## Description
 
 The `TS` source command enables time series semantics and adds support for
 [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md) to the `STATS` command, such as
@@ -54,7 +54,7 @@ You can also combine time series aggregation functions with regular [aggregation
 
 However, using a time series aggregation function in combination with an inner time series function causes an error. See the Examples section for an invalid query example.
 
-**Best practices**
+## Best practices
 
 - Avoid aggregating multiple metrics in the same query when those metrics have different dimensional cardinalities.
   For example, in `STATS max(rate(foo)) + rate(bar))`, if `foo` and `bar` don't share the same dimension values, the rate
@@ -69,7 +69,7 @@ However, using a time series aggregation function in combination with an inner t
   applied, you can process the tabular output with any applicable ES|QL operations.
 - Add a time range filter on `@timestamp` to limit the data volume scanned and improve query performance.
 
-**Examples**
+## Examples
 
 Calculate the total rate of search requests (tracked by the `search_requests` counter) per host and hour. The `RATE()`
 function is applied per time series in hourly buckets. These rates are summed for each

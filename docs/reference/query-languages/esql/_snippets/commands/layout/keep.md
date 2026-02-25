@@ -6,20 +6,20 @@ stack: ga
 The `KEEP` processing command enables you to specify what columns are returned
 and the order in which they are returned.
 
-**Syntax**
+## Syntax
 
 ```esql
 KEEP columns
 ```
 
-**Parameters**
+## Parameters
 
 `columns`
 :   A comma-separated list of columns to keep. Supports wildcards.
     See below for the behavior in case an existing column matches multiple
     given wildcards or column names.
 
-**Description**
+## Description
 
 The `KEEP` processing command enables you to specify what columns are returned
 and the order in which they are returned.
@@ -35,7 +35,7 @@ If a field matches two expressions with the same precedence, the rightmost expre
 
 Refer to the examples for illustrations of these precedence rules.
 
-**Examples**
+## Examples
 
 The columns are returned in the specified order:
 

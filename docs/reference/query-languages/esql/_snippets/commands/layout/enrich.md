@@ -6,13 +6,13 @@ stack: ga
 `ENRICH` enables you to add data from existing indices as new columns using an
 enrich policy.
 
-**Syntax**
+## Syntax
 
 ```esql
 ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2, ...]
 ```
 
-**Parameters**
+## Parameters
 
 `policy`
 :   The name of the enrich policy.
@@ -44,7 +44,7 @@ ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2,
     If a name (new or original) occurs more than once, only the rightmost duplicate
     creates a new column.
 
-**Description**
+## Description
 
 `ENRICH` enables you to add data from existing indices as new columns using an
 enrich policy. Refer to [Data enrichment](/reference/query-languages/esql/esql-enrich-data.md)
@@ -59,7 +59,7 @@ Before you can use `ENRICH`, you need to [create and execute an enrich policy](/
 ::::
 
 
-**Examples**
+## Examples
 
 The following example uses the `languages_policy` enrich policy to add a new
 column for each enrich field defined in the policy. The match is performed using

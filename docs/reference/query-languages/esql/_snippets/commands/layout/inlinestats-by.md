@@ -9,7 +9,7 @@ are appended as new columns to the input rows.
 
 The command is identical to [`STATS`](/reference/query-languages/esql/commands/stats-by.md) except that it preserves all the columns from the input table.
 
-**Syntax**
+## Syntax
 
 ```esql
 INLINE STATS [column1 =] expression1 [WHERE boolean_expression1][,
@@ -20,7 +20,7 @@ INLINE STATS [column1 =] expression1 [WHERE boolean_expression1][,
           [grouping_nameN = ] grouping_expressionN]]
 ```
 
-**Parameters**
+## Parameters
 
 `columnX`
 :   The name by which the aggregated value is returned. If omitted, the name is
@@ -43,7 +43,7 @@ Individual `null` values are skipped when computing aggregations.
 ::::
 
 
-**Description**
+## Description
 
 The `INLINE STATS` processing command groups rows according to a common value
 (also known as the grouping key), specified after `BY`, and calculates one or more
@@ -69,7 +69,7 @@ The following [grouping functions](/reference/query-languages/esql/functions-ope
 * [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-tbucket)
 
 
-**Examples**
+## Examples
 
 The following example shows how to calculate a statistic on one column and group
 by the values of another column.
@@ -100,7 +100,7 @@ The following example shows how to filter which rows are used for each aggregati
 :::
 
 
-**Limitations**
+## Limitations
 
 - The [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not currently supported.
 - You cannot currently use [`LIMIT`](/reference/query-languages/esql/commands/limit.md) (explicit or implicit) before `INLINE STATS`, because this can lead to unexpected results.

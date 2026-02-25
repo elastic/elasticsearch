@@ -5,13 +5,13 @@ stack: ga
 
 `DISSECT` enables you to [extract structured data out of a string](/reference/query-languages/esql/esql-process-data-with-dissect-grok.md).
 
-**Syntax**
+## Syntax
 
 ```esql
 DISSECT input "pattern" [APPEND_SEPARATOR="<separator>"]
 ```
 
-**Parameters**
+## Parameters
 
 `input`
 :   The column that contains the string you want to structure.  If the column has
@@ -25,14 +25,14 @@ multiple values, `DISSECT` will process each value.
 `<separator>`
 :   A string used as the separator between appended values, when using the [append modifier](/reference/query-languages/esql/esql-process-data-with-dissect-grok.md#esql-append-modifier).
 
-**Description**
+## Description
 
 `DISSECT` enables you to [extract structured data out of a string](/reference/query-languages/esql/esql-process-data-with-dissect-grok.md).
 `DISSECT` matches the string against a delimiter-based pattern, and extracts the specified keys as columns.
 
 Refer to [Process data with `DISSECT`](/reference/query-languages/esql/esql-process-data-with-dissect-grok.md#esql-process-data-with-dissect) for the syntax of dissect patterns.
 
-**Examples**
+## Examples
 
 The following example parses a string that contains a timestamp, some text, and
 an IP address:

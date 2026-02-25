@@ -51,7 +51,7 @@ Best practices:
 ::::
 :::::
 
-**Syntax**
+## Syntax
 
 ::::{applies-switch}
 
@@ -73,7 +73,7 @@ COMPLETION [column =] prompt WITH my_inference_endpoint
 
 ::::
 
-**Parameters**
+## Parameters
 
 `column`
 :   (Optional) The name of the output column containing the LLM's response.
@@ -88,7 +88,7 @@ COMPLETION [column =] prompt WITH my_inference_endpoint
 :   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
-**Description**
+## Description
 
 The `COMPLETION` command provides a general-purpose interface for
 text generation tasks using a Large Language Model (LLM) in ES|QL.
@@ -103,7 +103,7 @@ including:
 - Content rewriting
 - Creative generation
 
-**Requirements**
+## Requirements
 
 To use this command, you must deploy your LLM model in Elasticsearch as
 an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
@@ -141,7 +141,7 @@ If you don't want to increase the timeout limit, try the following:
 * Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration))
 
 
-**Examples**
+## Examples
 
 Use the default column name (results stored in `completion` column):
 

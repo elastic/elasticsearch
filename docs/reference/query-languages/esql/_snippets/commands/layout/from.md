@@ -6,13 +6,13 @@ stack: ga
 The `FROM` source command returns a table with data from a data stream, index,
 or alias.
 
-**Syntax**
+## Syntax
 
 ```esql
 FROM index_pattern [METADATA fields]
 ```
 
-**Parameters**
+## Parameters
 
 `index_pattern`
 :   A list of indices, data streams or aliases. Supports wildcards and date math.
@@ -20,7 +20,7 @@ FROM index_pattern [METADATA fields]
 `fields`
 :   A comma-separated list of [metadata fields](/reference/query-languages/esql/esql-metadata-fields.md) to retrieve.
 
-**Description**
+## Description
 
 The `FROM` source command returns a table with data from a data stream, index,
 or alias. Each row in the resulting table represents a document. Each column
@@ -44,7 +44,7 @@ FROM employees
 ::::
 
 
-**Examples**
+## Examples
 
 ```esql
 FROM employees

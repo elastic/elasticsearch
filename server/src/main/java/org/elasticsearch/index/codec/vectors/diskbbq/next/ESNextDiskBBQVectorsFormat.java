@@ -55,7 +55,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     public static final int VERSION_START = 1;
     public static final int VERSION_SEGMENT_FINGERPRINT = 2;
-    public static final int VERSION_CURRENT = VERSION_SEGMENT_FINGERPRINT;
+    public static final int VERSION_CLUSTER_RADII = 3;
+    public static final int VERSION_CURRENT = VERSION_CLUSTER_RADII;
 
     private static final DirectIOCapableFlatVectorsFormat float32VectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93FlatVectorScorer.INSTANCE

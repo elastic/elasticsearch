@@ -38,6 +38,7 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import org.junit.Before;
@@ -403,6 +404,38 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                     new TopKnnCollector(2, Integer.MAX_VALUE),
                     AcceptDocs.fromIteratorSupplier(DocIdSetIterator::empty, leafReader.getLiveDocs(), leafReader.maxDoc())
                 );
+            }
+        }
+    }
+
+    /** Cluster radius is written and read for ESNext format (version 3+). */
+    public void testClusterRadiusWrittenAndRead() throws IOException {
+        int dimensions = random().nextInt(32, 128);
+        int numDocs = random().nextInt(200, 500);
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.forceMerge(1);
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                LeafReader leafReader = getOnlyLeafReader(reader);
+                if (leafReader instanceof CodecReader codecReader) {
+                    KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        knnVectorsReader = fieldsReader.getFieldReader("f");
+                    }
+                    if (knnVectorsReader instanceof IVFVectorsReader ivfReader) {
+                        var fieldInfo = leafReader.getFieldInfos().fieldInfo("f");
+                        Float maxRadius = ivfReader.getMaxClusterRadius(fieldInfo);
+                        Float meanRadius = ivfReader.getMeanClusterRadius(fieldInfo);
+                        assertNotNull("maxClusterRadius should be present for ESNext segments", maxRadius);
+                        assertNotNull("meanClusterRadius should be present for ESNext segments", meanRadius);
+                        assertTrue("maxClusterRadius should be non-negative", maxRadius >= 0f);
+                        assertTrue("meanClusterRadius should be non-negative", meanRadius >= 0f);
+                    }
+                }
             }
         }
     }

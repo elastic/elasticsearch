@@ -54,6 +54,9 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
  */
 public abstract class IVFVectorsReader extends KnnVectorsReader {
 
+    /** Maximum IVF meta/data version supported across all format implementations (e.g. ESNext may use 3). */
+    private static final int IVF_SUPPORTED_VERSION_MAX = 3;
+
     protected final IndexInput ivfCentroids, ivfClusters;
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
@@ -75,8 +78,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 versionMeta = CodecUtil.checkIndexHeader(
                     ivfMeta,
                     ES920DiskBBQVectorsFormat.NAME,
-                    ES920DiskBBQVectorsFormat.VERSION_START,
-                    ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+                    getMinMetaVersion(),
+                    getMaxMetaVersion(),
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
@@ -92,6 +95,20 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             IOUtils.closeWhileHandlingException(this);
             throw t;
         }
+    }
+
+    /**
+     * Minimum meta format version this reader supports. Subclasses (e.g. ESNext) may override.
+     */
+    protected int getMinMetaVersion() {
+        return ES920DiskBBQVectorsFormat.VERSION_START;
+    }
+
+    /**
+     * Maximum meta format version this reader supports. Subclasses (e.g. ESNext) may override.
+     */
+    protected int getMaxMetaVersion() {
+        return ES920DiskBBQVectorsFormat.VERSION_CURRENT;
     }
 
     public abstract CentroidIterator getCentroidIterator(
@@ -120,7 +137,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 in,
                 codecName,
                 ES920DiskBBQVectorsFormat.VERSION_START,
-                ES920DiskBBQVectorsFormat.VERSION_CURRENT,
+                IVF_SUPPORTED_VERSION_MAX,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -205,7 +222,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             postingListLength,
             globalCentroid,
             globalCentroidDp,
-            segmentFingerprint
+            segmentFingerprint,
+            versionMeta
         );
     }
 
@@ -222,7 +240,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long postingListLength,
         float[] globalCentroid,
         float globalCentroidDp,
-        float[] segmentFingerprint
+        float[] segmentFingerprint,
+        int versionMeta
     ) throws IOException;
 
     private static VectorSimilarityFunction readSimilarityFunction(DataInput input) throws IOException {
@@ -523,5 +542,21 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
      */
     public float getBestCentroidScore(FieldInfo fieldInfo, float[] queryVector, int segmentVectorCount) throws IOException {
         return getBestCentroidScore(fieldInfo, queryVector);
+    }
+
+    /**
+     * Returns the max cluster radius for this segment when available (ESNext format, version 3+).
+     * Used for segment visit budget allocation. Returns null for older segments or non-ESNext formats.
+     */
+    public Float getMaxClusterRadius(FieldInfo fieldInfo) {
+        return null;
+    }
+
+    /**
+     * Returns the mean cluster radius for this segment when available (ESNext format, version 3+).
+     * Returns null for older segments or non-ESNext formats.
+     */
+    public Float getMeanClusterRadius(FieldInfo fieldInfo) {
+        return null;
     }
 }

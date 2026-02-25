@@ -46,7 +46,6 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -282,6 +281,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         float clusterVariance,           // cluster variance - lower is better (unused in affinity, kept for compatibility)
         float averageClusterSize,        // density indicator (unused in affinity, kept for compatibility)
         float maxClusterSize,            // outlier detection (unused in affinity, kept for compatibility)
+        Float maxClusterRadius,          // max k-means radius in segment (ESNext only; null = neutral for allocation)
+        Float meanClusterRadius,         // mean k-means radius in segment (ESNext only; null = neutral)
         boolean isValid
     ) {}
 
@@ -338,7 +339,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
             if (floatVectorValues == null || floatVectorValues.size() == 0) {
                 segmentMetadata.add(
-                    new SegmentMetadata(context, Float.NaN, Float.NaN, null, 0, 0, 0f, 0f, 0f, false)
+                    new SegmentMetadata(context, Float.NaN, Float.NaN, null, 0, 0, 0f, 0f, 0f, null, null, false)
                 );
                 continue;
             }
@@ -387,6 +388,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
                         int numCentroids = reader.getNumCentroids(fieldInfo);
                         int vectorCount = floatVectorValues.size();
+                        Float maxClusterRadius = reader.getMaxClusterRadius(fieldInfo);
+                        Float meanClusterRadius = reader.getMeanClusterRadius(fieldInfo);
                         segmentMetadata.add(
                             new SegmentMetadata(
                                 context,
@@ -398,6 +401,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                                 0f,
                                 (float) vectorCount / numCentroids,
                                 0f,
+                                maxClusterRadius,
+                                meanClusterRadius,
                                 true
                             )
                         );
@@ -415,6 +420,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                         0f,
                         0f,
                         0f,
+                        null,
+                        null,
                         false
                     )
                 );
@@ -469,6 +476,19 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         float globalAvgClusterSize = totalNumCentroids > 0 ? (float) totalVectors / totalNumCentroids : 1f;
 
+        float minRadius = Float.POSITIVE_INFINITY;
+        float maxRadius = Float.NEGATIVE_INFINITY;
+        int segmentsWithRadius = 0;
+        for (SegmentMetadata m : segmentMetadata) {
+            if (m.isValid() && m.vectorCount() > 0 && m.maxClusterRadius() != null) {
+                float r = m.maxClusterRadius();
+                if (r < minRadius) minRadius = r;
+                if (r > maxRadius) maxRadius = r;
+                segmentsWithRadius++;
+            }
+        }
+        float radiusRange = maxRadius > minRadius ? maxRadius - minRadius : 1f;
+
         float[] affinityScores = new float[segmentMetadata.size()];
         float totAffinity = 0f;
 
@@ -482,6 +502,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                         ? Math.min(CLUSTER_SIZE_WEIGHT_CAP, metadata.averageClusterSize() / globalAvgClusterSize)
                         : 1f;
                     affinityScores[i] *= clusterSizeWeight;
+                    if (metadata.maxClusterRadius() != null && segmentsWithRadius > 0 && radiusRange > 0f) {
+                        float normalizedRadius = (metadata.maxClusterRadius() - minRadius) / radiusRange;
+                        float tightnessWeight = 1f / (1f + normalizedRadius);
+                        affinityScores[i] *= tightnessWeight;
+                    }
                     totAffinity += affinityScores[i];
                 }
             } else {
@@ -502,7 +527,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 segmentVisitRatios[i] = Math.min(1f, segmentVisitRatios[i]);
             }
         }
-        System.err.println(Arrays.toString(segmentVisitRatios));
         return segmentVisitRatios;
     }
 

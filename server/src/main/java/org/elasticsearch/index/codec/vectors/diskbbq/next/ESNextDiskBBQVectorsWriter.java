@@ -96,6 +96,41 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
+    protected float[] getClusterRadiusSummary(
+        FieldInfo fieldInfo,
+        CentroidAssignments centroidAssignments,
+        KMeansFloatVectorValues floatVectorValues
+    ) throws IOException {
+        float[][] centroids = centroidAssignments.centroids();
+        int[] assignments = centroidAssignments.assignments();
+        int numCentroids = centroids.length;
+        float[] maxSqDist = new float[numCentroids];
+        Arrays.fill(maxSqDist, 0f);
+        for (int i = 0; i < assignments.length; i++) {
+            int c = assignments[i];
+            float[] vector = floatVectorValues.vectorValue(i);
+            float[] centroid = centroids[c];
+            float sqDist = ESVectorUtil.squareDistance(vector, centroid);
+            if (sqDist > maxSqDist[c]) {
+                maxSqDist[c] = sqDist;
+            }
+        }
+        float maxClusterRadius = 0f;
+        float sumRadius = 0f;
+        int numNonEmpty = 0;
+        for (int c = 0; c < numCentroids; c++) {
+            float radius = maxSqDist[c] > 0f ? (float) Math.sqrt(maxSqDist[c]) : 0f;
+            if (radius > maxClusterRadius) {
+                maxClusterRadius = radius;
+            }
+            sumRadius += radius;
+            numNonEmpty++;
+        }
+        float meanClusterRadius = numNonEmpty > 0 ? sumRadius / numNonEmpty : 0f;
+        return new float[] { maxClusterRadius, meanClusterRadius };
+    }
+
+    @Override
     protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         if (doPrecondition) {
             for (KnnVectorsReader reader : mergeState.knnVectorsReaders) {

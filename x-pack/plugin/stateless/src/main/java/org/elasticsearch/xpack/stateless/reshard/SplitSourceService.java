@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
@@ -40,7 +40,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -51,8 +50,11 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -101,10 +103,11 @@ public class SplitSourceService {
 
     private final TimeValue deleteUnownedDelay;
 
-    // Tracks ongoing split request, target primary term used to reject stale split request or cancel ongoing request task
-    private final ConcurrentHashMap<IndexShard, SplitRequestState> onGoingSplits = new ConcurrentHashMap<>();
-    // Tracks observers that move source shard to DONE
-    private final ConcurrentHashMap<IndexShard, Split> splitCleanup = new ConcurrentHashMap<>();
+    // Tracks active START_SPLIT requests received from target shards per source shard.
+    // Target shard primary term is used to reject requests from stale shard instances or cancel ongoing request task.
+    private final ConcurrentHashMap<IndexShard, SplitRequestState> activeTargetRequests = new ConcurrentHashMap<>();
+    // Tracks source shard state machine that performs cleanup logic and moves source shard to DONE once all target shards are complete.
+    private final ConcurrentHashMap<IndexShard, SourceShardStateMachine> activeSourceShards = new ConcurrentHashMap<>();
 
     // ES-12460 for testing purposes, until pre-handoff logic (flush etc) is built out
     @Nullable
@@ -262,14 +265,12 @@ public class SplitSourceService {
             throw new IndexShardNotStartedException(sourceShardId, sourceShardState);
         }
 
-        if (splitCleanup.putIfAbsent(sourceShard, new Split(sourceShard)) == null) {
-            // This is the first time a target shard contacted this source shard to start a split.
-            // We'll start tracking this split now to be able to eventually properly finish it.
-            // If we have already seen this split before, we are all set already.
-            setupSourceShardCleanup(sourceShard, deleteUnownedDelay);
-        }
+        // If this is the first time a target shard contacted this source shard to start a split,
+        // we need to start tracking this split to be able to eventually properly finish it.
+        // If we have already seen this split before, we are all set already.
+        setupSourceShardStateMachine(sourceShard);
 
-        var currentSplit = onGoingSplits.putIfAbsent(sourceShard, new SplitRequestState(targetPrimaryTerm, task));
+        var currentSplit = activeTargetRequests.putIfAbsent(sourceShard, new SplitRequestState(targetPrimaryTerm, task));
         if (currentSplit != null) {
             // The source shard is currently handling a split request. This can occur if the target shard failed and is recovering or was
             // relocated. The new target shard instance will repeatedly fail recovery until the current split request completes.
@@ -304,7 +305,7 @@ public class SplitSourceService {
                     // and there will be no new commits.
                     // We explicitly swallow this exception since the contract of `delegateResponse` is to not throw.
                 }
-                onGoingSplits.remove(sourceShard);
+                activeTargetRequests.remove(sourceShard);
                 l.onFailure(e);
             }));
     }
@@ -330,8 +331,8 @@ public class SplitSourceService {
             preHandoffHook.run();
         }
 
-        var split = splitCleanup.get(sourceShard);
-        if (split == null) {
+        var stateMachine = activeSourceShards.get(sourceShard);
+        if (stateMachine == null) {
             throw new AlreadyClosedException("Split source shard " + sourceShard.shardId() + " is closed");
         }
 
@@ -344,30 +345,32 @@ public class SplitSourceService {
             // flush that happens while operations are blocked. NB the flush has force=false so may do nothing.
             engine.flush(/* force */ false, /* waitIfOngoing */ false, afterFirstFlush);
             return null;
-        })).andThen(split::withPermits).andThen((afterSecondFlush, permits) -> {
-            // withEngine and flush can throw, and we don't want to leak permits if it does
-            try {
-                sourceShard.withEngine(engine -> {
-                    logger.debug("handoff: flushing {} for {} after acquiring permits", sourceShard.shardId(), targetShardId);
-                    // Don't stop copying commits until anything outstanding has been flushed.
-                    engine.flush(/* force */ true, /* waitIfOngoing */ true, ActionListener.wrap(fr -> {
-                        // No commits need to be copied after the flush, but it is possible that some might be if the engine generates
-                        // commits spontaneously even though indexing permits are held. These are harmless to copy.
-                        logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
-                        stopCopyingNewCommits(targetShardId);
-                        onGoingSplits.remove(sourceShard);
-                        afterSecondFlush.onResponse(permits);
-                    }, e -> {
-                        permits.close();
-                        afterSecondFlush.onFailure(e);
-                    }));
-                    return null;
-                });
-            } catch (Exception e) {
-                permits.close();
-                afterSecondFlush.onFailure(e);
-            }
-        });
+        }))
+            .<Releasable>andThen(acquiredPermits -> stateMachine.split().withPermits(acquiredPermits))
+            .andThen((afterSecondFlush, permits) -> {
+                // withEngine and flush can throw, and we don't want to leak permits if it does
+                try {
+                    sourceShard.withEngine(engine -> {
+                        logger.debug("handoff: flushing {} for {} after acquiring permits", sourceShard.shardId(), targetShardId);
+                        // Don't stop copying commits until anything outstanding has been flushed.
+                        engine.flush(/* force */ true, /* waitIfOngoing */ true, ActionListener.wrap(fr -> {
+                            // No commits need to be copied after the flush, but it is possible that some might be if the engine generates
+                            // commits spontaneously even though indexing permits are held. These are harmless to copy.
+                            logger.debug("handoff: stopping commit copy from {} to {}", sourceShard.shardId(), targetShardId);
+                            stopCopyingNewCommits(targetShardId);
+                            activeTargetRequests.remove(sourceShard);
+                            afterSecondFlush.onResponse(permits);
+                        }, e -> {
+                            permits.close();
+                            afterSecondFlush.onFailure(e);
+                        }));
+                        return null;
+                    });
+                } catch (Exception e) {
+                    permits.close();
+                    afterSecondFlush.onFailure(e);
+                }
+            });
         withPermits.addListener(handoffListener);
     }
 
@@ -375,47 +378,31 @@ public class SplitSourceService {
         commitService.markSplitEnding(getSplitSource(targetShardId), targetShardId, false);
     }
 
-    public void afterSplitSourceIndexShardRecovery(
-        IndexShard indexShard,
-        IndexReshardingMetadata reshardingMetadata,
-        ActionListener<Void> listener
-    ) {
-
+    public void splitSourceShardStarted(IndexShard indexShard, IndexReshardingMetadata reshardingMetadata) {
         IndexReshardingState.Split split = reshardingMetadata.getSplit();
 
         if (split.getSourceShardState(indexShard.shardId().getId()) == IndexReshardingState.Split.SourceShardState.DONE) {
             // Nothing to do.
-            listener.onResponse(null);
             return;
         }
 
         /// It is possible that the shard is already STARTED at this point,
         /// see [org.elasticsearch.indices.cluster.IndicesClusterStateService#updateShard].
         /// As such it is possible that we are already accepting requests to start split from targets.
-        /// If any of them already set up tracking of the split process we don't need to do anything here.
-        if (splitCleanup.putIfAbsent(indexShard, new Split(indexShard)) != null) {
-            listener.onResponse(null);
-            return;
-        }
-
-        setupSourceShardCleanup(indexShard, deleteUnownedDelay);
-        listener.onResponse(null);
+        /// If any of them already set up cleanup infrastructure we don't need to do anything here.
+        setupSourceShardStateMachine(indexShard);
     }
 
-    public void setupSourceShardCleanup(IndexShard indexShard, TimeValue deleteUnownedDelay) {
-        var cleanup = new SourceShardCleanupAction(indexShard, deleteUnownedDelay, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                logger.info(Strings.format("Split source shard %s successfully transitioned to DONE", indexShard.shardId()));
+    private void setupSourceShardStateMachine(IndexShard sourceShard) {
+        activeSourceShards.compute(sourceShard, (shard, stateMachine) -> {
+            if (stateMachine == null) {
+                var newMachine = new SourceShardStateMachine(shard, () -> this.activeSourceShards.remove(shard));
+                newMachine.run();
+                return newMachine;
             }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn(Strings.format("Error while tracking split progress in source shard %s: %s", indexShard.shardId(), e));
-            }
+            return stateMachine;
         });
-
-        cleanup.run();
     }
 
     private final class HandoffConvergenceObserver {
@@ -664,140 +651,12 @@ public class SplitSourceService {
         }
     }
 
-    private class SourceShardCleanupAction extends RetryableAction<Void> {
-        private final IndexShard indexShard;
-        private final TimeValue deleteUnownedDelay;
-
-        private SourceShardCleanupAction(IndexShard indexShard, TimeValue deleteUnownedDelay, ActionListener<Void> listener) {
-            super(
-                logger,
-                clusterService.threadPool(),
-                // this logic is not time-sensitive, retry delays do not need to be tight
-                TimeValue.timeValueSeconds(5), // initialDelay
-                TimeValue.timeValueSeconds(30), // maxDelayBound
-                TimeValue.MAX_VALUE, // timeoutValue
-                listener,
-                clusterService.threadPool().generic()
-            );
-            this.indexShard = indexShard;
-            this.deleteUnownedDelay = deleteUnownedDelay;
-        }
-
-        @Override
-        public void tryAction(ActionListener<Void> listener) {
-            // Wait for all target shards to be DONE and once that is true execute source shard logic to move to DONE:
-            // 1. Delete unowned documents
-            // 2. Move to DONE
-            ClusterStateObserver observer = new ClusterStateObserver(
-                clusterService,
-                null,
-                logger,
-                clusterService.threadPool().getThreadContext()
-            );
-
-            var allTargetsAreDonePredicate = new Predicate<ClusterState>() {
-                @Override
-                public boolean test(ClusterState state) {
-                    IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
-                    if (split == null) {
-                        // This is possible if the source shard failed right after setting up this listener,
-                        // recovered and successfully completed the split.
-                        // TODO we can even we see a completely different split here
-                        // TODO is project deletion possible here?
-                        return true;
-                    }
-
-                    if (splitCleanup.containsKey(indexShard) == false) {
-                        // Shard was closed in the meantime.
-                        // It will pick this work up on recovery.
-                        return true;
-                    }
-
-                    if (indexShard.state() != IndexShardState.STARTED) {
-                        // State can be POST_RECOVERY here because split progress tracking is set up during recovery.
-                        // It's possible that the very first cluster state we observe has all targets in DONE but the recovery hasn't
-                        // completed yet.
-                        // We need to be STARTED to properly execute deletion of unowned documents so we'll wait for the cluster state
-                        // change that sets this shard to STARTED.
-                        // CLOSED is also possible if state change is applied to the shard but not yet reflected in the `onGoingSplits`.
-                        // In this case we will eventually observe this change via `onGoingSplits` and handle it properly.
-                        return false;
-                    }
-
-                    return split.targetsDone(indexShard.shardId().getId());
-                }
-            };
-
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
-                    if (split == null) {
-                        return;
-                    }
-
-                    if (splitCleanup.containsKey(indexShard) == false) {
-                        return;
-                    }
-
-                    // All operations in `moveToDone` are idempotent, if a shard/node gets closed we'll simply retry
-                    // once new shard instance recovers.
-                    // Note that this means that `deleteUnownedDelay` is reset every time the source shard recovers
-                    // but at this point all target shards are fully online and so this delay does not have any
-                    // impact on the user.
-                    // It may only delay the next round of split from starting (since we don't allow concurrent splits obviously),
-                    // but executing back-to-back splits is not something we expect too.
-                    clusterService.threadPool()
-                        .scheduleUnlessShuttingDown(
-                            deleteUnownedDelay,
-                            clusterService.threadPool().generic(),
-                            () -> moveToDone(indexShard, listener)
-                        );
-                }
-
-                @Override
-                public void onClusterServiceClose() {
-                    // nothing to do
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    assert false;
-                }
-            }, allTargetsAreDonePredicate);
-        }
-
-        @Override
-        public boolean shouldRetry(Exception e) {
-            if (e instanceof IndexShardClosedException) {
-                // Shard is closed, but it was not reflected in `onGoingSplits`, we'll resume the tracking logic on next recovery.
-                return false;
-            }
-            return true;
-        }
-    }
-
     public void cancelSplits(IndexShard indexShard) {
-        splitCleanup.remove(indexShard);
-    }
-
-    private void moveToDone(IndexShard indexShard, ActionListener<Void> listener) {
-        // Note that a shard can be closed (due to a failure) at any moment during the below flow.
-        // It is not a problem since all operations are idempotent.
-        SubscribableListener.<Void>newForked(l -> reshardIndexService.deleteUnownedDocuments(indexShard.shardId(), l))
-            .<Void>andThen(
-                l -> client.execute(
-                    TransportUpdateSplitSourceShardStateAction.TYPE,
-                    new TransportUpdateSplitSourceShardStateAction.Request(
-                        indexShard.shardId(),
-                        IndexReshardingState.Split.SourceShardState.DONE
-                    ),
-                    l.map(r -> null)
-                )
-
-            )
-            .andThenAccept(ignored -> splitCleanup.remove(indexShard))
-            .addListener(listener);
+        activeTargetRequests.remove(indexShard);
+        var stateMachine = activeSourceShards.remove(indexShard);
+        if (stateMachine != null) {
+            stateMachine.cancel();
+        }
     }
 
     private static IndexReshardingState.Split getSplit(ClusterState state, Index index) {
@@ -842,6 +701,254 @@ public class SplitSourceService {
          */
         public void withPermits(ActionListener<Releasable> listener) {
             permitAcquirer.acquire(listener);
+        }
+    }
+
+    private class SourceShardStateMachine {
+        private final IndexShard indexShard;
+        private final Runnable onCompleted;
+        private final Split split;
+
+        private final AtomicBoolean cancelled;
+
+        private State currentState;
+
+        private SourceShardStateMachine(IndexShard indexShard, Runnable onCompleted) {
+            this.indexShard = indexShard;
+            this.onCompleted = onCompleted;
+
+            this.split = new Split(indexShard);
+            this.cancelled = new AtomicBoolean(false);
+
+            // This is the only starting state that we support for simplicity.
+            // All the operations are idempotent.
+            this.currentState = new State.MonitoringTargetShards();
+        }
+
+        /// Starts the state machine from the current state.
+        void run() {
+            advance(currentState);
+        }
+
+        void cancel() {
+            cancelled.set(true);
+        }
+
+        // It is important to share the instance of `Split` between all target shards - that's how it is designed.
+        // So we keep it inside the state machine since unlike the entries in `activeTargetRequests` there is only one per
+        // source shard.
+        public Split split() {
+            // This should only be used during handoff.
+            assert currentState instanceof State.MonitoringTargetShards;
+
+            return split;
+        }
+
+        private void advance(State newState) {
+            // We always fork to generic here since we get callbacks
+            // from various places like cluster state update threads
+            // and transport threads which we don't want to block.
+            // We only do this in a linear fashion (once the previous state transition logic completed).
+            clusterService.threadPool().generic().submit(() -> advanceInternal(newState));
+        }
+
+        private void advanceInternal(State newState) {
+            validateStateTransition(newState);
+            this.currentState = newState;
+
+            // TODO relax logging once implementation is stable
+            logger.info("Advancing split source shard state machine for shard {} to {}", indexShard.shardId(), newState);
+
+            switch (newState) {
+                case State.MonitoringTargetShards ignored -> {
+                    monitorTargetShardsState();
+                }
+                case State.TargetShardsDone ignored -> {
+                    deleteUnownedData();
+                }
+                case State.CleanupComplete ignored -> {
+                    changeStateToDone();
+                }
+                case State.Done ignored -> {
+                    logger.info(Strings.format("Split source shard %s successfully completed split workflow", indexShard.shardId()));
+
+                    onCompleted.run();
+                }
+                case State.Failed failed -> {
+                    if (cancelled.get()) {
+                        return;
+                    }
+
+                    // TODO relax logging once the feature is stable
+                    logger.info("Failed to complete split source shard cleanup workflow, will retry", failed.exception);
+
+                    // Source shards do not go through recovery during splits.
+                    // As such we don't have a good place to reliably resume this workflow
+                    // and risk stalling the split if a source shard fails and never recovers.
+                    // We would like to play safe here and try to make progress.
+                    // So with that in mind we will retry our idempotent workflow on any failure.
+                    // There is no specific failure that this logic targets (at the time of writing),
+                    // this is purely a "what if".
+                    // Note that this is not recursive and cheap to do on the scheduler thread
+                    // since we submit to generic thread pool inside `advance`.
+                    clusterService.threadPool()
+                        .schedule(
+                            () -> advance(new State.MonitoringTargetShards()),
+                            // Prevent from spinning as fast as possible.
+                            TimeValue.timeValueSeconds(10),
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        );
+                }
+            }
+        }
+
+        private void validateStateTransition(State newState) {
+            var validCurrentStates = newStateToValidCurrentStates.get(newState.getClass());
+            if (validCurrentStates.contains(currentState.getClass()) == false) {
+                // It's possible that this exception is not observed by anyone since we are inside a runnable on generic thread pool.
+                // So we log as well.
+                var message = String.format(Locale.ROOT, "Unexpected state transition %s -> %s", currentState, newState);
+                assert false : message;
+                logger.error(message);
+                throw new IllegalStateException(message);
+            }
+        }
+
+        private static final Map<Class<? extends State>, Set<Class<? extends State>>> newStateToValidCurrentStates = new HashMap<>() {
+            {
+                // Can go Failed -> MonitoringTargetShards due to retries.
+                put(State.MonitoringTargetShards.class, Set.of(State.MonitoringTargetShards.class, State.Failed.class));
+                put(State.TargetShardsDone.class, Set.of(State.MonitoringTargetShards.class));
+                put(State.CleanupComplete.class, Set.of(State.TargetShardsDone.class));
+                put(State.Done.class, Set.of(State.CleanupComplete.class));
+                put(State.Failed.class, Set.of(State.TargetShardsDone.class, State.CleanupComplete.class));
+            }
+        };
+
+        sealed interface State permits State.MonitoringTargetShards, State.TargetShardsDone, State.CleanupComplete, State.Done,
+            State.Failed {
+            record MonitoringTargetShards() implements State {}
+
+            record TargetShardsDone() implements State {}
+
+            record CleanupComplete() implements State {}
+
+            record Done() implements State {}
+
+            record Failed(Exception exception) implements State {}
+        }
+
+        private void monitorTargetShardsState() {
+            ClusterStateObserver observer = new ClusterStateObserver(
+                clusterService,
+                null,
+                logger,
+                clusterService.threadPool().getThreadContext()
+            );
+
+            var allTargetsAreDonePredicate = new Predicate<ClusterState>() {
+                @Override
+                public boolean test(ClusterState state) {
+                    if (cancelled.get()) {
+                        return true;
+                    }
+
+                    IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
+                    if (split == null) {
+                        // This is possible if the source shard failed right after setting up this listener,
+                        // another instance recovered and successfully completed the split.
+                        // TODO we can even we see a completely different split here in theory
+                        return true;
+                    }
+
+                    if (indexShard.state() != IndexShardState.STARTED) {
+                        // State can be POST_RECOVERY here because split progress tracking is set up during recovery.
+                        // It's possible that the very first cluster state we observe has all targets in DONE but the recovery hasn't
+                        // completed yet.
+                        // We need to be STARTED to properly execute deletion of unowned documents so we'll wait for the cluster state
+                        // change that sets this shard to STARTED.
+                        // CLOSED is also possible if state change is applied to the shard but not yet reflected in the `cancelled`.
+                        // In this case we will eventually observe this change via `cancelled` and handle it properly.
+                        return false;
+                    }
+
+                    return split.targetsDone(indexShard.shardId().getId());
+                }
+            };
+
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    if (cancelled.get()) {
+                        return;
+                    }
+
+                    // See the explanation in the predicate.
+                    // If there is no split metadata in the cluster state, there is no reason to do anything else here.
+                    // TODO should we just let the idempotent flow complete here?
+                    IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
+                    if (split == null) {
+                        return;
+                    }
+
+                    advance(new State.TargetShardsDone());
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    // nothing to do
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    // there is no timeout
+                    assert false;
+                }
+            }, allTargetsAreDonePredicate);
+        }
+
+        private void deleteUnownedData() {
+            /// This code already runs on generic thread pool.
+            /// We use `scheduleUnlessShuttingDown` just to implement a delay.
+            /// See [RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD] for the explanation of this delay.
+            clusterService.threadPool()
+                .scheduleUnlessShuttingDown(
+                    deleteUnownedDelay,
+                    clusterService.threadPool().generic(),
+                    () -> reshardIndexService.deleteUnownedDocuments(
+                        indexShard.shardId(),
+                        new StateAdvancingListener<>(new State.CleanupComplete())
+                    )
+                );
+        }
+
+        private void changeStateToDone() {
+            client.execute(
+                TransportUpdateSplitSourceShardStateAction.TYPE,
+                new TransportUpdateSplitSourceShardStateAction.Request(
+                    indexShard.shardId(),
+                    IndexReshardingState.Split.SourceShardState.DONE
+                ),
+                new StateAdvancingListener<>(new State.Done())
+            );
+        }
+
+        private class StateAdvancingListener<T> implements ActionListener<T> {
+            private final State nextState;
+
+            private StateAdvancingListener(State nextState) {
+                this.nextState = nextState;
+            }
+
+            @Override
+            public void onResponse(T t) {
+                advance(nextState);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                advance(new State.Failed(e));
+            }
         }
     }
 }

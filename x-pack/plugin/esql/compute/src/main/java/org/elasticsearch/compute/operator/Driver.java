@@ -175,7 +175,7 @@ public class Driver implements Releasable, Describable {
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier nowSupplier) {
-        updateStatus(0, 0, DriverStatus.Status.RUNNING, "driver running", false);
+        updateStatus(0, 0, DriverStatus.Status.RUNNING, "driver running");
         long maxTimeNanos = maxTime.nanos();
         // Start time, used to stop the calculations after maxTime has passed.
         long startTime = nowSupplier.getAsLong();
@@ -218,56 +218,26 @@ public class Driver implements Releasable, Describable {
 
             long now = nowSupplier.getAsLong();
             if (isBlocked.listener().isDone() == false) {
-                updateStatus(
-                    now - lastStatusUpdateTime,
-                    iterationsSinceLastStatusUpdate,
-                    DriverStatus.Status.ASYNC,
-                    isBlocked.reason(),
-                    false
-                );
+                updateStatus(now - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.ASYNC, isBlocked.reason());
                 return isBlocked.listener();
             }
             if (isFinished()) {
                 finishNanos = now;
-                updateStatus(
-                    finishNanos - lastStatusUpdateTime,
-                    iterationsSinceLastStatusUpdate,
-                    DriverStatus.Status.DONE,
-                    "driver done",
-                    true
-                );
+                updateStatus(finishNanos - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.DONE, "driver done");
                 driverContext.finish();
                 Releasables.close(releasable, driverContext.getSnapshot());
                 return Operator.NOT_BLOCKED.listener();
             }
             if (totalIterationsThisRun >= maxIterations) {
-                updateStatus(
-                    now - lastStatusUpdateTime,
-                    iterationsSinceLastStatusUpdate,
-                    DriverStatus.Status.WAITING,
-                    "driver iterations",
-                    false
-                );
+                updateStatus(now - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.WAITING, "driver iterations");
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now - startTime >= maxTimeNanos) {
-                updateStatus(
-                    now - lastStatusUpdateTime,
-                    iterationsSinceLastStatusUpdate,
-                    DriverStatus.Status.WAITING,
-                    "driver time",
-                    false
-                );
+                updateStatus(now - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.WAITING, "driver time");
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now > nextStatus) {
-                updateStatus(
-                    now - lastStatusUpdateTime,
-                    iterationsSinceLastStatusUpdate,
-                    DriverStatus.Status.RUNNING,
-                    "driver running",
-                    true
-                );
+                updateStatus(now - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.RUNNING, "driver running");
                 iterationsSinceLastStatusUpdate = 0;
                 lastStatusUpdateTime = now;
                 nextStatus = now + statusNanos;
@@ -427,7 +397,7 @@ public class Driver implements Releasable, Describable {
     ) {
         driver.completionListener.addListener(listener);
         if (driver.started.compareAndSet(false, true)) {
-            driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting", true);
+            driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting");
             initializeEarlyTerminationChecker(driver);
             schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener);
         }
@@ -586,18 +556,8 @@ public class Driver implements Releasable, Describable {
      * @param extraCpuNanos how many cpu nanoseconds to add to the previous status
      * @param extraIterations how many iterations to add to the previous status
      * @param status the status of the overall driver request
-     * @param refreshOperatorStatuses whether to recompute operator descriptions and statuses.
-     *        Pass {@code true} for periodic and terminal updates; {@code false} for frequent
-     *        state transitions (ASYNC, WAITING, RUNNING) to avoid the cost of calling
-     *        {@code toString()} on every operator on every transition.
      */
-    private void updateStatus(
-        long extraCpuNanos,
-        int extraIterations,
-        DriverStatus.Status status,
-        String reason,
-        boolean refreshOperatorStatuses
-    ) {
+    private void updateStatus(long extraCpuNanos, int extraIterations, DriverStatus.Status status, String reason) {
         this.status.getAndUpdate(prev -> {
             long now = System.currentTimeMillis();
             DriverSleeps sleeps = prev.sleeps();
@@ -625,10 +585,6 @@ public class Driver implements Releasable, Describable {
                 }
             }
 
-            List<OperatorStatus> operatorStatuses = refreshOperatorStatuses
-                ? activeOperators.stream().map(op -> new OperatorStatus(op.toString(), op.status())).toList()
-                : prev.activeOperators();
-
             return new DriverStatus(
                 sessionId,
                 shortDescription,
@@ -640,7 +596,7 @@ public class Driver implements Releasable, Describable {
                 prev.iterations() + extraIterations,
                 status,
                 List.copyOf(statusOfCompletedOperators),
-                operatorStatuses,
+                activeOperators.stream().map(op -> new OperatorStatus(op.toString(), op.status())).toList(),
                 sleeps
             );
         });

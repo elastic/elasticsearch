@@ -6,7 +6,7 @@ navigation_title: "GPU vector indexing"
 
 # GPU accelerated vector indexing
 ```{applies_to}
-stack: preview 9.3
+stack: preview 9.3, ga 9.4
 ```
 
 {{es}} can use GPU acceleration to significantly speed up the indexing of
@@ -83,6 +83,46 @@ docker run \
   --gpus all \
   --rm -it es-gpu
 ```
+
+## Monitoring
+```{applies_to}
+stack: 9.3.2
+```
+
+Use the `GET _xpack/usage` API to monitor GPU vector indexing status and usage
+across all nodes in the cluster:
+
+```console
+GET _xpack/usage?filter_path=gpu_vector_indexing
+```
+% TEST[skip:Requires GPU hardware]
+
+```console-result
+{
+  "gpu_vector_indexing": {
+    "available": true,
+    "enabled": true,
+    "index_build_count": 30,
+    "nodes_with_gpu": 3,
+    "nodes": [
+      { "type": "NVIDIA L4", "memory_in_bytes": 24000000000,
+        "enabled": true, "index_build_count": 10 },
+      { "type": "NVIDIA L4", "memory_in_bytes": 24000000000,
+        "enabled": true, "index_build_count": 10 },
+      { "type": "NVIDIA A100", "memory_in_bytes": 80000000000,
+        "enabled": true, "index_build_count": 10 }
+    ]
+  }
+}
+```
+
+* `available`: Whether the current license permits GPU indexing.
+* `enabled`: Whether at least one node has GPU hardware configured and has not
+  disabled it via `vectors.indexing.use_gpu=false`.
+* `index_build_count`: Total number of GPU index builds across the cluster.
+* `nodes_with_gpu`: Number of data nodes with GPU support.
+* `nodes[]`: Per-node GPU details including type, memory, enabled status, and
+  build count.
 
 ## Troubleshooting
 By default, {{es}} uses GPU indexing for supported vector types if a

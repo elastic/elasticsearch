@@ -171,7 +171,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.PROJECT_TYPE;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.cluster.ESAllocationTestCase.createShardsAllocator;
 import static org.elasticsearch.cluster.ESAllocationTestCase.randomAllocationDeciders;
@@ -366,7 +365,6 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
         protected Set<Setting<?>> clusterSettings() {
             final var res = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             res.addAll(new ServerlessSharedSettingsExtension().getSettings());
-            res.add(StatelessIndexSettingProvider.DEFAULT_NUMBER_OF_SHARDS_FOR_REGULAR_INDICES_SETTING);
             res.add(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING);
             res.add(SearchCommitPrefetcherDynamicSettings.PREFETCH_SEARCH_IDLE_TIME_SETTING);
             res.add(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING);
@@ -460,8 +458,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
             @Override
             protected Set<IndexSettingProvider> getIndexSettingProviders() {
-                final var statelessIndexSettingProvider = new StatelessIndexSettingProvider(PROJECT_TYPE.get(settings));
-                statelessIndexSettingProvider.initialize(clusterService(), indexNameExpressionResolver);
+                final var statelessIndexSettingProvider = new StatelessIndexSettingProvider();
                 return Set.of(statelessIndexSettingProvider);
             }
 

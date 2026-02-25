@@ -1082,7 +1082,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessPluginIntegTest
         );
         startSearchNode();
         ensureStableCluster(2);
-        var defaultNoOfShards = projectType.getNumberOfShards();
+        var defaultNoOfShards = 1; // TODO: change this when moving to serverless
         logger.info("--> Default No. of shards: {}", defaultNoOfShards);
         int noOfIndices = randomIntBetween(5, 10);
         logger.info("--> No. of indices: {}", noOfIndices);

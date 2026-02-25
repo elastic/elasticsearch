@@ -264,14 +264,14 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             long preconditionerLength = ivfCentroids.getFilePointer() - preconditionerOffset;
             // write meta file (with segment fingerprint for allocation when version supports it)
             float[][] anchors = SegmentFingerprintAnchors.getAnchors(
-                fieldWriter.fieldInfo.getVectorDimension(),
-                fieldWriter.fieldInfo.getVectorSimilarityFunction()
+                fieldWriter.fieldInfo.getVectorDimension()
             );
             float[] segmentFingerprint = writeVersion >= ESNextDiskBBQVectorsFormat.VERSION_CLUSTER_FINGERPRINTS_RADIUS
                 ? SegmentFingerprintAnchors.computeSegmentFingerprint(
                     centroidAssignments.centroids(),
                     fieldWriter.fieldInfo.getVectorSimilarityFunction(),
-                    anchors
+                    anchors,
+                    fieldWriter.fieldInfo.getVectorDimension()
                 )
                 : null;
             float[] clusterRadiusSummary = getClusterRadiusSummary(fieldWriter.fieldInfo, centroidAssignments, floatVectorValues);
@@ -357,7 +357,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         // write fingerprint before doWriteMeta so format-specific meta follows it
         if (writeVersion >= ESNextDiskBBQVectorsFormat.VERSION_CLUSTER_FINGERPRINTS_RADIUS
             && segmentFingerprint != null
-            && segmentFingerprint.length == SegmentFingerprintAnchors.ancoraDirections) {
+            && segmentFingerprint.length == SegmentFingerprintAnchors.ancoraDirections(field.getVectorDimension())) {
             for (float v : segmentFingerprint) {
                 ivfMeta.writeInt(Float.floatToIntBits(v));
             }
@@ -526,14 +526,14 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                     long preconditionerLength = ivfCentroids.getFilePointer() - preconditionerOffset;
                     // write meta (with segment fingerprint for allocation when version supports it)
                     float[][] mergeAnchors = SegmentFingerprintAnchors.getAnchors(
-                        fieldInfo.getVectorDimension(),
-                        fieldInfo.getVectorSimilarityFunction()
+                        fieldInfo.getVectorDimension()
                     );
                     float[] mergeSegmentFingerprint = writeVersion >= ESNextDiskBBQVectorsFormat.VERSION_CLUSTER_FINGERPRINTS_RADIUS
                         ? SegmentFingerprintAnchors.computeSegmentFingerprint(
                             centroidSupplier,
                             fieldInfo.getVectorSimilarityFunction(),
-                            mergeAnchors
+                            mergeAnchors,
+                            fieldInfo.getVectorDimension()
                         )
                         : null;
                     float[] mergeClusterRadiusSummary = getClusterRadiusSummary(fieldInfo, centroidAssignments, floatVectorValues);

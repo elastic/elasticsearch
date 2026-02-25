@@ -360,14 +360,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                         float[] segmentFp = reader.getSegmentFingerprint(fieldInfo);
                         if (segmentFp != null) {
                             if (queryFingerprint == null) {
-                                anchors = SegmentFingerprintAnchors.getAnchors(fieldInfo.getVectorDimension(), similarityFunction);
+                                anchors = SegmentFingerprintAnchors.getAnchors(fieldInfo.getVectorDimension());
                                 queryFingerprint = SegmentFingerprintAnchors.computeQueryFingerprint(
                                     queryVector,
                                     similarityFunction,
                                     anchors
                                 );
                             }
-                            affinityScore = SegmentFingerprintAnchors.affinityFromFingerprints(queryFingerprint, segmentFp);
+                            affinityScore = SegmentFingerprintAnchors.affinityFromFingerprints(queryFingerprint, segmentFp, queryVector.length);
                         } else {
                             affinityScore = Float.NaN;
                         }

@@ -204,8 +204,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
         float[] segmentFingerprint = null;
         if (centroidLength > 0) {
-            segmentFingerprint = new float[SegmentFingerprintAnchors.ancoraDirections];
-            for (int i = 0; i < SegmentFingerprintAnchors.ancoraDirections; i++) {
+            segmentFingerprint = new float[SegmentFingerprintAnchors.ancoraDirections(info.getVectorDimension())];
+            for (int i = 0; i < segmentFingerprint.length; i++) {
                 segmentFingerprint[i] = Float.intBitsToFloat(input.readInt());
             }
         }

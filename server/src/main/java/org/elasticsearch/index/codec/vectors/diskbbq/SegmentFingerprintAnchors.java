@@ -24,8 +24,6 @@ import java.util.Random;
  */
 public final class SegmentFingerprintAnchors {
 
-    public static final int ancoraDirections = 8;
-
     private static final long SEED = 0x9E3779B97F4A7C15L;
 
     private SegmentFingerprintAnchors() {}
@@ -33,7 +31,8 @@ public final class SegmentFingerprintAnchors {
     /**
      * Returns K unit-norm anchor vectors for the given dimension (deterministic).
      */
-    public static float[][] getAnchors(int dimension, VectorSimilarityFunction similarityFunction) {
+    public static float[][] getAnchors(int dimension) {
+        int ancoraDirections = ancoraDirections(dimension);
         Random rng = new Random(SEED + dimension * 31L);
         float[][] anchors = new float[ancoraDirections][dimension];
         for (int j = 0; j < ancoraDirections; j++) {
@@ -51,8 +50,10 @@ public final class SegmentFingerprintAnchors {
     public static float[] computeSegmentFingerprint(
         float[][] centroids,
         VectorSimilarityFunction similarityFunction,
-        float[][] anchors
+        float[][] anchors,
+        int dimension
     ) {
+        int ancoraDirections = ancoraDirections(dimension);
         float[] fp = new float[ancoraDirections];
         for (int j = 0; j < ancoraDirections; j++) {
             float maxSim = Float.NEGATIVE_INFINITY;
@@ -73,8 +74,10 @@ public final class SegmentFingerprintAnchors {
     public static float[] computeSegmentFingerprint(
         CentroidSupplier centroidSupplier,
         VectorSimilarityFunction similarityFunction,
-        float[][] anchors
+        float[][] anchors,
+        int dimension
     ) throws IOException {
+        int ancoraDirections = ancoraDirections(dimension);
         int numCentroids = centroidSupplier.size();
         float[] fp = new float[ancoraDirections];
         for (int j = 0; j < ancoraDirections; j++) {
@@ -93,11 +96,8 @@ public final class SegmentFingerprintAnchors {
     /**
      * Compute query fingerprint: similarity of query to each anchor.
      */
-    public static float[] computeQueryFingerprint(
-        float[] queryVector,
-        VectorSimilarityFunction similarityFunction,
-        float[][] anchors
-    ) {
+    public static float[] computeQueryFingerprint(float[] queryVector, VectorSimilarityFunction similarityFunction, float[][] anchors) {
+        int ancoraDirections = ancoraDirections(queryVector.length);
         float[] fp = new float[ancoraDirections];
         for (int j = 0; j < ancoraDirections; j++) {
             fp[j] = similarityFunction.compare(queryVector, anchors[j]);
@@ -108,12 +108,17 @@ public final class SegmentFingerprintAnchors {
     /**
      * Combine query and segment fingerprints into a single affinity score (e.g. dot product).
      */
-    public static float affinityFromFingerprints(float[] queryFp, float[] segmentFp) {
+    public static float affinityFromFingerprints(float[] queryFp, float[] segmentFp, int dimension) {
+        int ancoraDirections = ancoraDirections(dimension);
         assert queryFp.length == segmentFp.length && queryFp.length == ancoraDirections;
         float dot = 0f;
         for (int j = 0; j < ancoraDirections; j++) {
             dot += queryFp[j] * segmentFp[j];
         }
         return Math.max(0f, dot);
+    }
+
+    public static int ancoraDirections(int vectorDimension) {
+        return (int) Math.log(vectorDimension);
     }
 }

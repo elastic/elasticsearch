@@ -22,6 +22,11 @@ class ComputeBlockLoaderFactory extends DelegatingBlockLoaderFactory implements 
     public Block constantNulls(int count) {
         if (nullBlock == null) {
             nullBlock = factory.newConstantNullBlock(count);
+        } else {
+            if (nullBlock.getPositionCount() != count) {
+                nullBlock.close();
+                nullBlock = factory.newConstantNullBlock(count);
+            }
         }
         nullBlock.incRef();
         return nullBlock;

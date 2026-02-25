@@ -142,7 +142,7 @@ public class PublicationTransportHandler {
                     incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
                     assert input.read() == -1;
                 } catch (Exception e) {
-                    logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                    logger.error("unexpected error while deserializing an incoming cluster state", e);
                     assert false : e;
                     throw e;
                 }
@@ -202,7 +202,7 @@ public class PublicationTransportHandler {
             incompatibleClusterStateDiffReceivedCount.incrementAndGet();
             throw e;
         } catch (Exception e) {
-            logger.warn("unexpected error while deserializing an incoming cluster state", e);
+            logger.error("unexpected error while deserializing an incoming cluster state", e);
             assert false : e;
             throw e;
         }
@@ -458,6 +458,7 @@ public class PublicationTransportHandler {
 
             // acquire a ref to the context just in case we need to try again with the full cluster state
             if (tryIncRef() == false) {
+                logger.error("publication context released before transmission");
                 assert false;
                 listener.onFailure(new IllegalStateException("publication context released before transmission"));
                 return;
@@ -489,6 +490,7 @@ public class PublicationTransportHandler {
         ) {
             assert refCount() > 0;
             if (bytes.tryIncRef() == false) {
+                logger.error("serialized cluster state released before transmission");
                 assert false;
                 listener.onFailure(new IllegalStateException("serialized cluster state released before transmission"));
                 return;

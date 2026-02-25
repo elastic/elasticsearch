@@ -108,4 +108,13 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     public RankDocShardInfo getRankDocks() {
         return this.rankDocs;
     }
+
+    @Override
+    public String getDescription() {
+        StringBuilder sb = new StringBuilder(super.getDescription());
+        if (shardSearchRequest != null) {
+            sb.append(", shardId[").append(shardSearchRequest.shardId()).append(']');
+        }
+        return sb.toString();
+    }
 }

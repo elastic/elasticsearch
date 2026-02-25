@@ -38,6 +38,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
@@ -72,6 +73,8 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_COUNT_THRESHOLD;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -85,17 +88,22 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
     protected final Codec codec = new Elasticsearch92Lucene103Codec() {
 
-        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
-            ESTestCase.randomIntBetween(2, 4096),
-            ESTestCase.randomIntBetween(1, 512),
-            random().nextBoolean(),
-            randomBinaryCompressionMode(),
-            true
-        );
+        final DocValuesFormat docValuesFormat = randomBinaryCompressionMode();
 
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
             return docValuesFormat;
+        }
+
+        static DocValuesFormat randomBinaryCompressionMode() {
+            return new ES819Version3TSDBDocValuesFormat(
+                ESTestCase.randomIntBetween(2, 4096),
+                ESTestCase.randomIntBetween(1, 512),
+                random().nextBoolean(),
+                BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+                true,
+                randomFrom(NUMERIC_LARGE_BLOCK_SHIFT, NUMERIC_BLOCK_SHIFT)
+            );
         }
     };
 
@@ -127,7 +135,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     }
 
     public void testBinaryCompressionEnabled() {
-        ES819TSDBDocValuesFormat docValueFormat = new ES819TSDBDocValuesFormat();
+        ES819TSDBDocValuesFormat docValueFormat = new ES819Version3TSDBDocValuesFormat();
         assertThat(docValueFormat.binaryDVCompressionMode, equalTo(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));
     }
 
@@ -722,10 +730,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         String hostnameField = "host.name";
         Supplier<IndexWriterConfig> indexConfigWithRandomDVFormat = () -> {
             IndexWriterConfig config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
-            DocValuesFormat dvFormat = switch (random().nextInt(3)) {
+            DocValuesFormat dvFormat = switch (random().nextInt(4)) {
                 case 0 -> new ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat(random().nextInt(4, 16));
                 case 1 -> new ES819TSDBDocValuesFormat();
-                case 2 -> new Lucene90DocValuesFormat();
+                case 2 -> new ES819Version3TSDBDocValuesFormat();
+                case 3 -> new Lucene90DocValuesFormat();
                 default -> throw new AssertionError("unknown option");
             };
             config.setCodec(new Elasticsearch900Lucene101Codec() {
@@ -904,7 +913,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
         var config = getTimeSeriesIndexWriterConfig(null, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            List<BytesRef> binaryFixedValues = new ArrayList<>();
             List<BytesRef> binaryVariableValues = new ArrayList<>();
             int numDocs = 256 + random().nextInt(8096);
 
@@ -914,9 +922,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 // Index sorting doesn't work with NumericDocValuesField:
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
 
-                binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
                 binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
-                d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFixedLength))));
                 d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
 
                 iw.addDocument(d);
@@ -959,7 +966,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
         var config = getTimeSeriesIndexWriterConfig(null, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            List<BytesRef> binaryFixedValues = new ArrayList<>();
             List<BytesRef> binaryVariableValues = new ArrayList<>();
             int numDocs = 256 + random().nextInt(8096);
 
@@ -970,12 +976,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
 
                 if (randomBoolean()) {
-                    binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
                     binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
-                    d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                    d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFixedLength))));
                     d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
                 } else {
-                    binaryFixedValues.add(null);
                     binaryVariableValues.add(null);
                 }
 
@@ -994,10 +998,19 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     var binaryFixedDV = getES819BinaryValues(leaf.reader(), binaryFixedField);
                     var binaryVariableDV = getES819BinaryValues(leaf.reader(), binaryVariableField);
 
+                    int maxDoc = leaf.reader().maxDoc();
+                    // No docs in this segment had these fields, so doc values are null
+                    if (binaryFixedDV == null) {
+                        assertNull(binaryVariableDV);
+                        for (int i = 0; i < maxDoc; i++) {
+                            assertNull(binaryVariableValues.removeLast());
+                        }
+                        continue;
+                    }
+
                     NumericDocValues fixedLengthReader = binaryFixedDV.toLengthValues();
                     NumericDocValues variableLengthReader = binaryVariableDV.toLengthValues();
 
-                    int maxDoc = leaf.reader().maxDoc();
                     for (int i = 0; i < maxDoc; i++) {
                         BytesRef expectedVariableLength = binaryVariableValues.removeLast();
                         if (expectedVariableLength == null) {
@@ -1025,7 +1038,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
         var config = getTimeSeriesIndexWriterConfig(null, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            List<BytesRef> binaryFixedValues = new ArrayList<>();
             List<BytesRef> binaryVariableValues = new ArrayList<>();
             int numDocs = 256 + random().nextInt(8096);
 
@@ -1035,9 +1047,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 // Index sorting doesn't work with NumericDocValuesField:
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
 
-                binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
                 binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
-                d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFixedLength))));
                 d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
 
                 iw.addDocument(d);
@@ -1150,7 +1161,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
         var config = getTimeSeriesIndexWriterConfig(null, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            List<BytesRef> binaryFixedValues = new ArrayList<>();
             List<BytesRef> binaryVariableValues = new ArrayList<>();
             int numDocs = 256 + random().nextInt(8096);
 
@@ -1161,12 +1171,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
 
                 if (randomBoolean()) {
-                    binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
                     binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
-                    d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                    d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFixedLength))));
                     d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
                 } else {
-                    binaryFixedValues.add(null);
                     binaryVariableValues.add(null);
                 }
 
@@ -2031,7 +2039,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         config.setIndexSort(new Sort(new SortField(primaryField, SortField.Type.STRING, false)));
         config.setMergePolicy(new LogByteSizeMergePolicy());
         final Codec codec = new Elasticsearch92Lucene103Codec() {
-            final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
+            final ES819TSDBDocValuesFormat docValuesFormat = new ES819Version3TSDBDocValuesFormat(
                 randomIntBetween(2, 4096),
                 1, // always enable range-encode
                 random().nextBoolean(),
@@ -2074,17 +2082,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 var factory = TestBlock.factory();
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     for (LeafReaderContext leaf : reader.leaves()) {
-                        BlockLoader.Docs docs = new BlockLoader.Docs() {
-                            @Override
-                            public int count() {
-                                return leaf.reader().maxDoc();
-                            }
-
-                            @Override
-                            public int get(int i) {
-                                return i;
-                            }
-                        };
+                        BlockLoader.Docs docs = TestBlock.docs(leaf);
                         var idReader = ESTestCase.asInstanceOf(OptionalColumnAtATimeReader.class, leaf.reader().getNumericDocValues("id"));
                         TestBlock idBlock = (TestBlock) idReader.tryRead(factory, docs, 0, false, null, false, false);
                         assertNotNull(idBlock);
@@ -2151,6 +2149,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                     @Override
                                     public int get(int docId) {
                                         return docId;
+                                    }
+
+                                    @Override
+                                    public boolean mayContainDuplicates() {
+                                        return false;
                                     }
                                 }, start);
                                 assertNotNull(hostBlock);
@@ -2240,6 +2243,75 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
                         timestamp >= lowerBound && timestamp < upperBound
                     );
+                }
+            }
+        }
+    }
+
+    public void testTryReadReturnsNullWithMayContainDuplicates() throws Exception {
+        final String timestampField = "@timestamp";
+        final String denseNumericField = "dense_numeric";
+        final String binaryFixedField = "binary_fixed";
+        final String binaryVariableField = "binary_variable";
+        final String sortedField = "sorted_field";
+        final int binaryFixedLength = randomIntBetween(1, 20);
+        final int binaryVariableMaxLength = randomIntBetween(1, 20);
+        long currentTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int numDocs = 256 + random().nextInt(256);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
+                d.add(new SortedNumericDocValuesField(denseNumericField, random().nextLong()));
+                d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFixedLength))));
+                d.add(new BinaryDocValuesField(binaryVariableField, new BytesRef(randomAlphaOfLengthBetween(0, binaryVariableMaxLength))));
+                d.add(new SortedDocValuesField(sortedField, new BytesRef(randomAlphaOfLengthBetween(1, 10))));
+                iw.addDocument(d);
+                currentTimestamp += 1000L;
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            var factory = TestBlock.factory();
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().get(0).reader();
+                int maxDoc = leafReader.maxDoc();
+                var docs = TestBlock.docs(IntStream.range(0, maxDoc).toArray());
+                var docsWithDups = TestBlock.docs(
+                    IntStream.concat(IntStream.range(0, maxDoc), IntStream.of(between(0, maxDoc - 1))).sorted().toArray()
+                );
+
+                {
+                    // Dense numeric
+                    var dv = getBaseDenseNumericValues(leafReader, denseNumericField);
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    dv = getBaseDenseNumericValues(leafReader, denseNumericField);
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
+                }
+                {
+                    // Dense binary fixed-length
+                    var dv = getES819BinaryValues(leafReader, binaryFixedField);
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    dv = getES819BinaryValues(leafReader, binaryFixedField);
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
+                }
+                {
+                    // Dense binary variable-length
+                    var dv = getES819BinaryValues(leafReader, binaryVariableField);
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    dv = getES819BinaryValues(leafReader, binaryVariableField);
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
+                }
+                {
+                    // Sorted doc values
+                    var dv = getBaseSortedDocValues(leafReader, sortedField);
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    dv = getBaseSortedDocValues(leafReader, sortedField);
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
                 }
             }
         }
@@ -2374,6 +2446,117 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
+    public void testOptionalLengthReaderLengthIterator() throws Exception {
+        final String timestampField = "@timestamp";
+        final String binaryField = "binary_field";
+        long currentTimestamp = 1704067200000L;
+
+        // Use a few distinct lengths so that we get both matching and non-matching docs,
+        // and consecutive runs of matching docs.
+        final int[] possibleLengths = new int[] { 5, 10, 20 };
+        final int targetLength = possibleLengths[randomIntBetween(0, possibleLengths.length - 1)];
+
+        // lengthIterator is only supported on all binary doc values implementation,
+        // and so randomize between compressed and uncompressed implementation to test both implementations.
+        var dvFormat = new ES819Version3TSDBDocValuesFormat(
+            ESTestCase.randomIntBetween(2, 4096),
+            ESTestCase.randomIntBetween(1, 512),
+            random().nextBoolean(),
+            randomBoolean() ? BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1 : BinaryDVCompressionMode.NO_COMPRESS,
+            randomBoolean(),
+            NUMERIC_LARGE_BLOCK_SHIFT
+        );
+        var compressedCodec = TestUtil.alwaysDocValuesFormat(dvFormat);
+
+        var config = new IndexWriterConfig();
+        config.setIndexSort(new Sort(new SortedNumericSortField(timestampField, SortField.Type.LONG, true)));
+        config.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
+        config.setMergePolicy(new LogByteSizeMergePolicy());
+        config.setCodec(compressedCodec);
+
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int numDocs = 256 + random().nextInt(4096);
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
+
+                int length = possibleLengths[random().nextInt(possibleLengths.length)];
+                d.add(new BinaryDocValuesField(binaryField, new BytesRef(randomAlphaOfLength(length))));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                currentTimestamp += 1000L;
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leafReader = reader.leaves().get(0).reader();
+
+                // Build expected set of matching doc IDs by reading actual binary values
+                // (avoids issues with doc ID reordering from index sort)
+                Set<Integer> expectedDocIds = new HashSet<>();
+                {
+                    var refDV = getES819BinaryValues(leafReader, binaryField);
+                    for (int docId = 0; docId < numDocs; docId++) {
+                        assertTrue(refDV.advanceExact(docId));
+                        if (refDV.binaryValue().length == targetLength) {
+                            expectedDocIds.add(docId);
+                        }
+                    }
+                }
+
+                // Test lengthIterator
+                var binaryDV = getES819BinaryValues(leafReader, binaryField);
+                DocIdSetIterator lengthIter = binaryDV.lengthIterator(targetLength);
+                assertNotNull(lengthIter);
+                assertEquals(-1, lengthIter.docID());
+
+                // Collect all docs from the iterator and verify they match expected
+                Set<Integer> actualDocIds = new HashSet<>();
+                int doc;
+                while ((doc = lengthIter.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    assertTrue("Iterator returned unexpected doc " + doc, expectedDocIds.contains(doc));
+                    actualDocIds.add(doc);
+
+                    // Validate docIDRunEnd contract
+                    int runEnd = lengthIter.docIDRunEnd();
+                    assertTrue("docIDRunEnd (" + runEnd + ") must be > docID (" + doc + ")", runEnd > doc);
+
+                    // All docs in [docID, docIDRunEnd) must match
+                    for (int d = doc; d < runEnd; d++) {
+                        assertTrue("doc " + d + " in run [" + doc + ", " + runEnd + ") should match", expectedDocIds.contains(d));
+                    }
+
+                    // Advance through the run to verify advance within run works correctly
+                    for (int d = doc + 1; d < runEnd; d++) {
+                        assertEquals(d, lengthIter.advance(d));
+                        actualDocIds.add(d);
+                        assertEquals("docIDRunEnd should be stable within a run", runEnd, lengthIter.docIDRunEnd());
+                    }
+                }
+
+                assertEquals("Iterator should return exactly the matching docs", expectedDocIds, actualDocIds);
+
+                // Test advance past existing docs
+                binaryDV = getES819BinaryValues(leafReader, binaryField);
+                lengthIter = binaryDV.lengthIterator(targetLength);
+                assertNotNull(lengthIter);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, lengthIter.advance(numDocs));
+
+                // Test with a length that no doc has — iterator should be immediately exhausted
+                binaryDV = getES819BinaryValues(leafReader, binaryField);
+                lengthIter = binaryDV.lengthIterator(9999);
+                assertNotNull(lengthIter);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, lengthIter.nextDoc());
+            }
+        }
+    }
+
     private void validateRunEnd(DocIdSetIterator iterator) throws IOException {
         int runCount = 0;
         while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
@@ -2417,7 +2600,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     }
 
     public static int randomNumericBlockSize() {
-        return random().nextBoolean() ? ES819TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT : ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+        return random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
     }
 
     abstract static class BytesRefBuilderStub implements BlockLoader.BytesRefBuilder {

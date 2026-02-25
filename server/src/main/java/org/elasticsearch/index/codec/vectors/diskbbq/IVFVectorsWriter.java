@@ -359,7 +359,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             ivfMeta.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(globalCentroid, globalCentroid)));
         }
         // Write fingerprint before doWriteMeta so format-specific meta (e.g. ESNext bulkSize/quantEncoding) follows it
-        if (writeVersion >= VERSION_SEGMENT_FINGERPRINT && segmentFingerprint != null && segmentFingerprint.length == SegmentFingerprintAnchors.K) {
+        if (writeVersion >= VERSION_SEGMENT_FINGERPRINT && segmentFingerprint != null && segmentFingerprint.length == SegmentFingerprintAnchors.ancoraDirections) {
             for (float v : segmentFingerprint) {
                 ivfMeta.writeInt(Float.floatToIntBits(v));
             }

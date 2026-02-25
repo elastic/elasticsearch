@@ -204,8 +204,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
         float[] segmentFingerprint = null;
         if (versionMeta >= VERSION_SEGMENT_FINGERPRINT && centroidLength > 0) {
-            segmentFingerprint = new float[SegmentFingerprintAnchors.K];
-            for (int i = 0; i < SegmentFingerprintAnchors.K; i++) {
+            segmentFingerprint = new float[SegmentFingerprintAnchors.ancoraDirections];
+            for (int i = 0; i < SegmentFingerprintAnchors.ancoraDirections; i++) {
                 segmentFingerprint[i] = Float.intBitsToFloat(input.readInt());
             }
         }
@@ -526,22 +526,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     public float[] getGlobalCentroid(FieldInfo fieldInfo) {
         return fields.get(fieldInfo.number).globalCentroid;
-    }
-
-    /**
-     * Returns the best (maximum) centroid score for the given query in this segment.
-     * Used for segment affinity: segments with a centroid closer to the query get more visit budget.
-     * Returns {@link Float#NaN} if this reader does not support the operation (e.g. not an IVF format).
-     */
-    public abstract float getBestCentroidScore(FieldInfo fieldInfo, float[] queryVector) throws IOException;
-
-    /**
-     * Same as {@link #getBestCentroidScore(FieldInfo, float[])} but with segment vector count when available.
-     * Some formats (e.g. ESNext) need this to skip a doc-to-centroid lookup. Default implementation
-     * ignores the count and delegates to the two-arg method.
-     */
-    public float getBestCentroidScore(FieldInfo fieldInfo, float[] queryVector, int segmentVectorCount) throws IOException {
-        return getBestCentroidScore(fieldInfo, queryVector);
     }
 
     /**

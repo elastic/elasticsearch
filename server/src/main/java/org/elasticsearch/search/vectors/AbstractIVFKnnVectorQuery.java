@@ -274,7 +274,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     record SegmentMetadata(
         LeafReaderContext context,
         float globalCentroidScore,
-        float bestCentroidScore,         // max similarity of query to any centroid in this segment (NaN if unavailable)
+        float fingerprintScore,         // query to anchors similarity (NaN if unavailable)
         VectorSimilarityFunction similarityFunction,
         int vectorCount,
         int numCentroids,
@@ -295,7 +295,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (metadata.isValid() == false || metadata.similarityFunction() == null) {
             return 0f;
         }
-        float score = Float.isNaN(metadata.bestCentroidScore()) ? metadata.globalCentroidScore() : metadata.bestCentroidScore();
+        float score = Float.isNaN(metadata.fingerprintScore()) ? metadata.globalCentroidScore() : metadata.fingerprintScore();
         if (Float.isNaN(score)) {
             return 0f;
         }
@@ -464,7 +464,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         float maxAffinityScore = Float.NEGATIVE_INFINITY;
         for (SegmentMetadata m : segmentMetadata) {
             if (m.isValid()) {
-                float s = Float.isNaN(m.bestCentroidScore()) ? m.globalCentroidScore() : m.bestCentroidScore();
+                float s = Float.isNaN(m.fingerprintScore()) ? m.globalCentroidScore() : m.fingerprintScore();
                 if (Float.isNaN(s) == false && s > maxAffinityScore) {
                     maxAffinityScore = s;
                 }

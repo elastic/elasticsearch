@@ -209,7 +209,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
         });
     }
 
-    static void logOnFailure(Throwable throwable) {
+    public static void logOnFailure(Throwable throwable) {
         RestStatus status = ExceptionsHelper.status(throwable);
         var level = status.getStatus() >= 500 ? Level.WARN : Level.DEBUG;
         LOGGER.log(level, () -> "ESQL request failed with status [" + status + "]: ", throwable);
@@ -238,7 +238,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
      * Log all partial request failures to the {@code rest.suppressed} logger
      * so an operator can categorize them after the fact.
      */
-    static void logPartialFailures(String rawPath, Map<String, String> params, EsqlExecutionInfo executionInfo) {
+    public static void logPartialFailures(String rawPath, Map<String, String> params, EsqlExecutionInfo executionInfo) {
         if (executionInfo == null) {
             return;
         }

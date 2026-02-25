@@ -11,10 +11,10 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedSetDocValues;
 
 import java.io.IOException;
 
@@ -29,13 +29,13 @@ public class BytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlock
     }
 
     @Override
-    protected AllReader singletonReader(CircuitBreaker breaker, SortedDocValues docValues) {
-        return new Singleton(breaker, docValues);
+    protected AllReader singletonReader(TrackingSortedDocValues docValues) {
+        return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedSetReader(CircuitBreaker breaker, SortedSetDocValues docValues) {
-        return new SortedSet(breaker, docValues);
+    protected AllReader sortedSetReader(TrackingSortedSetDocValues docValues) {
+        return new SortedSet(docValues);
     }
 
     @Override

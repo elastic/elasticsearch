@@ -27,8 +27,7 @@ public class MainInstrumentationProvider implements InstrumentationConfig {
             new SecurityInstrumentation(),
             new SelectorProviderInstrumentation(),
             new SystemInstrumentation(),
-            new ThreadInstrumentation(),
-            new ClassFileInstrumentation()
+            new ThreadInstrumentation()
         ).forEach(config -> config.init(registry));
     }
 }

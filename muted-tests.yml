@@ -407,9 +407,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchContextInvalidationIT
   method: testScrollReturns404WhenNodeLeavesCluster
   issue: https://github.com/elastic/elasticsearch/issues/142810
-- class: org.elasticsearch.packaging.test.DebMetadataTests
-  method: test05CheckLintian
-  issue: https://github.com/elastic/elasticsearch/issues/142819
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
   method: testWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/142821

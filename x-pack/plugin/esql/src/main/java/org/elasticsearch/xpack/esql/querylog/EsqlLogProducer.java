@@ -29,7 +29,6 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 if (timeTook != null) {
                     String namePrefix = PROFILE_PREFIX + timeSpanMarker.name();
                     msg.field(namePrefix + ".took", timeTook.nanos());
-                    msg.field(namePrefix + ".took_millis", timeTook.millis());
                 }
             }
         });

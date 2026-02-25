@@ -25,7 +25,7 @@ import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
+public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     static AccumulatingMockAppender appender;
     static Logger queryLog = LogManager.getLogger(EsqlLogProducer.LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
@@ -89,9 +89,7 @@ public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
 
             for (var marker : profile.timeSpanMarkers()) {
                 String tookKey = EsqlLogProducer.PROFILE_PREFIX + marker.name() + ".took";
-                String tookMillisKey = EsqlLogProducer.PROFILE_PREFIX + marker.name() + ".took_millis";
                 assertTrue("Expected profile field present: " + tookKey, message.containsKey(tookKey));
-                assertTrue("Expected profile field present: " + tookMillisKey, message.containsKey(tookMillisKey));
             }
         }
     }

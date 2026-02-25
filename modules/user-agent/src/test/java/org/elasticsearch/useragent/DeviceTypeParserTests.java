@@ -73,7 +73,7 @@ public class DeviceTypeParserTests extends ESTestCase {
 
     @BeforeClass
     public static void setupDeviceParser() throws IOException {
-        InputStream deviceTypeRegexStream = UserAgentProcessor.class.getResourceAsStream("/device_type_regexes.yml");
+        InputStream deviceTypeRegexStream = UserAgentPlugin.class.getResourceAsStream("/device_type_regexes.yml");
 
         assertNotNull(deviceTypeRegexStream);
         assertNotNull(deviceTypeRegexStream);

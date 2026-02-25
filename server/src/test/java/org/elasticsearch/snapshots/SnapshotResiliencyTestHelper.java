@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappin
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
@@ -832,6 +833,7 @@ public class SnapshotResiliencyTestHelper {
                             Collections.emptyList(),
                             client,
                             null,
+                            UserAgentParserRegistry.NOOP,
                             FailureStoreMetrics.NOOP,
                             projectResolver,
                             new FeatureService(List.of()) {

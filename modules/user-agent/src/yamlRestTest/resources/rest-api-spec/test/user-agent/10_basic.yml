@@ -11,4 +11,3 @@
         nodes.info: {}
 
     - contains:  { nodes.$master.modules: { name: user-agent } }
-    - contains:  { nodes.$master.ingest.processors: { type: user_agent } }

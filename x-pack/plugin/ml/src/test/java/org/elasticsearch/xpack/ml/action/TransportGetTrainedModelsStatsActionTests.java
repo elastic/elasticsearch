@@ -10,6 +10,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -155,6 +156,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             Collections.singletonList(SKINNY_INGEST_PLUGIN),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {

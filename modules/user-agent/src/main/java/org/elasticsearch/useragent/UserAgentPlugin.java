@@ -9,24 +9,17 @@
 
 package org.elasticsearch.useragent;
 
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.UserAgentParserRegistryProvider;
 
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.function.UnaryOperator;
 
-public class UserAgentPlugin extends Plugin implements IngestPlugin {
+public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryProvider {
 
-    private final SetOnce<UserAgentParserRegistry> userAgentParserRegistry = new SetOnce<>();
     private final Setting<Long> chacheSizeSetting;
 
     public UserAgentPlugin() {
@@ -35,28 +28,8 @@ public class UserAgentPlugin extends Plugin implements IngestPlugin {
     }
 
     @Override
-    public Collection<?> createComponents(PluginServices services) {
-        return List.of(createAndGetRegistry(services.environment()));
-    }
-
-    @Override
-    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        UserAgentParserRegistry userAgentParserRegistry = createAndGetRegistry(parameters.env);
-        return Map.of(UserAgentProcessor.TYPE, new UserAgentProcessor.Factory(userAgentParserRegistry));
-    }
-
-    private UserAgentParserRegistry createAndGetRegistry(Environment env) {
-        UserAgentParserRegistry ret = userAgentParserRegistry.get();
-        if (ret != null) {
-            return ret;
-        }
-        Path userAgentConfigDirectory = env.configDir().resolve("user-agent");
-        Path ingestUserAgentConfigDirectory = env.configDir().resolve("ingest-user-agent");
-        long cacheSize = chacheSizeSetting.get(env.settings());
-        UserAgentCache cache = new UserAgentCache(cacheSize);
-        UserAgentParserRegistry registry = new UserAgentParserRegistry(cache, userAgentConfigDirectory, ingestUserAgentConfigDirectory);
-        userAgentParserRegistry.set(registry);
-        return registry;
+    public org.elasticsearch.useragent.api.UserAgentParserRegistry createUserAgentParserRegistry(Environment env) {
+        return createRegistry(env, env.settings());
     }
 
     @Override
@@ -64,14 +37,18 @@ public class UserAgentPlugin extends Plugin implements IngestPlugin {
         return List.of(chacheSizeSetting);
     }
 
-    @Override
-    public Map<String, UnaryOperator<Metadata.ProjectCustom>> getProjectCustomMetadataUpgraders() {
-        return Map.of(
-            IngestMetadata.TYPE,
-            ingestMetadata -> ((IngestMetadata) ingestMetadata).maybeUpgradeProcessors(
-                UserAgentProcessor.TYPE,
-                UserAgentProcessor::maybeUpgradeConfig
-            )
-        );
+    /**
+     * Public static factory for creating a {@link UserAgentParserRegistry}.
+     * Used by the logstash-bridge to create a registry without the plugin system.
+     */
+    public static UserAgentParserRegistry createRegistry(Environment env, Settings settings) {
+        Setting<Long> deprecatedCacheSizeSetting = Setting.longSetting("ingest.user_agent.cache_size", 1000, 0, Setting.Property.NodeScope);
+        Setting<Long> cacheSizeSetting = Setting.longSetting("user_agent.cache_size", deprecatedCacheSizeSetting, 0,
+            Setting.Property.NodeScope);
+        Path userAgentConfigDirectory = env.configDir().resolve("user-agent");
+        Path ingestUserAgentConfigDirectory = env.configDir().resolve("ingest-user-agent");
+        long cacheSize = cacheSizeSetting.get(settings);
+        UserAgentCache cache = new UserAgentCache(cacheSize);
+        return new UserAgentParserRegistry(cache, userAgentConfigDirectory, ingestUserAgentConfigDirectory);
     }
 }

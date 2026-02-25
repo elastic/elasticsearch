@@ -22,11 +22,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class UserAgentParserRegistry {
+public class UserAgentParserRegistry implements org.elasticsearch.useragent.api.UserAgentParserRegistry {
 
     private static final Logger logger = LogManager.getLogger(UserAgentParserRegistry.class);
 
-    static final String DEFAULT_PARSER_NAME = "_default_";
+    static final String DEFAULT_PARSER_NAME = org.elasticsearch.useragent.api.UserAgentParserRegistry.DEFAULT_PARSER_NAME;
 
     private final Map<String, UserAgentParser> registry;
 
@@ -81,7 +81,8 @@ public class UserAgentParserRegistry {
         }
     }
 
-    UserAgentParser getParser(String parserName) {
+    @Override
+    public UserAgentParser getParser(String parserName) {
         return registry.get(parserName);
     }
 }

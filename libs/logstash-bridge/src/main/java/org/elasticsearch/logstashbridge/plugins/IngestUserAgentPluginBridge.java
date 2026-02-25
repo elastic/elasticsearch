@@ -8,25 +8,27 @@
  */
 package org.elasticsearch.logstashbridge.plugins;
 
-import org.elasticsearch.logstashbridge.StableBridgeAPI;
+import org.elasticsearch.ingest.common.UserAgentProcessor;
 import org.elasticsearch.logstashbridge.ingest.ProcessorFactoryBridge;
 import org.elasticsearch.logstashbridge.ingest.ProcessorParametersBridge;
-import org.elasticsearch.useragent.UserAgentPlugin;
 
 import java.util.Map;
 
 /**
- * An external bridge for {@link UserAgentPlugin}
+ * Bridge for the user-agent processor.
+ *
+ * @deprecated Use {@link IngestCommonPluginBridge} instead, which includes the user_agent processor.
  */
+@Deprecated
 public final class IngestUserAgentPluginBridge implements IngestPluginBridge {
 
-    private final UserAgentPlugin delegate;
-
-    public IngestUserAgentPluginBridge() {
-        delegate = new UserAgentPlugin();
-    }
-
+    @Override
     public Map<String, ProcessorFactoryBridge> getProcessors(final ProcessorParametersBridge parameters) {
-        return StableBridgeAPI.fromInternal(this.delegate.getProcessors(parameters.toInternal()), ProcessorFactoryBridge::fromInternal);
+        return Map.of(
+            UserAgentProcessor.TYPE,
+            ProcessorFactoryBridge.fromInternal(
+                new UserAgentProcessor.Factory(parameters.toInternal().userAgentParserRegistry)
+            )
+        );
     }
 }

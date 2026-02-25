@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -163,6 +164,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
             List.of(ingestPlugin),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.singleProject(projectId),
             new FeatureService(List.of()) {

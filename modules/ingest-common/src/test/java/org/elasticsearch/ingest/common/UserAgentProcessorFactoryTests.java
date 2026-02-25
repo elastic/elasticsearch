@@ -7,10 +7,15 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.useragent;
+package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.useragent.UserAgentPlugin;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
@@ -32,7 +37,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class UserAgentProcessorFactoryTests extends ESTestCase {
 
@@ -42,12 +46,13 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
 
     @BeforeClass
     public static void createUserAgentParsers() throws IOException {
-        Path configDir = createTempDir();
+        Path homeDir = createTempDir();
+        Path configDir = homeDir.resolve("config");
+        Files.createDirectories(configDir);
         Path userAgentConfigDir = configDir.resolve("ingest-user-agent");
         Files.createDirectories(userAgentConfigDir);
 
-        // Copy file, leaving out the device parsers at the end
-        InputStream regexFileIS = Objects.requireNonNull(UserAgentProcessor.class.getResourceAsStream("/regexes.yml"));
+        InputStream regexFileIS = Objects.requireNonNull(UserAgentPlugin.class.getResourceAsStream("/regexes.yml"));
         try (
             BufferedReader reader = new BufferedReader(new InputStreamReader(regexFileIS, StandardCharsets.UTF_8));
             BufferedWriter writer = Files.newBufferedWriter(userAgentConfigDir.resolve(regexWithoutDevicesFilename));
@@ -57,13 +62,14 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
                 if (line.startsWith("device_parsers:")) {
                     break;
                 }
-
                 writer.write(line);
                 writer.newLine();
             }
         }
 
-        userAgentParserRegistry = new UserAgentParserRegistry(new UserAgentCache(1000), userAgentConfigDir);
+        Settings settings = Settings.builder().put("path.home", homeDir).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        userAgentParserRegistry = UserAgentPlugin.createRegistry(env, settings);
     }
 
     public void testBuildDefaults() throws Exception {
@@ -78,9 +84,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("user_agent"));
-        assertThat(processor.getUaParser().getUaPatterns().size(), greaterThan(0));
-        assertThat(processor.getUaParser().getOsPatterns().size(), greaterThan(0));
-        assertThat(processor.getUaParser().getDevicePatterns().size(), greaterThan(0));
+        assertNotNull(processor.getUaParser());
         assertThat(processor.getProperties(), equalTo(EnumSet.allOf(UserAgentProcessor.Property.class)));
         assertFalse(processor.isExtractDeviceType());
         assertFalse(processor.isIgnoreMissing());
@@ -99,9 +103,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("user_agent"));
-        assertThat(processor.getUaParser().getUaPatterns().size(), greaterThan(0));
-        assertThat(processor.getUaParser().getOsPatterns().size(), greaterThan(0));
-        assertThat(processor.getUaParser().getDevicePatterns().size(), greaterThan(0));
+        assertNotNull(processor.getUaParser());
         assertThat(processor.getProperties(), equalTo(EnumSet.allOf(UserAgentProcessor.Property.class)));
         assertTrue(processor.isIgnoreMissing());
     }
@@ -127,9 +129,7 @@ public class UserAgentProcessorFactoryTests extends ESTestCase {
 
         UserAgentProcessor processor = factory.create(null, null, null, config, null);
         assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getUaParser().getUaPatterns().size(), greaterThan(0));
-        assertThat(processor.getUaParser().getOsPatterns().size(), greaterThan(0));
-        assertThat(processor.getUaParser().getDevicePatterns().size(), equalTo(0));
+        assertNotNull(processor.getUaParser());
     }
 
     public void testBuildExtractDeviceType() throws Exception {

@@ -6,20 +6,15 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
-esplugin {
-  description = 'A utility for extraction of information from user agent header values'
-  classname ='org.elasticsearch.useragent.UserAgentPlugin'
-}
+package org.elasticsearch.useragent.api;
 
-dependencies {
-  api project(':libs:user-agent-api')
-}
+import org.elasticsearch.core.Nullable;
 
-restResources {
-  restApi {
-    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
-  }
-}
+/**
+ * A name with an optional pre-computed version string.
+ *
+ * @param name    the name (e.g. OS name, device name); never {@code null}
+ * @param version the pre-computed version string (e.g. "10.9.2"); {@code null} when the version major component was absent
+ */
+public record VersionedName(String name, @Nullable String version) {}

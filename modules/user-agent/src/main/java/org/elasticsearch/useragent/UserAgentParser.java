@@ -10,6 +10,8 @@
 package org.elasticsearch.useragent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.useragent.api.UserAgentInfoCollector;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -24,7 +26,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-final class UserAgentParser {
+final class UserAgentParser implements org.elasticsearch.useragent.api.UserAgentParser {
 
     private final UserAgentCache cache;
     private final DeviceTypeParser deviceTypeParser = new DeviceTypeParser();
@@ -190,6 +192,62 @@ final class UserAgentParser {
         }
 
         return details;
+    }
+
+    @Override
+    public void parseUserAgentInfo(String agentString, boolean extractDeviceType, UserAgentInfoCollector collector) {
+        Details details = parse(agentString, extractDeviceType);
+
+        if (details.userAgent() != null) {
+            collector.name(details.userAgent().name());
+            String version = versionToString(details.userAgent());
+            if (version != null) {
+                collector.version(version);
+            }
+        }
+
+        if (details.operatingSystem() != null && details.operatingSystem().name() != null) {
+            collector.osName(details.operatingSystem().name());
+            String osVersion = versionToString(details.operatingSystem());
+            if (osVersion != null) {
+                collector.osVersion(osVersion);
+                collector.osFull(details.operatingSystem().name() + " " + osVersion);
+            }
+        }
+
+        if (details.device() != null && details.device().name() != null) {
+            collector.deviceName(details.device().name());
+            String deviceVersion = versionToString(details.device());
+            if (deviceVersion != null) {
+                collector.deviceVersion(deviceVersion);
+            }
+        }
+
+        if (details.deviceType() != null) {
+            collector.deviceType(details.deviceType());
+        }
+    }
+
+    /**
+     * Converts version components into a dot-separated version string.
+     * Returns {@code null} when {@code major} is null or empty, preserving the processor's conditional version inclusion.
+     */
+    static String versionToString(VersionedName version) {
+        if (Strings.hasLength(version.major()) == false) {
+            return null;
+        }
+        final StringBuilder versionString = new StringBuilder();
+        versionString.append(version.major());
+        if (Strings.hasLength(version.minor())) {
+            versionString.append(".").append(version.minor());
+            if (Strings.hasLength(version.patch())) {
+                versionString.append(".").append(version.patch());
+                if (Strings.hasLength(version.build())) {
+                    versionString.append(".").append(version.build());
+                }
+            }
+        }
+        return versionString.toString();
     }
 
     private static VersionedName findMatch(List<UserAgentSubpattern> possiblePatterns, String agentString) {

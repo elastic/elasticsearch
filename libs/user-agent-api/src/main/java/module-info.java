@@ -6,20 +6,9 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
-esplugin {
-  description = 'A utility for extraction of information from user agent header values'
-  classname ='org.elasticsearch.useragent.UserAgentPlugin'
-}
+module org.elasticsearch.useragent.api {
+    requires org.elasticsearch.base;
 
-dependencies {
-  api project(':libs:user-agent-api')
-}
-
-restResources {
-  restApi {
-    include '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
-  }
+    exports org.elasticsearch.useragent.api;
 }

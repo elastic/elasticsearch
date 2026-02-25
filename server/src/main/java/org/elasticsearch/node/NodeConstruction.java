@@ -150,6 +150,7 @@ import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Injector;
@@ -176,6 +177,8 @@ import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.UserAgentParserRegistryProvider;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -750,6 +753,11 @@ class NodeConstruction {
         clusterService.addListener(samplingService);
 
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
+        MatcherWatchdog matcherWatchdog = IngestService.createGrokThreadWatchdog(environment, threadPool);
+        UserAgentParserRegistry userAgentParserRegistry = pluginsService.filterPlugins(UserAgentParserRegistryProvider.class)
+            .findFirst()
+            .map(p -> p.createUserAgentParserRegistry(environment))
+            .orElse(UserAgentParserRegistry.NOOP);
         final IngestService ingestService = new IngestService(
             clusterService,
             threadPool,
@@ -758,7 +766,8 @@ class NodeConstruction {
             analysisRegistry,
             pluginsService.filterPlugins(IngestPlugin.class).toList(),
             client,
-            IngestService.createGrokThreadWatchdog(environment, threadPool),
+            matcherWatchdog,
+            userAgentParserRegistry,
             failureStoreMetrics,
             projectResolver,
             featureService,

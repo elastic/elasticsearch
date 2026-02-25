@@ -7,15 +7,19 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.useragent;
+package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.useragent.UserAgentPlugin;
+import org.elasticsearch.useragent.api.UserAgentParser;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -29,23 +33,22 @@ import static org.hamcrest.Matchers.is;
 public class UserAgentProcessorTests extends ESTestCase {
 
     private static UserAgentProcessor processor;
+    private static UserAgentParser defaultParser;
 
     @BeforeClass
-    public static void setupProcessor() throws IOException {
-        InputStream regexStream = UserAgentProcessor.class.getResourceAsStream("/regexes.yml");
-        InputStream deviceTypeRegexStream = UserAgentProcessor.class.getResourceAsStream("/device_type_regexes.yml");
-
-        assertNotNull(regexStream);
-        assertNotNull(deviceTypeRegexStream);
-
-        UserAgentParser parser = new UserAgentParser(randomAlphaOfLength(10), regexStream, deviceTypeRegexStream, new UserAgentCache(1000));
+    public static void setupProcessor() {
+        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        UserAgentParserRegistry registry = UserAgentPlugin.createRegistry(env, settings);
+        defaultParser = registry.getParser(UserAgentParserRegistry.DEFAULT_PARSER_NAME);
+        assertNotNull(defaultParser);
 
         processor = new UserAgentProcessor(
             randomAlphaOfLength(10),
             null,
             "source_field",
             "target_field",
-            parser,
+            defaultParser,
             EnumSet.allOf(UserAgentProcessor.Property.class),
             true,
             false
@@ -301,15 +304,12 @@ public class UserAgentProcessorTests extends ESTestCase {
         document.put("source_field", "Something I made up v42.0.1");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
-        InputStream regexStream = UserAgentProcessor.class.getResourceAsStream("/regexes.yml");
-        InputStream deviceTypeRegexStream = UserAgentProcessor.class.getResourceAsStream("/device_type_regexes.yml");
-        UserAgentParser parser = new UserAgentParser(randomAlphaOfLength(10), regexStream, deviceTypeRegexStream, new UserAgentCache(1000));
         UserAgentProcessor userAgentProcessor = new UserAgentProcessor(
             randomAlphaOfLength(10),
             null,
             "source_field",
             "target_field",
-            parser,
+            defaultParser,
             EnumSet.allOf(UserAgentProcessor.Property.class),
             false,
             false
@@ -346,7 +346,6 @@ public class UserAgentProcessorTests extends ESTestCase {
         assertThat(config, is(Map.of("field", "user-agent")));
     }
 
-    // From https://github.com/elastic/elasticsearch/issues/116950
     @SuppressWarnings("unchecked")
     public void testFirefoxVersion() {
         Map<String, Object> document = new HashMap<>();

@@ -9,6 +9,7 @@
 
 module org.elasticsearch.useragent {
     requires org.elasticsearch.server;
+    requires org.elasticsearch.useragent.api;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.base;
     requires org.apache.lucene.core;

@@ -7,16 +7,17 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.useragent;
+package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.useragent.UserAgentParser.Details;
+import org.elasticsearch.useragent.api.Details;
+import org.elasticsearch.useragent.api.UserAgentParser;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -79,54 +80,50 @@ public class UserAgentProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse user-agent.");
         }
 
-        Details uaClient = parser.parse(userAgent, extractDeviceType);
+        Details details = parser.parseUserAgentInfo(userAgent, extractDeviceType);
 
         Map<String, Object> uaDetails = new HashMap<>();
 
-        // Parse the user agent in the ECS (Elastic Common Schema) format
         for (Property property : this.properties) {
             switch (property) {
                 case ORIGINAL:
                     uaDetails.put("original", userAgent);
                     break;
                 case NAME:
-                    if (uaClient.userAgent() != null && uaClient.userAgent().name() != null) {
-                        uaDetails.put("name", uaClient.userAgent().name());
+                    if (details.name() != null) {
+                        uaDetails.put("name", details.name());
                     } else {
                         uaDetails.put("name", "Other");
                     }
                     break;
                 case VERSION:
-                    if (uaClient.userAgent() != null && uaClient.userAgent().major() != null) {
-                        uaDetails.put("version", versionToString(uaClient.userAgent()));
+                    if (details.version() != null) {
+                        uaDetails.put("version", details.version());
                     }
                     break;
                 case OS:
-                    if (uaClient.operatingSystem() != null) {
+                    if (details.os() != null) {
                         Map<String, String> osDetails = Maps.newMapWithExpectedSize(3);
-                        if (uaClient.operatingSystem().name() != null) {
-                            osDetails.put("name", uaClient.operatingSystem().name());
-                            if (uaClient.operatingSystem().major() != null) {
-                                String version = versionToString(uaClient.operatingSystem());
-                                osDetails.put("version", version);
-                                osDetails.put("full", uaClient.operatingSystem().name() + " " + version);
-                            }
-                            uaDetails.put("os", osDetails);
+                        osDetails.put("name", details.os().name());
+                        if (details.os().version() != null) {
+                            osDetails.put("version", details.os().version());
+                            osDetails.put("full", details.osFull());
                         }
+                        uaDetails.put("os", osDetails);
                     }
                     break;
                 case DEVICE:
                     Map<String, String> deviceDetails = Maps.newMapWithExpectedSize(1);
-                    if (uaClient.device() != null && uaClient.device().name() != null) {
-                        deviceDetails.put("name", uaClient.device().name());
+                    if (details.device() != null && details.device().name() != null) {
+                        deviceDetails.put("name", details.device().name());
                         if (extractDeviceType) {
-                            deviceDetails.put("type", uaClient.deviceType());
+                            deviceDetails.put("type", details.deviceType());
                         }
                     } else {
                         deviceDetails.put("name", "Other");
                         if (extractDeviceType) {
-                            if (uaClient.deviceType() != null) {
-                                deviceDetails.put("type", uaClient.deviceType());
+                            if (details.deviceType() != null) {
+                                deviceDetails.put("type", details.deviceType());
                             } else {
                                 deviceDetails.put("type", "Other");
                             }
@@ -139,23 +136,6 @@ public class UserAgentProcessor extends AbstractProcessor {
 
         ingestDocument.setFieldValue(targetField, uaDetails);
         return ingestDocument;
-    }
-
-    private static String versionToString(final UserAgentParser.VersionedName version) {
-        final StringBuilder versionString = new StringBuilder();
-        if (Strings.hasLength(version.major())) {
-            versionString.append(version.major());
-            if (Strings.hasLength(version.minor())) {
-                versionString.append(".").append(version.minor());
-                if (Strings.hasLength(version.patch())) {
-                    versionString.append(".").append(version.patch());
-                    if (Strings.hasLength(version.build())) {
-                        versionString.append(".").append(version.build());
-                    }
-                }
-            }
-        }
-        return versionString.toString();
     }
 
     @Override

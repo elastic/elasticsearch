@@ -73,6 +73,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
@@ -244,6 +245,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService,
@@ -264,7 +266,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 this,
                 client,
                 threadPool.generic()::execute,
-                matcherWatchdog
+                matcherWatchdog,
+                userAgentParserRegistry
             )
         );
         this.threadPool = threadPool;
@@ -285,6 +288,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
+        UserAgentParserRegistry userAgentParserRegistry,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService,
@@ -299,6 +303,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             ingestPlugins,
             client,
             matcherWatchdog,
+            userAgentParserRegistry,
             failureStoreMetrics,
             projectResolver,
             featureService,

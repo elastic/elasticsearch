@@ -18,6 +18,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -165,6 +166,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -193,6 +195,7 @@ public class IngestServiceTests extends ESTestCase {
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
                 null,
+                UserAgentParserRegistry.NOOP,
                 FailureStoreMetrics.NOOP,
                 TestProjectResolvers.alwaysThrow(),
                 new FeatureService(List.of()) {
@@ -218,6 +221,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -2655,6 +2659,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(testPlugin),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -3163,6 +3168,7 @@ public class IngestServiceTests extends ESTestCase {
             List.of(DUMMY_PLUGIN),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {
@@ -3557,6 +3563,7 @@ public class IngestServiceTests extends ESTestCase {
             }),
             client,
             null,
+            UserAgentParserRegistry.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {

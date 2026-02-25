@@ -171,6 +171,17 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             .collect(Collectors.toSet());
     }
 
+    private static final String NOT_ENTITLED_EXCEPTION_NAME = "org.elasticsearch.entitlement.bridge.NotEntitledException";
+
+    private static boolean hasCause(Throwable e, String className) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause.getClass().getName().equals(className)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_entitlement_check"));
@@ -205,6 +216,9 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                     : RestStatus.INTERNAL_SERVER_ERROR;
                 response = new RestResponse(channel, statusCode, e);
                 response.addHeader("expectedException", checkAction.expectedExceptionIfDenied.getName());
+                if (statusCode == RestStatus.FORBIDDEN && e.getCause() != null) {
+                    response.addHeader("notEntitledCause", String.valueOf(hasCause(e, NOT_ENTITLED_EXCEPTION_NAME)));
+                }
             }
             logger.debug("Check action [{}] returned status [{}]", actionName, response.status().getStatus());
             channel.sendResponse(response);

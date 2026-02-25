@@ -13,6 +13,7 @@ import org.apache.http.ContentTooLongException;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
@@ -20,10 +21,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
+import org.elasticsearch.index.reindex.RetryListener;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -38,12 +41,62 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.reindex.remote.RemoteResponseParsers.MAIN_ACTION_PARSER;
 
+/**
+ * Utility methods for reindexing from remote Elasticsearch clusters.
+ * Handles version lookup, HTTP execution with response parsing, and error handling.
+ */
 public class RemoteReindexingUtils {
 
+    /**
+     * Looks up the version of the remote Elasticsearch cluster by performing a GET request to the root path.
+     *
+     * @param listener  receives the parsed version on success, or failure/rejection on error
+     * @param threadPool thread pool for preserving thread context across async callbacks
+     * @param client    REST client for the remote cluster
+     */
     public static void lookupRemoteVersion(RejectAwareActionListener<Version> listener, ThreadPool threadPool, RestClient client) {
         execute(new Request("GET", "/"), MAIN_ACTION_PARSER, listener, threadPool, client);
     }
 
+    /**
+     * Looks up the remote cluster version with retries on rejection (e.g. 429 Too Many Requests).
+     * Matches the retry behavior used by {@link RemoteScrollablePaginatedHitSource} when it looks up the version.
+     *
+     * @param logger       logger for retry messages
+     * @param backoffPolicy policy for delay between retries
+     * @param threadPool   thread pool for scheduling retries
+     * @param client      REST client for the remote cluster
+     * @param countRetry   invoked on each retry attempt
+     * @param delegate    receives the version on success or failure after all retries exhausted
+     */
+    public static void lookupRemoteVersionWithRetries(
+        Logger logger,
+        BackoffPolicy backoffPolicy,
+        ThreadPool threadPool,
+        RestClient client,
+        Runnable countRetry,
+        RejectAwareActionListener<Version> delegate
+    ) {
+        RetryListener<Version> retryListener = new RetryListener<>(logger, threadPool, backoffPolicy, listener -> {
+            countRetry.run();
+            lookupRemoteVersion(listener, threadPool, client);
+        }, delegate);
+        lookupRemoteVersion(retryListener, threadPool, client);
+    }
+
+    /**
+     * Performs an async HTTP request to the remote cluster, parses the response, and notifies the listener.
+     * Preserves thread context across the async callback. On 429 (Too Many Requests), invokes
+     * {@link RejectAwareActionListener#onRejection} so callers can retry; other failures invoke
+     * {@link RejectAwareActionListener#onFailure}.
+     *
+     * @param <T>      type of the parsed response
+     * @param request  HTTP request to perform
+     * @param parser   function to parse the response body into type T
+     * @param listener receives the parsed result, or failure/rejection
+     * @param threadPool thread pool for preserving thread context
+     * @param client   REST client for the remote cluster
+     */
     static <T> void execute(
         Request request,
         BiFunction<XContentParser, XContentType, T> parser,
@@ -134,8 +187,8 @@ public class RemoteReindexingUtils {
     }
 
     /**
-     * Wrap the ResponseException in an exception that'll preserve its status code if possible so we can send it back to the user. We might
-     * not have a constant for the status code so in that case we just use 500 instead. We also extract make sure to include the response
+     * Wrap the ResponseException in an exception that'll preserve its status code if possible, so we can send it back to the user. We might
+     * not have a constant for the status code, so in that case, we just use 500 instead. We also extract make sure to include the response
      * body in the message so the user can figure out *why* the remote Elasticsearch service threw the error back to us.
      */
     static ElasticsearchStatusException wrapExceptionToPreserveStatus(int statusCode, @Nullable HttpEntity entity, Exception cause) {
@@ -154,6 +207,13 @@ public class RemoteReindexingUtils {
         }
     }
 
+    /**
+     * Extracts a readable string from an HTTP entity for use in error messages.
+     *
+     * @param entity HTTP entity, or null
+     * @return "No error body." if entity is null, otherwise "body=" + entity content
+     * @throws IOException if reading the entity fails
+     */
     static String bodyMessage(@Nullable HttpEntity entity) throws IOException {
         if (entity == null) {
             return "No error body.";

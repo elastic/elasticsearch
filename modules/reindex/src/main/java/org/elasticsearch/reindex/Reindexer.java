@@ -81,6 +81,7 @@ import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
+import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED;
 
@@ -176,16 +177,19 @@ public class Reindexer {
         RejectAwareActionListener<Version> rejectAwareListener = new RejectAwareActionListener<>() {
             @Override
             public void onResponse(Version version) {
-                closeRestClientAndRun(restClient, () -> BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
-                    task,
-                    request,
-                    ReindexAction.INSTANCE,
-                    listener,
-                    client,
-                    clusterService.localNode(),
-                    version,
-                    workerAction
-                ));
+                closeRestClientAndRun(
+                    restClient,
+                    () -> BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
+                        task,
+                        request,
+                        ReindexAction.INSTANCE,
+                        listener,
+                        client,
+                        clusterService.localNode(),
+                        version,
+                        workerAction
+                    )
+                );
             }
 
             @Override
@@ -198,7 +202,14 @@ public class Reindexer {
                 closeRestClientAndRun(restClient, () -> listener.onFailure(e));
             }
         };
-        RemoteReindexingUtils.lookupRemoteVersion(rejectAwareListener, threadPool, restClient);
+        RemoteReindexingUtils.lookupRemoteVersionWithRetries(
+            logger,
+            exponentialBackoff(request.getRetryBackoffInitialTime(), request.getMaxRetries()),
+            threadPool,
+            restClient,
+            task.getWorkerState()::countSearchRetry,
+            rejectAwareListener
+        );
     }
 
     /**

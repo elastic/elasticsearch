@@ -741,7 +741,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     TimeValue.timeValueMillis(queueLatencyThresholdMillis)
                 )
                 .put(
-                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING.getKey(),
+                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(),
                     highUtilizationThresholdPercent + "%"
                 )
                 .put(

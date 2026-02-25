@@ -303,11 +303,11 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING.getKey(),
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 highUtilizationHotspotThreshold
             )
             .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_ALLOCATION_THRESHOLD_SETTING.getKey(),
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 highUtilizationBalanceThreshold
             )
             .put(
@@ -413,7 +413,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_ALLOCATION_THRESHOLD_SETTING.getKey(),
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 highUtilizationThreshold
             )
             .put(
@@ -498,10 +498,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
-            .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING.getKey(),
-                highUtilizationThreshold
-            )
+            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(), highUtilizationThreshold)
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(highLatencyThreshold)

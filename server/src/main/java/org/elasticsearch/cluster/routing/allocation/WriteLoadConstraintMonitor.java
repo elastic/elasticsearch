@@ -143,7 +143,7 @@ public class WriteLoadConstraintMonitor {
             if (WriteLoadConstraintDecider.nodeIsHotspotting(
                 usageStats,
                 writeLoadConstraintSettings.getQueueLatencyThreshold(),
-                writeLoadConstraintSettings.getHighUtilizationHotspotThreshold()
+                writeLoadConstraintSettings.getHotspotUtilizationThreshold()
             )) {
                 writeNodesHotspotting.add(NodeIdName.nodeIdName(node));
             } else {
@@ -187,7 +187,7 @@ public class WriteLoadConstraintMonitor {
                         : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",
                     nodeSummary(lastHotspotNodes),
                     writeLoadConstraintSettings.getQueueLatencyThreshold(),
-                    writeLoadConstraintSettings.getHighUtilizationHotspotThresholdString()
+                    writeLoadConstraintSettings.getHotspotUtilizationThresholdString()
                 );
             }
             final String reason = "hot-spotting detected by write load constraint monitor";

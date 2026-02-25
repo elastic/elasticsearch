@@ -34,7 +34,7 @@ public class WriteLoadConstraintSettings {
         DISABLED,
         /**
          * Only the low write low threshold, to try to avoid allocating to a node exceeding
-         * {@link #WRITE_LOAD_DECIDER_HIGH_UTILIZATION_ALLOCATION_THRESHOLD_SETTING}. Write-load hot-spot will not trigger rebalancing.
+         * {@link #WRITE_LOAD_DECIDER_ALLOCATION_HIGH_UTILIZATION_THRESHOLD_SETTING}. Write-load hot-spot will not trigger rebalancing.
          */
         LOW_THRESHOLD_ONLY,
         /**
@@ -93,7 +93,7 @@ public class WriteLoadConstraintSettings {
      * The threshold over which we consider write thread pool utilization "high" in a balancing movement, when a node
      * is being considered as a destination for a shard
      */
-    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HIGH_UTILIZATION_ALLOCATION_THRESHOLD_SETTING = new Setting<>(
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_ALLOCATION_HIGH_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
         SETTING_PREFIX + "high_utilization_allocation_threshold",
         "90%",
         RatioValue::parseRatioValue,
@@ -114,10 +114,10 @@ public class WriteLoadConstraintSettings {
     );
 
     /**
-     * The threshold over which we consider write thread pool utilization "high" in a hotspot canRemain check, when a shard
+     * The threshold over which we consider write thread pool utilization hotspotting in a canRemain check, when a shard
      * is being considered for moving off of a node
      */
-    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING = new Setting<>(
+    public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
         SETTING_PREFIX + "high_utilization_hotspot_threshold",
         "0%",
         RatioValue::parseRatioValue,
@@ -149,8 +149,8 @@ public class WriteLoadConstraintSettings {
     private volatile TimeValue minimumRerouteInterval;
     private volatile double highUtilizationAllocationThreshold;
     private volatile TimeValue queueLatencyThreshold;
-    private volatile double highUtilizationHotspotThreshold;
-    private volatile String highUtilizationBalanceThresholdString;
+    private volatile double hotspotUtilizationThreshold;
+    private volatile String hotspotUtilizationThresholdString;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
@@ -159,14 +159,14 @@ public class WriteLoadConstraintSettings {
             timeValue -> this.minimumRerouteInterval = timeValue
         );
         clusterSettings.initializeAndWatch(
-            WRITE_LOAD_DECIDER_HIGH_UTILIZATION_ALLOCATION_THRESHOLD_SETTING,
+            WRITE_LOAD_DECIDER_ALLOCATION_HIGH_UTILIZATION_THRESHOLD_SETTING,
             value -> highUtilizationAllocationThreshold = value.getAsRatio()
         );
 
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING, value -> queueLatencyThreshold = value);
-        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING, value -> {
-            highUtilizationHotspotThreshold = value.getAsRatio();
-            highUtilizationBalanceThresholdString = value.formatNoTrailingZerosPercent();
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING, value -> {
+            hotspotUtilizationThreshold = value.getAsRatio();
+            hotspotUtilizationThresholdString = value.formatNoTrailingZerosPercent();
         });
     }
 
@@ -190,19 +190,19 @@ public class WriteLoadConstraintSettings {
      * @return The utilization threshold as a ratio - i.e. in [0, 1], for use in checking whether a node is hotspotting
      * and a shard should be moved off of it
      */
-    public double getHighUtilizationHotspotThreshold() {
-        return this.highUtilizationHotspotThreshold;
+    public double getHotspotUtilizationThreshold() {
+        return this.hotspotUtilizationThreshold;
     }
 
-    public String getHighUtilizationHotspotThresholdString() {
-        return this.highUtilizationBalanceThresholdString;
+    public String getHotspotUtilizationThresholdString() {
+        return this.hotspotUtilizationThresholdString;
     }
 
     /**
      * @return The utilization threshold as a ratio - i.e. in [0, 1], for use in checking whether a node can accept
      * a shard in a canAllocation call during allocation balancing
      */
-    public double getHighUtilizationAllocationThreshold() {
+    public double getAllocationHighUtilizationThreshold() {
         return this.highUtilizationAllocationThreshold;
     }
 }

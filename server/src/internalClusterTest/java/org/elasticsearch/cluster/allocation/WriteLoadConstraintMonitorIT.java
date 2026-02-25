@@ -53,7 +53,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(settings);
         final String utilizationThresholdString = internalCluster().clusterService()
             .getClusterSettings()
-            .get(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING)
+            .get(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING)
             .formatNoTrailingZerosPercent();
         final String dataNodeOne = internalCluster().startDataOnlyNode(settings);
         final String dataNodeTwo = internalCluster().startDataOnlyNode(settings);
@@ -213,7 +213,7 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 TimeValue.timeValueMillis(queueLatencyThresholdMillis)
             )
             .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING.getKey(),
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 utilizationThresholdPercent + "%"
             )
             // Make the re-route interval large so we can test it

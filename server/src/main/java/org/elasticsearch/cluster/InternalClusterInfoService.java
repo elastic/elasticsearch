@@ -488,7 +488,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             final Set<String> nodeIdsWriteLoadHotspotting = buildNodeIdsWriteLoadHotspottingSet(
                 nodeThreadPoolUsageStatsPerNode,
                 writeLoadConstraintSettings.getQueueLatencyThreshold(),
-                writeLoadConstraintSettings.getHighUtilizationHotspotThreshold()
+                writeLoadConstraintSettings.getHotspotUtilizationThreshold()
             );
 
             final var newClusterInfo = new ClusterInfo(

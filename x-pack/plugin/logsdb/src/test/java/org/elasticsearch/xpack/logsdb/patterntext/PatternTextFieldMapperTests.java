@@ -133,6 +133,27 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testIntervalsQueryWithDisabledTemplating() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", true))
+        );
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "the quick brown fox 1"))).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                PatternTextFieldType ft = (PatternTextFieldType) mapperService.fieldType("field");
+                IntervalsSource intervalsSource = ft.termIntervals(new BytesRef("brown"), context);
+                Query query = new IntervalQuery("field", intervalsSource);
+                TopDocs docs = context.searcher().search(query, 1);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            }
+        }
+    }
+
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerUpdateCheck(

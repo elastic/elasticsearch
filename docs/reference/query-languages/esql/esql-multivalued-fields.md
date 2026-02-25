@@ -266,8 +266,6 @@ Work around this limitation by converting the field to single value with one of:
 
 To filter on individual values in a multivalued field (for example, to keep only rows where the field contains a given value), use the [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) command to expand the field into one row per value, then apply `WHERE` to the expanded column.
 
-To filter on individual values in a multivalued field (for example, to keep only rows where the field contains a given value), use the [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md#esql-mv_expand) command to expand the field into one row per value, then apply `WHERE` to the expanded column.
-
 ```console
 POST /_query
 {

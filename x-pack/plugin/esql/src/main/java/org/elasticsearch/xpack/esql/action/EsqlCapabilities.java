@@ -1962,7 +1962,7 @@ public class EsqlCapabilities {
         TSDIM_WITHOUT,
 
         /**
-         * Support for PromQL vector matching with on/ignoring keywords.
+         * PromQL vector matching: on/ignoring clauses for binary operators with compatible groupings.
          */
         PROMQL_VECTOR_MATCHING,
 

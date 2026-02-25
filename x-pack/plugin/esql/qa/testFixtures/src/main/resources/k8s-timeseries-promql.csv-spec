@@ -805,5 +805,48 @@ result:double | step:datetime
 62.0          | 2024-05-10T00:00:00.000Z
 ;
 
+// vector matching: on/ignoring with compatible groupings
+
+vector_matching_on_same_groupings
+required_capability: promql_command_v0
+required_capability: promql_vector_matching
+PROMQL index=k8s step=1h ratio=(sum by (cluster)(network.bytes_in) / on(cluster) sum by (cluster)(network.bytes_in))
+| SORT cluster;
+
+ratio:double | step:datetime            | cluster:keyword
+1.0          | 2024-05-10T00:00:00.000Z | prod
+1.0          | 2024-05-10T00:00:00.000Z | qa
+1.0          | 2024-05-10T00:00:00.000Z | staging
+;
+
+vector_matching_on_empty_global
+required_capability: promql_command_v0
+required_capability: promql_vector_matching
+PROMQL index=k8s step=1h ratio=(sum(network.bytes_in) / on() sum(network.bytes_in));
+
+ratio:double | step:datetime
+1.0          | 2024-05-10T00:00:00.000Z
+;
+
+vector_matching_ignoring_empty
+required_capability: promql_command_v0
+required_capability: promql_vector_matching
+PROMQL index=k8s step=1h ratio=(sum(network.bytes_in) / ignoring() sum(network.bytes_in));
+
+ratio:double | step:datetime
+1.0          | 2024-05-10T00:00:00.000Z
+;
+
+vector_matching_on_subtraction
+required_capability: promql_command_v0
+required_capability: promql_vector_matching
+PROMQL index=k8s step=1h diff=(sum by (cluster)(network.bytes_in) - on(cluster) sum by (cluster)(network.bytes_in))
+| SORT cluster;
+
+diff:double | step:datetime            | cluster:keyword
+0.0         | 2024-05-10T00:00:00.000Z | prod
+0.0         | 2024-05-10T00:00:00.000Z | qa
+0.0         | 2024-05-10T00:00:00.000Z | staging
+;
 
 

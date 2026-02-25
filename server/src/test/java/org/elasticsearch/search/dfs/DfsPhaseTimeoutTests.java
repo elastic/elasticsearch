@@ -271,9 +271,7 @@ public class DfsPhaseTimeoutTests extends IndexShardTestCase {
             null,
             Collections.emptyMap(),
             null,
-            MapperMetrics.NOOP,
-            SearchExecutionContextHelper.SHARD_SEARCH_STATS
-        );
+            MapperMetrics.NOOP);
     }
 
     private static ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {

@@ -144,17 +144,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * fails.
      */
     protected void validate(ReindexRequest request) {
-        IndicesOptions indicesOptions = request.getSearchRequest().indicesOptions();
-        if (indicesOptions.resolveCrossProjectIndexExpression()) {
-            try {
-                request.getSearchRequest()
-                    .indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions));
-                reindexValidator.initialValidation(request);
-            } finally {
-                request.getSearchRequest().indicesOptions(indicesOptions);
-            }
-        } else {
-            reindexValidator.initialValidation(request);
-        }
+        reindexValidator.initialValidation(request);
     }
 }

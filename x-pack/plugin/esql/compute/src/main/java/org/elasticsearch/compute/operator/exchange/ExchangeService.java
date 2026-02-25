@@ -154,14 +154,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         return sinkHandler;
     }
 
-    /**
-     * Removes the exchange sink handler associated with the given exchange id.
-     * W will abort the sink handler if the given failure is not null.
-     */
-    /**
-     * Records the original index expressions that a given exchange session is expected to serve.
-     * Called on the remote cluster when the compute request arrives.
-     */
     public void setExpectedIndices(String exchangeId, Set<String> indices) {
         sinkExpectedIndices.put(exchangeId, Set.copyOf(indices));
     }

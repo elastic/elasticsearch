@@ -240,6 +240,7 @@ import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformati
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
@@ -522,6 +523,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<IndicesService> indicesService = new SetOnce<>();
     private final SetOnce<Predicate<ShardId>> skipMerges = new SetOnce<>();
     private final SetOnce<ProjectResolver> projectResolver = new SetOnce<>();
+    private final SetOnce<ReshardMetrics> reshardMetrics = new SetOnce<>();
     private final SetOnce<ReshardIndexService> reshardIndexService = new SetOnce<>();
     private final SetOnce<MemoryMetricsService> memoryMetricsService = new SetOnce<>();
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
@@ -1045,9 +1047,17 @@ public class StatelessPlugin extends Plugin
         }
 
         // Resharding
+        var reshardMetrics = setAndGet(this.reshardMetrics, new ReshardMetrics(services.telemetryProvider().getMeterRegistry()));
         var reshardIndexService = setAndGet(
             this.reshardIndexService,
-            createMetadataReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService, (NodeClient) client)
+            createMetadataReshardIndexService(
+                clusterService,
+                shardRoutingRoleStrategy,
+                rerouteService,
+                indicesService,
+                (NodeClient) client,
+                reshardMetrics
+            )
         );
         components.add(reshardIndexService);
         var splitTargetService = setAndGet(
@@ -1170,9 +1180,10 @@ public class StatelessPlugin extends Plugin
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
         RerouteService rerouteService,
         IndicesService indicesService,
-        NodeClient client
+        NodeClient client,
+        ReshardMetrics reshardMetrics
     ) {
-        return new ReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService, client);
+        return new ReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService, client, reshardMetrics);
     }
 
     @Override

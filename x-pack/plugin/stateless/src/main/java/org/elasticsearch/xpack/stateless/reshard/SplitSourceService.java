@@ -57,6 +57,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -596,13 +598,18 @@ public class SplitSourceService {
     static class RefCountedAcquirer {
         AtomicInteger refCount = new AtomicInteger();
         Consumer<ActionListener<Releasable>> acquirer;
+        LongSupplier nowInMillis;
+        LongConsumer onReleased;
         @Nullable
         Releasable releasable;
         @Nullable
         SubscribableListener<Releasable> onAcquired;
+        long acquireStartMillis;
 
-        RefCountedAcquirer(Consumer<ActionListener<Releasable>> acquirer) {
+        RefCountedAcquirer(Consumer<ActionListener<Releasable>> acquirer, LongSupplier nowInMillis, LongConsumer onReleased) {
             this.acquirer = acquirer;
+            this.nowInMillis = nowInMillis;
+            this.onReleased = onReleased;
         }
 
         /**
@@ -623,6 +630,7 @@ public class SplitSourceService {
                     // complete any listeners that may be listening for it.
                     this.onAcquired = SubscribableListener.newForked(l -> acquirer.accept(l.delegateFailure((inner, releasable) -> {
                         this.releasable = releasable;
+                        this.acquireStartMillis = nowInMillis.getAsLong();
                         inner.onResponse(this::release);
                     })));
                 }
@@ -650,6 +658,8 @@ public class SplitSourceService {
             if (releasable != null) {
                 // release outside of lock, since operation may take time
                 releasable.close();
+                long acquiredDurationMillis = nowInMillis.getAsLong() - this.acquireStartMillis;
+                onReleased.accept(acquiredDurationMillis);
             }
         }
     }
@@ -803,7 +813,7 @@ public class SplitSourceService {
     private record SplitRequestState(long targetPrimaryTerm, CancellableTask task) {}
 
     // Holds resources needed to manage an ongoing split
-    private static class Split {
+    private class Split {
         // used to acquire permits on the source shard with reference counting, so that if the permits are already held
         // we can bump the refcount instead of waiting for them to be released and then reacquiring.
         // This speeds up handoff when multiple target shards enter handoff concurrently.
@@ -814,7 +824,11 @@ public class SplitSourceService {
             // come in while we're waiting for existing ones to drain, so we probably don't want to wait a very long time, but if we
             // fail we need a way to retry later with some backoff. Ticket this.
             permitAcquirer = new RefCountedAcquirer(
-                releasableListener -> sourceShard.acquireAllPrimaryOperationsPermits(releasableListener, TimeValue.ONE_MINUTE)
+                releasableListener -> sourceShard.acquireAllPrimaryOperationsPermits(releasableListener, TimeValue.ONE_MINUTE),
+                SplitSourceService.this.indicesService.clusterService().threadPool().relativeTimeInMillisSupplier(),
+                acquiredDuration -> SplitSourceService.this.reshardIndexService.getReshardMetrics()
+                    .indexingBlockedDurationHistogram()
+                    .record(acquiredDuration)
             );
         }
 

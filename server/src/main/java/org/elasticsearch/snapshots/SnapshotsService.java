@@ -1031,18 +1031,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private void endSnapshot(SnapshotsInProgress.Entry entry, Metadata metadata, @Nullable RepositoryData repositoryData) {
         final Snapshot snapshot = entry.snapshot();
         final boolean newFinalization = endingSnapshots.add(snapshot);
-        if (entry.isClone() && entry.state() == SnapshotsInProgress.State.FAILED) {
-            logger.debug("Removing failed snapshot clone [{}] from cluster state", entry);
-            if (newFinalization) {
-                removeFailedSnapshotFromClusterState(
-                    snapshot,
-                    new SnapshotException(snapshot, entry.failure()),
-                    null,
-                    UpdatedShardGenerations.EMPTY
-                );
-            }
-            return;
-        }
         final ProjectId projectId = snapshot.getProjectId();
         final String repoName = snapshot.getRepository();
         if (tryEnterRepoLoop(projectId, repoName)) {
@@ -1150,17 +1138,21 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             final Set<String> indexNames = new HashSet<>(finalIndices);
             ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
             for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
-                RepositoryShardId shardId = shardStatus.getKey();
-                if (indexNames.contains(shardId.indexName()) == false) {
+                RepositoryShardId repoShardId = shardStatus.getKey();
+                if (indexNames.contains(repoShardId.indexName()) == false) {
                     assert entry.partial() : "only ignoring shard failures for concurrently deleted indices for partial snapshots";
                     continue;
                 }
                 ShardSnapshotStatus status = shardStatus.getValue();
                 final ShardState state = status.state();
                 if (state.failed()) {
-                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), status.reason()));
+                    final var shardId = entry.isClone()
+                        ? new ShardId(repoShardId.indexName(), IndexMetadata.INDEX_UUID_NA_VALUE, repoShardId.shardId())
+                        : entry.shardId(repoShardId);
+                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                 } else if (state.completed() == false) {
-                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(shardId), "skipped"));
+                    assert entry.isClone() == false : "a finalizing clone has unexpected shard state " + entry;
+                    shardFailures.add(new SnapshotShardFailure(status.nodeId(), entry.shardId(repoShardId), "skipped"));
                 } else {
                     assert state == ShardState.SUCCESS;
                 }

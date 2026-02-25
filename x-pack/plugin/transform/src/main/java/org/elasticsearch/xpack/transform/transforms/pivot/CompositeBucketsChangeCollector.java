@@ -20,6 +20,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 
 import java.util.ArrayList;
@@ -52,6 +55,8 @@ import java.util.Set;
  * Utility class to collect bucket changes
  */
 public class CompositeBucketsChangeCollector implements ChangeCollector {
+
+    private static final Logger logger = LogManager.getLogger(CompositeBucketsChangeCollector.class);
 
     // a magic for the case that we do not need a composite aggregation to collect changes
     private static final Map<String, Object> AFTER_KEY_MAGIC_FOR_NON_COMPOSITE_COLLECTORS = Collections.singletonMap(
@@ -139,24 +144,50 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
          * @return true if collector requires an extra query for identifying changes
          */
         boolean queryForChanges();
+
+        /**
+         * Reset the overflow state. Called at the start of each new checkpoint so that
+         * overflow is re-evaluated with fresh data.
+         */
+        default void resetOverflow() {}
     }
 
+    /**
+     * Collects changed terms across composite aggregation pages and builds a {@code terms} filter query.
+     * <p>
+     * Tracks the total number of distinct changed terms seen across all pages within a single checkpoint.
+     * If the total exceeds the configured {@code maxTermsForChangeDetection} threshold, the collector
+     * enters an "overflowed" state: it stops collecting terms and returns {@code null} from
+     * {@link #filterByChanges}, causing the transform to fall back to a full (unfiltered) scan for
+     * the remainder of the checkpoint. The overflow state is reset at the start of each new checkpoint.
+     */
     static class TermsFieldCollector implements FieldCollector {
 
         private final String sourceFieldName;
         private final String targetFieldName;
         private final boolean missingBucket;
+        private final int maxTermsForChangeDetection;
         private final Set<String> changedTerms;
         // although we could add null to the hash set, its easier to handle null separately
         private boolean foundNullBucket;
+        private boolean overflowed;
+        private int totalTermsSeen;
 
-        TermsFieldCollector(final String sourceFieldName, final String targetFieldName, final boolean missingBucket) {
+        TermsFieldCollector(
+            final String sourceFieldName,
+            final String targetFieldName,
+            final boolean missingBucket,
+            final int maxTermsForChangeDetection
+        ) {
             assert sourceFieldName != null;
             this.sourceFieldName = sourceFieldName;
             this.targetFieldName = targetFieldName;
             this.missingBucket = missingBucket;
+            this.maxTermsForChangeDetection = maxTermsForChangeDetection;
             this.changedTerms = new HashSet<>();
             this.foundNullBucket = false;
+            this.overflowed = false;
+            this.totalTermsSeen = 0;
         }
 
         @Override
@@ -173,6 +204,10 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
         @Override
         public boolean collectChangesFromCompositeBuckets(Collection<? extends Bucket> buckets) {
+            if (overflowed) {
+                return true;
+            }
+
             changedTerms.clear();
             foundNullBucket = false;
 
@@ -187,12 +222,33 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                 }
             }
 
+            totalTermsSeen += changedTerms.size();
+            if (totalTermsSeen > maxTermsForChangeDetection) {
+                logger.warn(
+                    "Change detection overflow for field [{}]: [{}] changed terms exceeds limit of [{}], "
+                        + "disabling terms-based change detection optimization for this checkpoint",
+                    targetFieldName,
+                    totalTermsSeen,
+                    maxTermsForChangeDetection
+                );
+                overflowed = true;
+                changedTerms.clear();
+                foundNullBucket = false;
+                // return false so that processSearchResponse returns a non-null afterKey,
+                // which triggers the indexer to transition to APPLY_RESULTS
+                return false;
+            }
+
             // if buckets have been found, we need another run
             return buckets.isEmpty();
         }
 
         @Override
         public QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
+            if (overflowed) {
+                return null;
+            }
+
             if (missingBucket && foundNullBucket) {
                 QueryBuilder missingBucketQuery = new BoolQueryBuilder().mustNot(new ExistsQueryBuilder(sourceFieldName));
 
@@ -254,12 +310,18 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
         @Override
         public boolean isOptimized() {
-            return true;
+            return overflowed == false;
         }
 
         @Override
         public boolean queryForChanges() {
             return true;
+        }
+
+        @Override
+        public void resetOverflow() {
+            overflowed = false;
+            totalTermsSeen = 0;
         }
     }
 
@@ -695,8 +757,10 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         sourceBuilder.size(0);
         for (FieldCollector fieldCollector : fieldCollectors.values()) {
 
-            // add aggregations, but only for the 1st run
+            // reset overflow state at the start of a new checkpoint's change collection
             if (position == null || position.isEmpty()) {
+                fieldCollector.resetOverflow();
+
                 for (AggregationBuilder fieldCollectorAgg : fieldCollector.aggregateChanges()) {
                     sourceBuilder.aggregation(fieldCollectorAgg);
                 }
@@ -829,7 +893,12 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             switch (entry.getValue().getType()) {
                 case TERMS -> fieldCollectors.put(
                     entry.getKey(),
-                    new TermsFieldCollector(entry.getValue().getField(), entry.getKey(), entry.getValue().getMissingBucket())
+                    new TermsFieldCollector(
+                        entry.getValue().getField(),
+                        entry.getKey(),
+                        entry.getValue().getMissingBucket(),
+                        resolveMaxTerms((TermsGroupSource) entry.getValue())
+                    )
                 );
                 case HISTOGRAM -> fieldCollectors.put(
                     entry.getKey(),
@@ -866,6 +935,19 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             }
         }
         return fieldCollectors;
+    }
+
+    /**
+     * Resolves the effective max terms threshold from a {@link TermsGroupSource}.
+     * Both {@code null} (not configured) and {@code -1} (explicit unlimited) are treated
+     * as unlimited (returns {@link Integer#MAX_VALUE}).
+     */
+    private static int resolveMaxTerms(TermsGroupSource termsGroupSource) {
+        Integer configured = termsGroupSource.getMaxTermsForChangeDetection();
+        if (configured == null || configured == -1) {
+            return Integer.MAX_VALUE;
+        }
+        return configured;
     }
 
 }

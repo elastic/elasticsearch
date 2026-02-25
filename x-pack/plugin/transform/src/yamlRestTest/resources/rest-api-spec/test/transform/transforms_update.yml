@@ -439,3 +439,4 @@ setup:
   - match: { transforms.0._meta.baz.a2: 222 }
   - match: { transforms.0._meta.baz.a3: 333 }
   - is_true: transforms.0.authorization.roles
+

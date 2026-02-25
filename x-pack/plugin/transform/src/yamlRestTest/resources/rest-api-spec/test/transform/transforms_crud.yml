@@ -915,3 +915,88 @@ setup:
   - match: { transforms.0.latest.unique_key.0: "airline" }
   - match: { transforms.0.latest.sort: "time" }
   - match: { transforms.0.description: "yaml test latest transform on airline-data" }
+
+---
+"Test put config with invalid max_terms_for_change_detection in terms group-by":
+  - do:
+      catch: /max_terms_for_change_detection \[-3\] is out of range. Use -1 to disable the limit, 0 to disable change filtering, or a positive integer to set the limit/
+      transform.put_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline", "max_terms_for_change_detection": -3}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+
+---
+"Test put config with valid max_terms_for_change_detection in terms group-by":
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-terms-limit"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline", "max_terms_for_change_detection": 5000}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform:
+        transform_id: "airline-transform-terms-limit"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-terms-limit" }
+  - match: { transforms.0.pivot.group_by.airline.terms.max_terms_for_change_detection: 5000 }
+
+---
+"Test put config with max_terms_for_change_detection disabled in terms group-by":
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-terms-disabled"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline", "max_terms_for_change_detection": -1}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform:
+        transform_id: "airline-transform-terms-disabled"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-terms-disabled" }
+  - match: { transforms.0.pivot.group_by.airline.terms.max_terms_for_change_detection: -1 }
+
+---
+"Test put config with max_terms_for_change_detection set to 0 in terms group-by":
+  - do:
+      transform.put_transform:
+        transform_id: "airline-transform-terms-zero"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline", "max_terms_for_change_detection": 0}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform:
+        transform_id: "airline-transform-terms-zero"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-terms-zero" }
+  - match: { transforms.0.pivot.group_by.airline.terms.max_terms_for_change_detection: 0 }

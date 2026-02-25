@@ -34,6 +34,8 @@ import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSourceTests;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -340,6 +342,15 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public static TransformConfig mutateForVersion(TransformConfig instance, TransportVersion version) {
+        SettingsConfig settings = instance.getSettings();
+        PivotConfig pivotConfig = instance.getPivotConfig();
+        if (pivotConfig != null && version.supports(TermsGroupSource.MAX_TERMS_FOR_CHANGE_DETECTION) == false) {
+            pivotConfig = new PivotConfig(
+                TermsGroupSourceTests.mutateGroupConfigForBwc(pivotConfig.getGroupConfig()),
+                pivotConfig.getAggregationConfig(),
+                pivotConfig.getMaxPageSearchSize()
+            );
+        }
         return new TransformConfig(
             instance.getId(),
             SourceConfigTests.mutateForVersion(instance.getSource(), version),
@@ -347,10 +358,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             instance.getFrequency(),
             instance.getSyncConfig(),
             instance.getHeaders(),
-            instance.getPivotConfig(),
+            pivotConfig,
             instance.getLatestConfig(),
             instance.getDescription(),
-            instance.getSettings(),
+            settings,
             instance.getMetadata(),
             instance.getRetentionPolicyConfig(),
             instance.getCreateTime(),

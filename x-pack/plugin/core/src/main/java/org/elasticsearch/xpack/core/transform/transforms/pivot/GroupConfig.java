@@ -70,6 +70,10 @@ public class GroupConfig implements Writeable, ToXContentObject {
         });
     }
 
+    Map<String, Object> getSource() {
+        return source;
+    }
+
     public Map<String, SingleGroupSource> getGroups() {
         return groups;
     }

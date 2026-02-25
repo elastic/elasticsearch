@@ -130,9 +130,9 @@ public interface CommandGenerator {
             return VALIDATION_OK;
         }
 
-        if (previousColumns.stream().anyMatch(x -> x.name().contains("<all-fields-projected>"))) {
-            return VALIDATION_OK; // known bug
-        }
+        // known bug https://github.com/elastic/elasticsearch/issues/121741
+        previousColumns = previousColumns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
+        columns = columns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
 
         if (previousColumns.size() != columns.size()) {
             return new ValidationResult(false, "Expecting [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
@@ -154,9 +154,9 @@ public interface CommandGenerator {
      * The command doesn't have to produce LESS columns than the previous query
      */
     static ValidationResult expectAtLeastSameNumberOfColumns(List<Column> previousColumns, List<Column> columns) {
-        if (previousColumns.stream().anyMatch(x -> x.name().contains("<all-fields-projected>"))) {
-            return VALIDATION_OK; // known bug
-        }
+        // known bug https://github.com/elastic/elasticsearch/issues/121741
+        previousColumns = previousColumns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
+        columns = columns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
 
         if (previousColumns.size() > columns.size()) {
             return new ValidationResult(false, "Expecting at least [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");

@@ -349,6 +349,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                         blocks[b++] = BlockUtils.constantBlock(blockFactory, e, currentPagePos);
                     }
                     page = new Page(currentPagePos, blocks);
+                    shardRowsEmitted[shardId] += page.getPositionCount();
                 } finally {
                     if (page == null) {
                         Releasables.closeExpectNoException(shard, leaf, docs, Releasables.wrap(blocks));

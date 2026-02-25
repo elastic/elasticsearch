@@ -51,7 +51,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         StorageProvider storageProvider = Mockito.mock(StorageProvider.class);
         Mockito.when(storageProvider.supportedSchemes()).thenReturn(List.of("file"));
         StorageObject storageObject = Mockito.mock(StorageObject.class);
-        StoragePath path = StoragePath.of("file://" + tempFile.toAbsolutePath());
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
         Mockito.when(storageProvider.newObject(Mockito.any(StoragePath.class))).thenReturn(storageObject);
 
         FormatReader formatReader = Mockito.mock(FormatReader.class);

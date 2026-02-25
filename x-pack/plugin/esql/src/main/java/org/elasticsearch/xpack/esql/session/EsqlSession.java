@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
-import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -467,7 +466,13 @@ public class EsqlSession {
         }
     }
 
-    record SubPlanAndCallback(LogicalPlan subPlan, Function<Result, LogicalPlan> newMainPlan, Runnable cleanup) {};
+    /**
+     * Returns a subplan if one has to be executed, or null otherwise.
+     * @param subPlan     first subplan that needs to be executed
+     * @param newMainPlan callback to build the new main plan based on the subplan results
+     * @param cleanup     callback to release any resources hold by the subplan results
+     */
+    private record SubPlanAndCallback(LogicalPlan subPlan, Function<Result, LogicalPlan> newMainPlan, Runnable cleanup) {};
 
     private SubPlanAndCallback firstSubPlan(LogicalPlan optimizedPlan, Approximation approximation, Set<LocalRelation> subPlansResults) {
         if (approximation != null) {
@@ -487,7 +492,7 @@ public class EsqlSession {
             LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
             localRelationPage.set(resultWrapper.supplier().get());
             subPlansResults.add(resultWrapper);
-            return newMainPlan(optimizedPlan, subPlans, resultWrapper);
+            return InlineJoin.newMainPlan(optimizedPlan, subPlans, resultWrapper);
         }, () -> releaseLocalRelationBlocks(localRelationPage));
     }
 
@@ -568,22 +573,6 @@ public class EsqlSession {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
             }
         }));
-    }
-
-    // TODO: move this to InlineJoin?
-    public static LogicalPlan newMainPlan(LogicalPlan optimizedPlan, InlineJoin.LogicalPlanTuple subPlans, LocalRelation resultWrapper) {
-        LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
-            InlineJoin.class,
-            // use object equality since the right-hand side shouldn't have changed in the optimizedPlan at this point
-            // and equals would have ignored name IDs anyway
-            ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
-        );
-        // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
-        newLogicalPlan.setOptimized();
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("Main plan change after previous subplan execution:\n{}", NodeUtils.diffString(optimizedPlan, newLogicalPlan));
-        }
-        return newLogicalPlan;
     }
 
     private LocalRelation resultToPlan(Source planSource, Result result) {

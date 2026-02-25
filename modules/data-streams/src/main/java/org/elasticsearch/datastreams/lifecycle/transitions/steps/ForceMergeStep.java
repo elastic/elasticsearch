@@ -9,10 +9,12 @@
 
 package org.elasticsearch.datastreams.lifecycle.transitions.steps;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
@@ -29,7 +31,16 @@ public class ForceMergeStep implements DlmStep {
     /**
      * Index setting that indicates whether DLM force merge has been completed for this index.
      */
-    public static final String DLM_FORCE_MERGE_COMPLETE_SETTING = "index.lifecycle.dlm_force_merge_complete";
+    public static final Setting<Boolean> DLM_FORCE_MERGE_COMPLETE_SETTING = Setting.boolSetting(
+        "dlm.force_merge_complete",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.IndexScope
+    );
+
+    private static final Settings FORCE_MERGE_COMPLETE_SETTINGS = Settings.builder()
+        .put(DLM_FORCE_MERGE_COMPLETE_SETTING.getKey(), true)
+        .build();
 
     /**
      * Determines if the step has been completed for the given index and project state.
@@ -64,7 +75,7 @@ public class ForceMergeStep implements DlmStep {
      */
     protected boolean isDLMForceMergeComplete(Index index, ProjectState projectState) {
         return Optional.ofNullable(projectState.metadata().index(index))
-            .map(indexMetadata -> indexMetadata.getSettings().getAsBoolean(DLM_FORCE_MERGE_COMPLETE_SETTING, false))
+            .map(indexMetadata -> DLM_FORCE_MERGE_COMPLETE_SETTING.get(indexMetadata.getSettings()))
             .orElse(false);
     }
 
@@ -78,10 +89,7 @@ public class ForceMergeStep implements DlmStep {
     protected void markDLMForceMergeComplete(DlmStepContext stepContext, ActionListener<Void> listener) {
         String indexName = stepContext.indexName();
 
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(
-            Settings.builder().put(DLM_FORCE_MERGE_COMPLETE_SETTING, true).build(),
-            indexName
-        );
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(FORCE_MERGE_COMPLETE_SETTINGS, indexName);
 
         String failureMessage = Strings.format(
             "DLM service encountered an error trying to mark force merge as complete for index [%s]",
@@ -101,7 +109,7 @@ public class ForceMergeStep implements DlmStep {
                         listener.onResponse(null);
                     } else {
                         listener.onFailure(
-                            new RuntimeException(
+                            new ElasticsearchException(
                                 Strings.format(
                                     "Failed to mark force merge as complete for index [%s] because "
                                         + "the update settings request was not acknowledged",

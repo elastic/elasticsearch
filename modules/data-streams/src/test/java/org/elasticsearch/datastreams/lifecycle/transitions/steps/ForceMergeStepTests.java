@@ -120,7 +120,7 @@ public class ForceMergeStepTests extends ESTestCase {
         assertThat(capturedRequest.get().indices()[0], is(indexName));
 
         Settings settings = capturedRequest.get().settings();
-        assertThat(settings.get(DLM_FORCE_MERGE_COMPLETE_SETTING), is("true"));
+        assertThat(DLM_FORCE_MERGE_COMPLETE_SETTING.get(settings), is(true));
     }
 
     public void testStepName() {
@@ -132,7 +132,7 @@ public class ForceMergeStepTests extends ESTestCase {
     }
 
     private ProjectState createProjectStateWithSetting(boolean forceMergeComplete) {
-        return buildProjectState(Settings.builder().put(DLM_FORCE_MERGE_COMPLETE_SETTING, forceMergeComplete).build());
+        return buildProjectState(Settings.builder().put(DLM_FORCE_MERGE_COMPLETE_SETTING.getKey(), forceMergeComplete).build());
     }
 
     private ProjectState buildProjectState(Settings additionalSettings) {

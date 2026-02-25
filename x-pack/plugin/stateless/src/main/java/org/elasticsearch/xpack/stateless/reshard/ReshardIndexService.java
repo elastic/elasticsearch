@@ -72,6 +72,7 @@ public class ReshardIndexService {
 
     private final IndicesService indicesService;
     private final NodeClient client;
+    private final ReshardMetrics reshardMetrics;
     private final SplitCompletionTracker splitCompletionTracker;
 
     private final MasterServiceTaskQueue<ReshardTask> reshardQueue;
@@ -84,10 +85,12 @@ public class ReshardIndexService {
         final ShardRoutingRoleStrategy shardRoutingRoleStrategy,
         final RerouteService rerouteService,
         final IndicesService indicesService,
-        final NodeClient client
+        final NodeClient client,
+        final ReshardMetrics reshardMetrics
     ) {
         this.indicesService = indicesService;
         this.client = client;
+        this.reshardMetrics = reshardMetrics;
         splitCompletionTracker = new SplitCompletionTracker();
 
         this.reshardQueue = clusterService.createTaskQueue(
@@ -112,6 +115,10 @@ public class ReshardIndexService {
             Priority.NORMAL,
             new TransitionSourceStateExecutor()
         );
+    }
+
+    public ReshardMetrics getReshardMetrics() {
+        return reshardMetrics;
     }
 
     public static ValidationError validateIndex(IndexAbstraction indexAbstraction, IndexMetadata indexMetadata) {
@@ -190,6 +197,7 @@ public class ReshardIndexService {
         logger.trace("reshardIndex[{}]", request);
         onlyReshardIndex(masterNodeTimeout, request, listener.delegateFailureAndWrap((delegate, response) -> {
             logger.trace("[{}] index reshard acknowledged", request.index().getName());
+            reshardMetrics.reshardStartedCounter().increment();
             delegate.onResponse(null);
         }));
     }

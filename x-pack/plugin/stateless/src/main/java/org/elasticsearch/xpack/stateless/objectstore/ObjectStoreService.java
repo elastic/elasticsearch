@@ -1147,7 +1147,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                         destinationContainerForTerm.path()
                     );
                     destinationContainerForTerm.copyBlob(
-                        OperationPurpose.INDICES,
+                        OperationPurpose.RESHARDING,
                         sourceContainerForTerm,
                         blob.name(),
                         blob.name(),
@@ -1175,7 +1175,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         var destContainer = termContainer.apply(getProjectBlobContainer(destination));
         var blobName = virtualBcc.getBlobName();
         logger.debug("CopyCommit copying {} from [{}] to [{}]", blobName, sourceContainer.path(), destContainer.path());
-        destContainer.copyBlob(OperationPurpose.INDICES, sourceContainer, blobName, blobName, virtualBcc.getTotalSizeInBytes());
+        destContainer.copyBlob(OperationPurpose.RESHARDING, sourceContainer, blobName, blobName, virtualBcc.getTotalSizeInBytes());
     }
 
     private boolean assertShardsAreInSameProject(ShardId source, ShardId destination) {

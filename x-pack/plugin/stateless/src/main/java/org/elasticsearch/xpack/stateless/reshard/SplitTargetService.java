@@ -56,6 +56,8 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -119,6 +121,8 @@ public class SplitTargetService {
                     split,
                     indexShard,
                     () -> onGoingSplits.remove(indexShard),
+                    reshardIndexService.getReshardMetrics(),
+                    clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.Clone(recoveryListener)
                 );
                 onGoingSplits.put(indexShard, stateMachine);
@@ -129,6 +133,8 @@ public class SplitTargetService {
                     split,
                     indexShard,
                     () -> onGoingSplits.remove(indexShard),
+                    reshardIndexService.getReshardMetrics(),
+                    clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.RecoveringInHandoff()
                 );
                 onGoingSplits.put(indexShard, stateMachine);
@@ -140,6 +146,8 @@ public class SplitTargetService {
                     split,
                     indexShard,
                     () -> onGoingSplits.remove(indexShard),
+                    reshardIndexService.getReshardMetrics(),
+                    clusterService.threadPool().relativeTimeInMillisSupplier(),
                     new StateMachine.State.RecoveringInSplit()
                 );
                 onGoingSplits.put(indexShard, stateMachine);
@@ -170,7 +178,17 @@ public class SplitTargetService {
     // only for tests
     void initializeSplitInCloneState(IndexShard indexShard, Split split) {
         assert Thread.currentThread().getName().startsWith("TEST-");
-        onGoingSplits.put(indexShard, new StateMachine(split, indexShard, () -> {}, new StateMachine.State.Clone(ActionListener.noop())));
+        onGoingSplits.put(
+            indexShard,
+            new StateMachine(
+                split,
+                indexShard,
+                () -> {},
+                reshardIndexService.getReshardMetrics(),
+                () -> 0,
+                new StateMachine.State.Clone(ActionListener.noop())
+            )
+        );
     }
 
     public void cancelSplits(IndexShard indexShard) {
@@ -189,13 +207,22 @@ public class SplitTargetService {
         private final Runnable onCompleted;
 
         private final AtomicBoolean cancelled;
+        private final MetricsRecorder metricsRecorder;
 
         private State currentState;
 
-        private StateMachine(Split split, IndexShard shard, Runnable onCompleted, State initialState) {
+        private StateMachine(
+            Split split,
+            IndexShard shard,
+            Runnable onCompleted,
+            ReshardMetrics reshardMetrics,
+            LongSupplier nowInMillis,
+            State initialState
+        ) {
             this.split = split;
             this.shard = shard;
             this.onCompleted = onCompleted;
+            this.metricsRecorder = new MetricsRecorder(reshardMetrics, nowInMillis);
 
             this.cancelled = new AtomicBoolean(false);
 
@@ -222,6 +249,7 @@ public class SplitTargetService {
         private void advanceInternal(State newState) {
             validateStateTransition(newState);
             this.currentState = newState;
+            metricsRecorder.advance(newState);
 
             // TODO relax logging once implementation is stable
             logger.info("Advancing split target shard state machine for shard {} to {}", shard.shardId(), newState);
@@ -367,7 +395,7 @@ public class SplitTargetService {
 
         /// All the possible states that a target shard state machine can be in.
         /// State transitions are always performed in the order of definition except for the failure states.
-        /// E.g.  we always transition SearchShardsOnline -> Split.
+        /// E.g. we always transition SearchShardsOnline -> Split.
         sealed interface State permits State.Clone, State.WaitingForHandoff, State.HandoffReceived, State.StartSplitRpcComplete,
             State.Handoff, State.SearchShardsOnline, State.Split, State.SplitApplied, State.UnownedDataDeleted, State.Done,
             State.RecoveringInHandoff, State.RecoveringInSplit, State.FailedInRecovery, State.Failed {
@@ -664,6 +692,49 @@ public class SplitTargetService {
             @Override
             public void onFailure(Exception e) {
                 advance(new State.Failed(e, nextState));
+            }
+        }
+
+        private static class MetricsRecorder {
+            private record StateEntry(Class<? extends State> previousState, LongConsumer histogram) {}
+
+            // Only actual target shard states are present
+            private final Map<Class<? extends State>, StateEntry> targetStates;
+            private final LongSupplier nowInMillis;
+            Map<Class<? extends State>, Long> timestamps;
+
+            MetricsRecorder(ReshardMetrics reshardMetrics, LongSupplier nowInMillis) {
+                this.targetStates = new HashMap<>() {
+                    {
+                        put(
+                            State.Clone.class,
+                            new StateEntry(
+                                null,
+                                durationMillis -> reshardMetrics.targetCloneDurationHistogram().record(durationMillis / 1000.0)
+                            )
+                        );
+                        put(
+                            State.Handoff.class,
+                            new StateEntry(State.Clone.class, reshardMetrics.targetHandoffDurationHistogram()::record)
+                        );
+                        put(State.Split.class, new StateEntry(State.Handoff.class, reshardMetrics.targetSplitDurationHistogram()::record));
+                        put(State.Done.class, new StateEntry(State.Split.class, ignored -> {}));
+                    }
+                };
+                this.nowInMillis = nowInMillis;
+                this.timestamps = new HashMap<>();
+            }
+
+            void advance(State newState) {
+                StateEntry stateEntry = targetStates.get(newState.getClass());
+                if (stateEntry != null) {
+                    long nowInMillis = this.nowInMillis.getAsLong();
+                    Long previousStateStartMillis = timestamps.get(stateEntry.previousState);
+                    if (previousStateStartMillis != null) {
+                        targetStates.get(stateEntry.previousState).histogram.accept(nowInMillis - previousStateStartMillis);
+                    }
+                    timestamps.put(newState.getClass(), nowInMillis);
+                }
             }
         }
     }

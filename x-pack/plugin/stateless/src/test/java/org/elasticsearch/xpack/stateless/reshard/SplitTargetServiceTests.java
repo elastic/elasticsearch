@@ -52,6 +52,7 @@ public class SplitTargetServiceTests extends ESTestCase {
         var threadPool = mock(ThreadPool.class);
         var clusterService = mock(ClusterService.class);
         var reshardIndexService = mock(ReshardIndexService.class);
+        when(reshardIndexService.getReshardMetrics()).thenReturn(ReshardMetrics.NOOP);
         var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
 
         var shardId = new ShardId("index", "1", 0);

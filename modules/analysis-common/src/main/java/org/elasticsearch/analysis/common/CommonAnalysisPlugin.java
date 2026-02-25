@@ -106,6 +106,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.dictionary.CustomDictionaryService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -127,6 +128,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.tartarus.snowball.ext.DutchStemmer;
 import org.tartarus.snowball.ext.FrenchStemmer;
 
@@ -146,12 +148,16 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
     private final SetOnce<SynonymsManagementAPIService> synonymsManagementServiceHolder = new SetOnce<>();
     private final SetOnce<CircuitBreakerService> circuitBreakerServiceHolder = new SetOnce<>();
+    private final SetOnce<ThreadPool> threadPoolHolder = new SetOnce<>();
+    private final SetOnce<CustomDictionaryService> customDictionaryServiceHolder = new SetOnce<>();
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
         this.scriptServiceHolder.set(services.scriptService());
         this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client()));
         this.circuitBreakerServiceHolder.set(services.indicesService().getCircuitBreakerService());
+        this.threadPoolHolder.set(services.threadPool());
+        this.customDictionaryServiceHolder.set(new CustomDictionaryService(services.client()));
         return Collections.emptyList();
     }
 
@@ -266,7 +272,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("hindi_normalization", HindiNormalizationFilterFactory::new);
         filters.put("hyphenation_decompounder", requiresAnalysisSettings(HyphenationCompoundWordTokenFilterFactory::new));
         filters.put("indic_normalization", IndicNormalizationFilterFactory::new);
-        filters.put("keep", requiresAnalysisSettings(KeepWordFilterFactory::new));
+        filters.put(
+            "keep",
+            requiresAnalysisSettings(
+                (i, e, n, s) -> new KeepWordFilterFactory(i, e, n, s, threadPoolHolder.get(), customDictionaryServiceHolder.get())
+            )
+        );
         filters.put("keep_types", requiresAnalysisSettings(KeepTypesFilterFactory::new));
         filters.put("keyword_marker", requiresAnalysisSettings(KeywordMarkerTokenFilterFactory::new));
         filters.put("kstem", KStemTokenFilterFactory::new);
@@ -315,7 +326,19 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("serbian_normalization", SerbianNormalizationFilterFactory::new);
         filters.put("snowball", SnowballTokenFilterFactory::new);
         filters.put("sorani_normalization", SoraniNormalizationFilterFactory::new);
-        filters.put("stemmer_override", requiresAnalysisSettings(StemmerOverrideTokenFilterFactory::new));
+        filters.put(
+            "stemmer_override",
+            requiresAnalysisSettings(
+                (i, e, n, s) -> new StemmerOverrideTokenFilterFactory(
+                    i,
+                    e,
+                    n,
+                    s,
+                    threadPoolHolder.get(),
+                    customDictionaryServiceHolder.get()
+                )
+            )
+        );
         filters.put("stemmer", StemmerTokenFilterFactory::new);
         // It doesn't really matter which child circuit breaker we use in the synonym filters because we only use them to trip on real
         // memory usage, which is only checked by the parent circuit breaker

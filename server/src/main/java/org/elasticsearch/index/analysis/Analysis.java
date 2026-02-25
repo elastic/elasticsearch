@@ -48,10 +48,13 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CSVUtil;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.dictionary.CustomDictionaryService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
@@ -73,6 +76,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static java.util.Map.entry;
 
@@ -197,6 +202,35 @@ public class Analysis {
         return new CharArraySet(wordList, ignoreCase);
     }
 
+    public static Supplier<CharArraySet> getWordSetSupplier(
+        CustomDictionaryService customDictionaryService,
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        String settingDictionary,
+        String settingCase,
+        boolean removeComments
+    ) {
+        boolean ignoreCase = settings.getAsBoolean(settingCase, false);
+        Supplier<List<String>> wordListSupplier = getWordListSupplier(
+            customDictionaryService,
+            env,
+            settings,
+            settingPath,
+            settingList,
+            settingDictionary,
+            removeComments
+        );
+        return () -> {
+            List<String> wordList = wordListSupplier.get();
+            if (wordList == null) {
+                return null;
+            }
+            return new CharArraySet(wordList, ignoreCase);
+        };
+    }
+
     /**
      * Fetches a list of words from the specified settings file. The list should either be available at the key
      * specified by settingsPrefix or in a file specified by settingsPrefix + _path.
@@ -269,6 +303,52 @@ public class Analysis {
         return ruleList;
     }
 
+    public static Supplier<List<String>> getWordListSupplier(
+        CustomDictionaryService customDictionaryService,
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        String settingDictionary,
+        boolean removeComments
+    ) {
+        String wordListPath = settings.get(settingPath, null);
+
+        String wordListDictionaryId = null;
+        if (settingDictionary != null) {
+            wordListDictionaryId = settings.get(settingDictionary, null);
+        }
+
+        final Supplier<List<String>> wordListSupplier;
+        if (wordListPath != null) {
+            final Path path = env.configDir().resolve(wordListPath);
+
+            try {
+                List<String> wordList = loadWordList(path, removeComments);
+                wordListSupplier = () -> wordList;
+            } catch (CharacterCodingException ex) {
+                String message = Strings.format(
+                    "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
+                    settingPath,
+                    path
+                );
+                throw new IllegalArgumentException(message, ex);
+            } catch (IOException ioe) {
+                String message = Strings.format("IOException while reading %s: %s", settingPath, path);
+                throw new IllegalArgumentException(message, ioe);
+            } catch (SecurityException ace) {
+                throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
+            }
+        } else if (wordListDictionaryId != null) {
+            wordListSupplier = getWordListSupplierFromDictionary(customDictionaryService, wordListDictionaryId, removeComments);
+        } else {
+            List<String> wordList = settings.getAsList(settingList, null);
+            wordListSupplier = () -> wordList;
+        }
+
+        return wordListSupplier;
+    }
+
     /**
      * This method checks for any duplicate rules in the provided ruleList. Each rule in the list is parsed with CSVUtil.parse
      * to separate the rule into individual components, represented as a String array. Only the first component from each rule
@@ -313,18 +393,26 @@ public class Analysis {
     }
 
     private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {
-        final List<String> result = new ArrayList<>();
+        final List<String> result;
         try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            String word;
-            while ((word = br.readLine()) != null) {
-                if (Strings.hasText(word) == false) {
-                    continue;
-                }
-                if (removeComments == false || word.startsWith("#") == false) {
-                    result.add(word.trim());
-                }
+            result = parseWordList(br, removeComments);
+        }
+        return result;
+    }
+
+    private static List<String> parseWordList(BufferedReader reader, boolean removeComments) throws IOException {
+        final List<String> result = new ArrayList<>();
+
+        String word;
+        while ((word = reader.readLine()) != null) {
+            if (Strings.hasText(word) == false) {
+                continue;
+            }
+            if (removeComments == false || word.startsWith("#") == false) {
+                result.add(word.trim());
             }
         }
+
         return result;
     }
 
@@ -396,4 +484,39 @@ public class Analysis {
         return new StringReader(sb.toString());
     }
 
+    private static Supplier<List<String>> getWordListSupplierFromDictionary(
+        CustomDictionaryService customDictionaryService,
+        String dictionaryId,
+        boolean removeComments
+    ) {
+        AtomicReference<List<String>> wordList = new AtomicReference<>(null);
+        return () -> {
+            if (wordList.get() == null) {
+                synchronized (wordList) {
+                    if (wordList.get() == null) {
+                        try {
+                            PlainActionFuture<String> dictionaryLoadingFuture = new PlainActionFuture<>();
+                            customDictionaryService.getDictionary(dictionaryId, dictionaryLoadingFuture);
+                            String dictionaryContent = dictionaryLoadingFuture.actionGet();
+
+                            final List<String> words;
+                            try (BufferedReader reader = new BufferedReader(new StringReader(dictionaryContent))) {
+                                words = parseWordList(reader, removeComments);
+                            }
+
+                            wordList.set(words);
+                        } catch (Exception e) {
+                            throw new ElasticsearchStatusException(
+                                Strings.format("Failed to load custom dictionary [%s]", dictionaryId),
+                                ExceptionsHelper.status(e),
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+
+            return wordList.get();
+        };
+    }
 }

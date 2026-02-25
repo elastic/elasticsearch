@@ -17,6 +17,9 @@ import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
@@ -31,14 +34,26 @@ public class StemmerOverrideTokenFilterFactoryTests extends ESTokenStreamTestCas
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    public static TokenFilterFactory create(String... rules) throws IOException {
+    private TestThreadPool threadPool;
+
+    @Before
+    public void createThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void shutdownThreadPool() {
+        threadPool.shutdownNow();
+    }
+
+    public TokenFilterFactory create(String... rules) throws IOException {
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
             Settings.builder()
                 .put("index.analysis.filter.my_stemmer_override.type", "stemmer_override")
                 .putList("index.analysis.filter.my_stemmer_override.rules", rules)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build(),
-            new CommonAnalysisPlugin()
+            new TestCommonAnalysisPluginBuilder(threadPool).build()
         );
 
         return analysis.tokenFilter.get("my_stemmer_override");

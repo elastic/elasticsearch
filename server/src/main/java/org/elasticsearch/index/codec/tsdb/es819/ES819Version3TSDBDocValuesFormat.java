@@ -25,6 +25,9 @@ import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
 
     static final String CODEC_NAME = "ES8193TSDB";
+    static final int BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT = 512 * 1024;
+    // TODO: define new default
+    static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 65536;
 
     public ES819Version3TSDBDocValuesFormat() {
         super(
@@ -68,7 +71,9 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
             binaryDVCompressionMode,
             enablePerBlockCompression,
             numericBlockShift,
-            DocOffsetsCodec.BITPACKING
+            DocOffsetsCodec.BITPACKING,
+            BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
         );
     }
 }

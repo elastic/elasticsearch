@@ -61,23 +61,127 @@ public class LuceneSliceQueueTests extends ESTestCase {
         List<Object> query2 = List.of("q2");
         List<LuceneSlice> sliceList = List.of(
             // query1: new segment
-            new LuceneSlice(0, true, shardContext, List.of(new PartialLeafReaderContext(leaf1, 0, 10)), null, query1),
-            new LuceneSlice(1, false, shardContext, List.of(new PartialLeafReaderContext(leaf2, 0, 10)), null, query1),
-            new LuceneSlice(2, false, shardContext, List.of(new PartialLeafReaderContext(leaf2, 10, 20)), null, query1),
+            new LuceneSlice(
+                0,
+                true,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf1, 0, 10)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                1,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf2, 0, 10)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                2,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf2, 10, 20)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
             // query1: new segment
-            new LuceneSlice(3, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 0, 20)), null, query1),
-            new LuceneSlice(4, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 10, 20)), null, query1),
-            new LuceneSlice(5, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 20, 30)), null, query1),
+            new LuceneSlice(
+                3,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 0, 20)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                4,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 10, 20)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                5,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 20, 30)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
             // query1: new segment
-            new LuceneSlice(6, false, shardContext, List.of(new PartialLeafReaderContext(leaf4, 0, 10)), null, query1),
-            new LuceneSlice(7, false, shardContext, List.of(new PartialLeafReaderContext(leaf4, 10, 20)), null, query1),
+            new LuceneSlice(
+                6,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf4, 0, 10)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                7,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf4, 10, 20)),
+                null,
+                query1,
+                LuceneSlice.NEVER_BLOCKED
+            ),
             // query2: new segment
-            new LuceneSlice(8, true, shardContext, List.of(new PartialLeafReaderContext(leaf2, 0, 10)), null, query2),
-            new LuceneSlice(9, false, shardContext, List.of(new PartialLeafReaderContext(leaf2, 10, 20)), null, query2),
+            new LuceneSlice(
+                8,
+                true,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf2, 0, 10)),
+                null,
+                query2,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                9,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf2, 10, 20)),
+                null,
+                query2,
+                LuceneSlice.NEVER_BLOCKED
+            ),
             // query1: new segment
-            new LuceneSlice(10, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 0, 20)), null, query2),
-            new LuceneSlice(11, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 10, 20)), null, query2),
-            new LuceneSlice(12, false, shardContext, List.of(new PartialLeafReaderContext(leaf3, 20, 30)), null, query2)
+            new LuceneSlice(
+                10,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 0, 20)),
+                null,
+                query2,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                11,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 10, 20)),
+                null,
+                query2,
+                LuceneSlice.NEVER_BLOCKED
+            ),
+            new LuceneSlice(
+                12,
+                false,
+                shardContext,
+                List.of(new PartialLeafReaderContext(leaf3, 20, 30)),
+                null,
+                query2,
+                LuceneSlice.NEVER_BLOCKED
+            )
         );
         // single driver
         {
@@ -150,7 +254,8 @@ public class LuceneSliceQueueTests extends ESTestCase {
                         shardContext,
                         List.of(new PartialLeafReaderContext(leafContext, minDoc, maxDoc)),
                         null,
-                        null
+                        null,
+                        LuceneSlice.NEVER_BLOCKED
                     );
                     sliceList.add(slice);
                 }

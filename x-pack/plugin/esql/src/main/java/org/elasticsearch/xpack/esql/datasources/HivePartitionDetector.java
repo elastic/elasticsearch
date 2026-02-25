@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -188,7 +189,7 @@ final class HivePartitionDetector {
             return Double.parseDouble(value);
         }
         if (type == DataType.BOOLEAN) {
-            return Boolean.parseBoolean(value);
+            return Booleans.parseBoolean(value);
         }
         return value;
     }

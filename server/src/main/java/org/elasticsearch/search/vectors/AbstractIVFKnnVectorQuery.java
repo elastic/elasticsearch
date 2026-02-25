@@ -58,7 +58,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
-    /** Cap for cluster-size weight to avoid one segment dominating (safety bound, not a recall tunable). */
+    // Cap for cluster-size weight to avoid one segment dominating (safety bound, not a recall tunable)
     private static final float CLUSTER_SIZE_WEIGHT_CAP = 2f;
 
     protected final String field;
@@ -123,13 +123,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            field,
-            k,
-            filter,
-            providedVisitRatio,
-            enableProximityBasedAllocation
-        );
+        return Objects.hash(field, k, filter, providedVisitRatio, enableProximityBasedAllocation);
     }
 
     @Override
@@ -278,11 +272,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         VectorSimilarityFunction similarityFunction,
         int vectorCount,
         int numCentroids,
-        float clusterVariance,           // cluster variance - lower is better (unused in affinity, kept for compatibility)
-        float averageClusterSize,        // density indicator (unused in affinity, kept for compatibility)
-        float maxClusterSize,            // outlier detection (unused in affinity, kept for compatibility)
-        Float maxClusterRadius,          // max k-means radius in segment (ESNext only; null = neutral for allocation)
-        Float meanClusterRadius,         // mean k-means radius in segment (ESNext only; null = neutral)
+        float averageClusterSize,        // density indicator (vectors per centroid, higher means denser, but with diminishing returns
+        Float maxClusterRadius,          // max k-means radius in segment
+        Float meanClusterRadius,         // mean k-means radius in segment
         boolean isValid
     ) {}
 
@@ -338,9 +330,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
 
             if (floatVectorValues == null || floatVectorValues.size() == 0) {
-                segmentMetadata.add(
-                    new SegmentMetadata(context, Float.NaN, Float.NaN, null, 0, 0, 0f, 0f, 0f, null, null, false)
-                );
+                segmentMetadata.add(new SegmentMetadata(context, Float.NaN, Float.NaN, null, 0, 0, 0f, null, null, false));
                 continue;
             }
 
@@ -371,10 +361,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                         float[] segmentFp = reader.getSegmentFingerprint(fieldInfo);
                         if (segmentFp != null) {
                             if (queryFingerprint == null) {
-                                anchors = SegmentFingerprintAnchors.getAnchors(
-                                    fieldInfo.getVectorDimension(),
-                                    similarityFunction
-                                );
+                                anchors = SegmentFingerprintAnchors.getAnchors(fieldInfo.getVectorDimension(), similarityFunction);
                                 queryFingerprint = SegmentFingerprintAnchors.computeQueryFingerprint(
                                     queryVector,
                                     similarityFunction,
@@ -398,9 +385,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                                 similarityFunction,
                                 vectorCount,
                                 numCentroids,
-                                0f,
                                 (float) vectorCount / numCentroids,
-                                0f,
                                 maxClusterRadius,
                                 meanClusterRadius,
                                 true
@@ -410,20 +395,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 }
             } else {
                 segmentMetadata.add(
-                    new SegmentMetadata(
-                        context,
-                        Float.NaN,
-                        Float.NaN,
-                        null,
-                        floatVectorValues.size(),
-                        0,
-                        0f,
-                        0f,
-                        0f,
-                        null,
-                        null,
-                        false
-                    )
+                    new SegmentMetadata(context, Float.NaN, Float.NaN, null, floatVectorValues.size(), 0, 0f, null, null, false)
                 );
             }
         }

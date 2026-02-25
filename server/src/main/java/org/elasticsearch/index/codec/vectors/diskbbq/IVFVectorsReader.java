@@ -47,7 +47,6 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.IVF_META_EXTENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.VERSION_SEGMENT_FINGERPRINT;
 
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
@@ -203,7 +202,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
         float[] segmentFingerprint = null;
-        if (versionMeta >= VERSION_SEGMENT_FINGERPRINT && centroidLength > 0) {
+        if (centroidLength > 0) {
             segmentFingerprint = new float[SegmentFingerprintAnchors.ancoraDirections];
             for (int i = 0; i < SegmentFingerprintAnchors.ancoraDirections; i++) {
                 segmentFingerprint[i] = Float.intBitsToFloat(input.readInt());

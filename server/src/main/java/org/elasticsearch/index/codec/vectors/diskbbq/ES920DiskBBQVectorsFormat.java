@@ -61,8 +61,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     public static final int VERSION_START = 0;
     public static final int VERSION_DIRECT_IO = 1;
-    public static final int VERSION_SEGMENT_FINGERPRINT = 2;
-    public static final int VERSION_CURRENT = VERSION_SEGMENT_FINGERPRINT;
+    public static final int VERSION_CURRENT = VERSION_DIRECT_IO;
 
     static final int BULK_SIZE = 16;
 

@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.gpu.GpuVectorIndexingFeatureSetUsage;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.XPackFeatures.VECTORS_INDEXING_GPU_MONITORING;
+import static org.elasticsearch.xpack.gpu.GPUFeatures.VECTORS_INDEXING_GPU_MONITORING;
 
 /**
  * Handles the {@code _xpack/usage} request for the GPU vector indexing feature.

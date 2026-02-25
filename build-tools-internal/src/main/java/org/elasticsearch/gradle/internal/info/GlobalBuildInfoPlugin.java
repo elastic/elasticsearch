@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.util.HttpUtils;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
@@ -53,10 +54,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Locale;
@@ -84,11 +83,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
     );
-
-    @FunctionalInterface
-    interface Sleeper {
-        void sleep(long millis) throws InterruptedException;
-    }
 
     private ObjectFactory objectFactory;
     private final JavaInstallationRegistry javaInstallationRegistry;
@@ -251,7 +245,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (isHttpLocation(branchesFileLocation)) {
             int maxAttempts = project.getGradle().getStartParameter().isOffline() ? 1 : HTTP_READ_MAX_ATTEMPTS;
             try {
-                branchesBytes = readHttpBytesWithRetry(branchesFileLocation, maxAttempts, HTTP_READ_RETRY_BACKOFF_MILLIS, Thread::sleep);
+                branchesBytes = HttpUtils.readHttpBytesWithRetry(
+                    branchesFileLocation,
+                    maxAttempts,
+                    HTTP_READ_RETRY_BACKOFF_MILLIS,
+                    Thread::sleep
+                );
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to download branches.json from: " + branchesFileLocation, e);
             }
@@ -269,36 +268,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private static boolean isHttpLocation(String branchesFileLocation) {
         return branchesFileLocation.startsWith("http://") || branchesFileLocation.startsWith("https://");
-    }
-
-    static byte[] readHttpBytesWithRetry(String url, int maxAttempts, long baseBackoffMillis, Sleeper sleeper) throws IOException {
-        if (maxAttempts <= 0) {
-            throw new IllegalArgumentException("maxAttempts must be >= 1 but was [" + maxAttempts + "]");
-        }
-        if (baseBackoffMillis < 0) {
-            throw new IllegalArgumentException("baseBackoffMillis must be >= 0 but was [" + baseBackoffMillis + "]");
-        }
-
-        IOException lastException = null;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            if (attempt > 1 && baseBackoffMillis > 0) {
-                long backoff = baseBackoffMillis * (attempt - 1);
-                try {
-                    sleeper.sleep(backoff);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("Interrupted while retrying download from: " + url, e);
-                }
-            }
-
-            try (InputStream in = URI.create(url).toURL().openStream()) {
-                return in.readAllBytes();
-            } catch (IOException e) {
-                lastException = e;
-            }
-        }
-        assert lastException != null;
-        throw lastException;
     }
 
     private void logGlobalBuildInfo(BuildParameterExtension buildParams) {

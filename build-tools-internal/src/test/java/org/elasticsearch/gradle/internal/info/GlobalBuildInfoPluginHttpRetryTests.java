@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.info;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.gradle.internal.util.HttpUtils;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -53,9 +54,9 @@ public class GlobalBuildInfoPluginHttpRetryTests {
             String host = server.getAddress().getAddress().getHostAddress();
             String url = new URI("http", null, host, server.getAddress().getPort(), "/branches.json", null, null).toString();
             List<Long> backoffs = new ArrayList<>();
-            GlobalBuildInfoPlugin.Sleeper sleeper = backoffs::add;
+            HttpUtils.Sleeper sleeper = backoffs::add;
 
-            byte[] bytes = GlobalBuildInfoPlugin.readHttpBytesWithRetry(url, 3, 10, sleeper);
+            byte[] bytes = HttpUtils.readHttpBytesWithRetry(url, 3, 10, sleeper);
 
             assertThat(bytes, equalTo(body));
             assertThat(requests.get(), equalTo(2));
@@ -82,9 +83,9 @@ public class GlobalBuildInfoPluginHttpRetryTests {
             String host = server.getAddress().getAddress().getHostAddress();
             String url = new URI("http", null, host, server.getAddress().getPort(), "/branches.json", null, null).toString();
             List<Long> backoffs = new ArrayList<>();
-            GlobalBuildInfoPlugin.Sleeper sleeper = backoffs::add;
+            HttpUtils.Sleeper sleeper = backoffs::add;
 
-            assertThrows(IOException.class, () -> GlobalBuildInfoPlugin.readHttpBytesWithRetry(url, 3, 10, sleeper));
+            assertThrows(IOException.class, () -> HttpUtils.readHttpBytesWithRetry(url, 3, 10, sleeper));
 
             assertThat(requests.get(), equalTo(3));
             assertThat(backoffs, equalTo(List.of(10L, 20L)));

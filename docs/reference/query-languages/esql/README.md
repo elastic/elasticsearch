@@ -139,6 +139,7 @@ For example, to indicate that a function is in technical preview and applies to 
 ```java
 @FunctionInfo(
     returnType = "boolean",
+    preview = true, // this marks the feature as preview in serverless
     appliesTo = {
         @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0")
     },

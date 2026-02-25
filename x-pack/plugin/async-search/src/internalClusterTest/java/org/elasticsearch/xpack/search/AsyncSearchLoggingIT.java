@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
@@ -77,7 +78,7 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
         return appender.events.stream().filter(event -> {
             Map<String, String> message = getMessageData(event);
             return message.get(ES_FIELDS_PREFIX + "type").equals("search") == false
-                || Objects.equals(message.get(ES_FIELDS_PREFIX + "indices"), ".async-search") == false;
+                || Objects.equals(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), ".async-search") == false;
         }).toList();
     }
 
@@ -100,8 +101,8 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
         assertThat(events, hasSize(1));
         Map<String, String> message = getMessageData(events.getFirst());
         assertMessageSuccess(message, "search", "quick");
-        assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("3"));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
     }
 
     public void testFailureLog() throws Exception {
@@ -123,8 +124,8 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
         assertThat(events, hasSize(1));
         Map<String, String> message = getMessageData(events.getFirst());
         assertMessageFailure(message, "search", "throw", SearchPhaseExecutionException.class, "all shards failed");
-        assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("0"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("0"));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
     }
 
     private void setupIndex() {

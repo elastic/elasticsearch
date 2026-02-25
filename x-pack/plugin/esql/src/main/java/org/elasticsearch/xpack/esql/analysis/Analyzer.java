@@ -581,27 +581,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
-        /**
-         * Override skipResolved to always process Row nodes, even when they are already resolved.
-         * <p>
-         * When all Row fields are literals (e.g., {@code ROW a = 1, b = 2, a = 3}), the Row node
-         * is resolved immediately after parsing since all expressions are resolved literals.
-         * However, we still need the Analyzer to:
-         * <ul>
-         *   <li>Handle duplicate field names (remove earlier definitions when later ones shadow them)</li>
-         *   <li>Resolve field references in later fields that refer to earlier ones
-         *       (e.g., {@code ROW x = 4, z = x + 1})</li>
-         * </ul>
-         * <p>
-         * In contrast, when Row contains field references (e.g., {@code ROW x = 4, z = x + y}),
-         * the Row is unresolved due to UnresolvedAttributes, so it would be processed anyway.
-         * This override ensures consistent handling for both cases.
-         */
-        @Override
-        protected boolean skipResolved(LogicalPlan plan) {
-            return plan instanceof Row == false;
-        }
-
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             if (plan.childrenResolved() == false) {
@@ -1382,14 +1361,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * @param fields the fields to resolve
          * @param resolver function to resolve an UnresolvedAttribute
          * @param onResolved callback invoked when a field is resolved, receives the resolved alias
-         * @param removeFromOutput whether to remove shadowed fields from the output list (true for Row, false for Eval)
          * @return a pair of (newFields, changed) where changed indicates if any modifications occurred
          */
         private ResolvedFields resolveFieldsWithShadowing(
             List<Alias> fields,
             Function<UnresolvedAttribute, Expression> resolver,
-            Consumer<Alias> onResolved,
-            boolean removeFromOutput
+            Consumer<Alias> onResolved
         ) {
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
@@ -1397,12 +1374,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Alias field : fields) {
                 Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, resolver);
                 changed |= result != field;
-
-                if (removeFromOutput && result.resolved()) {
-                    // Handle field shadowing: remove any existing field with the same name from output
-                    boolean removed = newFields.removeIf(existing -> existing.name().equals(result.name()));
-                    changed |= removed;
-                }
 
                 newFields.add(result);
 
@@ -1421,9 +1392,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // for proper resolution, duplicate attribute names are problematic, only last occurrence matters
                 allResolvedInputs.removeIf(attr -> attr.name().equals(result.name()));
                 allResolvedInputs.add(result.toAttribute());
-            },
-                false  // Don't remove from output - Eval keeps all fields
-            );
+            });
 
             return resolved.changed ? new Eval(eval.source(), eval.child(), resolved.fields) : eval;
         }
@@ -1451,21 +1420,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * </pre>
          */
         private LogicalPlan resolveRow(Row row) {
-            // Build a mapping from field names to their expressions for substitution
             Map<String, Expression> fieldExpressions = new HashMap<>();
 
             ResolvedFields resolved = resolveFieldsWithShadowing(
                 row.fields(),
                 ua -> fieldExpressions.getOrDefault(ua.name(), ua),
-                result -> {
-                    // Store the field's child expression for future substitutions
-                    // If there's a duplicate name, the later one overrides
-                    fieldExpressions.put(result.name(), result.child());
-                },
-                true  // Remove from output - Row removes shadowed fields
+                result -> fieldExpressions.put(result.name(), result.child())
             );
 
-            return resolved.changed ? new Row(row.source(), resolved.fields) : row;
+            // Deduplicate: last definition wins (same shadowing semantics as EVAL)
+            LinkedHashMap<String, Alias> deduped = new LinkedHashMap<>();
+            for (Alias field : resolved.fields) {
+                deduped.put(field.name(), field);
+            }
+            List<Alias> dedupedFields = new ArrayList<>(deduped.values());
+            boolean changed = resolved.changed || dedupedFields.size() != resolved.fields.size();
+
+            return changed ? new Row(row.source(), dedupedFields) : row;
         }
 
         /**
@@ -1752,7 +1723,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ResolveConfigurationAware extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
 
         @Override
-        protected boolean skipResolved(LogicalPlan plan) {
+        protected boolean skipResolved() {
             return false;
         }
 

@@ -19,8 +19,10 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -54,7 +56,17 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware, Tele
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(fields);
+        if (Resolvables.resolved(fields) == false) {
+            return false;
+        }
+        // Duplicate field names require analyzer processing (shadowing), so treat as unresolved
+        Set<String> names = new HashSet<>();
+        for (Alias field : fields) {
+            if (names.add(field.name()) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

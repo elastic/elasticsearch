@@ -115,6 +115,8 @@ public class ParquetFormatReader implements FormatReader {
                 Attribute attr = attributeMap.get(columnName);
                 if (attr != null) {
                     projectedAttributes.add(attr);
+                } else {
+                    projectedAttributes.add(new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL));
                 }
             }
         }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.FileSet;
 
@@ -191,6 +192,7 @@ public record SourceOperatorContext(
         private Map<String, Object> sourceMetadata;
         private Object pushedFilter;
         private FileSet fileSet;
+        private ExternalSplit split;
         private Set<String> partitionColumnNames;
 
         public Builder sourceType(String sourceType) {
@@ -245,6 +247,11 @@ public record SourceOperatorContext(
 
         public Builder fileSet(FileSet fileSet) {
             this.fileSet = fileSet;
+            return this;
+        }
+
+        public Builder split(ExternalSplit split) {
+            this.split = split;
             return this;
         }
 

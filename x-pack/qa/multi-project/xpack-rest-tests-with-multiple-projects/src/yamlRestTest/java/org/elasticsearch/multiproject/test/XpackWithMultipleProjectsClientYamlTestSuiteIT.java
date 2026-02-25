@@ -49,7 +49,6 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .systemProperty("es.queryable_built_in_roles_enabled", () -> {
             final String enabled = System.getProperty("es.queryable_built_in_roles_enabled");
             return Objects.requireNonNullElse(enabled, "");

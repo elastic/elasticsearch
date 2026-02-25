@@ -185,7 +185,13 @@ public class MicrosoftGraphAuthzRealm extends Realm {
 
         return new GraphServiceClient(
             new BaseGraphRequestAdapter(
-                new AzureIdentityAuthenticationProvider(credentialProvider, Strings.EMPTY_ARRAY, "https://graph.microsoft.com/.default"),
+                new AzureIdentityAuthenticationProvider(
+                    credentialProvider,
+                    Strings.EMPTY_ARRAY,
+                    null,
+                    false,
+                    "https://graph.microsoft.com/.default"
+                ),
                 config.getSetting(MicrosoftGraphAuthzRealmSettings.API_HOST),
                 httpClient
             )

@@ -90,7 +90,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
         }
         final BytesRef v;
         try {
-            v = BytesRef.deepCopyOf(docValues.lookupOrd(minOrd));
+            v = docValues.lookupOrd(minOrd);
         } catch (IOException e) {
             throw new UncheckedIOException("failed to lookup ordinals", e);
         }

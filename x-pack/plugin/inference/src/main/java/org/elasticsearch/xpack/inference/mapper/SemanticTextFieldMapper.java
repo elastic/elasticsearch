@@ -1052,7 +1052,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
             String name = useLegacyFormat ? name().concat(".text") : name();
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name));
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name), blContext.indexSettings());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
 
@@ -1419,7 +1419,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return null;
     }
 
-    private static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {
+    public static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {
         if (previous != null && current != null && previous.canMergeWith(current)) {
             return true;
         }

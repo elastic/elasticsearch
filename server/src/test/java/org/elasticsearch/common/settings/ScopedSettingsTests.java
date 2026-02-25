@@ -43,6 +43,7 @@ import java.util.function.Function;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
@@ -333,6 +334,20 @@ public class ScopedSettingsTests extends ESTestCase {
             () -> service.validate(Settings.builder().put(baseSetting.getKey(), "22").build(), true)
         );
         assertThat(e3.getMessage(), equalTo("too long"));
+    }
+
+    public void testValidateArchivedSetting() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.validate(Settings.builder().put("archived.index.store.type", "boom").build(), false)
+        );
+        assertThat(
+            e.getMessage(),
+            both(containsString("unknown setting [archived.index.store.type] was archived after upgrading, and must be removed.")).and(
+                containsString("https://www.elastic.co/docs/deploy-manage/upgrade/deployment-or-cluster/archived-settings")
+            )
+        );
     }
 
     public void testTupleAffixUpdateConsumer() {

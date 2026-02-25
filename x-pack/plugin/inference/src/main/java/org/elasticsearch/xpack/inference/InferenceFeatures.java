@@ -37,6 +37,12 @@ public class InferenceFeatures implements FeatureSpecification {
 
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER = new NodeFeature("semantic_text.highlighter");
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT = new NodeFeature("semantic_text.highlighter.default");
+    private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_DISKBBQ_SIMILARITY_SUPPORT = new NodeFeature(
+        "semantic_text.highlighter.bbq_and_similarity_support"
+    );
+    private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_VECTOR_SIMILARITY_SUPPORT = new NodeFeature(
+        "semantic_text.highlighter.vector_similarity_support"
+    );
     private static final NodeFeature TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE = new NodeFeature(
         "test_reranking_service.parse_text_as_score"
     );
@@ -53,6 +59,9 @@ public class InferenceFeatures implements FeatureSpecification {
 
     public static final NodeFeature INFERENCE_ENDPOINT_CACHE = new NodeFeature("inference.endpoint.cache");
     public static final NodeFeature SEARCH_USAGE_EXTENDED_DATA = new NodeFeature("search.usage.extended_data");
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING = new NodeFeature(
+        "text_similarity_reranker.comprehensive_top_n_handling"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -93,12 +102,15 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_HIGHLIGHTING_FLAT,
                 SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS,
                 SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT,
+                SEMANTIC_TEXT_HIGHLIGHTER_DISKBBQ_SIMILARITY_SUPPORT,
+                SEMANTIC_TEXT_HIGHLIGHTER_VECTOR_SIMILARITY_SUPPORT,
                 SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS,
                 SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX,
                 InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
                 TEXT_SIMILARITY_RERANKER_SNIPPETS,
                 ModelStats.SEMANTIC_TEXT_USAGE,
-                SEARCH_USAGE_EXTENDED_DATA
+                SEARCH_USAGE_EXTENDED_DATA,
+                TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING
             )
         );
         testFeatures.addAll(getFeatures());

@@ -62,6 +62,7 @@ final class SystemJvmOptions {
                 "-Dio.netty.recycler.maxCapacityPerThread=0",
                 // Needed to get access to raw vectors from Lucene scorers
                 "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.hnsw=org.elasticsearch.server",
                 "--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server",
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
@@ -173,15 +174,38 @@ final class SystemJvmOptions {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+
+        var internalExports = Stream.of(
+            "--add-exports=jdk.jlink/jdk.tools.jlink.internal=org.elasticsearch.entitlement",
+            "--add-exports=jdk.internal.vm.ci/jdk.vm.ci.services=org.elasticsearch.entitlement",
+            "--add-exports=java.base/sun.net.www=org.elasticsearch.entitlement",
+            "--add-exports=java.base/sun.net.www.protocol.ftp=org.elasticsearch.entitlement",
+            "--add-exports=java.base/sun.net.www.protocol.file=org.elasticsearch.entitlement",
+            "--add-exports=java.base/sun.net.www.protocol.jar=org.elasticsearch.entitlement",
+            "--add-exports=java.base/sun.net.www.protocol.http=org.elasticsearch.entitlement",
+            "--add-exports=java.base/sun.net.www.protocol.https=org.elasticsearch.entitlement",
+            "--add-exports=java.base/sun.net.www.protocol.mailto=org.elasticsearch.entitlement",
+            "--add-exports=java.base/sun.nio.ch=org.elasticsearch.entitlement",
+            "--add-exports=java.base/jdk.internal.foreign=org.elasticsearch.entitlement",
+            "--add-exports=java.base/jdk.internal.foreign.abi=org.elasticsearch.entitlement",
+            "--add-exports=java.base/jdk.internal.foreign.layout=org.elasticsearch.entitlement",
+            "--add-exports=java.net.http/jdk.internal.net.http=org.elasticsearch.entitlement",
+            "--add-exports=jdk.jdi/com.sun.tools.jdi=org.elasticsearch.entitlement"
+        );
+
         // We instrument classes in these modules to call the bridge. Because the bridge gets patched
         // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
         String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
-        return Stream.of(
-            "-XX:+EnableDynamicAgentLoading",
-            "-Djdk.attach.allowAttachSelf=true",
-            "--patch-module=java.base=" + bridgeJar,
-            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,"
-                + modulesContainingEntitlementInstrumentation
+        return Stream.concat(
+            Stream.of(
+                "-XX:+EnableDynamicAgentLoading",
+                "-Djdk.attach.allowAttachSelf=true",
+                "--patch-module=java.base=" + bridgeJar,
+                "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,"
+                    + "org.elasticsearch.entitlement.instrumentation"
+                    + modulesContainingEntitlementInstrumentation
+            ),
+            internalExports
         );
     }
 }

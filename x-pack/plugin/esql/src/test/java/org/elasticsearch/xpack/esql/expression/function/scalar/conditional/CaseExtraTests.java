@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.junit.After;
 
+import java.time.Duration;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -226,6 +228,69 @@ public class CaseExtraTests extends ESTestCase {
             assertTrue(caseExpr.foldable());
             return caseExpr.fold(FoldContext.small());
         });
+    }
+
+    public void testFoldCaseWithTemporalAmount() {
+        // TIME_DURATION
+        Duration oneDay = Duration.ofDays(1);
+        Duration fiveDays = Duration.ofDays(5);
+        Duration tenDays = Duration.ofDays(10);
+
+        Case caseExprTrue = caseExprWithTemporalAmount(true, oneDay, tenDays, DataType.TIME_DURATION);
+        assertTrue(caseExprTrue.foldable());
+        assertEquals(oneDay, caseExprTrue.fold(FoldContext.small()));
+
+        Case caseExprFalse = caseExprWithTemporalAmount(false, oneDay, tenDays, DataType.TIME_DURATION);
+        assertTrue(caseExprFalse.foldable());
+        assertEquals(tenDays, caseExprFalse.fold(FoldContext.small()));
+
+        // DATE_PERIOD
+        Period oneMonth = Period.ofMonths(1);
+        Period oneYear = Period.ofYears(1);
+
+        Case caseExprPeriodTrue = caseExprWithTemporalAmount(true, oneMonth, oneYear, DataType.DATE_PERIOD);
+        assertTrue(caseExprPeriodTrue.foldable());
+        assertEquals(oneMonth, caseExprPeriodTrue.fold(FoldContext.small()));
+
+        Case caseExprPeriodFalse = caseExprWithTemporalAmount(false, oneMonth, oneYear, DataType.DATE_PERIOD);
+        assertTrue(caseExprPeriodFalse.foldable());
+        assertEquals(oneYear, caseExprPeriodFalse.fold(FoldContext.small()));
+
+        // Test multiple conditions
+        Case caseExprMulti = new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, oneDay, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, true, DataType.BOOLEAN),
+                new Literal(Source.EMPTY, fiveDays, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, tenDays, DataType.TIME_DURATION)
+            )
+        );
+        assertTrue(caseExprMulti.foldable());
+        assertEquals(fiveDays, caseExprMulti.fold(FoldContext.small()));
+
+        // Test multiple conditions with else
+        Case caseExprMultiElse = new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, oneDay, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+                new Literal(Source.EMPTY, fiveDays, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, tenDays, DataType.TIME_DURATION)
+            )
+        );
+        assertTrue(caseExprMultiElse.foldable());
+        assertEquals(tenDays, caseExprMultiElse.fold(FoldContext.small()));
+    }
+
+    private static Case caseExprWithTemporalAmount(boolean condition, Object trueValue, Object elseValue, DataType dataType) {
+        return new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, condition, DataType.BOOLEAN),
+            List.of(new Literal(Source.EMPTY, trueValue, dataType), new Literal(Source.EMPTY, elseValue, dataType))
+        );
     }
 
     public void testCase(Function<Case, Object> toValue) {

@@ -196,7 +196,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
-        SearchTransportService.registerRequestHandler(transportService, searchService);
+        SearchTransportService.registerRequestHandler(transportService, searchService, namedWriteableRegistry);
         SearchQueryThenFetchAsyncAction.registerNodeSearchAction(
             searchTransportService,
             searchService,
@@ -584,6 +584,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         });
 
         final boolean isExplain = source != null && source.explain() != null && source.explain();
+        final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
+            ? original.allowPartialSearchResults()
+            : searchService.defaultAllowPartialSearchResults();
         Rewriteable.rewriteAndFetch(
             original,
             searchService.getRewriteContext(
@@ -593,8 +596,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 resolvedIndices,
                 original.pointInTimeBuilder(),
                 shouldMinimizeRoundtrips(original),
-                isExplain
+                isExplain,
+                allowPartialSearchResults
             ),
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             rewriteListener
         );
     }

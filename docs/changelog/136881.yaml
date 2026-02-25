@@ -1,5 +1,0 @@
-pr: 136881
-summary: Disallow `max_inner_product`, swap `dot_product` for `cosine` for int8_hnsw GPU type
-area: Search
-type: bug
-issues: []

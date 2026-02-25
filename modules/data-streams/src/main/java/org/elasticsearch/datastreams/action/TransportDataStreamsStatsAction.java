@@ -52,7 +52,8 @@ import java.util.SortedMap;
 public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAction<
     DataStreamsStatsAction.Request,
     DataStreamsStatsAction.Response,
-    DataStreamsStatsAction.DataStreamShardStats> {
+    DataStreamsStatsAction.DataStreamShardStats,
+    Void> {
 
     private final IndicesService indicesService;
     private final ProjectResolver projectResolver;
@@ -114,6 +115,7 @@ public class TransportDataStreamsStatsAction extends TransportBroadcastByNodeAct
         DataStreamsStatsAction.Request request,
         ShardRouting shardRouting,
         Task task,
+        Void nodeContext,
         ActionListener<DataStreamsStatsAction.DataStreamShardStats> listener
     ) {
         ActionListener.completeWith(listener, () -> {

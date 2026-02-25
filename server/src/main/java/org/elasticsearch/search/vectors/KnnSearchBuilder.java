@@ -358,11 +358,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (in.getTransportVersion().onOrAfter(V_8_11_X)) {
             this.innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
         }
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
-        } else {
-            this.rescoreVectorBuilder = null;
-        }
+        this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
     }
 
     public int k() {
@@ -631,9 +627,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
             out.writeOptionalWriteable(innerHitBuilder);
         }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeOptionalWriteable(rescoreVectorBuilder);
-        }
+        out.writeOptionalWriteable(rescoreVectorBuilder);
     }
 
     public static class Builder {

@@ -49,13 +49,14 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
             }
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             createRoleWithMetadata(upgradedTestRole, Map.of("meta", "test"));
-            waitForSecurityMigrationCompletion(adminClient(), 1);
+            waitForSecurityMigrationCompletion(adminClient(), 3);
             assertMigratedDocInSecurityIndex(oldTestRole, "meta", "test");
             assertMigratedDocInSecurityIndex(mixed1TestRole, "meta", "test");
             assertMigratedDocInSecurityIndex(mixed2TestRole, "meta", "test");
             assertMigratedDocInSecurityIndex(upgradedTestRole, "meta", "test");
-            // queries all roles by metadata
-            assertAllRoles(client(), "mixed1-test-role", "mixed2-test-role", "old-test-role", "upgraded-test-role");
+            // query all roles by metadata - use assertBusy to handle the case where the node handling the query is not yet aware of the
+            // successful migration
+            assertBusy(() -> assertAllRoles(client(), "mixed1-test-role", "mixed2-test-role", "old-test-role", "upgraded-test-role"));
         }
     }
 
@@ -175,7 +176,13 @@ public class SecurityIndexRolesMetadataMigrationIT extends AbstractUpgradeTestCa
             {"query":{"bool":{"must":[{"exists":{"field":"metadata.meta"}}]}},"sort":["name"]}""";
         Request request = new Request(randomFrom("POST", "GET"), "/_security/_query/role");
         request.setJsonEntity(metadataQuery);
-        Response response = client.performRequest(request);
+        Response response = null;
+        try {
+            response = client.performRequest(request);
+        } catch (ResponseException e) {
+            fail(e);
+        }
+        assertNotNull(response);
         assertOK(response);
         Map<String, Object> responseMap = responseAsMap(response);
         assertThat(responseMap.get("total"), is(roleNames.length));

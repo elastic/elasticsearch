@@ -23,8 +23,8 @@
           ],
           "parts": {
             "index": {
-              "type": "string",
-              "description": "The index or data stream name"
+              "type": "list",
+              "description": "Comma-separated list of index or data stream names"
             }
           }
         }

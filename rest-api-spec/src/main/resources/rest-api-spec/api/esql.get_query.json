@@ -1,7 +1,7 @@
 {
   "esql.get_query": {
     "documentation": {
-      "url": null,
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-get-query",
       "description": "Get a specific running ES|QL query information"
     },
     "stability": "experimental",

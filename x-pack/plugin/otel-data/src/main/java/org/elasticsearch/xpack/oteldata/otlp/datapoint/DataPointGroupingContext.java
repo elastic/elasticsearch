@@ -119,8 +119,23 @@ public class DataPointGroupingContext {
         return ignoredDataPoints;
     }
 
-    public String getIgnoredDataPointsMessage() {
-        return ignoredDataPointMessages.isEmpty() ? "" : String.join("\n", ignoredDataPointMessages);
+    public String getIgnoredDataPointsMessage(int limit) {
+        if (ignoredDataPointMessages.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("Ignored ").append(ignoredDataPoints).append(" data points due to the following reasons:\n");
+        int count = 0;
+        for (String message : ignoredDataPointMessages) {
+            sb.append(" - ").append(message).append("\n");
+            count++;
+            if (count >= limit) {
+                sb.append(" - ... and more\n");
+                break;
+            }
+        }
+        return sb.toString();
+
     }
 
     private ResourceGroup getOrCreateResourceGroup(ResourceMetrics resourceMetrics) {

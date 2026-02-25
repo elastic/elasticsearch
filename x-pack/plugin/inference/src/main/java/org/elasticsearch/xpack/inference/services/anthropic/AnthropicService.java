@@ -218,7 +218,13 @@ public class AnthropicService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
+        // Should never be called
         throw new UnsupportedOperationException("Anthropic service does not support chunked inference");
+    }
+
+    @Override
+    protected boolean supportsChunkedInfer() {
+        return false;
     }
 
     @Override

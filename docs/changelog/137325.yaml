@@ -1,5 +1,0 @@
-pr: 137325
-summary: "Enable `_otlp` usage with `create_doc`, `auto_configure` privileges"
-area: TSDB
-type: "bug"
-issues: []

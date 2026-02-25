@@ -42,6 +42,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -103,6 +104,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
     private static final String HOST_NAME = "host.name";
+    public static final String FALLBACK_FIELD_NAME_SUFFIX = "._original";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -571,7 +573,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isSyntheticSource = isSyntheticSource;
             this.indexSortConfig = builder.indexSortConfig;
             this.hasDocValuesSkipper = DocValuesSkipIndexType.NONE.equals(fieldType.docValuesSkipIndexType()) == false;
-            this.originalName = isSyntheticSource ? name + "._original" : null;
+            this.originalName = isSyntheticSource ? name + FALLBACK_FIELD_NAME_SUFFIX : null;
         }
 
         public KeywordFieldType(String name) {
@@ -806,7 +808,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 };
             }
 
-            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()), blContext.indexSettings());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
         }
 
@@ -894,7 +896,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                sourceValueFetcher(sourcePaths),
+                sourceValueFetcher(sourcePaths, fieldDataContext.indexSettings()),
                 fieldDataContext.lookupSupplier().get(),
                 KeywordDocValuesField::new
             );
@@ -916,11 +918,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+            return sourceValueFetcher(
+                context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet(),
+                context.getIndexSettings()
+            );
         }
 
-        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
-            return new SourceValueFetcher(sourcePaths, nullValue) {
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
+            return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();

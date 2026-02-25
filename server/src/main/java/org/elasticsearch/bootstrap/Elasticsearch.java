@@ -21,6 +21,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -34,7 +35,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
@@ -76,7 +76,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
+import static org.elasticsearch.nativeaccess.WindowsNativeAccess.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
  * This class starts elasticsearch.
@@ -145,6 +145,7 @@ class Elasticsearch {
 
             // DO NOT MOVE THIS
             // Logging must remain the last step of phase 1. Anything init steps needing logging should be in phase 2.
+            LogConfigurator.setClusterName(ClusterName.CLUSTER_NAME_SETTING.get(args.nodeSettings()).value());
             LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(args.nodeSettings()));
             LogConfigurator.configure(nodeEnv, args.quiet() == false);
         } catch (Throwable t) {
@@ -353,10 +354,11 @@ class Elasticsearch {
             try {
                 // The command doesn't matter; it doesn't even need to exist
                 startProcess.accept(new ProcessBuilder(""));
-            } catch (NotEntitledException e) {
-                return;
             } catch (Exception e) {
-                throw new IllegalStateException("Failed entitlement protection self-test", e);
+                if (e.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException") == false) {
+                    throw new IllegalStateException("Failed entitlement protection self-test", e);
+                }
+                return;
             }
             throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
         }
@@ -468,9 +470,8 @@ class Elasticsearch {
 
         // listener for windows close event
         if (ctrlHandler) {
-            var windowsFunctions = nativeAccess.getWindowsFunctions();
-            if (windowsFunctions != null) {
-                windowsFunctions.addConsoleCtrlHandler(code -> {
+            NativeAccess.onWindows(windowsNativeAccess -> {
+                windowsNativeAccess.addConsoleCtrlHandler(code -> {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
                         shutdown();
@@ -478,7 +479,11 @@ class Elasticsearch {
                     }
                     return false;
                 });
-            }
+            });
+        }
+
+        if (IOUtils.LINUX) {
+            setCoredumpFilter();
         }
 
         // init lucene random seed. it will use /dev/urandom where available:
@@ -593,6 +598,20 @@ class Elasticsearch {
             }
         }
         return pluginsWithNativeAccess;
+    }
+
+    @SuppressForbidden(reason = "access proc filesystem")
+    private static void setCoredumpFilter() {
+        // The coredump filter determines which types of memory are added to core dumps. By default, Java
+        // includes memory mapped files, bits 2 and 3. Here we disable those bits. Note that the VM
+        // has special options to disable these, but the filter is then inherited from the parent process
+        // which is the server CLI, which is also a JVM so it has these bits set. Thus, we set it explicitly.
+        // See https://man7.org/linux/man-pages/man5/core.5.html for more info on the relevant bits of the filter
+        try {
+            Files.writeString(Path.of("/proc/self/coredump_filter"), "0x23");
+        } catch (IOException e) {
+            throw new RuntimeException("Could not set coredump filter", e);
+        }
     }
 
     // -- instance

@@ -61,16 +61,8 @@ public record ScriptContextStats(
         var compilationLimitTriggered = in.readVLong();
         TimeSeries compilationsHistory;
         TimeSeries cacheEvictionsHistory;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            compilationsHistory = new TimeSeries(in);
-            cacheEvictionsHistory = new TimeSeries(in);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            compilationsHistory = new TimeSeries(in).withTotal(compilations);
-            cacheEvictionsHistory = new TimeSeries(in).withTotal(cacheEvictions);
-        } else {
-            compilationsHistory = new TimeSeries(compilations);
-            cacheEvictionsHistory = new TimeSeries(cacheEvictions);
-        }
+        compilationsHistory = new TimeSeries(in);
+        cacheEvictionsHistory = new TimeSeries(in);
         return new ScriptContextStats(
             context,
             compilations,

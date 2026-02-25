@@ -46,8 +46,11 @@ By default, this snapshot is deleted by the [delete action](/reference/elasticse
 
     This force merging occurs in the phase that the index is in **prior** to the `searchable_snapshot` action. For example, if using a `searchable_snapshot` action in the `hot` phase, the force merge will be performed on the hot nodes. If using a `searchable_snapshot` action in the `cold` phase, the force merge will be performed on whatever tier the index is **prior** to the `cold` phase (either `hot` or `warm`).
 
+`force_merge_on_clone` {applies_to}`stack: ga 9.2.1`
+:   (Optional, Boolean) By default, if `force_merge_index` is `true`, the index will first be cloned with 0 replicas and the force-merge will be performed on the clone before the searchable snapshot is created. This avoids performing the force-merge redundantly on replica shards, as the snapshot operation only uses primary shards. Setting this option to `false` will skip the clone step and perform the force-merge directly on the managed index. Defaults to `true`.
+
 `total_shards_per_node`
-:   The maximum number of shards (replicas and primaries) that will be allocated to a single node for the searchable snapshot index. Defaults to unbounded.
+:   (Optional, Integer) The maximum number of shards (replicas and primaries) that will be allocated to a single node for the searchable snapshot index. Defaults to unbounded.
 
 
 ## Examples [ilm-searchable-snapshot-ex]

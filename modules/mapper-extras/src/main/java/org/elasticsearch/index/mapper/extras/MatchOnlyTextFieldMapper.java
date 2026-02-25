@@ -208,7 +208,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource, syntheticSourceDelegate);
-            this.originalName = isSyntheticSource ? name + "._original" : null;
+            this.originalName = isSyntheticSource ? name + KeywordFieldMapper.FALLBACK_FIELD_NAME_SUFFIX : null;
             this.withinMultiField = withinMultiField;
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
         }
@@ -562,7 +562,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
 
             // fallback to _source (synthetic or not)
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
             // MatchOnlyText never has norms, so we have to use the field names field
             BlockSourceReader.LeafIteratorLookup lookup = BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, lookup);
@@ -593,7 +593,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name()), fieldDataContext.indexSettings()),
                 fieldDataContext.lookupSupplier().get(),
                 TextDocValuesField::new
             );

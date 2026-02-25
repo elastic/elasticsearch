@@ -127,7 +127,7 @@ public class TransportGetSettingsAction extends TransportLocalProjectMetadataAct
 
             indexToSettings.put(concreteIndex.getName(), indexSettings);
             if (indexToDefaultSettings != null) {
-                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(indexSettings, Settings.EMPTY));
+                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(indexMetadata.getSettings(), Settings.EMPTY));
                 if (isFilteredRequest(request)) {
                     defaultSettings = defaultSettings.filter(k -> Regex.simpleMatch(request.names(), k));
                 }

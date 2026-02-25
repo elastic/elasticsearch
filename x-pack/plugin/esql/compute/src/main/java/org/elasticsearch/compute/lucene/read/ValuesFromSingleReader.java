@@ -139,7 +139,7 @@ class ValuesFromSingleReader extends ValuesReader {
         SourceLoader sourceLoader = null;
         ValuesSourceReaderOperator.ShardContext shardContext = operator.shardContexts.get(shard);
         if (storedFieldsSpec.requiresSource()) {
-            sourceLoader = shardContext.newSourceLoader().get();
+            sourceLoader = shardContext.newSourceLoader().apply(storedFieldsSpec.sourcePaths());
             storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
         }
         if (storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {

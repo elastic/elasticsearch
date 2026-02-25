@@ -1032,7 +1032,7 @@ public class WildcardFieldMapper extends FieldMapper {
         this.indexVersionCreated = builder.indexCreatedVersion;
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
         this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
-        this.originalName = storeIgnored ? fullPath() + "._original" : null;
+        this.originalName = storeIgnored ? fullPath() + KeywordFieldMapper.FALLBACK_FIELD_NAME_SUFFIX : null;
     }
 
     @Override

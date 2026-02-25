@@ -8,7 +8,7 @@
         "admin",
         "write"
       ],
-      "allowed_list": ["elastic-renovate-prod[bot]"],
+      "allowed_list": ["elastic-renovate-prod[bot]", "github-actions[bot]"],
       "set_commit_status": false,
       "build_on_commit": true,
       "build_on_comment": true,

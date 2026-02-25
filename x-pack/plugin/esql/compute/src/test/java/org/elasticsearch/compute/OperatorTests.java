@@ -190,7 +190,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         f -> new BlockDocValuesReader.LongsBlockLoader("v")
                     )
                 ),
-                List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                List.of(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
                 0

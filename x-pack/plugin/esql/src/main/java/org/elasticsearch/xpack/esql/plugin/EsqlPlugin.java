@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
@@ -83,7 +82,6 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
-import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -182,7 +180,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
-        setupSharedSecrets();
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
@@ -207,15 +204,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     protected BlockFactoryProvider blockFactoryProvider(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
         return new BlockFactoryProvider(new BlockFactory(breaker, bigArrays, maxPrimitiveArraySize));
-    }
-
-    private void setupSharedSecrets() {
-        try {
-            // EsqlQueryRequestBuilder.<clinit> initializes the shared secret access
-            MethodHandles.lookup().ensureInitialized(EsqlQueryRequestBuilder.class);
-        } catch (IllegalAccessException e) {
-            throw new AssertionError(e);
-        }
     }
 
     // to be overriden by tests

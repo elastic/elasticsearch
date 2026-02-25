@@ -63,16 +63,17 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     private final Map<String, Map<String, Column>> tables = new TreeMap<>();
 
-    public static EsqlQueryRequest syncEsqlQueryRequest() {
-        return new EsqlQueryRequest(false);
+    public static EsqlQueryRequest syncEsqlQueryRequest(String query) {
+        return new EsqlQueryRequest(false, query);
     }
 
-    public static EsqlQueryRequest asyncEsqlQueryRequest() {
-        return new EsqlQueryRequest(true);
+    public static EsqlQueryRequest asyncEsqlQueryRequest(String query) {
+        return new EsqlQueryRequest(true, query);
     }
 
-    private EsqlQueryRequest(boolean async) {
+    private EsqlQueryRequest(boolean async, String query) {
         this.async = async;
+        this.query = query;
     }
 
     public EsqlQueryRequest(StreamInput in) throws IOException {
@@ -119,8 +120,9 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return async;
     }
 
-    public void columnar(boolean columnar) {
+    public EsqlQueryRequest columnar(boolean columnar) {
         this.columnar = columnar;
+        return this;
     }
 
     public boolean columnar() {
@@ -131,20 +133,23 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Enable profiling, sacrificing performance to return information about
      * what operations are taking the most time.
      */
-    public void profile(boolean profile) {
+    public EsqlQueryRequest profile(boolean profile) {
         this.profile = profile;
+        return this;
     }
 
-    public void includeCCSMetadata(Boolean include) {
+    public EsqlQueryRequest includeCCSMetadata(Boolean include) {
         this.includeCCSMetadata = include;
+        return this;
     }
 
     public Boolean includeCCSMetadata() {
         return includeCCSMetadata;
     }
 
-    public void includeExecutionMetadata(Boolean include) {
+    public EsqlQueryRequest includeExecutionMetadata(Boolean include) {
         this.includeExecutionMetadata = include;
+        return this;
     }
 
     public Boolean includeExecutionMetadata() {
@@ -197,24 +202,27 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return waitForCompletionTimeout;
     }
 
-    public void waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+    public EsqlQueryRequest waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
         this.waitForCompletionTimeout = waitForCompletionTimeout;
+        return this;
     }
 
     public TimeValue keepAlive() {
         return keepAlive;
     }
 
-    public void keepAlive(TimeValue keepAlive) {
+    public EsqlQueryRequest keepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
+        return this;
     }
 
     public boolean keepOnCompletion() {
         return keepOnCompletion;
     }
 
-    public void keepOnCompletion(boolean keepOnCompletion) {
+    public EsqlQueryRequest keepOnCompletion(boolean keepOnCompletion) {
         this.keepOnCompletion = keepOnCompletion;
+        return this;
     }
 
     /**

@@ -168,24 +168,7 @@ endpoint associated with `inference_id`.
 If chunking settings are updated, they will not be applied to existing documents
 until they are reindexed.
 To completely disable chunking, use the `none` chunking strategy.
-
-    **Valid values for `chunking_settings`**:
-
-    `strategy`
-    :   Indicates the strategy of chunking strategy to use. Valid values are `none`, `word` or
-    `sentence`. Required.
-
-    `max_chunk_size`
-    :   The maximum number of words in a chunk. Required for `word` and `sentence` strategies.
-
-    `overlap`
-    :   The number of overlapping words allowed in chunks. This cannot be defined as
-    more than half of the `max_chunk_size`. Required for `word` type chunking
-    settings.
-
-    `sentence_overlap`
-    :   The number of overlapping sentences allowed in chunks. Valid values are `0`
-    or `1`. Required for `sentence` type chunking settings
+Defaults to the optimal chunking settings for [Elastic Rerank](docs-content:///explore-analyze/machine-learning/nlp/ml-nlp-rerank.md). Refer to the [Inference API documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put#operation-inference-put-body-application-json-chunking_settings) for valid values for `chunking_settings`. 
 
 ::::{warning}
 When using the `none` chunking strategy, if the input exceeds the maximum token

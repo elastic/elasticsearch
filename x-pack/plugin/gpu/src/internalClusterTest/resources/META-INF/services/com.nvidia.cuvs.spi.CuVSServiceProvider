@@ -5,4 +5,4 @@
 # 2.0.
 #
 
-org.elasticsearch.plugin.gpu.GPUPluginInitializationIT$TestCuVSServiceProvider
+org.elasticsearch.xpack.gpu.TestCuVSServiceProvider

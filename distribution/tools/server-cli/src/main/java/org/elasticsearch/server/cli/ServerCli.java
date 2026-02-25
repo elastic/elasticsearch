@@ -118,6 +118,8 @@ class ServerCli extends EnvironmentAwareCommand {
             return;
         }
 
+        // Call the GC to try and free up as much heap as we can since we don't intend to do much if any more allocation after this
+        System.gc();
         // we are running in the foreground, so wait for the server to exit
         int exitCode = server.waitFor();
         onExit(exitCode);

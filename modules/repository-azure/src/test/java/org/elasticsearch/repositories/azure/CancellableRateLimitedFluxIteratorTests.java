@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import reactor.core.publisher.Flux;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -26,8 +27,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -247,6 +250,67 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         assertBusy(() -> expectThrows(RuntimeException.class, iterator::hasNext));
         assertBusy(() -> assertThat(cleanedElements, equalTo(Set.of(3))));
         assertThat(iterator.getQueue(), is(empty()));
+    }
+
+    public void testConcurrentErrorAndHasNext() {
+        final var startBarrier = new CyclicBarrier(2);
+        final var endBarrier = new CyclicBarrier(3);
+        final var running = new AtomicBoolean(true);
+        final var outstandingRequests = new AtomicInteger(0);
+        for (int i = 0; i < 20; i++) {
+            outstandingRequests.set(0);
+            running.set(true);
+            final var iterator = new CancellableRateLimitedFluxIterator<>(randomIntBetween(1, 10), nextItem -> {});
+            final var terminationError = new Exception("This is the end");
+            final Subscription subscription = new Subscription() {
+                @Override
+                public void request(long n) {
+                    outstandingRequests.addAndGet((int) n);
+                }
+
+                @Override
+                public void cancel() {}
+            };
+
+            // producer thread
+            runOnNewThread(() -> {
+                while (running.get()) {
+                    if (outstandingRequests.get() > 0) {
+                        iterator.onNext(randomInt());
+                        outstandingRequests.decrementAndGet();
+                    }
+                }
+                logger.info("--> Sending termination error");
+                iterator.onError(terminationError);
+                safeAwait(endBarrier);
+            });
+
+            logger.info("--> Starting iteration {}", i);
+
+            // consumer thread
+            runOnNewThread(() -> {
+                safeAwait(startBarrier);
+                iterator.onSubscribe(subscription);
+                int counter = 0;
+                try {
+                    while (iterator.hasNext()) {
+                        iterator.next();
+                        counter++;
+                    }
+                    ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("Should never reach the end"));
+                } catch (Exception e) {
+                    if (e.getCause() != terminationError) {
+                        ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("Got wrong exception", e));
+                    }
+                }
+                logger.info("--> Got {} elements", counter);
+                safeAwait(endBarrier);
+            });
+
+            safeAwait(startBarrier);
+            running.set(false);
+            safeAwait(endBarrier);
+        }
     }
 
     public void runOnNewThread(Runnable runnable) {

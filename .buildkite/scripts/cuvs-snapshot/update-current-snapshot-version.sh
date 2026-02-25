@@ -2,35 +2,35 @@
 
 set -euo pipefail
 
-SNAPSHOT_VERSION_FILE=.buildkite/scripts/cuvs-snapshot/current-snapshot-version
-BRANCH_TO_UPDATE="${BRANCH_TO_UPDATE:-${BUILDKITE_BRANCH:-cuvs-snapshot}}"
+echo "--- Updating cuvs-java version"
 
-if [[ -z "${CUVS_SNAPSHOT_VERSION:-}" ]]; then
-  echo "CUVS_SNAPSHOT_VERSION not set. Set this to update the current snapshot version."
-  exit 1
-fi
+git checkout "$BUILDKITE_BRANCH"
+git pull --ff-only origin "$BUILDKITE_BRANCH"
 
-if [[ "$CUVS_SNAPSHOT_VERSION" == "$(cat $SNAPSHOT_VERSION_FILE)" ]]; then
-  echo "Current snapshot version already set to '$CUVS_SNAPSHOT_VERSION'. No need to update."
-  exit 0
-fi
+# Replace `cuvs_java = <version>` string in version.properties and maintain the same indentation
+sed -E "s/^(cuvs_java *= *[^ ]*  *).*\$/\1$CUVS_JAVA_VERSION/" build-tools-internal/version.properties > new-version.properties
+mv new-version.properties build-tools-internal/version.properties
 
-echo "--- Configuring libcuvs/cuvs-java"
-source .buildkite/scripts/cuvs-snapshot/configure.sh
+python3 .buildkite/scripts/lucene-snapshot/remove-verification-metadata.py
+./gradlew --write-verification-metadata sha256
 
 if [[ "${SKIP_TESTING:-}" != "true" ]]; then
-  echo "--- Testing snapshot before updating"
+  echo "--- Testing cuvs-java before committing"
   ./gradlew -Druntime.java=24 :x-pack:plugin:gpu:yamlRestTest -S
 fi
 
-echo "--- Updating snapshot"
+if git diff-index --quiet HEAD --; then
+  echo 'No changes to commit.'
+  exit 0
+fi
 
-echo "$CUVS_SNAPSHOT_VERSION" > "$SNAPSHOT_VERSION_FILE"
+echo "--- Committing changes"
 
-CURRENT_SHA="$(gh api "/repos/elastic/elasticsearch/contents/$SNAPSHOT_VERSION_FILE?ref=$BRANCH_TO_UPDATE" | jq -r .sha)" || true
+git config --global user.name elasticsearchmachine
+git config --global user.email 'infra-root+elasticsearchmachine@elastic.co'
 
-gh api -X PUT "/repos/elastic/elasticsearch/contents/$SNAPSHOT_VERSION_FILE" \
-  -f branch="$BRANCH_TO_UPDATE" \
-  -f message="Update cuvs snapshot version to $CUVS_VERSION" \
-  -f content="$(base64 -w 0 "$WORKSPACE/$SNAPSHOT_VERSION_FILE")" \
-  -f sha="$CURRENT_SHA"
+git add build-tools-internal/version.properties
+git add gradle/verification-metadata.xml
+
+git commit -m "[Automated] Update cuvs-java to $CUVS_JAVA_VERSION"
+git push origin "$BUILDKITE_BRANCH"

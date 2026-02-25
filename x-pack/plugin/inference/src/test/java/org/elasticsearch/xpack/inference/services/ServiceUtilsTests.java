@@ -784,7 +784,7 @@ public class ServiceUtilsTests extends ESTestCase {
             "key",
             5,
             4,
-            "[scope] Invalid value [4.0]. [key] must be a greater than or equal to [5.0]"
+            "[scope] Invalid value [4.0]. [key] must be greater than or equal to [5.0]"
         );
     }
 
@@ -1025,7 +1025,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(
             validationException.validationErrors().get(0),
-            is("[test_scope] Invalid value [-2.0]. [key] must be a greater than or equal to [0.0]")
+            is("[test_scope] Invalid value [-2.0]. [key] must be greater than or equal to [0.0]")
         );
     }
 
@@ -1037,7 +1037,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(
             validationException.validationErrors().get(0),
-            is("[test_scope] Invalid value [12.0]. [key] must be a less than or equal to [2.0]")
+            is("[test_scope] Invalid value [12.0]. [key] must be less than or equal to [2.0]")
         );
     }
 

@@ -100,6 +100,7 @@ public class IndexMetadataTests extends ESTestCase {
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
+            .transportVersion(TransportVersion.current())
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
@@ -151,6 +152,7 @@ public class IndexMetadataTests extends ESTestCase {
         );
         assertEquals(metadata.hashCode(), fromXContentMeta.hashCode());
 
+        assertEquals(metadata.getTransportVersion(), fromXContentMeta.getTransportVersion());
         assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
         assertEquals(metadata.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
@@ -178,6 +180,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata, deserialized);
             assertEquals(metadata.hashCode(), deserialized.hashCode());
 
+            assertEquals(metadata.getTransportVersion(), deserialized.getTransportVersion());
             assertEquals(metadata.getNumberOfReplicas(), deserialized.getNumberOfReplicas());
             assertEquals(metadata.getNumberOfShards(), deserialized.getNumberOfShards());
             assertEquals(metadata.getCreationVersion(), deserialized.getCreationVersion());
@@ -214,6 +217,7 @@ public class IndexMetadataTests extends ESTestCase {
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
+            .transportVersion(TransportVersion.current())
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
@@ -282,6 +286,7 @@ public class IndexMetadataTests extends ESTestCase {
             fromXContentMeta
         );
         assertEquals(metadata.hashCode(), fromXContentMeta.hashCode());
+        assertEquals(metadata.getTransportVersion(), fromXContentMeta.getTransportVersion());
         assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
         assertEquals(metadata.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());

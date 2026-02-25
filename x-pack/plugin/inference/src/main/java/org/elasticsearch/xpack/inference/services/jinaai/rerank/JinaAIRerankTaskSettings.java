@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
  * Defines the task settings for the JinaAI rerank service.
  *
  */
-public class JinaAIRerankTaskSettings implements TaskSettings {
+public class JinaAIRerankTaskSettings implements TaskSettings, TopNProvider {
 
     public static final String NAME = "jinaai_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
@@ -118,7 +118,7 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_18_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -146,6 +146,11 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
 
     public Integer getTopNDocumentsOnly() {
         return topNDocumentsOnly;
+    }
+
+    @Override
+    public Integer getTopN() {
+        return getTopNDocumentsOnly();
     }
 
     public Boolean getReturnDocuments() {

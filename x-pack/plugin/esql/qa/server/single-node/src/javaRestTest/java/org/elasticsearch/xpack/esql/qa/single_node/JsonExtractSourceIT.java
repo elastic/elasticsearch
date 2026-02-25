@@ -108,17 +108,13 @@ public class JsonExtractSourceIT extends RestEsqlTestCase {
 
         // Simple field extraction
         var result = runEsql(
-            requestObjectBuilder().query(
-                "FROM " + index + " METADATA _source | EVAL n = JSON_EXTRACT(_source, \"name\") | KEEP n | SORT n"
-            )
+            requestObjectBuilder().query("FROM " + index + " METADATA _source | EVAL n = JSON_EXTRACT(_source, \"name\") | KEEP n | SORT n")
         );
         assertResultMap(result, List.of(Map.of("name", "n", "type", "keyword")), List.of(List.of("Alice"), List.of("Bob")));
 
         // Numeric field extraction (returned as keyword string)
         result = runEsql(
-            requestObjectBuilder().query(
-                "FROM " + index + " METADATA _source | EVAL a = JSON_EXTRACT(_source, \"age\") | KEEP a | SORT a"
-            )
+            requestObjectBuilder().query("FROM " + index + " METADATA _source | EVAL a = JSON_EXTRACT(_source, \"age\") | KEEP a | SORT a")
         );
         assertResultMap(result, List.of(Map.of("name", "a", "type", "keyword")), List.of(List.of("25"), List.of("30")));
 
@@ -157,8 +153,7 @@ public class JsonExtractSourceIT extends RestEsqlTestCase {
         assertThat(deleteIndex(index).isAcknowledged(), equalTo(true));
     }
 
-    private void indexDoc(String index, String id, XContentType xContentType, CheckedConsumer<XContentBuilder> content)
-        throws IOException {
+    private void indexDoc(String index, String id, XContentType xContentType, CheckedConsumer<XContentBuilder> content) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             builder.startObject();
             content.accept(builder);

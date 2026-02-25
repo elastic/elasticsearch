@@ -137,8 +137,11 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
             final float[] query = new float[dimensions];
             randomVector(random(), query, similarityFunction);
 
-            final int queryVectorPackedLengthInBytes = indexVectorPackedLengthInBytes * (queryBits / indexBits);
-            var queryData = createOSQQueryData(query, centroid, quantizer, dimensions, queryBits, queryVectorPackedLengthInBytes);
+            byte effectiveQueryBits = indexBits == 7 ? (byte) 7 : queryBits;
+            final int queryVectorPackedLengthInBytes = indexBits == 7
+                ? ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).getQueryPackedLength(dimensions)
+                : indexVectorPackedLengthInBytes * (queryBits / indexBits);
+            var queryData = createOSQQueryData(query, centroid, quantizer, dimensions, effectiveQueryBits, queryVectorPackedLengthInBytes);
 
             final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
             final float[] floatScratch = new float[3];
@@ -150,7 +153,6 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
-                byte effectiveQueryBits = indexBits == 7 ? (byte) 7 : queryBits;
                 for (int i = 0; i < numVectors; i++) {
                     final var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
                         slice,
@@ -253,8 +255,11 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
             }
             final float[] query = new float[dimensions];
             randomVector(random(), query, similarityFunction);
-            final int queryVectorPackedLengthInBytes = indexVectorPackedLengthInBytes * (queryBits / indexBits);
-            var queryData = createOSQQueryData(query, centroid, quantizer, dimensions, queryBits, queryVectorPackedLengthInBytes);
+            byte effectiveQueryBits = indexBits == 7 ? (byte) 7 : queryBits;
+            final int queryVectorPackedLengthInBytes = indexBits == 7
+                ? ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).getQueryPackedLength(dimensions)
+                : indexVectorPackedLengthInBytes * (queryBits / indexBits);
+            var queryData = createOSQQueryData(query, centroid, quantizer, dimensions, effectiveQueryBits, queryVectorPackedLengthInBytes);
 
             final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
             final float[] scoresDefault = new float[ESNextOSQVectorsScorer.BULK_SIZE];
@@ -266,7 +271,6 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
-                byte effectiveQueryBits = indexBits == 7 ? (byte) 7 : queryBits;
                 for (int i = 0; i < numVectors; i += bulkSize) {
                     final IndexInput slice = in.slice("test", in.getFilePointer(), (long) perVectorBytes * bulkSize);
                     final var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
@@ -331,13 +335,15 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         final int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
 
         final int length = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).getDocPackedLength(dimensions);
-        final int queryBytes = length * (queryBits / indexBits);
+        byte effectiveQueryBits = indexBits == 7 ? (byte) 7 : queryBits;
+        final int queryBytes = indexBits == 7 ? length : length * (queryBits / indexBits);
 
         try (Directory dir = newParametrizedDirectory()) {
             try (IndexOutput out = dir.createOutput("testNegInf.bin", IOContext.DEFAULT)) {
                 byte[] vector = new byte[length];
                 for (int i = 0; i < bulkSize; i++) {
                     random().nextBytes(vector);
+                    if (indexBits == 7) clampTo7Bit(vector, dimensions);
                     out.writeBytes(vector, 0, length);
                 }
                 // All-zero corrections: zero bytes are interpreted identically regardless of byte order
@@ -348,6 +354,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
 
             byte[] query = new byte[queryBytes];
             random().nextBytes(query);
+            if (indexBits == 7) clampTo7Bit(query, dimensions);
 
             float[] scoresDefault = new float[bulkSize];
             float[] scoresPanama = new float[bulkSize];
@@ -357,7 +364,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 final IndexInput slice = in.slice("test", 0, dataLength);
                 final var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
                     slice,
-                    queryBits,
+                    effectiveQueryBits,
                     indexBits,
                     dimensions,
                     length,
@@ -365,7 +372,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 );
                 final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
                     in,
-                    queryBits,
+                    effectiveQueryBits,
                     indexBits,
                     dimensions,
                     length,
@@ -403,6 +410,12 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 assertEquals(dataLength, slice.getFilePointer());
                 assertEquals(dataLength, in.getFilePointer());
             }
+        }
+    }
+
+    private static void clampTo7Bit(byte[] vector, int dimensions) {
+        for (int i = 0; i < dimensions; i++) {
+            vector[i] = (byte) (vector[i] & 0x7F);
         }
     }
 

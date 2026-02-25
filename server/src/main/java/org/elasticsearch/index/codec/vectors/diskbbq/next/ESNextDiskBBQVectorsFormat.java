@@ -178,6 +178,12 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             }
         };
 
+        private static void packAsBytes(int[] quantized, byte[] destination) {
+            for (int i = 0; i < quantized.length; i++) {
+                destination[i] = (byte) quantized[i];
+            }
+        }
+
         private final int id;
         private final byte bits, queryBits;
 
@@ -245,6 +251,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 case 1 -> ONE_BIT_4BIT_QUERY;
                 case 2 -> TWO_BIT_4BIT_QUERY;
                 case 4 -> FOUR_BIT_SYMMETRIC;
+                case 7 -> SEVEN_BIT_SYMMETRIC;
                 default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
             };
         }

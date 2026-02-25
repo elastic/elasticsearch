@@ -79,7 +79,11 @@ public class VectorScorerTestUtils {
             centroid
         );
         final byte[] quantizeQuery = new byte[queryVectorPackedLengthInBytes];
-        ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
+        if (queryBits == 7) {
+            ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(queryBits).packQuery(scratch, quantizeQuery);
+        } else {
+            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
+        }
 
         return new OSQVectorData(
             quantizeQuery,

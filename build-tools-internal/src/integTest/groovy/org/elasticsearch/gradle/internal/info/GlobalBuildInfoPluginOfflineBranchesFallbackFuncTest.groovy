@@ -9,8 +9,15 @@
 
 package org.elasticsearch.gradle.internal.info
 
+import com.sun.net.httpserver.HttpServer
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.URI
+import java.nio.charset.StandardCharsets
+import java.util.concurrent.atomic.AtomicInteger
 
 class GlobalBuildInfoPluginOfflineBranchesFallbackFuncTest extends AbstractGradleFuncTest {
     def "offline mode falls back to workspace root branches.json for http(s) branches location"() {
@@ -67,6 +74,129 @@ class GlobalBuildInfoPluginOfflineBranchesFallbackFuncTest extends AbstractGradl
         result.task(":resolveBwcVersions").outcome == TaskOutcome.SUCCESS
         assertOutputContains(result.output, "Gradle is running in offline mode; using local branches.json")
         assertOutputContains(result.output, "UNRELEASED_COUNT=2")
+    }
+
+    def "retries branches.json download from flaky http endpoint"() {
+        given:
+        configurationCacheCompatible = false
+        writeBwcVersionSource()
+        writeBuildThatResolvesBwcVersions()
+
+        AtomicInteger requests = new AtomicInteger()
+        byte[] body = branchesJsonBody().getBytes(StandardCharsets.UTF_8)
+        HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        server.createContext("/branches.json", { exchange ->
+            int request = requests.getAndIncrement()
+            if (request == 0) {
+                exchange.sendResponseHeaders(500, 0)
+                exchange.responseBody.close()
+            } else {
+                exchange.sendResponseHeaders(200, body.length)
+                exchange.responseBody.withCloseable { os -> os.write(body) }
+            }
+            exchange.close()
+        } as com.sun.net.httpserver.HttpHandler)
+        server.start()
+
+        and:
+        String url = branchesUrl(server)
+
+        when:
+        def result = gradleRunner(
+            "resolveBwcVersions",
+            "-Porg.elasticsearch.build.branches-file-location=${url}",
+            "-DBWC_VERSION_SOURCE=${file("Version.java").absolutePath}"
+        ).build()
+
+        then:
+        result.task(":resolveBwcVersions").outcome == TaskOutcome.SUCCESS
+        requests.get() == 2
+
+        cleanup:
+        server.stop(0)
+    }
+
+    def "exhausts retries when branches.json http endpoint keeps failing"() {
+        given:
+        configurationCacheCompatible = false
+        writeBwcVersionSource()
+        writeBuildThatResolvesBwcVersions()
+
+        AtomicInteger requests = new AtomicInteger()
+        HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        server.createContext("/branches.json", { exchange ->
+            requests.incrementAndGet()
+            exchange.sendResponseHeaders(500, 0)
+            exchange.responseBody.close()
+            exchange.close()
+        } as com.sun.net.httpserver.HttpHandler)
+        server.start()
+
+        and:
+        String url = branchesUrl(server)
+
+        when:
+        def result = gradleRunner(
+            "resolveBwcVersions",
+            "-Porg.elasticsearch.build.branches-file-location=${url}",
+            "-DBWC_VERSION_SOURCE=${file("Version.java").absolutePath}"
+        ).buildAndFail()
+
+        then:
+        assertOutputContains(result.output, "Failed to download branches.json from:")
+        requests.get() == 3
+
+        cleanup:
+        server.stop(0)
+    }
+
+    private static String branchesUrl(HttpServer server) {
+        String host = server.address.address.hostAddress
+        return new URI("http", null, host, server.address.port, "/branches.json", null, null).toString()
+    }
+
+    private void writeBuildThatResolvesBwcVersions() {
+        buildFile.text = """
+            plugins {
+              id 'elasticsearch.global-build-info'
+            }
+
+            tasks.register("resolveBwcVersions") {
+              def buildParamsExt = project.extensions.getByName("buildParams")
+              doLast {
+                println("UNRELEASED_COUNT=" + buildParamsExt.bwcVersions.unreleased.size())
+              }
+            }
+        """.stripIndent()
+    }
+
+    private String branchesJsonBody() {
+        return """\
+            {
+              "branches": [
+                { "branch": "main", "version": "9.1.0" },
+                { "branch": "9.0", "version": "9.0.0" }
+              ]
+            }
+        """.stripIndent()
+    }
+
+    private void writeBwcVersionSource() {
+        // This file is parsed via regex; version constants must have a non-word
+        // character before `public` and must end with `);` to match the pattern.
+        file("Version.java").text = """\
+package org.elasticsearch;
+
+public class Version {
+  // Only used by GlobalBuildInfoPlugin in tests via regex parsing.
+   public static final Version V_9_0_0 = Version.fromId(9000000);
+   public static final Version V_9_1_0 = Version.fromId(9010000);
+
+  private static Version fromId(int id) {
+    return new Version();
+  }
+}
+"""
     }
 }
 

@@ -79,9 +79,16 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
     private static final String DEFAULT_BRANCHES_FILE_URL = "https://raw.githubusercontent.com/elastic/elasticsearch/main/branches.json";
     private static final String BRANCHES_FILE_LOCATION_PROPERTY = "org.elasticsearch.build.branches-file-location";
+    private static final int HTTP_READ_MAX_ATTEMPTS = 3;
+    private static final long HTTP_READ_RETRY_BACKOFF_MILLIS = 100;
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
     );
+
+    @FunctionalInterface
+    interface Sleeper {
+        void sleep(long millis) throws InterruptedException;
+    }
 
     private ObjectFactory objectFactory;
     private final JavaInstallationRegistry javaInstallationRegistry;
@@ -242,8 +249,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         LOGGER.info("Reading branches.json from {}", branchesFileLocation);
         byte[] branchesBytes;
         if (isHttpLocation(branchesFileLocation)) {
-            try (InputStream in = URI.create(branchesFileLocation).toURL().openStream()) {
-                branchesBytes = in.readAllBytes();
+            int maxAttempts = project.getGradle().getStartParameter().isOffline() ? 1 : HTTP_READ_MAX_ATTEMPTS;
+            try {
+                branchesBytes = readHttpBytesWithRetry(branchesFileLocation, maxAttempts, HTTP_READ_RETRY_BACKOFF_MILLIS, Thread::sleep);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to download branches.json from: " + branchesFileLocation, e);
             }
@@ -261,6 +269,36 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private static boolean isHttpLocation(String branchesFileLocation) {
         return branchesFileLocation.startsWith("http://") || branchesFileLocation.startsWith("https://");
+    }
+
+    static byte[] readHttpBytesWithRetry(String url, int maxAttempts, long baseBackoffMillis, Sleeper sleeper) throws IOException {
+        if (maxAttempts <= 0) {
+            throw new IllegalArgumentException("maxAttempts must be >= 1 but was [" + maxAttempts + "]");
+        }
+        if (baseBackoffMillis < 0) {
+            throw new IllegalArgumentException("baseBackoffMillis must be >= 0 but was [" + baseBackoffMillis + "]");
+        }
+
+        IOException lastException = null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            if (attempt > 1 && baseBackoffMillis > 0) {
+                long backoff = baseBackoffMillis * (attempt - 1);
+                try {
+                    sleeper.sleep(backoff);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while retrying download from: " + url, e);
+                }
+            }
+
+            try (InputStream in = URI.create(url).toURL().openStream()) {
+                return in.readAllBytes();
+            } catch (IOException e) {
+                lastException = e;
+            }
+        }
+        assert lastException != null;
+        throw lastException;
     }
 
     private void logGlobalBuildInfo(BuildParameterExtension buildParams) {

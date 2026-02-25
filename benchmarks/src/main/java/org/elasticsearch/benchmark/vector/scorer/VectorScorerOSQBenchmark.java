@@ -78,7 +78,7 @@ public class VectorScorerOSQBenchmark {
     public int dims;
 
     @Param({ "1", "2", "4", "7" })
-    public int bits;
+    public byte bits;
 
     int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
 
@@ -115,7 +115,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     void setup(Random random) throws IOException {
-        this.length = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits).getDocPackedLength(dims);
+        this.length = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getDocPackedLength(dims);
 
         final float[] centroid = new float[dims];
         randomVector(random, centroid, similarityFunction);
@@ -134,20 +134,27 @@ public class VectorScorerOSQBenchmark {
                 for (int j = 0; j < bulkSize; j++) {
                     var vector = new float[dims];
                     randomVector(random, vector, similarityFunction);
-                    vectors[j] = createOSQIndexData(vector, centroid, quantizer, dims, (byte) bits, length);
+                    vectors[j] = createOSQIndexData(vector, centroid, quantizer, dims, bits, length);
                 }
                 writeBulkOSQVectorData(bulkSize, output, vectors);
             }
             CodecUtil.writeFooter(output);
         }
         input = directory.openInput("vectors", IOContext.DEFAULT);
-        int binaryQueryLength = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits).getQueryPackedLength(dims);
+        int binaryQueryLength = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
 
         binaryQueries = new VectorScorerTestUtils.OSQVectorData[numVectors];
         var query = new float[dims];
         for (int i = 0; i < numVectors; ++i) {
             randomVector(random, query, similarityFunction);
-            binaryQueries[i] = createOSQQueryData(query, centroid, quantizer, dims, bits == 7 ? (byte) 7 : (byte) 4, binaryQueryLength);
+            binaryQueries[i] = createOSQQueryData(
+                query,
+                centroid,
+                quantizer,
+                dims,
+                bits == (byte) 7 ? (byte) 7 : (byte) 4,
+                binaryQueryLength
+            );
         }
         centroidDp = VectorUtil.dotProduct(centroid, centroid);
 
@@ -179,12 +186,6 @@ public class VectorScorerOSQBenchmark {
         };
         scratchScores = new float[bulkSize];
         corrections = new float[3];
-    }
-
-    private static void clampTo7Bit(byte[] vector) {
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = (byte) (vector[i] & 0x7F);
-        }
     }
 
     Path createTempDirectory(String name) throws IOException {

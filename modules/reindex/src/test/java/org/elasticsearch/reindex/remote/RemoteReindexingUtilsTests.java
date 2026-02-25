@@ -336,14 +336,10 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             threadPool,
             client,
             retryCount::incrementAndGet,
-            RejectAwareActionListener.wrap(
-                v -> {
-                    assertEquals(Version.fromString("1.7.5"), v);
-                    success.set(true);
-                },
-                e -> fail("unexpected failure"),
-                e -> fail("unexpected rejection")
-            )
+            RejectAwareActionListener.wrap(v -> {
+                assertEquals(Version.fromString("1.7.5"), v);
+                success.set(true);
+            }, e -> fail("unexpected failure"), e -> fail("unexpected rejection"))
         );
 
         assertTrue("listener should have received success", success.get());
@@ -371,15 +367,11 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             threadPool,
             client,
             () -> {},
-            RejectAwareActionListener.wrap(
-                v -> fail("unexpected success"),
-                e -> {
-                    assertTrue(e instanceof ElasticsearchStatusException);
-                    assertEquals(RestStatus.TOO_MANY_REQUESTS, ((ElasticsearchStatusException) e).status());
-                    failed.set(true);
-                },
-                e -> fail("should have propagated as failure after retries exhausted")
-            )
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
+                assertTrue(e instanceof ElasticsearchStatusException);
+                assertEquals(RestStatus.TOO_MANY_REQUESTS, ((ElasticsearchStatusException) e).status());
+                failed.set(true);
+            }, e -> fail("should have propagated as failure after retries exhausted"))
         );
 
         assertTrue("listener should have received failure", failed.get());
@@ -407,14 +399,10 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             threadPool,
             client,
             () -> fail("countRetry should not be called for non-429"),
-            RejectAwareActionListener.wrap(
-                v -> fail(),
-                e -> {
-                    assertTrue(e instanceof ElasticsearchStatusException);
-                    assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ((ElasticsearchStatusException) e).status());
-                },
-                e -> fail()
-            )
+            RejectAwareActionListener.wrap(v -> fail(), e -> {
+                assertTrue(e instanceof ElasticsearchStatusException);
+                assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ((ElasticsearchStatusException) e).status());
+            }, e -> fail())
         );
 
         verify(client, times(1)).performRequestAsync(any(), any());
@@ -435,14 +423,10 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             threadPool,
             client,
             () -> fail("countRetry should not be called when first attempt succeeds"),
-            RejectAwareActionListener.wrap(
-                v -> {
-                    assertEquals(Version.fromString("2.3.3"), v);
-                    success.set(true);
-                },
-                e -> fail(),
-                e -> fail()
-            )
+            RejectAwareActionListener.wrap(v -> {
+                assertEquals(Version.fromString("2.3.3"), v);
+                success.set(true);
+            }, e -> fail(), e -> fail())
         );
 
         assertTrue("listener should have received success", success.get());

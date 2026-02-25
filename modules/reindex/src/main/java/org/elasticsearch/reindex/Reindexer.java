@@ -223,12 +223,12 @@ public class Reindexer {
 
             @Override
             public void onFailure(Exception e) {
-                closeRestClientAndRun(restClient, () -> listener.onFailure(e));
+                closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e));
             }
 
             @Override
             public void onRejection(Exception e) {
-                closeRestClientAndRun(restClient, () -> listener.onFailure(e));
+                closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e));
             }
         };
         RemoteReindexingUtils.lookupRemoteVersionWithRetries(

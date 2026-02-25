@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -171,7 +172,7 @@ public class EsqlQueryGenerator {
             // do a dummy query to get available fields first
             // TODO: modify when METRICS_INFO available https://github.com/elastic/elasticsearch/issues/141413
             String index = promQLGenerator.generateIndices(schema);
-            var fromDesc = new CommandGenerator.CommandDescription("from", FromGenerator.INSTANCE, "FROM " + index, Map.of());
+            var fromDesc = new CommandGenerator.CommandDescription("from", FromGenerator.INSTANCE, "FROM " + index, new HashMap<>());
             executor.run(FromGenerator.INSTANCE, fromDesc);
             executor.clearCommandHistory();
             desc = promQLGenerator.generateWithIndices(List.of(), executor.currentSchema(), schema, queryExecutor, index);

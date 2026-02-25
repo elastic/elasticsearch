@@ -86,6 +86,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Overflow to represent absolute value of .*.MIN_VALUE", // https://github.com/elastic/elasticsearch/issues/142642
         "found value \\[.*\\] type \\[unsupported\\]", // https://github.com/elastic/elasticsearch/issues/142761
         "illegal query_string option \\[boost\\]", // https://github.com/elastic/elasticsearch/issues/142758
+        "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
+        // https://github.com/elastic/elasticsearch/issues/142860
+        "(Grok|Dissect) only supports KEYWORD or TEXT values, found expression \\[.*\\] type \\[NULL\\]",
+        // https://github.com/elastic/elasticsearch/issues/142543
+        "Column \\[.*\\] has conflicting data types in FORK branches: \\[NULL\\] and \\[.*\\]",
+        "Column \\[.*\\] has conflicting data types in FORK branches: \\[.*\\] and \\[NULL\\]",
+        "illegal match option \\[zero_terms_query\\]", // https://github.com/elastic/elasticsearch/issues/143070
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -103,12 +110,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "expected named expression for grouping; got ",
         "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, "
             + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/issues/140607
-        "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
-        // https://github.com/elastic/elasticsearch/issues/142860
-        "(Grok|Dissect) only supports KEYWORD or TEXT values, found expression \\[.*\\] type \\[NULL\\]",
-        // https://github.com/elastic/elasticsearch/issues/142543
-        "Column \\[.*\\] has conflicting data types in FORK branches: \\[NULL\\] and \\[.*\\]",
-        "Column \\[.*\\] has conflicting data types in FORK branches: \\[.*\\] and \\[NULL\\]",
 
         // Ts-command errors awaiting fixes
         "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794

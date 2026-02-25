@@ -119,7 +119,7 @@ public class WriteLoadConstraintSettings {
      */
     public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HIGH_UTILIZATION_HOTSPOT_THRESHOLD_SETTING = new Setting<>(
         SETTING_PREFIX + "high_utilization_hotspot_threshold",
-        "75%",
+        "0%",
         RatioValue::parseRatioValue,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

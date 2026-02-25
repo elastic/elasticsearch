@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -133,7 +134,9 @@ import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
@@ -194,6 +197,10 @@ import static org.mockito.Mockito.mock;
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
+
+    private static final Set<String> ALL_ESQL_CAPABILITIES = Stream.of(EsqlCapabilities.Cap.values())
+        .map(EsqlCapabilities.Cap::capabilityName)
+        .collect(toSet());
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
 
@@ -277,6 +284,9 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
+            for (String capability : testCase.requiredCapabilities) {
+                assertTrue("Requested capability does not exist: " + capability, ALL_ESQL_CAPABILITIES.contains(capability));
+            }
             assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
             /*
              * The csv tests support all but a few features. The unsupported features
@@ -374,6 +384,10 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle views with branching",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.capabilityName())
             );
+            assumeFalseLogging(
+                "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
+                testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(
@@ -432,7 +446,6 @@ public class CsvTests extends ESTestCase {
 
             var log = logResults() ? LOGGER : null;
             assertResults(expected, actualResults, testCase.ignoreOrder, log);
-            assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()), actualResults);
         } finally {
             Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
             // Give the breaker service some time to clear in case we got results before the rest of the driver had cleaned up
@@ -446,7 +459,7 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
+    private void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
         /*
          * Enable the next two lines to see the results returned by ES.
          * This is useful when creating a new test or trying to figure out what are the actual results.
@@ -454,7 +467,15 @@ public class CsvTests extends ESTestCase {
         // CsvTestUtils.logMetaData(actual.columnNames(), actual.columnTypes(), LOGGER);
         // CsvTestUtils.logData(actual.values(), LOGGER);
 
-        CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
+        CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), actual.pages(), logger);
+        CsvAssert.assertData(expected, actual.values(), ignoreOrder, false, logger);
+        List<String> normalized = actual.responseHeaders()
+            .getOrDefault("Warning", List.of())
+            .stream()
+            .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
+            .filter(w -> w.startsWith("No limit defined, adding default limit of [") == false)
+            .toList();
+        testCase.assertWarnings(false).assertWarnings(normalized, actual);
     }
 
     public static Map<IndexPattern, IndexResolution> loadIndexResolution(
@@ -537,7 +558,7 @@ public class CsvTests extends ESTestCase {
             .stream()
             .filter(e -> e.getValue().size() < numberOfIndices)
             .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+            .collect(toSet());
         var mappings = columnNamesToFieldByIndices.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
@@ -746,9 +767,11 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            new PreAnalyzer(),
             functionRegistry,
             mapper,
             TEST_VERIFIER,
+            null,
             new PlanTelemetry(functionRegistry),
             null,
             null,
@@ -815,23 +838,15 @@ public class CsvTests extends ESTestCase {
     // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
     private void opportunisticallyAssertPlanSerialization(PhysicalPlan plan) {
         if (plan.anyMatch(
-            p -> p instanceof LocalSourceExec || p instanceof HashJoinExec || p instanceof ChangePointExec || p instanceof MergeExec
+            p -> p instanceof LocalSourceExec
+                || p instanceof HashJoinExec
+                || p instanceof ChangePointExec
+                || p instanceof MergeExec
+                || p instanceof MMRExec
         )) {
             return;
         }
         SerializationTestUtils.assertSerialization(plan, configuration);
-    }
-
-    private void assertWarnings(List<String> warnings, Object context) {
-        List<String> normalized = new ArrayList<>(warnings.size());
-        for (String w : warnings) {
-            String normW = HeaderWarning.extractWarningValueFromWarningHeader(w, false);
-            if (normW.startsWith("No limit defined, adding default limit of [") == false) {
-                // too many tests do not have a LIMIT, we'll test this warning separately
-                normalized.add(normW);
-            }
-        }
-        testCase.assertWarnings(false).assertWarnings(normalized, context);
     }
 
     PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {
@@ -886,7 +901,8 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
-            physicalOperationProviders
+            physicalOperationProviders,
+            null  // OperatorFactoryRegistry - not needed for CSV tests
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());

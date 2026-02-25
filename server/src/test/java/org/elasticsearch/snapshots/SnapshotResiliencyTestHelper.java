@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappin
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
-import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
@@ -158,6 +157,7 @@ import org.elasticsearch.transport.DisruptableMockTransport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Assert;
 

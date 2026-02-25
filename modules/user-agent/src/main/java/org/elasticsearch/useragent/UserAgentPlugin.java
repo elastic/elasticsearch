@@ -43,8 +43,12 @@ public class UserAgentPlugin extends Plugin implements UserAgentParserRegistryPr
      */
     public static UserAgentParserRegistry createRegistry(Environment env, Settings settings) {
         Setting<Long> deprecatedCacheSizeSetting = Setting.longSetting("ingest.user_agent.cache_size", 1000, 0, Setting.Property.NodeScope);
-        Setting<Long> cacheSizeSetting = Setting.longSetting("user_agent.cache_size", deprecatedCacheSizeSetting, 0,
-            Setting.Property.NodeScope);
+        Setting<Long> cacheSizeSetting = Setting.longSetting(
+            "user_agent.cache_size",
+            deprecatedCacheSizeSetting,
+            0,
+            Setting.Property.NodeScope
+        );
         Path userAgentConfigDirectory = env.configDir().resolve("user-agent");
         Path ingestUserAgentConfigDirectory = env.configDir().resolve("ingest-user-agent");
         long cacheSize = cacheSizeSetting.get(settings);

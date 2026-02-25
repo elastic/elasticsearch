@@ -254,7 +254,8 @@ public class IndexSettingsTests extends ESTestCase {
                 "dense vector warning",
                 IndexSettings.class.getCanonicalName(),
                 Level.WARN,
-                "*The setting [index.dense_vector.experimental_features] is enabled; backwards compatibility is not guaranteed for index [index]*"
+                "*The setting [index.dense_vector.experimental_features] is enabled; "
+                    + "backwards compatibility is not guaranteed for index [index]*"
             )
         );
     }

@@ -730,6 +730,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
         int docsPerBulk = 5;
         int fields = 1000;
         int fieldSize = Math.toIntExact(ByteSizeValue.ofKb(1).getBytes());
+        boolean numeric = type.equalsIgnoreCase("integer") || type.equalsIgnoreCase("long") || type.equalsIgnoreCase("double");
 
         Request request = new Request("PUT", "/manybigfields");
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
@@ -755,10 +756,14 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 } else {
                     bulk.append(", ");
                 }
-                bulk.append('"').append("f").append(String.format(Locale.ROOT, "%03d", f)).append("\": \"");
-                // if requested, generate random string to hit the CBE faster
-                bulk.append(random ? randomAlphaOfLength(1024) : Integer.toString(f % 10).repeat(fieldSize));
-                bulk.append('"');
+                bulk.append('"').append("f").append(String.format(Locale.ROOT, "%03d", f)).append("\": ");
+                if (numeric) {
+                    bulk.append(randomNumericValue(type));
+                } else {
+                    bulk.append('"');
+                    bulk.append(random ? randomAlphaOfLength(1024) : Integer.toString(f % 10).repeat(fieldSize));
+                    bulk.append('"');
+                }
             }
             bulk.append("}\n");
             if (d % docsPerBulk == docsPerBulk - 1 && d != docs - 1) {
@@ -767,6 +772,15 @@ public class HeapAttackIT extends HeapAttackTestCase {
             }
         }
         initIndex("manybigfields", bulk.toString());
+    }
+
+    private static String randomNumericValue(String type) {
+        return switch (type.toLowerCase(Locale.ROOT)) {
+            case "integer" -> Integer.toString(randomInt());
+            case "long" -> Long.toString(randomLong());
+            case "double" -> Double.toString(randomDouble());
+            default -> throw new IllegalArgumentException("unsupported numeric type: " + type);
+        };
     }
 
     void initGiantTextField(int docs, boolean includeId, long fieldSizeInMb) throws IOException {

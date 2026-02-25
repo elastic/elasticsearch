@@ -15,10 +15,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 
 import java.io.IOException;
 
@@ -28,12 +27,6 @@ import java.io.IOException;
  * {@link BytesRefsFromOrdsBlockLoader} for ordinals-based binary values
  */
 public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-    /**
-     * Circuit breaker space reserved for each reader. Measured in heap dumps
-     * around from 1.5kb. This is an intentional overestimate.
-     */
-    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(3).getBytes();
-
     private final IOFunction<LeafReader, BinaryDocValues> docValuesSupplier;
 
     public BytesRefsFromBinaryBlockLoader(String fieldName) {
@@ -56,17 +49,11 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addWithoutBreaking(ESTIMATED_SIZE);
-        BinaryDocValues docValues = docValuesSupplier.apply(context.reader());
-        return createReader(breaker, ESTIMATED_SIZE, docValues);
-    }
-
-    public static AllReader createReader(CircuitBreaker breaker, long estimatedSize, @Nullable BinaryDocValues docValues) {
-        if (docValues == null) {
-            breaker.addWithoutBreaking(-estimatedSize);
+        TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, docValuesSupplier);
+        if (dv == null) {
             return ConstantNull.READER;
         }
-        return new BytesRefsFromBinary(breaker, estimatedSize, docValues);
+        return new BytesRefsFromBinary(dv);
     }
 
     /**
@@ -74,16 +61,13 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
      * Each BytesRef from the doc values maps directly to a value in the block loader.
      */
     public static class BytesRefsFromBinary extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
-        private final long estimatedSize;
-
-        public BytesRefsFromBinary(CircuitBreaker breaker, long estimatedSize, BinaryDocValues docValues) {
-            super(breaker, docValues);
-            this.estimatedSize = estimatedSize;
+        public BytesRefsFromBinary(TrackingBinaryDocValues docValues) {
+            super(docValues);
         }
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            if (docValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+            if (docValues.docValues() instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
                 BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
                 if (block != null) {
                     return block;
@@ -94,22 +78,17 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
 
         @Override
         public void read(int doc, BytesRefBuilder builder) throws IOException {
-            if (false == docValues.advanceExact(doc)) {
+            if (false == docValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            BytesRef bytes = docValues.binaryValue();
+            BytesRef bytes = docValues.docValues().binaryValue();
             builder.appendBytesRef(bytes);
         }
 
         @Override
         public String toString() {
             return "BlockDocValuesReader.Bytes";
-        }
-
-        @Override
-        public void close() {
-            breaker.addWithoutBreaking(-estimatedSize);
         }
     }
 }

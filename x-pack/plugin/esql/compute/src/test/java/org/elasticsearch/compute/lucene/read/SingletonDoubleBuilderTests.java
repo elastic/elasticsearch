@@ -21,7 +21,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 
 import java.io.IOException;
@@ -124,7 +124,7 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
 
     static IndexWriter createIndexWriter(Directory directory) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
-        iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
+        iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat()));
         return new IndexWriter(directory, iwc);
     }
 

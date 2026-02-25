@@ -18,6 +18,8 @@ import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_DURATION_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_ENABLED;
 import static org.elasticsearch.test.ESIntegTestCase.updateClusterSettings;
@@ -31,22 +33,12 @@ import static org.junit.Assert.assertNotNull;
 
 public class ActivityLoggingUtils {
 
-    private static final String[] loggers = new String[] { "search", "sql", "esql", "eql" };
-
     public static void enableLoggers() {
-        var builder = Settings.builder();
-        for (String logger : loggers) {
-            builder.put(ACTIVITY_LOGGER_ENABLED.getConcreteSettingForNamespace(logger).getKey(), true);
-        }
-        updateClusterSettings(builder);
+        updateClusterSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), true));
     }
 
     public static void disableLoggers() {
-        var builder = Settings.builder();
-        for (String logger : loggers) {
-            builder.put(ACTIVITY_LOGGER_ENABLED.getConcreteSettingForNamespace(logger).getKey(), (String) null);
-        }
-        updateClusterSettings(builder);
+        updateClusterSettings(Settings.builder().put(ACTIVITY_LOGGER_ENABLED.getKey(), (String) null));
     }
 
     public static void enableLoggingSystem() {
@@ -75,7 +67,8 @@ public class ActivityLoggingUtils {
         assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo(type));
         assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took")), greaterThan(0L));
         assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
-        assertThat(message.get(ES_FIELDS_PREFIX + "query"), containsString(query));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "query"), containsString(query));
+        assertThat(Long.valueOf(message.get(EVENT_DURATION_FIELD)), equalTo(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took"))));
     }
 
     public static void assertMessageFailure(
@@ -89,7 +82,8 @@ public class ActivityLoggingUtils {
         assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo(type));
         assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took")), greaterThan(0L));
         assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
-        assertThat(message.get(ES_FIELDS_PREFIX + "query"), containsString(query));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "query"), containsString(query));
+        assertThat(Long.valueOf(message.get(EVENT_DURATION_FIELD)), equalTo(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took"))));
         if (errorMessage != null) {
             assertThat(message.get("error.message"), containsString(errorMessage));
         }

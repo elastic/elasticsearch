@@ -84,7 +84,7 @@ public class SqlLoggingIT extends AbstractSqlIntegTestCase {
         assertThat(appender.events.size(), equalTo(1));
         var message = getMessageData(appender.getLastEventAndReset());
         assertMessageSuccess(message, "sql", query);
-        assertThat(message.get(ES_FIELDS_PREFIX + "rows"), equalTo("2"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("2"));
     }
 
     public void testSqlFailureLogging() {
@@ -93,6 +93,6 @@ public class SqlLoggingIT extends AbstractSqlIntegTestCase {
         assertThat(appender.events.size(), equalTo(1));
         var message = getMessageData(appender.getLastEventAndReset());
         assertMessageFailure(message, "sql", query, VerificationException.class, "Unknown index [test]");
-        assertThat(message.get(ES_FIELDS_PREFIX + "rows"), equalTo("0"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("0"));
     }
 }

@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 public class VectorScorerDistanceBulkBenchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        BenchmarkUtils.configureBenchmarkLogging();
     }
 
     @Param({ "384", "782", "1024" })

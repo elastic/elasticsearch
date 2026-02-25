@@ -61,9 +61,7 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
 public class VectorScorerOSQBenchmark {
 
     static {
-        NodeNamePatternConverter.setGlobalNodeName("benchmark");
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        BenchmarkUtils.configureBenchmarkLogging();
     }
 
     public enum DirectoryType {

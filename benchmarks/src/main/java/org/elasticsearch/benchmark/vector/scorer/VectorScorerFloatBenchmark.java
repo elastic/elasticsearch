@@ -65,13 +65,7 @@ import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareD
 public class VectorScorerFloatBenchmark {
 
     static {
-        NodeNamePatternConverter.setGlobalNodeName("benchmark");
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-        if (supportsHeapSegments() == false) {
-            final Logger LOG = LogManager.getLogger(VectorScorerFloatBenchmark.class);
-            LOG.warn("*Query targets cannot run on " + "JDK " + Runtime.version());
-        }
+        BenchmarkUtils.configureBenchmarkLogging();
     }
 
     @Param({ "96", "768", "1024" })

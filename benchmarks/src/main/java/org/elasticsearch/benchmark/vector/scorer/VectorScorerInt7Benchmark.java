@@ -50,7 +50,7 @@ import java.util.concurrent.TimeUnit;
 public class VectorScorerInt7Benchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        BenchmarkUtils.configureBenchmarkLogging();
     }
 
     @Param({ "384", "782", "1024" })

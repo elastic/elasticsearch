@@ -47,9 +47,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 public class VectorScorerFloat32OperationBenchmark {
 
     static {
-        NodeNamePatternConverter.setGlobalNodeName("benchmark");
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        BenchmarkUtils.configureBenchmarkLogging();
     }
 
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);

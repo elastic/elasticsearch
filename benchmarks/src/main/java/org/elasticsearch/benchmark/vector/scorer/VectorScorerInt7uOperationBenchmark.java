@@ -45,9 +45,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 public class VectorScorerInt7uOperationBenchmark {
 
     static {
-        NodeNamePatternConverter.setGlobalNodeName("benchmark");
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        BenchmarkUtils.configureBenchmarkLogging();
     }
 
     byte[] byteArrayA;

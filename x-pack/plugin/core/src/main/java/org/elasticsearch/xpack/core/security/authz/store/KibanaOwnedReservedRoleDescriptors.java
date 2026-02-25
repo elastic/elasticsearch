@@ -342,7 +342,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // Kibana logs streams
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs", "logs.*")
+                    .indices("logs.*")
                     .privileges("read", "manage")
                     .build(),
                 // Kibana Security Solution EDR workflows team

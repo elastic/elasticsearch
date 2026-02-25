@@ -252,9 +252,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/141034
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
-  method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortManyFields
-  issue: https://github.com/elastic/elasticsearch/issues/141083
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointServiceNodeTests
   method: testGetCheckpointStats
   issue: https://github.com/elastic/elasticsearch/issues/141112
@@ -335,9 +332,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
-- class: org.elasticsearch.indices.stats.IndexStatsIT
-  method: testFieldDataStats
-  issue: https://github.com/elastic/elasticsearch/issues/142424
 - class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
   method: testWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/142434
@@ -440,6 +434,12 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
+  method: testAccumulateSearchLoad
+  issue: https://github.com/elastic/elasticsearch/issues/142986
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/nested compound retrievers with min_score correctly compute total_hits}
+  issue: https://github.com/elastic/elasticsearch/issues/142997
 
 # Examples:
 #

@@ -238,6 +238,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             public Operator get(DriverContext driverContext) {
                 LookupFromIndexService service = lookupService(driverContext);
                 return new StreamingLookupFromIndexOperator(
+                    driverContext,
                     finalMatchFields,
                     sessionId,
                     parentTask,

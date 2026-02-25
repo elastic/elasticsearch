@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -28,9 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -109,6 +106,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private final SubscribableListener<Void> failureNotified = new SubscribableListener<>();
     // Set to true when all worker channel refs have been released
     private volatile boolean coordinatorDone = false;
+    // Resolves when all worker channels have completed (all sink + status refs released).
+    // Used by stop() to trigger final cleanup and by waitForServerResponse() to block the driver.
+    private final SubscribableListener<Void> allWorkersCompleted = new SubscribableListener<>();
 
     // Server setup callback - called lazily when first page is sent
     private final ServerSetupCallback serverSetupCallback;
@@ -189,6 +189,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             if (primaryFailure.get() == null) {
                 batchExchangeStatusListener.onResponse(null);
             }
+            allWorkersCompleted.onResponse(null);
         });
     }
 
@@ -384,9 +385,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         notifyFailure(failure);
                         worker.statusRef.onFailure(failure);
                     }
-                    // Resolve serverResponseListener LAST so close() doesn't unblock
-                    // until failure has been fully propagated via notifyFailure
-                    worker.serverResponseListener.onResponse(null);
                 }, failure -> {
                     logger.error(
                         "[LookupJoinClient] Failed to receive batch exchange status response for worker={}: {}",
@@ -395,10 +393,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                     );
                     notifyFailure(failure);
                     worker.statusRef.onFailure(failure);
-                    worker.serverResponseListener.onResponse(null);
                 })
             );
-            worker.requestSent = true;
             logger.debug("[LookupJoinClient] Batch exchange status request sent for worker={}", worker.workerId);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to send batch exchange status request for worker [" + worker.workerId + "]", e);
@@ -595,15 +591,19 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Returns an {@link IsBlockedResult} that resolves when all worker responses are received.
-     * Use this to block while waiting for all workers' success/failure confirmation.
+     * Returns an {@link IsBlockedResult} that resolves when all worker channels have completed
+     * (all sink + status refs released). Use this to block while waiting for all workers'
+     * success/failure confirmation.
      */
     public IsBlockedResult waitForServerResponse() {
-        // Find a worker that hasn't responded yet
-        for (Worker worker : workers) {
-            if (worker.serverResponseListener.isDone() == false) {
-                return new IsBlockedResult(worker.serverResponseListener, "waiting for worker response from worker " + worker.workerId);
+        if (allWorkersCompleted.isDone() == false) {
+            if (failureNotified.isDone()) {
+                return NOT_BLOCKED;
             }
+            SubscribableListener<Void> either = new SubscribableListener<>();
+            allWorkersCompleted.addListener(either);
+            failureNotified.addListener(either);
+            return new IsBlockedResult(either, "waiting for all workers to complete or failure");
         }
         return NOT_BLOCKED;
     }
@@ -788,16 +788,16 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         }
     }
 
-    @Override
-    public void close() {
-        if (closed) {
-            return;
-        }
-        closed = true;
-        logger.debug("[LookupJoinClient] Closing BidirectionalBatchExchangeClient");
-
-        // Finish all client-to-server exchanges FIRST to signal servers that no more batches will be sent
-        // This allows the server drivers to finish and send responses
+    /**
+     * Triggers a non-blocking shutdown: finishes all client-to-server exchanges and drains
+     * sink handler buffers to trigger cascading server shutdown. Does not wait for worker
+     * completion -- the driver blocks on {@link #waitForServerResponse()} (which uses
+     * {@link #allWorkersCompleted}) before calling {@link #close()}, so all workers are
+     * guaranteed to be done by the time close runs.
+     */
+    private void stop() {
+        // Finish all client-to-server exchanges to signal servers that no more batches will be sent.
+        // This allows the server drivers to finish and send responses.
         try {
             finish();
         } catch (Exception e) {
@@ -817,63 +817,35 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         worker.workerId,
                         worker.clientToServerSinkHandler.isFinished()
                     );
-                    worker.clientToServerSinkHandler.onFailure(new TaskCancelledException("client closed"));
+                    worker.clientToServerSinkHandler.onFailure(new TaskCancelledException("client stopped"));
                 }
             } catch (Exception e) {
                 logger.error("[LookupJoinClient] Error draining sink handler for worker=" + worker.workerId, e);
             }
             try {
-                exchangeService.finishSinkHandler(worker.clientToServerId, new TaskCancelledException("client closed"));
+                exchangeService.finishSinkHandler(worker.clientToServerId, new TaskCancelledException("client stopped"));
             } catch (Exception e) {
                 logger.debug("[LookupJoinClient] finishSinkHandler already done for worker={}", worker.workerId);
             }
         }
+    }
 
-        // Wait for all worker responses - this ensures all workers have finished processing
-        // and server-side resources (e.g. Lucene readers) are properly cleaned up.
-        // We use LatchedActionListener + CountDownLatch instead of PlainActionFuture to avoid
-        // the deadlock assertion that fires when close() runs on a search thread and the response
-        // arrives on another search thread in the same pool. The wait is timed (30s) so no real
-        // deadlock can occur.
-        for (Worker worker : workers) {
-            // First: wait for setup to complete (success or failure) so requestSent has its final value
-            try {
-                if (worker.setupReadyListener.isDone() == false) {
-                    logger.debug("[LookupJoinClient] Waiting for setup completion for worker={}", worker.workerId);
-                    CountDownLatch setupLatch = new CountDownLatch(1);
-                    worker.setupReadyListener.addListener(new LatchedActionListener<>(ActionListener.noop(), setupLatch));
-                    setupLatch.await(closeWaitTimeoutSeconds(), TimeUnit.SECONDS);
-                }
-            } catch (Exception e) {
-                logger.warn("[LookupJoinClient] Timeout or exception waiting for setup completion for worker=" + worker.workerId, e);
-            }
-
-            // Then: if request was sent, wait for server response
-            if (worker.requestSent) {
-                try {
-                    logger.debug(
-                        "[LookupJoinClient] Waiting for server response from worker={}, isDone={}",
-                        worker.workerId,
-                        worker.serverResponseListener.isDone()
-                    );
-                    if (worker.serverResponseListener.isDone() == false) {
-                        CountDownLatch responseLatch = new CountDownLatch(1);
-                        worker.serverResponseListener.addListener(new LatchedActionListener<>(ActionListener.noop(), responseLatch));
-                        responseLatch.await(closeWaitTimeoutSeconds(), TimeUnit.SECONDS);
-                    }
-                    logger.debug("[LookupJoinClient] Server response received from worker={}", worker.workerId);
-                } catch (Exception e) {
-                    logger.warn(
-                        "[LookupJoinClient] Timeout or exception waiting for server response from worker="
-                            + worker.workerId
-                            + " - server may not have finished",
-                        e
-                    );
-                }
-            }
+    /**
+     * Closes the client. The driver guarantees all workers have completed (via
+     * {@link #waitForServerResponse()} blocking on {@link #allWorkersCompleted}) before
+     * calling this method, so cleanup is purely synchronous.
+     */
+    @Override
+    public void close() {
+        if (closed) {
+            return;
         }
+        closed = true;
+        logger.debug("[LookupJoinClient] Closing BidirectionalBatchExchangeClient");
 
-        // Log incomplete batches for debugging (but don't wait - we're shutting down)
+        stop();
+
+        // Log incomplete batches for debugging
         int started = startedBatchCount;
         int completed = completedBatchCount;
         if (started > 0 && completed < started) {
@@ -925,10 +897,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         final String serverToClientId;
         ExchangeSinkHandler clientToServerSinkHandler;
         ExchangeSink clientToServerSink;
-        final SubscribableListener<Void> serverResponseListener = new SubscribableListener<>();
         final SubscribableListener<Void> setupReadyListener = new SubscribableListener<>();
         int pendingBatches = 0;
-        volatile boolean requestSent = false;
         volatile boolean finished = false;
         // Completion-tracking refs from responseRefs. Both are released when the
         // corresponding channel completes (success or failure). On setup failure before

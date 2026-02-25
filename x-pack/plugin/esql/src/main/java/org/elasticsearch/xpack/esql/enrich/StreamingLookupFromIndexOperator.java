@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
@@ -56,6 +57,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private static final AtomicLong exchangeIdGenerator = new AtomicLong(0);
 
     // Configuration
+    private final DriverContext driverContext;
     private final int maxOutstandingRequests;
     private final LookupFromIndexService lookupService;
     private final String sessionId; // Original session ID from the query
@@ -114,6 +116,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     }
 
     public StreamingLookupFromIndexOperator(
+        DriverContext driverContext,
         List<MatchConfig> matchFields,
         String sessionId,
         CancellableTask parentTask,
@@ -128,6 +131,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         int exchangeBufferSize,
         boolean profile
     ) {
+        this.driverContext = driverContext;
         this.maxOutstandingRequests = maxOutstandingRequests;
         this.lookupService = lookupService;
         this.sessionId = sessionId;
@@ -187,6 +191,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 }));
             };
 
+            driverContext.addAsyncAction();
             client = new BidirectionalBatchExchangeClient(
                 exchangeSessionId,
                 exchangeService,
@@ -208,6 +213,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         } catch (Exception e) {
             logger.error("Failed to create client", e);
             failure.set(e);
+            driverContext.removeAsyncAction();
         }
     }
 
@@ -238,11 +244,13 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
     private void handleBatchExchangeSuccess() {
         logger.debug("Batch exchange completed successfully");
+        driverContext.removeAsyncAction();
     }
 
     private void handleBatchExchangeFailure(Exception e) {
         logger.error("Batch exchange failed", e);
         failure.set(e);
+        driverContext.removeAsyncAction();
     }
 
     @Override
@@ -311,19 +319,11 @@ public class StreamingLookupFromIndexOperator implements Operator {
     public Page getOutput() {
         checkFailureAndMaybeThrow();
 
-        // If missing markers were detected, wait for client to close (which waits for server response).
-        // This ensures we give real errors time to arrive (e.g. CircuitBreaker Exception on the server)
-        // before throwing a synthetic error from the client.
+        // If missing markers were detected, check for real errors that may have arrived via
+        // the server response (the Driver loop through isBlocked() -> waitForServerResponse()
+        // handles the non-blocking wait for server responses to arrive).
         if (hadMissingMarkersWithoutFailure && client != null) {
-            // close() is idempotent and waits up to 30s for server response
-            try {
-                client.close();
-            } catch (Exception e) {
-                logger.warn("Error closing client while waiting for server response", e);
-            }
-            // Check again for real error after waiting for server response
             checkFailureAndMaybeThrow();
-            // No real error arrived after waiting - throw synthetic error
             cleanupBatchResources();
             throw new IllegalStateException(
                 "Exchange completed but some batches never received last-page markers. "

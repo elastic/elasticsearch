@@ -24,16 +24,6 @@ import java.util.concurrent.Executor;
  */
 abstract class BidirectionalBatchExchangeBase implements Releasable {
 
-    // Timeout in seconds for waiting on worker setup and server responses during close()
-    private static final int CLOSE_WAIT_TIMEOUT_SECONDS = 30;
-
-    /**
-     * Returns the timeout in seconds for waiting on worker setup and server responses during close().
-     */
-    public static int closeWaitTimeoutSeconds() {
-        return CLOSE_WAIT_TIMEOUT_SECONDS;
-    }
-
     protected final String sessionId;
     protected final ExchangeService exchangeService;
     protected final Executor executor;

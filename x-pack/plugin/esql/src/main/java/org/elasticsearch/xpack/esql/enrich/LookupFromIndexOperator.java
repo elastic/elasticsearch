@@ -87,6 +87,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         public Operator get(DriverContext driverContext) {
             if (useStreamingOperator) {
                 return new StreamingLookupFromIndexOperator(
+                    driverContext,
                     matchFields,
                     sessionId,
                     parentTask,

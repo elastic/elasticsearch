@@ -158,15 +158,7 @@ public class Reindexer {
         final ActionListener<BulkByScrollResponse> listenerWithRelocations = listenerWithRelocations(task, request, listener);
 
         final boolean isRemote = request.getRemoteInfo() != null;
-        Consumer<Version> workerAction = createWorkerAction(
-            task,
-            request,
-            bulkClient,
-            listenerWithRelocations,
-            startTime,
-            isRemote,
-            false
-        );
+        Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, listenerWithRelocations, startTime, isRemote, false);
 
         // Point-in-time searching is not enabled, so default to scroll
         if (REINDEX_PIT_SEARCH_ENABLED == false) {

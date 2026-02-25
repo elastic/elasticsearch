@@ -12,6 +12,7 @@ package org.elasticsearch.reindex.remote;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
@@ -30,6 +31,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -268,6 +270,31 @@ final class RemoteResponseParsers {
             this.causedBy = causedBy;
         }
     }
+
+    /**
+     * Parser for the open point-in-time response. Returns the PIT id as {@link BytesReference}.
+     */
+    public static final BiFunction<XContentParser, XContentType, BytesReference> OPEN_PIT_PARSER = (p, xContentType) -> {
+        try {
+            String id = null;
+            if (p.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("open point-in-time response must be an object");
+            }
+            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
+                if (p.currentToken() == XContentParser.Token.FIELD_NAME && "id".equals(p.currentName())) {
+                    p.nextToken();
+                    id = p.text();
+                    break;
+                }
+            }
+            if (id == null || id.isEmpty()) {
+                throw new IllegalArgumentException("open point-in-time response must contain [id] field");
+            }
+            return new BytesArray(Base64.getUrlDecoder().decode(id));
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to parse open point-in-time response", e);
+        }
+    };
 
     /**
      * Parses the main action to return just the {@linkplain Version} that it returns. We throw everything else out.

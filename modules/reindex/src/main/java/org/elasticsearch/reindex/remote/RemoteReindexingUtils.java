@@ -22,9 +22,11 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RetryListener;
 import org.elasticsearch.rest.RestStatus;
@@ -40,6 +42,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.reindex.remote.RemoteResponseParsers.MAIN_ACTION_PARSER;
+import static org.elasticsearch.reindex.remote.RemoteResponseParsers.OPEN_PIT_PARSER;
 
 /**
  * Utility methods for reindexing from remote Elasticsearch clusters.
@@ -56,6 +59,46 @@ public class RemoteReindexingUtils {
      */
     public static void lookupRemoteVersion(RejectAwareActionListener<Version> listener, ThreadPool threadPool, RestClient client) {
         execute(new Request("GET", "/"), MAIN_ACTION_PARSER, listener, threadPool, client);
+    }
+
+    /**
+     * Opens a point-in-time on the remote cluster. Requires remote version 7.10.0 or later.
+     *
+     * @param indices   indices to open PIT on
+     * @param keepAlive PIT keep alive duration
+     * @param listener  receives the PIT id on success, or failure/rejection on error
+     * @param threadPool thread pool for preserving thread context
+     * @param client   REST client for the remote cluster
+     */
+    public static void openPit(
+        String[] indices,
+        TimeValue keepAlive,
+        RejectAwareActionListener<BytesReference> listener,
+        ThreadPool threadPool,
+        RestClient client
+    ) {
+        execute(RemoteRequestBuilders.openPit(indices, keepAlive), OPEN_PIT_PARSER, listener, threadPool, client);
+    }
+
+    /**
+     * Closes a point-in-time on the remote cluster.
+     *
+     * @param pitId    the PIT id to close
+     * @param listener receives on success, or failure on error
+     * @param threadPool thread pool for preserving thread context
+     * @param client   REST client for the remote cluster
+     */
+    public static void closePit(BytesReference pitId, RejectAwareActionListener<Void> listener, ThreadPool threadPool, RestClient client) {
+        execute(RemoteRequestBuilders.closePit(pitId), (p, xContentType) -> {
+            try {
+                if (p.nextToken() != null) {
+                    p.skipChildren();
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return null;
+        }, RejectAwareActionListener.withResponseHandler(listener, v -> listener.onResponse(null)), threadPool, client);
     }
 
     /**

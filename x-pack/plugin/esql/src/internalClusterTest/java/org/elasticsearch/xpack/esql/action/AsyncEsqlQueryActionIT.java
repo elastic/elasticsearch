@@ -328,7 +328,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     }
 
     public void testCancelOnExpiry() throws Exception {
-        TimeValue keepAlive = timeValueMillis(between(500, 1000));
+        TimeValue keepAlive = timeValueMillis(between(1000, 2000));
         var request = asyncEsqlQueryRequest("from test | stats sum(pause_me)").pragmas(queryPragmas())
             .waitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)))
             .keepOnCompletion(randomBoolean())
@@ -340,13 +340,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 assertTrue(initialResponse.asyncExecutionId().isPresent());
                 asyncId = initialResponse.asyncExecutionId().get();
             }
-            // the async task was canceled
-            assertBusy(() -> {
-                List<TaskInfo> queryTasks = getEsqlQueryTasks();
-                assertThat(queryTasks, hasSize(1));
-                assertTrue(queryTasks.get(0).cancelled());
-            });
-            // all the started Drivers are canceled
+            // all the started drivers were canceled
             assertBusy(() -> {
                 List<TaskInfo> tasks = client().admin()
                     .cluster()
@@ -358,6 +352,12 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
                 for (TaskInfo task : tasks) {
                     assertTrue(task.cancelled());
                 }
+            });
+            // the async task was canceled
+            assertBusy(() -> {
+                List<TaskInfo> queryTasks = getEsqlQueryTasks();
+                assertThat(queryTasks, hasSize(1));
+                assertTrue(queryTasks.get(0).cancelled());
             });
         } finally {
             scriptPermits.release(numberOfDocs());

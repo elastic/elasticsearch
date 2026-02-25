@@ -27,7 +27,7 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
@@ -100,8 +100,8 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertThat(appender.events.size(), equalTo(1));
         var message = getMessageData(appender.getLastEventAndReset());
         assertMessageFailure(message, "eql", query, IndexNotFoundException.class, "Unknown index [test]");
-        assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo("test"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("0"));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo("test"));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("0"));
     }
 
     /**

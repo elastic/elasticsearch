@@ -82,6 +82,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/to_string.md
 :::
 
+:::{include} ../_snippets/functions/layout/to_tdigest.md
+:::
+
 :::{include} ../_snippets/functions/layout/to_timeduration.md
 :::
 

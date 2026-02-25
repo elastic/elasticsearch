@@ -18,6 +18,7 @@
 * [`TO_LONG`](../../functions-operators/type-conversion-functions.md#esql-to_long)
 * [`TO_RADIANS`](../../functions-operators/type-conversion-functions.md#esql-to_radians)
 * [`TO_STRING`](../../functions-operators/type-conversion-functions.md#esql-to_string)
+* [`TO_TDIGEST`](../../functions-operators/type-conversion-functions.md#esql-to_tdigest) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 * [`TO_TIMEDURATION`](../../functions-operators/type-conversion-functions.md#esql-to_timeduration)
 * [`TO_UNSIGNED_LONG`](../../functions-operators/type-conversion-functions.md#esql-to_unsigned_long) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`TO_VERSION`](../../functions-operators/type-conversion-functions.md#esql-to_version)

@@ -424,9 +424,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         public boolean next() throws IOException {
-            if (centroidIterator == null) {
-                return false;
-            }
+            assert centroidIterator != null : "reset must be called before iterating over the centroids";
             return centroidIterator.next();
         }
 

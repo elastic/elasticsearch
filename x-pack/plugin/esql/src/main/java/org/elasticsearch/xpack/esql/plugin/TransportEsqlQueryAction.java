@@ -551,7 +551,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     protected void doRun() {
                         taskManager.cancelTaskAndDescendants(task, "keep_alive expired", false, ActionListener.noop());
                     }
-                }, TimeValue.timeValueMillis(delay), requestExecutor);
+                }, TimeValue.timeValueMillis(delay), threadPool.generic());
             }
         };
     }

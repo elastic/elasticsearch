@@ -19,18 +19,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * This is a tree-writer that serializes a list of {@link ShapeField.DecodedTriangle} as an interval tree
- * into a byte array.
+ * into a byte array. Contains shared constants, tree building, and the abstract {@link TriangleTreeNode}
+ * with common tree traversal logic. Also provides the legacy writer that stores coordinate values as
+ * VLong deltas from the node's bounding box maxX/maxY.
  *
- * <p>Supports two modes:
- * <ul>
- *   <li><b>V2 (ordinal)</b>: Triangle components reference vertices by ordinal into a
- *       {@link VertexLookupTable}, deduplicating shared vertices across adjacent triangles.</li>
- *   <li><b>Legacy (coordinate deltas)</b>: Triangle components store coordinate values as
- *       VLong deltas from the node's bounding box maxX/maxY. This is the original format.</li>
- * </ul>
+ * @see V2TriangleTreeWriter
  */
 public class TriangleTreeWriter {
 
@@ -42,57 +39,17 @@ public class TriangleTreeWriter {
     static final byte BC_FROM_TRIANGLE = 1 << 5;
     static final byte CA_FROM_TRIANGLE = 1 << 6;
 
-    private TriangleTreeWriter() {}
-
-    // ---- V2 format: vertex ordinals ----
-
-    /**
-     * Builds the triangle tree and extent from the given fields, populating the vertex table builder
-     * with unique vertices, then writes the extent, tree length, and tree to the output.
-     * The tree length prefix allows the reader to skip past the tree to reach subsequent sections
-     * (vertex table, connectivity) without traversing it.
-     */
-    public static void writeTo(StreamOutput out, List<IndexableField> fields, VertexLookupTable.Builder vertexTableBuilder)
-        throws IOException {
-        final Extent extent = new Extent();
-        final TriangleTreeNode node = build(fields, extent, vertexTableBuilder);
-        extent.writeCompressed(out);
-        CountingStreamOutput countingBuffer = new CountingStreamOutput();
-        out.writeVInt(Math.toIntExact(node.totalSize(countingBuffer)));
-        node.writeTo(out);
-    }
-
-    // ---- Legacy format: coordinate deltas ----
+    TriangleTreeWriter() {}
 
     /**
      * Builds the triangle tree and writes it in legacy format (extent + tree with coordinate deltas).
      * No vertex table is used. This is the original format before V2.
      */
-    public static void writeLegacy(StreamOutput out, List<IndexableField> fields) throws IOException {
+    public static void writeTo(StreamOutput out, List<IndexableField> fields) throws IOException {
         final Extent extent = new Extent();
-        final TriangleTreeNode node = build(fields, extent, null);
+        final TriangleTreeNode node = build(fields, extent, LegacyNode::new);
         extent.writeCompressed(out);
         node.writeTo(out);
-    }
-
-    // ---- Shared tree building ----
-
-    /**
-     * @param vertexTableBuilder if non-null, V2 mode (ordinals); if null, legacy mode (coordinate deltas)
-     */
-    private static TriangleTreeNode build(List<IndexableField> fields, Extent extent, VertexLookupTable.Builder vertexTableBuilder) {
-        final byte[] scratch = new byte[7 * Integer.BYTES];
-        if (fields.size() == 1) {
-            final TriangleTreeNode triangleTreeNode = new TriangleTreeNode(toDecodedTriangle(fields.get(0), scratch), vertexTableBuilder);
-            extent.addRectangle(triangleTreeNode.minX, triangleTreeNode.minY, triangleTreeNode.maxX, triangleTreeNode.maxY);
-            return triangleTreeNode;
-        }
-        final TriangleTreeNode[] nodes = new TriangleTreeNode[fields.size()];
-        for (int i = 0; i < fields.size(); i++) {
-            nodes[i] = new TriangleTreeNode(toDecodedTriangle(fields.get(i), scratch), vertexTableBuilder);
-            extent.addRectangle(nodes[i].minX, nodes[i].minY, nodes[i].maxX, nodes[i].maxY);
-        }
-        return createTree(nodes, 0, fields.size() - 1, true);
     }
 
     static ShapeField.DecodedTriangle toDecodedTriangle(IndexableField field, byte[] scratch) {
@@ -102,6 +59,28 @@ public class TriangleTreeWriter {
         final ShapeField.DecodedTriangle decodedTriangle = new ShapeField.DecodedTriangle();
         ShapeField.decodeTriangle(scratch, decodedTriangle);
         return decodedTriangle;
+    }
+
+    /**
+     * Builds a tree from the given fields using the provided factory to create format-specific nodes.
+     */
+    static TriangleTreeNode build(
+        List<IndexableField> fields,
+        Extent extent,
+        Function<ShapeField.DecodedTriangle, ? extends TriangleTreeNode> nodeFactory
+    ) {
+        final byte[] scratch = new byte[7 * Integer.BYTES];
+        if (fields.size() == 1) {
+            final TriangleTreeNode node = nodeFactory.apply(toDecodedTriangle(fields.get(0), scratch));
+            extent.addRectangle(node.minX, node.minY, node.maxX, node.maxY);
+            return node;
+        }
+        final TriangleTreeNode[] nodes = new TriangleTreeNode[fields.size()];
+        for (int i = 0; i < fields.size(); i++) {
+            nodes[i] = nodeFactory.apply(toDecodedTriangle(fields.get(i), scratch));
+            extent.addRectangle(nodes[i].minX, nodes[i].minY, nodes[i].maxX, nodes[i].maxY);
+        }
+        return createTree(nodes, 0, fields.size() - 1, true);
     }
 
     /** Creates tree from sorted components (with range low and high inclusive) */
@@ -120,11 +99,9 @@ public class TriangleTreeWriter {
             ArrayUtil.select(components, low, high + 1, mid, comparator);
         }
         TriangleTreeNode newNode = components[mid];
-        // find children
         newNode.left = createTree(components, low, mid - 1, splitX == false);
         newNode.right = createTree(components, mid + 1, high, splitX == false);
 
-        // pull up max values to this node
         if (newNode.left != null) {
             newNode.maxX = Math.max(newNode.maxX, newNode.left.maxX);
             newNode.maxY = Math.max(newNode.maxY, newNode.left.maxY);
@@ -136,48 +113,37 @@ public class TriangleTreeWriter {
         return newNode;
     }
 
-    /** Represents an inner node of the tree. Supports both V2 and legacy write modes. */
-    private static class TriangleTreeNode {
-        private final int minY;
-        private int maxY;
-        private final int minX;
-        private int maxX;
-        private TriangleTreeNode left;
-        private TriangleTreeNode right;
-        private final ShapeField.DecodedTriangle component;
-        /** True if writing in legacy mode (coordinate deltas). */
-        private final boolean legacyMode;
-        /** Vertex ordinals (V2 only; 0 in legacy mode). */
-        private final int aOrd;
-        private final int bOrd;
-        private final int cOrd;
+    /**
+     * A node in the triangle tree. Contains shared tree traversal and serialization logic.
+     * Subclasses provide format-specific component writing via {@link #writeComponent} and {@link #componentSize}.
+     */
+    abstract static class TriangleTreeNode {
+        final int minY;
+        int maxY;
+        final int minX;
+        int maxX;
+        TriangleTreeNode left;
+        TriangleTreeNode right;
+        final ShapeField.DecodedTriangle component;
 
-        private TriangleTreeNode(ShapeField.DecodedTriangle component, VertexLookupTable.Builder vertexTableBuilder) {
+        TriangleTreeNode(ShapeField.DecodedTriangle component) {
             this.minY = Math.min(Math.min(component.aY, component.bY), component.cY);
             this.maxY = Math.max(Math.max(component.aY, component.bY), component.cY);
             this.minX = Math.min(Math.min(component.aX, component.bX), component.cX);
             this.maxX = Math.max(Math.max(component.aX, component.bX), component.cX);
             this.component = component;
-            this.legacyMode = (vertexTableBuilder == null);
-            if (vertexTableBuilder != null) {
-                this.aOrd = vertexTableBuilder.addVertex(component.aX, component.aY);
-                this.bOrd = vertexTableBuilder.addVertex(component.bX, component.bY);
-                this.cOrd = vertexTableBuilder.addVertex(component.cX, component.cY);
-            } else {
-                this.aOrd = 0;
-                this.bOrd = 0;
-                this.cOrd = 0;
-            }
         }
+
+        abstract void writeComponent(StreamOutput out) throws IOException;
+
+        abstract long componentSize(CountingStreamOutput countingBuffer) throws IOException;
 
         /**
          * Computes the total size in bytes of the root node's serialized tree.
-         * This mirrors the structure of {@link #writeTo}: metadata + component + children,
-         * but unlike non-root nodes, the root does NOT write a rightSize prefix before the right child.
+         * Unlike non-root nodes, the root does NOT write a rightSize prefix before the right child.
          */
-        private long totalSize(CountingStreamOutput countingBuffer) throws IOException {
-            long size = 0;
-            size++; // metadata byte
+        long totalSize(CountingStreamOutput countingBuffer) throws IOException {
+            long size = 1; // metadata byte
             size += componentSize(countingBuffer);
             if (left != null) {
                 size += left.nodeSize(true, maxX, maxY, countingBuffer);
@@ -188,7 +154,7 @@ public class TriangleTreeWriter {
             return size;
         }
 
-        private void writeTo(StreamOutput out) throws IOException {
+        void writeTo(StreamOutput out) throws IOException {
             CountingStreamOutput countingBuffer = new CountingStreamOutput();
             writeMetadata(out);
             writeComponent(out);
@@ -234,40 +200,8 @@ public class TriangleTreeWriter {
             out.writeByte(metadata);
         }
 
-        /**
-         * Writes the triangle component. In V2 mode, writes vertex ordinals.
-         * In legacy mode, writes coordinate deltas from this node's maxX/maxY.
-         */
-        private void writeComponent(StreamOutput out) throws IOException {
-            if (legacyMode) {
-                out.writeVLong((long) maxX - component.aX);
-                out.writeVLong((long) maxY - component.aY);
-                if (component.type == ShapeField.DecodedTriangle.TYPE.POINT) {
-                    return;
-                }
-                out.writeVLong((long) maxX - component.bX);
-                out.writeVLong((long) maxY - component.bY);
-                if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
-                    return;
-                }
-                out.writeVLong((long) maxX - component.cX);
-                out.writeVLong((long) maxY - component.cY);
-            } else {
-                out.writeVInt(aOrd);
-                if (component.type == ShapeField.DecodedTriangle.TYPE.POINT) {
-                    return;
-                }
-                out.writeVInt(bOrd);
-                if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
-                    return;
-                }
-                out.writeVInt(cOrd);
-            }
-        }
-
         private long nodeSize(boolean includeBox, int parentMaxX, int parentMaxY, CountingStreamOutput countingBuffer) throws IOException {
-            long size = 0;
-            size++; // metadata
+            long size = 1; // metadata
             size += componentSize(countingBuffer);
             if (left != null) {
                 size += left.nodeSize(true, maxX, maxY, countingBuffer);
@@ -276,7 +210,7 @@ public class TriangleTreeWriter {
                 long rightSize = right.nodeSize(true, maxX, maxY, countingBuffer);
                 countingBuffer.reset();
                 countingBuffer.writeVLong(rightSize);
-                size += countingBuffer.position(); // jump size
+                size += countingBuffer.position();
                 size += rightSize;
             }
             if (includeBox) {
@@ -285,33 +219,47 @@ public class TriangleTreeWriter {
                 countingBuffer.writeVLong((long) parentMaxX - maxX);
                 countingBuffer.writeVLong((long) parentMaxY - maxY);
                 countingBuffer.writeVLong(jumpSize);
-                size += countingBuffer.position(); // box size
+                size += countingBuffer.position();
             }
             return size;
         }
+    }
 
-        private long componentSize(CountingStreamOutput countingBuffer) throws IOException {
+    /** Legacy node that writes coordinate deltas from the node's bounding box maxX/maxY. */
+    private static class LegacyNode extends TriangleTreeNode {
+        LegacyNode(ShapeField.DecodedTriangle component) {
+            super(component);
+        }
+
+        @Override
+        void writeComponent(StreamOutput out) throws IOException {
+            out.writeVLong((long) maxX - component.aX);
+            out.writeVLong((long) maxY - component.aY);
+            if (component.type == ShapeField.DecodedTriangle.TYPE.POINT) {
+                return;
+            }
+            out.writeVLong((long) maxX - component.bX);
+            out.writeVLong((long) maxY - component.bY);
+            if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
+                return;
+            }
+            out.writeVLong((long) maxX - component.cX);
+            out.writeVLong((long) maxY - component.cY);
+        }
+
+        @Override
+        long componentSize(CountingStreamOutput countingBuffer) throws IOException {
             countingBuffer.reset();
-            if (legacyMode) {
-                countingBuffer.writeVLong((long) maxX - component.aX);
-                countingBuffer.writeVLong((long) maxY - component.aY);
-                if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
-                    countingBuffer.writeVLong((long) maxX - component.bX);
-                    countingBuffer.writeVLong((long) maxY - component.bY);
-                } else if (component.type == ShapeField.DecodedTriangle.TYPE.TRIANGLE) {
-                    countingBuffer.writeVLong((long) maxX - component.bX);
-                    countingBuffer.writeVLong((long) maxY - component.bY);
-                    countingBuffer.writeVLong((long) maxX - component.cX);
-                    countingBuffer.writeVLong((long) maxY - component.cY);
-                }
-            } else {
-                countingBuffer.writeVInt(aOrd);
-                if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
-                    countingBuffer.writeVInt(bOrd);
-                } else if (component.type == ShapeField.DecodedTriangle.TYPE.TRIANGLE) {
-                    countingBuffer.writeVInt(bOrd);
-                    countingBuffer.writeVInt(cOrd);
-                }
+            countingBuffer.writeVLong((long) maxX - component.aX);
+            countingBuffer.writeVLong((long) maxY - component.aY);
+            if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
+                countingBuffer.writeVLong((long) maxX - component.bX);
+                countingBuffer.writeVLong((long) maxY - component.bY);
+            } else if (component.type == ShapeField.DecodedTriangle.TYPE.TRIANGLE) {
+                countingBuffer.writeVLong((long) maxX - component.bX);
+                countingBuffer.writeVLong((long) maxY - component.bY);
+                countingBuffer.writeVLong((long) maxX - component.cX);
+                countingBuffer.writeVLong((long) maxY - component.cY);
             }
             return countingBuffer.position();
         }

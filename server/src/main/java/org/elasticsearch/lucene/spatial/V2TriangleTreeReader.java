@@ -19,18 +19,16 @@ import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.POINT;
 import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.RIGHT;
 
 /**
- * A tree reader for a previously serialized {@link org.elasticsearch.geometry.Geometry} using
- * {@link TriangleTreeWriter}. Reads the legacy format where vertex coordinates are stored as
- * VLong deltas from the parent node's maxX/maxY bounds.
- *
- * @see V2TriangleTreeReader
+ * Reads a V2 triangle tree where vertex coordinates are stored as ordinals referencing a
+ * {@link VertexLookupTable}. The reader resolves ordinals to coordinates transparently.
  */
-class TriangleTreeReader {
+class V2TriangleTreeReader {
 
-    private TriangleTreeReader() {}
+    private V2TriangleTreeReader() {}
 
-    static void visit(ByteArrayStreamInput input, TriangleTreeVisitor visitor, int thisMaxX, int thisMaxY) throws IOException {
-        doVisit(input, visitor, true, thisMaxX, thisMaxY, true);
+    static void visit(ByteArrayStreamInput input, TriangleTreeVisitor visitor, int thisMaxX, int thisMaxY, VertexLookupTable vertexTable)
+        throws IOException {
+        doVisit(input, visitor, true, thisMaxX, thisMaxY, true, vertexTable);
     }
 
     private static boolean doVisit(
@@ -39,14 +37,16 @@ class TriangleTreeReader {
         boolean splitX,
         int thisMaxX,
         int thisMaxY,
-        boolean isRoot
+        boolean isRoot,
+        VertexLookupTable vertexTable
     ) throws IOException {
         byte metadata = input.readByte();
         int thisMinX;
         int thisMinY;
         if ((metadata & POINT) == POINT) {
-            int x = Math.toIntExact(thisMaxX - input.readVLong());
-            int y = Math.toIntExact(thisMaxY - input.readVLong());
+            int ord = input.readVInt();
+            int x = vertexTable.getX(ord);
+            int y = vertexTable.getY(ord);
             visitor.visitPoint(x, y);
             if (visitor.push() == false) {
                 return false;
@@ -54,10 +54,12 @@ class TriangleTreeReader {
             thisMinX = x;
             thisMinY = y;
         } else if ((metadata & LINE) == LINE) {
-            int aX = Math.toIntExact(thisMaxX - input.readVLong());
-            int aY = Math.toIntExact(thisMaxY - input.readVLong());
-            int bX = Math.toIntExact(thisMaxX - input.readVLong());
-            int bY = Math.toIntExact(thisMaxY - input.readVLong());
+            int aOrd = input.readVInt();
+            int bOrd = input.readVInt();
+            int aX = vertexTable.getX(aOrd);
+            int aY = vertexTable.getY(aOrd);
+            int bX = vertexTable.getX(bOrd);
+            int bY = vertexTable.getY(bOrd);
             visitor.visitLine(aX, aY, bX, bY, metadata);
             if (visitor.push() == false) {
                 return false;
@@ -65,12 +67,15 @@ class TriangleTreeReader {
             thisMinX = aX;
             thisMinY = Math.min(aY, bY);
         } else {
-            int aX = Math.toIntExact(thisMaxX - input.readVLong());
-            int aY = Math.toIntExact(thisMaxY - input.readVLong());
-            int bX = Math.toIntExact(thisMaxX - input.readVLong());
-            int bY = Math.toIntExact(thisMaxY - input.readVLong());
-            int cX = Math.toIntExact(thisMaxX - input.readVLong());
-            int cY = Math.toIntExact(thisMaxY - input.readVLong());
+            int aOrd = input.readVInt();
+            int bOrd = input.readVInt();
+            int cOrd = input.readVInt();
+            int aX = vertexTable.getX(aOrd);
+            int aY = vertexTable.getY(aOrd);
+            int bX = vertexTable.getX(bOrd);
+            int bY = vertexTable.getY(bOrd);
+            int cX = vertexTable.getX(cOrd);
+            int cY = vertexTable.getY(cOrd);
             visitor.visitTriangle(aX, aY, bX, bY, cX, cY, metadata);
             if (visitor.push() == false) {
                 return false;
@@ -79,13 +84,13 @@ class TriangleTreeReader {
             thisMinY = Math.min(Math.min(aY, bY), cY);
         }
         if ((metadata & LEFT) == LEFT) {
-            if (pushLeft(input, visitor, thisMaxX, thisMaxY, splitX) == false) {
+            if (pushLeft(input, visitor, thisMaxX, thisMaxY, splitX, vertexTable) == false) {
                 return false;
             }
         }
         if ((metadata & RIGHT) == RIGHT) {
             int rightSize = isRoot ? 0 : input.readVInt();
-            if (pushRight(input, visitor, thisMaxX, thisMaxY, thisMinX, thisMinY, splitX, rightSize) == false) {
+            if (pushRight(input, visitor, thisMaxX, thisMaxY, thisMinX, thisMinY, splitX, rightSize, vertexTable) == false) {
                 return false;
             }
         }
@@ -97,13 +102,14 @@ class TriangleTreeReader {
         TriangleTreeVisitor visitor,
         int thisMaxX,
         int thisMaxY,
-        boolean splitX
+        boolean splitX,
+        VertexLookupTable vertexTable
     ) throws IOException {
         int nextMaxX = Math.toIntExact(thisMaxX - input.readVLong());
         int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
         int size = input.readVInt();
         if (visitor.push(nextMaxX, nextMaxY)) {
-            return doVisit(input, visitor, splitX == false, nextMaxX, nextMaxY, false);
+            return doVisit(input, visitor, splitX == false, nextMaxX, nextMaxY, false, vertexTable);
         } else {
             input.skipBytes(size);
             return visitor.push();
@@ -118,14 +124,15 @@ class TriangleTreeReader {
         int thisMinX,
         int thisMinY,
         boolean splitX,
-        int rightSize
+        int rightSize,
+        VertexLookupTable vertexTable
     ) throws IOException {
         if ((splitX == false && visitor.pushY(thisMinY)) || (splitX && visitor.pushX(thisMinX))) {
             int nextMaxX = Math.toIntExact(thisMaxX - input.readVLong());
             int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
             int size = input.readVInt();
             if (visitor.push(nextMaxX, nextMaxY)) {
-                return doVisit(input, visitor, splitX == false, nextMaxX, nextMaxY, false);
+                return doVisit(input, visitor, splitX == false, nextMaxX, nextMaxY, false, vertexTable);
             } else {
                 input.skipBytes(size);
             }

@@ -182,10 +182,10 @@ public class GeometryDocValueReader {
         if (v2Format) {
             ensureVertexTableLoaded();
             input.setPosition(treeOffset);
-            TriangleTreeReader.visit(input, visitor, thisMaxX, thisMaxY, vertexTable);
+            V2TriangleTreeReader.visit(input, visitor, thisMaxX, thisMaxY, vertexTable);
         } else {
             input.setPosition(treeOffset);
-            TriangleTreeReader.visitLegacy(input, visitor, thisMaxX, thisMaxY);
+            TriangleTreeReader.visit(input, visitor, thisMaxX, thisMaxY);
         }
     }
 

@@ -30,12 +30,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.autoscaling.memory.PublishHeapMemoryMetricsRequest;
-import org.elasticsearch.xpack.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -62,20 +59,10 @@ public class StatelessClusterInfoServiceIT extends AbstractStatelessPluginIntegT
         startMasterAndIndexNode();
         startSearchNode();
         ensureStableCluster(3);
-        final MockTransportService masterMockTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
-        final CountDownLatch heapMetricsReceived = new CountDownLatch(1);
-        masterMockTransportService.addRequestHandlingBehavior(TransportPublishHeapMemoryMetrics.NAME, (handler, request, channel, task) -> {
-            handler.messageReceived(request, channel, task);
-            if (asInstanceOf(PublishHeapMemoryMetricsRequest.class, request).getHeapMemoryUsage().shardMappingSizes().size() > 0) {
-                heapMetricsReceived.countDown();
-            }
-        });
 
         final String indexName = randomIdentifier();
         indexDocsAndRefresh(indexName, between(1, 1_000));
         ensureGreen(indexName);
-
-        safeAwait(heapMetricsReceived);
 
         final InternalClusterInfoService infoService = asInstanceOf(
             InternalClusterInfoService.class,
@@ -83,10 +70,19 @@ public class StatelessClusterInfoServiceIT extends AbstractStatelessPluginIntegT
         );
 
         ClusterInfoServiceUtils.setUpdateFrequency(infoService, TimeValue.timeValueMillis(100));
-        final ClusterInfo info = ClusterInfoServiceUtils.refresh(infoService);
-        final Map<String, EstimatedHeapUsage> nodesHeapUsage = info.getEstimatedHeapUsages();
-        final Map<ShardId, ShardAndIndexHeapUsage> shardsHeapUsage = info.getEstimatedShardHeapUsages();
-        assertThat(nodesHeapUsage.size(), greaterThan(0));
-        assertThat(shardsHeapUsage.size(), greaterThan(0));
+
+        // Wait for heap metrics with shard mapping sizes to be received by the master
+        assertBusy(() -> {
+            final ClusterInfo info = ClusterInfoServiceUtils.refresh(infoService);
+            final Map<String, EstimatedHeapUsage> nodesHeapUsage = info.getEstimatedHeapUsages();
+            final Map<ShardId, ShardAndIndexHeapUsage> shardsHeapUsage = info.getEstimatedShardHeapUsages();
+            assertThat(nodesHeapUsage.size(), greaterThan(0));
+            assertThat(shardsHeapUsage.size(), greaterThan(0));
+            // Verify at least one node has estimated heap usage
+            assertTrue(
+                "Expected at least one node to have estimated heap usage",
+                nodesHeapUsage.values().stream().anyMatch(usage -> usage.estimatedUsageBytes() > 0)
+            );
+        });
     }
 }

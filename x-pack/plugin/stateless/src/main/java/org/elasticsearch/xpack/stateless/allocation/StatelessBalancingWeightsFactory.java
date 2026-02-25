@@ -42,22 +42,40 @@ import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_SHARD_
 
 public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory {
 
-    public static final Setting<Boolean> SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING = Setting.boolSetting(
+    // DEPRECATED, do not use
+    public static final Setting<Boolean> SERVERLESS_SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING = Setting.boolSetting(
         "serverless.cluster.routing.allocation.balance.separate_weights_enabled",
         true,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
+    public static final Setting<Boolean> SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cluster.routing.allocation.balance.separate_weights_enabled",
+        SERVERLESS_SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Float> INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+    // DEPRECATED, do not use
+    public static final Setting<Float> SERVERLESS_INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "serverless.cluster.routing.allocation.balance.shard.indexing_tier",
         SHARD_BALANCE_FACTOR_SETTING,
+        0.0f,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
+    public static final Setting<Float> INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "stateless.cluster.routing.allocation.balance.shard.indexing_tier",
+        SERVERLESS_INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
         0.0f,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     public static final Setting<Float> SEARCH_TIER_SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
-        "serverless.cluster.routing.allocation.balance.shard.search_tier",
+        "stateless.cluster.routing.allocation.balance.shard.search_tier",
         SHARD_BALANCE_FACTOR_SETTING,
         0.0f,
         Setting.Property.Dynamic,
@@ -65,7 +83,7 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
     );
 
     public static final Setting<Float> INDEXING_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
-        "serverless.cluster.routing.allocation.balance.write_load.indexing_tier",
+        "stateless.cluster.routing.allocation.balance.write_load.indexing_tier",
         WRITE_LOAD_BALANCE_FACTOR_SETTING,
         0.0f,
         Setting.Property.Dynamic,
@@ -73,24 +91,44 @@ public class StatelessBalancingWeightsFactory implements BalancingWeightsFactory
     );
 
     public static final Setting<Float> SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
-        "serverless.cluster.routing.allocation.balance.write_load.search_tier",
+        "stateless.cluster.routing.allocation.balance.write_load.search_tier",
         0.0f,
         0.0f,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Float> INDEXING_TIER_BALANCING_THRESHOLD_SETTING = Setting.floatSetting(
+    // DEPRECATED, do not use
+    public static final Setting<Float> SERVERLESS_INDEXING_TIER_BALANCING_THRESHOLD_SETTING = Setting.floatSetting(
         "serverless.cluster.routing.allocation.balance.threshold.indexing_tier",
         THRESHOLD_SETTING,
+        1.0f,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
+    public static final Setting<Float> INDEXING_TIER_BALANCING_THRESHOLD_SETTING = Setting.floatSetting(
+        "stateless.cluster.routing.allocation.balance.threshold.indexing_tier",
+        SERVERLESS_INDEXING_TIER_BALANCING_THRESHOLD_SETTING,
         1.0f,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Float> SEARCH_TIER_BALANCING_THRESHOLD_SETTING = Setting.floatSetting(
+    // DEPRECATED, do not use
+    public static final Setting<Float> SERVERLESS_SEARCH_TIER_BALANCING_THRESHOLD_SETTING = Setting.floatSetting(
         "serverless.cluster.routing.allocation.balance.threshold.search_tier",
         THRESHOLD_SETTING,
+        1.0f,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
+    public static final Setting<Float> SEARCH_TIER_BALANCING_THRESHOLD_SETTING = Setting.floatSetting(
+        "stateless.cluster.routing.allocation.balance.threshold.search_tier",
+        SERVERLESS_SEARCH_TIER_BALANCING_THRESHOLD_SETTING,
         1.0f,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

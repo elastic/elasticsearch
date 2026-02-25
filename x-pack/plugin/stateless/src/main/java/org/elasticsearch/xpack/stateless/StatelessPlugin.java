@@ -281,7 +281,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.PROJECT_TYPE;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
@@ -549,7 +548,6 @@ public class StatelessPlugin extends Plugin
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
     private final boolean hasMasterRole;
-    private final ProjectType projectType;
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
     private final boolean hollowShardsEnabled;
 
@@ -628,8 +626,7 @@ public class StatelessPlugin extends Plugin
         pageCacheReyclerLimitExplicitlySet = PageCacheRecycler.LIMIT_HEAP_SETTING.exists(settings);
         hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         hasMasterRole = DiscoveryNode.isMasterNode(settings);
-        projectType = PROJECT_TYPE.get(settings);
-        this.statelessIndexSettingProvider = new StatelessIndexSettingProvider(projectType);
+        this.statelessIndexSettingProvider = new StatelessIndexSettingProvider();
         hollowShardsEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
     }
 
@@ -1028,8 +1025,6 @@ public class StatelessPlugin extends Plugin
 
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 
-        statelessIndexSettingProvider.initialize(clusterService, services.indexNameExpressionResolver());
-
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
         }
@@ -1390,7 +1385,6 @@ public class StatelessPlugin extends Plugin
             ObjectStoreGCTask.STALE_TRANSLOGS_GC_ENABLED_SETTING,
             ObjectStoreGCTask.STALE_TRANSLOGS_GC_FILES_LIMIT_SETTING,
             ObjectStoreGCTask.GC_INTERVAL_SETTING,
-            StatelessIndexSettingProvider.DEFAULT_NUMBER_OF_SHARDS_FOR_REGULAR_INDICES_SETTING,
             TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING,
             GetVirtualBatchedCompoundCommitChunksPressure.CHUNKS_BYTES_LIMIT,
             CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING,
@@ -1414,6 +1408,11 @@ public class StatelessPlugin extends Plugin
             StatelessBalancingWeightsFactory.SEARCH_TIER_WRITE_LOAD_BALANCE_FACTOR_SETTING,
             StatelessBalancingWeightsFactory.INDEXING_TIER_BALANCING_THRESHOLD_SETTING,
             StatelessBalancingWeightsFactory.SEARCH_TIER_BALANCING_THRESHOLD_SETTING,
+            // TODO: Before merging to elasticsearch, make sure that serverless-gitops has been updated and remove the following 4:
+            StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,
+            StatelessBalancingWeightsFactory.SERVERLESS_SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING,
+            StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_BALANCING_THRESHOLD_SETTING,
+            StatelessBalancingWeightsFactory.SERVERLESS_SEARCH_TIER_BALANCING_THRESHOLD_SETTING,
             TransportStatelessUnpromotableRelocationAction.START_HANDOFF_CLUSTER_STATE_CONVERGENCE_TIMEOUT_SETTING,
             TransportStatelessUnpromotableRelocationAction.START_HANDOFF_REQUEST_TIMEOUT_SETTING,
             StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED,

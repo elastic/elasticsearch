@@ -29,6 +29,7 @@ public class CoreWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProje
         .module("x-pack-ilm")
         .module("x-pack-stack")
         .module("ingest-common")
+        .module("user-agent")
         .module("reindex")
         .module("wildcard")
         .module("analysis-common")

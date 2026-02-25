@@ -66,17 +66,17 @@ public class GpuUsageTransportAction extends XPackUsageFeatureTransportAction {
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
+        boolean available = GPUPlugin.GPU_INDEXING_FEATURE.checkWithoutTracking(licenseState);
         if (featureService.clusterHasFeature(clusterService.state(), VECTORS_INDEXING_GPU_MONITORING)) {
             new ParentTaskAssigningClient(client, clusterService.localNode(), task).execute(
                 GpuStatsAction.INSTANCE,
                 new GpuStatsRequest(),
                 listener.delegateFailureAndWrap((delegate, response) -> {
-                    boolean available = GPUPlugin.GPU_INDEXING_FEATURE.checkWithoutTracking(licenseState);
                     delegate.onResponse(new XPackUsageFeatureResponse(buildUsage(response, available)));
                 })
             );
         } else {
-            listener.onResponse(new XPackUsageFeatureResponse(new GpuVectorIndexingFeatureSetUsage(false, false, 0, 0, List.of())));
+            listener.onResponse(new XPackUsageFeatureResponse(new GpuVectorIndexingFeatureSetUsage(available, false, 0, 0, List.of())));
         }
     }
 

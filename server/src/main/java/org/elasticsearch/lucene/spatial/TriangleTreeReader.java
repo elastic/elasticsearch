@@ -23,17 +23,20 @@ import static org.elasticsearch.lucene.spatial.TriangleTreeWriter.RIGHT;
  * {@link TriangleTreeWriter}. Reads the legacy format where vertex coordinates are stored as
  * VLong deltas from the parent node's maxX/maxY bounds.
  *
- * @see V2TriangleTreeReader
+ * @see V2TriangleTreeReader for a version that reads the new format
  */
 class TriangleTreeReader {
 
     private TriangleTreeReader() {}
 
-    static void visit(ByteArrayStreamInput input, TriangleTreeVisitor visitor, int thisMaxX, int thisMaxY) throws IOException {
-        doVisit(input, visitor, true, thisMaxX, thisMaxY, true);
+    /**
+     * Visit the Triangle tree using the {@link TriangleTreeVisitor} provided.
+     */
+    public static void visit(ByteArrayStreamInput input, TriangleTreeVisitor visitor, int thisMaxX, int thisMaxY) throws IOException {
+        visit(input, visitor, true, thisMaxX, thisMaxY, true);
     }
 
-    private static boolean doVisit(
+    private static boolean visit(
         ByteArrayStreamInput input,
         TriangleTreeVisitor visitor,
         boolean splitX,
@@ -44,7 +47,7 @@ class TriangleTreeReader {
         byte metadata = input.readByte();
         int thisMinX;
         int thisMinY;
-        if ((metadata & POINT) == POINT) {
+        if ((metadata & POINT) == POINT) { // component in this node is a point
             int x = Math.toIntExact(thisMaxX - input.readVLong());
             int y = Math.toIntExact(thisMaxY - input.readVLong());
             visitor.visitPoint(x, y);
@@ -53,7 +56,7 @@ class TriangleTreeReader {
             }
             thisMinX = x;
             thisMinY = y;
-        } else if ((metadata & LINE) == LINE) {
+        } else if ((metadata & LINE) == LINE) { // component in this node is a line
             int aX = Math.toIntExact(thisMaxX - input.readVLong());
             int aY = Math.toIntExact(thisMaxY - input.readVLong());
             int bX = Math.toIntExact(thisMaxX - input.readVLong());
@@ -64,7 +67,7 @@ class TriangleTreeReader {
             }
             thisMinX = aX;
             thisMinY = Math.min(aY, bY);
-        } else {
+        } else { // component in this node is a triangle
             int aX = Math.toIntExact(thisMaxX - input.readVLong());
             int aY = Math.toIntExact(thisMaxY - input.readVLong());
             int bX = Math.toIntExact(thisMaxX - input.readVLong());
@@ -78,12 +81,13 @@ class TriangleTreeReader {
             thisMinX = aX;
             thisMinY = Math.min(Math.min(aY, bY), cY);
         }
-        if ((metadata & LEFT) == LEFT) {
+        if ((metadata & LEFT) == LEFT) { // left != null
             if (pushLeft(input, visitor, thisMaxX, thisMaxY, splitX) == false) {
                 return false;
             }
         }
-        if ((metadata & RIGHT) == RIGHT) {
+        if ((metadata & RIGHT) == RIGHT) { // right != null
+            // root node does not have a size
             int rightSize = isRoot ? 0 : input.readVInt();
             if (pushRight(input, visitor, thisMaxX, thisMaxY, thisMinX, thisMinY, splitX, rightSize) == false) {
                 return false;
@@ -92,18 +96,13 @@ class TriangleTreeReader {
         return visitor.push();
     }
 
-    private static boolean pushLeft(
-        ByteArrayStreamInput input,
-        TriangleTreeVisitor visitor,
-        int thisMaxX,
-        int thisMaxY,
-        boolean splitX
-    ) throws IOException {
+    private static boolean pushLeft(ByteArrayStreamInput input, TriangleTreeVisitor visitor, int thisMaxX, int thisMaxY, boolean splitX)
+        throws IOException {
         int nextMaxX = Math.toIntExact(thisMaxX - input.readVLong());
         int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
         int size = input.readVInt();
         if (visitor.push(nextMaxX, nextMaxY)) {
-            return doVisit(input, visitor, splitX == false, nextMaxX, nextMaxY, false);
+            return visit(input, visitor, splitX == false, nextMaxX, nextMaxY, false);
         } else {
             input.skipBytes(size);
             return visitor.push();
@@ -125,7 +124,7 @@ class TriangleTreeReader {
             int nextMaxY = Math.toIntExact(thisMaxY - input.readVLong());
             int size = input.readVInt();
             if (visitor.push(nextMaxX, nextMaxY)) {
-                return doVisit(input, visitor, splitX == false, nextMaxX, nextMaxY, false);
+                return visit(input, visitor, splitX == false, nextMaxX, nextMaxY, false);
             } else {
                 input.skipBytes(size);
             }

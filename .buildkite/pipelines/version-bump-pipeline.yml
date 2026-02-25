@@ -35,9 +35,9 @@ steps:
     depends_on: block-get-dra-artifacts
     agents:
       image: docker.elastic.co/release-eng/wolfi-build-essential-release-eng:latest
-      cpu: 2
-      memory: 4G
-      ephemeralStorage: 10G
+      cpu: 250m
+      memory: 512Mi
+      ephemeralStorage: 1Gi
     command:
       - echo "Starting DRA artifacts retrieval..."
     timeout_in_minutes: 240

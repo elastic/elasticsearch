@@ -100,11 +100,11 @@ GET _xpack/usage?filter_path=gpu_vector_indexing
 ```console-result
 {
   "gpu_vector_indexing": {
-    "available": true,
-    "enabled": true,
-    "index_build_count": 30,
-    "nodes_with_gpu": 3,
-    "nodes": [
+    "available": true, <1>
+    "enabled": true, <2>
+    "index_build_count": 30, <3>
+    "nodes_with_gpu": 3, <4>
+    "nodes": [ <5>
       { "type": "NVIDIA L4", "memory_in_bytes": 24000000000,
         "enabled": true, "index_build_count": 10 },
       { "type": "NVIDIA L4", "memory_in_bytes": 24000000000,
@@ -115,14 +115,11 @@ GET _xpack/usage?filter_path=gpu_vector_indexing
   }
 }
 ```
-
-* `available`: Whether the current license permits GPU indexing.
-* `enabled`: Whether at least one node has GPU hardware configured and has not
-  disabled it via `vectors.indexing.use_gpu=false`.
-* `index_build_count`: Total number of GPU index builds across the cluster.
-* `nodes_with_gpu`: Number of data nodes with GPU support.
-* `nodes[]`: Per-node GPU details including type, memory, enabled status, and
-  build count.
+1. Whether the current license permits GPU indexing.
+2. Whether at least one node has GPU hardware configured and has not disabled it via `vectors.indexing.use_gpu=false`.
+3. Total number of GPU index builds across the cluster.
+4. Number of data nodes with GPU support.
+5. Per-node GPU details including type, memory, enabled status, and build count.
 
 ## Troubleshooting
 By default, {{es}} uses GPU indexing for supported vector types if a

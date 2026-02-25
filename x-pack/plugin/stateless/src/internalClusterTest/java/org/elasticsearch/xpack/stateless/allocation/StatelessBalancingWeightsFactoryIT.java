@@ -45,7 +45,12 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey(), true);
+        return super.nodeSettings().put(
+            randomBoolean()
+                ? StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey()
+                : StatelessBalancingWeightsFactory.SERVERLESS_SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey(),
+            true
+        );
     }
 
     public void testShardCountIsConfigurablePerTier() throws Exception {
@@ -58,7 +63,9 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
         final boolean zeroSearchTier = randomBoolean();
         final String setting = zeroSearchTier
             ? StatelessBalancingWeightsFactory.SEARCH_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey()
-            : StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey();
+            : (randomBoolean()
+                ? StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey()
+                : StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING.getKey());
         updateClusterSettings(
             Settings.builder()
                 .put(setting, 0.0)
@@ -80,26 +87,41 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
 
         indexNodeTelemetry.collect();
 
+        // Calculate total shards across all nodes for the avgShardsPerNode calculation
+        List<Measurement> shardCountMeasurements = indexNodeTelemetry.getLongGaugeMeasurement(
+            DesiredBalanceMetrics.CURRENT_NODE_SHARD_COUNT_METRIC_NAME
+        );
+        int totalNumShards = (int) shardCountMeasurements.stream().mapToLong(Measurement::getLong).sum();
+        int totalNumberNodes = shardCountMeasurements.size();
+
         // Assert weights are what we expect
         assertThatWeightsAreExpected(
             indexNodeTelemetry,
             indexNode1,
-            zeroSearchTier ? BalancerSettings.DEFAULT.getShardBalanceFactor() : 0.0f
+            zeroSearchTier ? BalancerSettings.DEFAULT.getShardBalanceFactor() : 0.0f,
+            totalNumShards,
+            totalNumberNodes
         );
         assertThatWeightsAreExpected(
             indexNodeTelemetry,
             indexNode2,
-            zeroSearchTier ? BalancerSettings.DEFAULT.getShardBalanceFactor() : 0.0f
+            zeroSearchTier ? BalancerSettings.DEFAULT.getShardBalanceFactor() : 0.0f,
+            totalNumShards,
+            totalNumberNodes
         );
         assertThatWeightsAreExpected(
             indexNodeTelemetry,
             searchNode1,
-            zeroSearchTier ? 0.0f : BalancerSettings.DEFAULT.getShardBalanceFactor()
+            zeroSearchTier ? 0.0f : BalancerSettings.DEFAULT.getShardBalanceFactor(),
+            totalNumShards,
+            totalNumberNodes
         );
         assertThatWeightsAreExpected(
             indexNodeTelemetry,
             searchNode2,
-            zeroSearchTier ? 0.0f : BalancerSettings.DEFAULT.getShardBalanceFactor()
+            zeroSearchTier ? 0.0f : BalancerSettings.DEFAULT.getShardBalanceFactor(),
+            totalNumShards,
+            totalNumberNodes
         );
     }
 
@@ -113,8 +135,12 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
         final boolean loosenSearchTier = randomBoolean();
 
         final String setting = loosenSearchTier
-            ? StatelessBalancingWeightsFactory.SEARCH_TIER_BALANCING_THRESHOLD_SETTING.getKey()
-            : StatelessBalancingWeightsFactory.INDEXING_TIER_BALANCING_THRESHOLD_SETTING.getKey();
+            ? (randomBoolean()
+                ? StatelessBalancingWeightsFactory.SEARCH_TIER_BALANCING_THRESHOLD_SETTING.getKey()
+                : StatelessBalancingWeightsFactory.SERVERLESS_SEARCH_TIER_BALANCING_THRESHOLD_SETTING.getKey())
+            : (randomBoolean()
+                ? StatelessBalancingWeightsFactory.INDEXING_TIER_BALANCING_THRESHOLD_SETTING.getKey()
+                : StatelessBalancingWeightsFactory.SERVERLESS_INDEXING_TIER_BALANCING_THRESHOLD_SETTING.getKey());
         updateClusterSettings(
             Settings.builder()
                 .put(setting, 100.0)
@@ -162,7 +188,13 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
         assertThat(routingNodes.node(getNodeId(searchNode2)).size(), loosenSearchTier ? equalTo(0) : greaterThan(0));
     }
 
-    private void assertThatWeightsAreExpected(TestTelemetryPlugin testTelemetryPlugin, String nodeName, float shardBalance) {
+    private void assertThatWeightsAreExpected(
+        TestTelemetryPlugin testTelemetryPlugin,
+        String nodeName,
+        float shardBalance,
+        int totalNumShards,
+        int totalNumberNodes
+    ) {
         long shardCount = getMeasurementForNode(
             testTelemetryPlugin.getLongGaugeMeasurement(DesiredBalanceMetrics.CURRENT_NODE_SHARD_COUNT_METRIC_NAME),
             nodeName
@@ -178,8 +210,6 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
             0.0f,
             BalancerSettings.DEFAULT.getDiskUsageBalanceFactor()
         );
-        int totalNumShards = 36;    // 3 indices * 6 shards * 2 tiers
-        int totalNumberNodes = 4;
         double expectedWeight = weightFunction.calculateNodeWeight((int) shardCount, (float) totalNumShards / totalNumberNodes, 0, 0, 0, 0);
         assertThat(weight, equalTo(expectedWeight));
     }

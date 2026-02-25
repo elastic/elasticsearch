@@ -226,9 +226,6 @@ public class ViewResolver {
 
         doEsqlResolveViewsRequest(req, ActionListener.wrap(response -> {
             if (response.views().length == 0) {
-                // TODO: if there are exclusions that result in no views and there are not other index abstraction matches, the current
-                // behaviour for indices is to throw a "not found", the same should probably be true for views for consistency reasons.
-                // So we might want to check if we have any unresolvedPatterns here.
                 listener.onResponse(unresolvedRelation);
                 return;
             }

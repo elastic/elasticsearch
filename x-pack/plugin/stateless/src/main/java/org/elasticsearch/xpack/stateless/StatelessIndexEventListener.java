@@ -475,15 +475,6 @@ class StatelessIndexEventListener implements IndexEventListener {
             if (indexShard.routingEntry().isPromotableToPrimary()) {
                 Engine engineOrNull = indexShard.getEngineOrNull();
 
-                IndexSettings indexSettings = indexShard.indexSettings();
-                IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
-                // TODO with this implementation we will sometimes run below calls on stateless_upload_prewarm thread pool
-                // due to how statelessCommitService.addListenerForUploadedGeneration works.
-                if (IndexReshardingMetadata.isSplitSource(indexShard.shardId(), reshardingMetadata)) {
-                    l = l.delegateFailure(
-                        (toWrap, unused) -> splitSourceService.afterSplitSourceIndexShardRecovery(indexShard, reshardingMetadata, toWrap)
-                    );
-                }
                 if (engineOrNull instanceof IndexEngine engine) {
                     long currentGeneration = engine.getCurrentGeneration();
                     if (currentGeneration > statelessCommitService.getRecoveredGeneration(indexShard.shardId())) {
@@ -529,4 +520,17 @@ class StatelessIndexEventListener implements IndexEventListener {
     public void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
         hollowShardsService.onMutableOperation(indexShard, permitAcquired, listener);
     }
+
+    @Override
+    public void afterIndexShardStarted(IndexShard indexShard) {
+        // Index shards only.
+        if (indexShard.routingEntry().isPromotableToPrimary()) {
+            IndexSettings indexSettings = indexShard.indexSettings();
+            IndexReshardingMetadata reshardingMetadata = indexSettings.getIndexMetadata().getReshardingMetadata();
+            if (IndexReshardingMetadata.isSplitSource(indexShard.shardId(), reshardingMetadata)) {
+                splitSourceService.splitSourceShardStarted(indexShard, reshardingMetadata);
+            }
+        }
+    }
+
 }

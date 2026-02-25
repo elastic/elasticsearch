@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 /**
@@ -85,11 +86,11 @@ public class StNPoints extends SpatialUnaryDocValuesFunction implements AnyNullI
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (spatialDocValues) {
+        if (spatialDocValues && isSpatialPoint(spatialField().dataType())) {
             return new StNPointsFromPointDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
-        } else {
-            return new StNPointsFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         }
+        // spatialDocValues for shapes is provided as WKB
+        return new StNPointsFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
     }
 
     @Override

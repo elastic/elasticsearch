@@ -190,7 +190,10 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
                 inputTolerance
             );
         }
-        return new StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);
+        // For WKB, we need to know if it is Geo or Cartesian to quantize the results to match Lucene grids
+        return DataType.isSpatialGeo(geometry.dataType())
+            ? new StSimplifyNonFoldableGeoShapeAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance)
+            : new StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator.Factory(source(), geometryEvaluator, inputTolerance);
     }
 
     @Override
@@ -211,14 +214,24 @@ public class StSimplify extends SpatialDocValuesFunction implements AnyNullIsNul
         };
     }
 
-    @Evaluator(extraName = "NonFoldableGeometryAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
-    static void processNonFoldableGeometryAndConstantTolerance(
+    @Evaluator(extraName = "NonFoldableGeoShapeAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
+    static void processGeoShapeAndConstantTolerance(
         BytesRefBlock.Builder builder,
         @Position int p,
         BytesRefBlock geometry,
         @Fixed double tolerance
     ) {
-        processor.processGeometries(builder, p, geometry, tolerance);
+        geoProcessor.processGeometries(builder, p, geometry, tolerance);
+    }
+
+    @Evaluator(extraName = "NonFoldableCartesianShapeAndFoldableTolerance", warnExceptions = { IllegalArgumentException.class })
+    static void processCartesianShapeAndConstantTolerance(
+        BytesRefBlock.Builder builder,
+        @Position int p,
+        BytesRefBlock geometry,
+        @Fixed double tolerance
+    ) {
+        cartesianProcessor.processGeometries(builder, p, geometry, tolerance);
     }
 
     @Evaluator(

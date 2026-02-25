@@ -131,9 +131,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        List<Object[]> lst = new ArrayList<>();
-        lst.add(new Object[] { true });
-        return lst;
+        return List.of(new Object[] { true }, new Object[] { false });
     }
 
     @Before

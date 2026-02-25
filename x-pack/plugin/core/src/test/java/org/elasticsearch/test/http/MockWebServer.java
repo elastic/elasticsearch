@@ -106,6 +106,7 @@ public class MockWebServer implements Closeable {
         server.createContext("/", s -> {
             try {
                 MockResponse response = responses.poll();
+                System.out.println("DONAL: done polling responses, got " + response);
                 MockRequest request = createRequest(s);
                 requests.add(request);
 
@@ -245,7 +246,9 @@ public class MockWebServer implements Closeable {
                 getStartOfBody(response)
             );
         }
+        System.out.println("DONAL: adding response " + response);
         responses.add(response);
+        System.out.println("DONAL: done adding response " + response);
     }
 
     /**

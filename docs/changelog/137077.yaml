@@ -1,5 +1,0 @@
-pr: 137077
-summary: Catch exceptions from `mapperService` in `StoreRecovery.recoverFromLocalShards`
-area: Recovery
-type: bug
-issues: []

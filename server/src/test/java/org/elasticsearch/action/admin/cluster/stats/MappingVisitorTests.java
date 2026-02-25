@@ -30,6 +30,10 @@ public class MappingVisitorTests extends ESTestCase {
         });
     }
 
+    private static void collectFieldsAndSubFields(Map<String, ?> mapping, Set<String> fields, Set<String> subFields) {
+        MappingVisitor.visitMapping(mapping, (f, m) -> fields.add(f), (f, m) -> subFields.add(f));
+    }
+
     public void testCountTopLevelFields() {
         Map<String, Object> mapping = new HashMap<>();
         Set<String> fields = new HashSet<>();
@@ -45,14 +49,14 @@ public class MappingVisitorTests extends ESTestCase {
         collectTypes(mapping, fields);
         assertEquals(Collections.singleton("keyword"), fields);
 
-        Map<String, Object> IndexField = new HashMap<>();
-        IndexField.put("type", "integer");
-        properties.put("bar", IndexField);
+        Map<String, Object> indexField = new HashMap<>();
+        indexField.put("type", "integer");
+        properties.put("bar", indexField);
         fields = new HashSet<>();
         collectTypes(mapping, fields);
         assertEquals(new HashSet<>(Arrays.asList("keyword", "integer")), fields);
 
-        properties.put("baz", IndexField);
+        properties.put("baz", indexField);
         fields = new HashSet<>();
         collectTypes(mapping, fields);
         assertEquals(new HashSet<>(Arrays.asList("keyword", "integer")), fields);
@@ -78,6 +82,35 @@ public class MappingVisitorTests extends ESTestCase {
         Set<String> usedFields = new HashSet<>();
         collectTypes(mapping, usedFields);
         assertEquals(new HashSet<>(Arrays.asList("keyword", "text")), usedFields);
+    }
+
+    public void testFieldsAndMultiFields() {
+        Map<String, Object> keywordType = new HashMap<>();
+        keywordType.put("type", "keyword");
+
+        Map<String, Object> textType = new HashMap<>();
+        textType.put("type", "text");
+
+        Map<String, Object> multiFields = new HashMap<>();
+        multiFields.put("keyword", keywordType);
+        textType.put("fields", multiFields);
+
+        Map<String, Object> subObject = new HashMap<>();
+        subObject.put("properties", Map.of("baz", keywordType));
+        subObject.put("type", "keyword");
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("foo", textType);
+        properties.put("bar", subObject);
+
+        Map<String, Object> mapping = new HashMap<>();
+        mapping.put("properties", properties);
+
+        Set<String> fields = new HashSet<>();
+        Set<String> subFields = new HashSet<>();
+        collectFieldsAndSubFields(mapping, fields, subFields);
+        assertEquals(Set.of("foo", "bar", "bar.baz"), fields);
+        assertEquals(Set.of("foo.keyword"), subFields);
     }
 
     public void testCountInnerFields() {

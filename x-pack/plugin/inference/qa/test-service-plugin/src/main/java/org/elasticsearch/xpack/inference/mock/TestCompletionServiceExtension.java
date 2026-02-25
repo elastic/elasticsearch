@@ -49,7 +49,7 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
     }
 
     public static class TestInferenceService extends AbstractTestInferenceService {
-        private static final String NAME = "completion_test_service";
+        public static final String NAME = "completion_test_service";
         private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.COMPLETION);
 
         public TestInferenceService(InferenceServiceFactoryContext context) {}

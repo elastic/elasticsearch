@@ -47,3 +47,4 @@ ALLOCATION_EXPLAIN_MAX_RETRY                                    troubleshoot/ela
 SECURE_SETTINGS                                                 deploy-manage/security/secure-settings
 CLUSTER_SHARD_LIMIT                                             reference/elasticsearch/configuration-reference/miscellaneous-cluster-settings#cluster-shard-limit
 DELETE_INDEX_BLOCK                                              api/doc/elasticsearch/operation/operation-indices-remove-block
+ARCHIVED_SETTINGS                                               deploy-manage/upgrade/deployment-or-cluster/archived-settings

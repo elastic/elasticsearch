@@ -162,11 +162,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         this.alignCheckpoints = in.readOptionalInt();
         this.usePit = in.readOptionalInt();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            deduceMappings = in.readOptionalInt();
-        } else {
-            deduceMappings = DEFAULT_DEDUCE_MAPPINGS;
-        }
+        deduceMappings = in.readOptionalInt();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             numFailureRetries = in.readOptionalInt();
         } else {
@@ -278,9 +274,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         out.writeOptionalInt(alignCheckpoints);
         out.writeOptionalInt(usePit);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            out.writeOptionalInt(deduceMappings);
-        }
+        out.writeOptionalInt(deduceMappings);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeOptionalInt(numFailureRetries);
         }

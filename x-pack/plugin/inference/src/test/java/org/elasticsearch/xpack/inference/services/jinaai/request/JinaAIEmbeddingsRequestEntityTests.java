@@ -28,8 +28,10 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             List.of("abc"),
             InputType.INTERNAL_INGEST,
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
-            "model",
-            JinaAIEmbeddingType.FLOAT
+            "modelName",
+            JinaAIEmbeddingType.FLOAT,
+            512,
+            true
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -37,7 +39,27 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"float","task":"retrieval.passage"}"""));
+            {"input":["abc"],"model":"modelName","embedding_type":"float",\
+            "task":"retrieval.passage","dimensions":512}"""));
+    }
+
+    public void testXContent_WritesInputTypeField_WhenItIsDefinedOnlyInTaskSettings() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            null,
+            new JinaAIEmbeddingsTaskSettings(InputType.SEARCH),
+            "model",
+            null,
+            null,
+            false
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"model","task":"retrieval.query"}"""));
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
@@ -46,7 +68,9 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             null,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
-            JinaAIEmbeddingType.FLOAT
+            null,
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -54,7 +78,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"float"}"""));
+            {"input":["abc"],"model":"model"}"""));
     }
 
     public void testXContent_EmbeddingTypesBit() throws IOException {
@@ -63,7 +87,9 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             InputType.CLUSTERING,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
-            JinaAIEmbeddingType.BIT
+            JinaAIEmbeddingType.BIT,
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -80,7 +106,9 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
             InputType.SEARCH,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
-            JinaAIEmbeddingType.BINARY
+            JinaAIEmbeddingType.BINARY,
+            null,
+            false
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -89,5 +117,24 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"model","embedding_type":"binary","task":"retrieval.query"}"""));
+    }
+
+    public void testXContent_doesNotWriteDimensions_whenDimensionsSetByUserIsFalse() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            null,
+            JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            "modelName",
+            null,
+            512,
+            false
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"modelName"}"""));
     }
 }

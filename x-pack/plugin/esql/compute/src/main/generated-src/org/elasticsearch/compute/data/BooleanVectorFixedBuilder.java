@@ -50,7 +50,7 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
         return size == 1
             ? ConstantBooleanVector.RAM_BYTES_USED
             : BooleanArrayVector.BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size * Byte.BYTES
+                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) size * Byte.BYTES
             );
     }
 

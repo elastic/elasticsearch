@@ -135,10 +135,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
             RestSearchAction.validateSearchRequest(restRequest, searchRequest);
             if (searchRequest.pointInTimeBuilder() != null) {
                 RestSearchAction.preparePointInTime(searchRequest, restRequest);
-            } else {
-                searchRequest.setCcsMinimizeRoundtrips(
-                    restRequest.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
-                );
             }
             multiRequest.add(searchRequest);
         }, extraParamParser);

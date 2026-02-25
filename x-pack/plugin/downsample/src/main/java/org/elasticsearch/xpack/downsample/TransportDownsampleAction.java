@@ -89,7 +89,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -133,20 +132,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
     /**
      * This is the cluster state task executor for cluster state update actions.
+     * Visible for testing
      */
-    private static final SimpleBatchedExecutor<DownsampleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR =
-        new SimpleBatchedExecutor<>() {
-            @Override
-            public Tuple<ClusterState, Void> executeTask(DownsampleClusterStateUpdateTask task, ClusterState clusterState)
-                throws Exception {
-                return Tuple.tuple(task.execute(clusterState), null);
-            }
+    static final SimpleBatchedExecutor<DownsampleClusterStateUpdateTask, Void> STATE_UPDATE_TASK_EXECUTOR = new SimpleBatchedExecutor<>() {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(DownsampleClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+            return Tuple.tuple(task.execute(clusterState), null);
+        }
 
-            @Override
-            public void taskSucceeded(DownsampleClusterStateUpdateTask task, Void unused) {
-                task.listener.onResponse(AcknowledgedResponse.TRUE);
-            }
-        };
+        @Override
+        public void taskSucceeded(DownsampleClusterStateUpdateTask task, Void unused) {
+            task.listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+    };
 
     @Inject
     public TransportDownsampleAction(
@@ -238,6 +236,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        logger.debug(
+            "Starting downsampling [{}] with [{}] interval",
+            request.getSourceIndex(),
+            request.getDownsampleConfig().getFixedInterval()
+        );
         long startTime = nowSupplier.get();
         String sourceIndexName = request.getSourceIndex();
         IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(sourceIndexName);
@@ -342,27 +345,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             // Validate downsampling interval
             validateDownsamplingInterval(mapperService, request.getDownsampleConfig());
 
-            final List<String> dimensionFields = new ArrayList<>();
-            final List<String> metricFields = new ArrayList<>();
-            final List<String> labelFields = new ArrayList<>();
-            final TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(mapperService).build(
+            final TimeSeriesFields timeSeriesFields = new TimeSeriesFields.Collector(
+                mapperService,
                 request.getDownsampleConfig().getTimestampField()
-            );
-            MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-                var flattenedDimensions = helper.extractFlattenedDimensions(field, mapping);
-                if (flattenedDimensions != null) {
-                    dimensionFields.addAll(flattenedDimensions);
-                } else if (helper.isTimeSeriesDimension(field, mapping)) {
-                    dimensionFields.add(field);
-                } else if (helper.isTimeSeriesMetric(field, mapping)) {
-                    metricFields.add(field);
-                } else if (helper.isTimeSeriesLabel(field, mapping)) {
-                    labelFields.add(field);
-                }
-            });
+            ).collect(sourceIndexMappings);
 
             ActionRequestValidationException validationException = new ActionRequestValidationException();
-            if (dimensionFields.isEmpty()) {
+            if (timeSeriesFields.dimensionFields().length == 0) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
             }
 
@@ -374,7 +363,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
             final String mapping;
             try {
-                mapping = createDownsampleIndexMapping(helper, request.getDownsampleConfig(), mapperService, sourceIndexMappings);
+                mapping = createDownsampleIndexMapping(request.getDownsampleConfig(), mapperService, sourceIndexMappings);
             } catch (IOException e) {
                 recordFailureMetrics(startTime);
                 delegate.onFailure(e);
@@ -411,9 +400,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             downsampleIndexName,
                             parentTask,
                             startTime,
-                            metricFields,
-                            labelFields,
-                            dimensionFields,
+                            timeSeriesFields.metricFields(),
+                            timeSeriesFields.labelFields(),
+                            timeSeriesFields.dimensionFields(),
+                            timeSeriesFields.multiFieldSources(),
                             forceMergeEnabled
                         );
                     } else {
@@ -443,9 +433,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             downsampleIndexName,
                             parentTask,
                             startTime,
-                            metricFields,
-                            labelFields,
-                            dimensionFields,
+                            timeSeriesFields.metricFields(),
+                            timeSeriesFields.labelFields(),
+                            timeSeriesFields.dimensionFields(),
+                            timeSeriesFields.multiFieldSources(),
                             forceMergeEnabled
                         );
                     } else {
@@ -530,9 +521,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         String downsampleIndexName,
         TaskId parentTask,
         long startTime,
-        List<String> metricFields,
-        List<String> labelFields,
-        List<String> dimensionFields,
+        String[] metricFields,
+        String[] labelFields,
+        String[] dimensionFields,
+        Map<String, String> multiFieldSources,
         boolean forceMergeEnabled
     ) {
         final int numberOfShards = sourceIndexMetadata.getNumberOfShards();
@@ -555,6 +547,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 metricFields,
                 labelFields,
                 dimensionFields,
+                multiFieldSources,
                 shardId
             );
             Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> predicate = runningTask -> {
@@ -689,9 +682,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final DownsampleConfig downsampleConfig,
         final IndexMetadata sourceIndexMetadata,
         final String targetIndexName,
-        final List<String> metricFields,
-        final List<String> labelFields,
-        final List<String> dimensionFields,
+        final String[] metricFields,
+        final String[] labelFields,
+        final String[] dimensionFields,
+        final Map<String, String> multiFieldSources,
         final ShardId shardId
     ) {
         return new DownsampleShardTaskParams(
@@ -700,9 +694,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             parseTimestamp(sourceIndexMetadata, IndexSettings.TIME_SERIES_START_TIME),
             parseTimestamp(sourceIndexMetadata, IndexSettings.TIME_SERIES_END_TIME),
             shardId,
-            metricFields.toArray(new String[0]),
-            labelFields.toArray(new String[0]),
-            dimensionFields.toArray(new String[0])
+            metricFields,
+            labelFields,
+            dimensionFields,
+            multiFieldSources
         );
     }
 
@@ -731,7 +726,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
      * @return the mapping of the downsample index
      */
     public static String createDownsampleIndexMapping(
-        final TimeseriesFieldTypeHelper helper,
         final DownsampleConfig config,
         final MapperService mapperService,
         final Map<String, Object> sourceIndexMappings
@@ -743,7 +737,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         builder.startObject("properties");
 
         addTimestampField(config, sourceIndexMappings, builder);
-        addMetricFields(helper, sourceIndexMappings, builder);
+        addMetricFields(sourceIndexMappings, builder);
 
         builder.endObject(); // match initial startObject
         builder.endObject(); // match startObject("properties")
@@ -757,13 +751,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .utf8ToString();
     }
 
-    private static void addMetricFields(
-        final TimeseriesFieldTypeHelper helper,
-        final Map<String, Object> sourceIndexMappings,
-        final XContentBuilder builder
-    ) {
+    private static void addMetricFields(final Map<String, Object> sourceIndexMappings, final XContentBuilder builder) {
         MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-            if (helper.isTimeSeriesMetric(field, mapping)) {
+            if (TimeSeriesFields.isTimeSeriesMetric(mapping)) {
                 try {
                     addMetricFieldMapping(builder, field, mapping);
                 } catch (IOException e) {
@@ -1019,6 +1009,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         taskQueue.submitTask("create-downsample-index [" + downsampleIndexName + "]", new DownsampleClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                logger.debug("Creating downsample index [{}]", downsampleIndexName);
                 return metadataCreateIndexService.applyCreateIndexRequest(
                     currentState,
                     createIndexClusterStateUpdateRequest,
@@ -1083,6 +1074,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onResponse(final AcknowledgedResponse response) {
+            logger.debug("Preparing to refresh downsample index [{}]", downsampleIndexName);
             final RefreshRequest request = new RefreshRequest(downsampleIndexName);
             request.setParentTask(parentTask);
             client.admin()
@@ -1103,7 +1095,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);  // Downsampling has already completed in all shards.
             listener.onFailure(e);
         }
 
@@ -1155,8 +1146,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
+                        logger.debug("Updating downsample index status for [{}]", downsampleIndexName);
                         final ProjectMetadata project = currentState.metadata().getProject(projectId);
                         final IndexMetadata downsampleIndex = project.index(downsampleIndexName);
+                        if (downsampleIndex == null) {
+                            throw new IllegalStateException(
+                                "Failed to update downsample status because [" + downsampleIndexName + "] does not exist"
+                            );
+                        }
                         if (IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(downsampleIndex.getSettings()) == DownsampleTaskStatus.SUCCESS) {
                             return currentState;
                         }
@@ -1178,7 +1175,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);  // Downsampling has already completed in all shards.
             actionListener.onFailure(e);
         }
 
@@ -1206,6 +1202,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onResponse(final AcknowledgedResponse response) {
+            logger.debug("Preparing to force merge downsample index [{}]", downsampleIndexName);
             ForceMergeRequest request = new ForceMergeRequest(downsampleIndexName);
             request.maxNumSegments(1);
             request.setParentTask(parentTask);
@@ -1245,12 +1242,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         @Override
         public void onResponse(final AcknowledgedResponse response) {
             recordSuccessMetrics(startTime);
+            logger.debug("Downsampling measured successfully");
             actionListener.onResponse(AcknowledgedResponse.TRUE);
         }
 
         @Override
         public void onFailure(Exception e) {
-            recordSuccessMetrics(startTime);
+            recordFailureMetrics(startTime);
+            logger.debug("Downsampling failure measured successfully", e);
             this.actionListener.onFailure(e);
         }
 

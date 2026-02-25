@@ -48,6 +48,8 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS;
+
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
@@ -73,6 +75,48 @@ public class QueryRewriteContext {
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
     private final boolean isExplain;
+    private final boolean allowPartialSearchResults;
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final MapperService mapperService,
+        final MappingLookup mappingLookup,
+        final Map<String, MappedFieldType> runtimeMappings,
+        final IndexSettings indexSettings,
+        final Index fullyQualifiedIndex,
+        final Predicate<String> indexNameMatcher,
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final ValuesSourceRegistry valuesSourceRegistry,
+        final BooleanSupplier allowExpensiveQueries,
+        final ScriptCompiler scriptService,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final boolean isExplain,
+        final boolean allowPartialSearchResults
+    ) {
+        this.parserConfiguration = parserConfiguration;
+        this.client = client;
+        this.nowInMillis = nowInMillis;
+        this.mapperService = mapperService;
+        this.mappingLookup = Objects.requireNonNull(mappingLookup);
+        this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
+        this.runtimeMappings = runtimeMappings;
+        this.indexSettings = indexSettings;
+        this.fullyQualifiedIndex = fullyQualifiedIndex;
+        this.indexNameMatcher = indexNameMatcher;
+        this.writeableRegistry = namedWriteableRegistry;
+        this.valuesSourceRegistry = valuesSourceRegistry;
+        this.allowExpensiveQueries = allowExpensiveQueries;
+        this.scriptService = scriptService;
+        this.resolvedIndices = resolvedIndices;
+        this.pit = pit;
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
+        this.isExplain = isExplain;
+        this.allowPartialSearchResults = allowPartialSearchResults;
+    }
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -93,25 +137,26 @@ public class QueryRewriteContext {
         final QueryRewriteInterceptor queryRewriteInterceptor,
         final boolean isExplain
     ) {
-
-        this.parserConfiguration = parserConfiguration;
-        this.client = client;
-        this.nowInMillis = nowInMillis;
-        this.mapperService = mapperService;
-        this.mappingLookup = Objects.requireNonNull(mappingLookup);
-        this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
-        this.runtimeMappings = runtimeMappings;
-        this.indexSettings = indexSettings;
-        this.fullyQualifiedIndex = fullyQualifiedIndex;
-        this.indexNameMatcher = indexNameMatcher;
-        this.writeableRegistry = namedWriteableRegistry;
-        this.valuesSourceRegistry = valuesSourceRegistry;
-        this.allowExpensiveQueries = allowExpensiveQueries;
-        this.scriptService = scriptService;
-        this.resolvedIndices = resolvedIndices;
-        this.pit = pit;
-        this.queryRewriteInterceptor = queryRewriteInterceptor;
-        this.isExplain = isExplain;
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            mapperService,
+            Objects.requireNonNull(mappingLookup),
+            runtimeMappings,
+            indexSettings,
+            fullyQualifiedIndex,
+            indexNameMatcher,
+            namedWriteableRegistry,
+            valuesSourceRegistry,
+            allowExpensiveQueries,
+            scriptService,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            isExplain,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
+        );
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -132,7 +177,8 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            false
+            false,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
         );
     }
 
@@ -144,7 +190,48 @@ public class QueryRewriteContext {
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor
     ) {
-        this(parserConfiguration, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, false);
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            false,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
+        );
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final boolean isExplain,
+        final boolean allowPartialSearchResults
+    ) {
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            null,
+            MappingLookup.EMPTY,
+            Collections.emptyMap(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            isExplain,
+            allowPartialSearchResults
+        );
     }
 
     public QueryRewriteContext(
@@ -173,7 +260,8 @@ public class QueryRewriteContext {
             resolvedIndices,
             pit,
             queryRewriteInterceptor,
-            isExplain
+            isExplain,
+            DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS
         );
     }
 
@@ -281,6 +369,10 @@ public class QueryRewriteContext {
 
     public boolean isExplain() {
         return this.isExplain;
+    }
+
+    public boolean allowPartialSearchResults() {
+        return this.allowPartialSearchResults;
     }
 
     public NamedWriteableRegistry getWriteableRegistry() {

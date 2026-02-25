@@ -630,8 +630,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 assertThat(resultsObject.containsKey(predictionField), is(true));
                 assertThat(resultsObject.containsKey("is_training"), is(true));
 
-                int featureValue = (int) destDoc.get("field_1");
-                double predictionValue = (double) resultsObject.get(predictionField);
+                int featureValue = ((Number) destDoc.get("field_1")).intValue();
+                double predictionValue = ((Number) resultsObject.get(predictionField)).doubleValue();
                 predictionErrorSum += Math.abs(predictionValue - 2 * featureValue);
             }
             // We assert on the mean prediction error in order to reduce the probability

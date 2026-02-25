@@ -21,6 +21,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -146,6 +147,7 @@ class Elasticsearch {
 
             // DO NOT MOVE THIS
             // Logging must remain the last step of phase 1. Anything init steps needing logging should be in phase 2.
+            LogConfigurator.setClusterName(ClusterName.CLUSTER_NAME_SETTING.get(args.nodeSettings()).value());
             LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(args.nodeSettings()));
             LogConfigurator.configure(nodeEnv, args.quiet() == false);
         } catch (Throwable t) {
@@ -484,6 +486,10 @@ class Elasticsearch {
             }
         }
 
+        if (IOUtils.LINUX) {
+            setCoredumpFilter();
+        }
+
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
     }
@@ -596,6 +602,20 @@ class Elasticsearch {
             }
         }
         return pluginsWithNativeAccess;
+    }
+
+    @SuppressForbidden(reason = "access proc filesystem")
+    private static void setCoredumpFilter() {
+        // The coredump filter determines which types of memory are added to core dumps. By default, Java
+        // includes memory mapped files, bits 2 and 3. Here we disable those bits. Note that the VM
+        // has special options to disable these, but the filter is then inherited from the parent process
+        // which is the server CLI, which is also a JVM so it has these bits set. Thus, we set it explicitly.
+        // See https://man7.org/linux/man-pages/man5/core.5.html for more info on the relevant bits of the filter
+        try {
+            Files.writeString(Path.of("/proc/self/coredump_filter"), "0x23");
+        } catch (IOException e) {
+            throw new RuntimeException("Could not set coredump filter", e);
+        }
     }
 
     // -- instance

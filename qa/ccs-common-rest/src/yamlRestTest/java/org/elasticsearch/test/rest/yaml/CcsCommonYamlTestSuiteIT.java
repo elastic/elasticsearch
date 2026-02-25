@@ -85,7 +85,6 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final AtomicReference<TestFeatureService> combinedTestFeatureServiceRef = new AtomicReference<>();
     private static final AtomicReference<Set<String>> combinedOsSetRef = new AtomicReference<>();
     private static final AtomicReference<Set<String>> combinedNodeVersionsRef = new AtomicReference<>();
-
     private static LocalClusterConfigProvider commonClusterConfig = cluster -> cluster.module("x-pack-async-search")
         .module("aggregations")
         .module("analysis-common")
@@ -98,9 +97,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         // geohex_grid requires gold license
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
         .feature(FeatureFlag.IVF_FORMAT);
-
     private static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
         .name(REMOTE_CLUSTER_NAME)
         .nodes(2)
@@ -382,8 +379,10 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
         // we overwrite this method so the search client can modify the index names by prefixing them with the
         // remote cluster name before sending the requests
+        @Override
         public ClientYamlTestResponse callApi(
             String apiName,
+            String method,
             Map<String, String> params,
             HttpEntity entity,
             Map<String, String> headers,
@@ -409,7 +408,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 }
                 params.put(parameterName, String.join(",", expandedIndices));
             }
-            return super.callApi(apiName, params, entity, headers, nodeSelector, pathPredicate);
+            return super.callApi(apiName, method, params, entity, headers, nodeSelector, pathPredicate);
         }
 
         private boolean shouldReplaceIndexWithRemote(String apiName) {

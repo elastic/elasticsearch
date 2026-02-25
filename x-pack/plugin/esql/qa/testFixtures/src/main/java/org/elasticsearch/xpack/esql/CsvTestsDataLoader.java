@@ -64,6 +64,10 @@ public class CsvTestsDataLoader {
     private static final TestDataset APPS = new TestDataset("apps");
     private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
     private static final TestDataset LANGUAGES = new TestDataset("languages");
+    // Required for some multi-cluster tests. languages is special because it's used in enrich tests, and thus indexed twice in
+    // multi-cluster tests. languages_lookup cannot be used instead, because that in turn is disabled on multi-cluster tests due to being
+    // in lookup mode. See MultiClusterSpecIT#ENRICH_SOURCE_INDICES.
+    private static final TestDataset LANGUAGES_COPY = LANGUAGES.withIndex("languages_copy");
     private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
         .withData("languages_non_unique_key.csv");
@@ -158,6 +162,7 @@ public class CsvTestsDataLoader {
         Map.entry(APPS.indexName, APPS),
         Map.entry(APPS_SHORT.indexName, APPS_SHORT),
         Map.entry(LANGUAGES.indexName, LANGUAGES),
+        Map.entry(LANGUAGES_COPY.indexName, LANGUAGES_COPY),
         Map.entry(LANGUAGES_LOOKUP.indexName, LANGUAGES_LOOKUP),
         Map.entry(LANGUAGES_LOOKUP_NON_UNIQUE_KEY.indexName, LANGUAGES_LOOKUP_NON_UNIQUE_KEY),
         Map.entry(LANGUAGES_NESTED_FIELDS.indexName, LANGUAGES_NESTED_FIELDS),

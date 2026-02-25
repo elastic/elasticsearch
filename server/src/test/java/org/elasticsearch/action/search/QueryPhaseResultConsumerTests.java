@@ -179,8 +179,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 circuitBreaker,
                 searchPhaseController,
                 () -> false,
-                new SearchProgressListener() {
-                },
+                new SearchProgressListener() {},
                 10,
                 e -> {}
             )
@@ -228,8 +227,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 circuitBreaker,
                 searchPhaseController,
                 () -> false,
-                new SearchProgressListener() {
-                },
+                new SearchProgressListener() {},
                 10,
                 e -> {}
             )

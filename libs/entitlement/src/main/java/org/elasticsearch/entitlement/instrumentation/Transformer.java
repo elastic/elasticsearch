@@ -62,9 +62,7 @@ public class Transformer implements ClassFileTransformer {
                 // effectively the same as returning null anyways, so we instead log it here completely
                 return null;
             }
-        } else {
-            logger.trace("Not transforming " + className);
-            return null;
         }
+        return null;
     }
 }

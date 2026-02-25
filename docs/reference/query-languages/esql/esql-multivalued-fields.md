@@ -256,13 +256,13 @@ POST /_query
 
 Work around this limitation by converting the field to single value with one of:
 
-* [`MV_AVG`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_avg)
-* [`MV_CONCAT`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_concat)
-* [`MV_COUNT`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_count)
-* [`MV_MAX`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_max)
-* [`MV_MEDIAN`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_median)
-* [`MV_MIN`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_min)
-* [`MV_SUM`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_sum)
+* [`MV_AVG`](/reference/query-languages/esql/functions-operators/mv-functions/mv_avg.md)
+* [`MV_CONCAT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_concat.md)
+* [`MV_COUNT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_count.md)
+* [`MV_MAX`](/reference/query-languages/esql/functions-operators/mv-functions/mv_max.md)
+* [`MV_MEDIAN`](/reference/query-languages/esql/functions-operators/mv-functions/mv_median.md)
+* [`MV_MIN`](/reference/query-languages/esql/functions-operators/mv-functions/mv_min.md)
+* [`MV_SUM`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sum.md)
 
 To filter on individual values in a multivalued field (for example, to keep only rows where the field contains a given value), use the [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) command to expand the field into one row per value, then apply `WHERE` to the expanded column.
 

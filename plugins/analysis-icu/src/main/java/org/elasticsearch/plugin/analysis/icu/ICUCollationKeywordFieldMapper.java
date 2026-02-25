@@ -322,6 +322,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public ICUCollationKeywordFieldMapper build(MapperBuilderContext context) {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();

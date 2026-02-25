@@ -286,38 +286,32 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
             .indexTemplate(
                 ComposableIndexTemplate.builder()
                     .indexPatterns(List.of(dataStreamName))
-                    .template(
-                        new Template(
-                            settingsBuilder.build(),
-                            new CompressedXContent("""
-                                {
-                                    "_doc": {
+                    .template(new Template(settingsBuilder.build(), new CompressedXContent("""
+                        {
+                            "_doc": {
+                                "properties": {
+                                    "@timestamp": {
+                                        "type": "date"
+                                    },
+                                    "hostname": {
+                                        "type": "keyword",
+                                        "time_series_dimension": true
+                                    },
+                                    "metric": {
                                         "properties": {
-                                            "@timestamp": {
-                                                "type": "date"
-                                            },
-                                            "hostname": {
+                                            "field": {
                                                 "type": "keyword",
                                                 "time_series_dimension": true
                                             },
-                                            "metric": {
-                                                "properties": {
-                                                    "field": {
-                                                        "type": "keyword",
-                                                        "time_series_dimension": true
-                                                    },
-                                                    "value": {
-                                                        "type": "integer",
-                                                        "time_series_metric": "counter"
-                                                    }
-                                                }
+                                            "value": {
+                                                "type": "integer",
+                                                "time_series_metric": "counter"
                                             }
                                         }
                                     }
-                                }"""),
-                            null
-                        )
-                    )
+                                }
+                            }
+                        }"""), null))
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                     .build()
             );

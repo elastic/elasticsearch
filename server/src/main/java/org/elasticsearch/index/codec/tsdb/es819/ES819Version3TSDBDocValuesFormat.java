@@ -38,7 +38,9 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
             BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true,
             NUMERIC_BLOCK_SHIFT,
-            DocOffsetsCodec.BITPACKING
+            DocOffsetsCodec.BITPACKING,
+            BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
         );
     }
 
@@ -51,7 +53,9 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
             BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true,
             useLargeNumericBlock ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
-            DocOffsetsCodec.BITPACKING
+            DocOffsetsCodec.BITPACKING,
+            BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT
         );
     }
 

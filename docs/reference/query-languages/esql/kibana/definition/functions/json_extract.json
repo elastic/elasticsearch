@@ -124,5 +124,5 @@
     "ROW log = \"\"\"{\"trace\":{\"spans\":[{\"name\":\"auth\",\"events\":[{\"type\":\"start\"},{\"type\":\"end\"}]},{\"name\":\"db\",\"events\":[{\"type\":\"query\"}]}]}}\"\"\"\n| EVAL event = JSON_EXTRACT(log, \"trace.spans[0].events[1].type\")\n| KEEP event"
   ],
   "preview" : true,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

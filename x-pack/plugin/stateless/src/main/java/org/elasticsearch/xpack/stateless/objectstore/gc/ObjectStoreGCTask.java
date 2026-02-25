@@ -30,25 +30,25 @@ import java.util.Map;
 
 public class ObjectStoreGCTask extends AllocatedPersistentTask {
     public static final Setting<Boolean> STALE_INDICES_GC_ENABLED_SETTING = Setting.boolSetting(
-        "serverless.object_store.gc.stale_indices.enabled",
+        "stateless.object_store.gc.stale_indices.enabled",
         true,
         Setting.Property.NodeScope
     );
 
     public static final Setting<Boolean> STALE_TRANSLOGS_GC_ENABLED_SETTING = Setting.boolSetting(
-        "serverless.object_store.gc.stale_translogs.enabled",
+        "stateless.object_store.gc.stale_translogs.enabled",
         true,
         Setting.Property.NodeScope
     );
 
     public static final Setting<Integer> STALE_TRANSLOGS_GC_FILES_LIMIT_SETTING = Setting.intSetting(
-        "serverless.object_store.gc.stale_translogs.files_limit",
+        "stateless.object_store.gc.stale_translogs.files_limit",
         100000,
         Setting.Property.NodeScope
     );
 
     public static final Setting<TimeValue> GC_INTERVAL_SETTING = Setting.timeSetting(
-        "serverless.object_store.gc.interval",
+        "stateless.object_store.gc.interval",
         TimeValue.timeValueHours(8),
         TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope

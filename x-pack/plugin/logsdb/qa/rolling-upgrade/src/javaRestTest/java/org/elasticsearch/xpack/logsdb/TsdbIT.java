@@ -10,6 +10,7 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
@@ -22,11 +23,13 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
 
-    static final String TEMPLATE = """
+    private static final String SYNTHETIC_ID_PLACEHOLDER = "$SYNTHETIC_ID_SETTING";
+    // Do not access directly, use getTemplate(Boolean useSyntheticId)
+    private static final String TEMPLATE = """
         {
             "settings":{
                 "index": {
-                    "mode": "time_series"
+                    "mode": "time_series"%s
                 }
             },
             "mappings":{
@@ -80,7 +83,17 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
                 }
             }
         }
-        """;
+        """.formatted(SYNTHETIC_ID_PLACEHOLDER);
+
+    /**
+     * Returns the template with optional synthetic_id setting. When {@code useSyntheticId} is null the setting is omitted;
+     * when true/false, adds {@code "mapping": { "synthetic_id": true/false }} to index settings.
+     */
+    static String getTemplate(Boolean useSyntheticId) {
+        String replacement = useSyntheticId == null ? "" : ", \"mapping\": { \"synthetic_id\": " + useSyntheticId + " }";
+        return TEMPLATE.replace(SYNTHETIC_ID_PLACEHOLDER, replacement);
+    }
+
     private static final String BULK =
         """
             {"create": {}}
@@ -120,6 +133,9 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         """;
 
     public void testTsdbDataStream() throws Exception {
+        boolean hasSupport = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID);
+        Boolean useSyntheticId = hasSupport ? randomBoolean() : null;
+
         String dataStreamName = "k8s";
         final String INDEX_TEMPLATE = """
             {
@@ -131,7 +147,9 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
         // Add composable index template
         String templateName = "1";
         var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
-        putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", TEMPLATE).replace("$PATTERN", dataStreamName));
+        putIndexTemplateRequest.setJsonEntity(
+            INDEX_TEMPLATE.replace("$TEMPLATE", getTemplate(useSyntheticId)).replace("$PATTERN", dataStreamName)
+        );
         assertOK(client().performRequest(putIndexTemplateRequest));
 
         performOldClustertOperations(templateName, dataStreamName);

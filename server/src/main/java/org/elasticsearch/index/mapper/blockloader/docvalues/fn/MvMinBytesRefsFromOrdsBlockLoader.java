@@ -9,12 +9,12 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedSetDocValues;
 
 import java.io.IOException;
 
@@ -30,13 +30,13 @@ public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
     }
 
     @Override
-    protected AllReader singletonReader(CircuitBreaker breaker, SortedDocValues docValues) {
-        return new Singleton(breaker, docValues);
+    protected AllReader singletonReader(TrackingSortedDocValues docValues) {
+        return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedSetReader(CircuitBreaker breaker, SortedSetDocValues docValues) {
-        return new MvMinSortedSet(breaker, docValues);
+    protected AllReader sortedSetReader(TrackingSortedSetDocValues docValues) {
+        return new MvMinSortedSet(docValues);
     }
 
     @Override
@@ -44,11 +44,11 @@ public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
         return "MvMinBytesRefsFromOrds[" + fieldName + "]";
     }
 
-    private class MvMinSortedSet extends BytesRefsBlockDocValuesReader {
-        private final SortedSetDocValues ordinals;
+    private class MvMinSortedSet extends BlockDocValuesReader {
+        private final TrackingSortedSetDocValues ordinals;
 
-        MvMinSortedSet(CircuitBreaker breaker, SortedSetDocValues ordinals) {
-            super(breaker);
+        MvMinSortedSet(TrackingSortedSetDocValues ordinals) {
+            super(null);
             this.ordinals = ordinals;
         }
 
@@ -57,17 +57,17 @@ public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
             if (docs.count() - offset == 1) {
                 return readSingleDoc(factory, docs.get(offset));
             }
-            try (var builder = factory.sortedSetOrdinalsBuilder(ordinals, docs.count() - offset)) {
+            try (var builder = factory.sortedSetOrdinalsBuilder(ordinals.docValues(), docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
-                    if (doc < ordinals.docID()) {
+                    if (doc < ordinals.docValues().docID()) {
                         throw new IllegalStateException("docs within same block must be in order");
                     }
-                    if (ordinals.advanceExact(doc) == false) {
+                    if (ordinals.docValues().advanceExact(doc) == false) {
                         builder.appendNull();
                         continue;
                     }
-                    builder.appendOrd(Math.toIntExact(ordinals.nextOrd()));
+                    builder.appendOrd(Math.toIntExact(ordinals.docValues().nextOrd()));
                 }
                 return builder.build();
             }
@@ -79,29 +79,34 @@ public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
         }
 
         private Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
-            if (ordinals.advanceExact(docId) == false) {
+            if (ordinals.docValues().advanceExact(docId) == false) {
                 return factory.constantNulls(1);
             }
-            BytesRef v = ordinals.lookupOrd(ordinals.nextOrd());
+            BytesRef v = ordinals.docValues().lookupOrd(ordinals.docValues().nextOrd());
             return factory.constantBytes(BytesRef.deepCopyOf(v), 1);
         }
 
         private void read(int docId, BytesRefBuilder builder) throws IOException {
-            if (false == ordinals.advanceExact(docId)) {
+            if (false == ordinals.docValues().advanceExact(docId)) {
                 builder.appendNull();
                 return;
             }
-            builder.appendBytesRef(ordinals.lookupOrd(ordinals.nextOrd()));
+            builder.appendBytesRef(ordinals.docValues().lookupOrd(ordinals.docValues().nextOrd()));
         }
 
         @Override
         public int docId() {
-            return ordinals.docID();
+            return ordinals.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "MvMinBytesRefsFromOrds.SortedSet";
+        }
+
+        @Override
+        public void close() {
+            ordinals.close();
         }
     }
 }

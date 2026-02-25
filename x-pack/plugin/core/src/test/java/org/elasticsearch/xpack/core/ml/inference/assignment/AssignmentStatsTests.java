@@ -91,6 +91,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
             avgInferenceTimeLastPeriod,
+            randomLongBetween(0, 100),
             randomLongBetween(0, 100)
         );
     }
@@ -125,7 +126,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     null,
-                    1L
+                    1L,
+                    randomNonNegativeLong()
                 ),
                 AssignmentStats.NodeStats.forStartedState(
                     DiscoveryNodeUtils.create("node_started_2"),
@@ -144,7 +146,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     null,
-                    1L
+                    1L,
+                    randomNonNegativeLong()
                 ),
                 AssignmentStats.NodeStats.forNotStartedState(
                     DiscoveryNodeUtils.create("node_not_started_3"),

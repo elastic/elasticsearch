@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -32,17 +33,20 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     private final StorageProviderRegistry storageRegistry;
     private final FormatReaderRegistry formatRegistry;
+    private final DecompressionCodecRegistry codecRegistry;
     private final Settings settings;
 
-    FileSourceFactory(StorageProviderRegistry storageRegistry, FormatReaderRegistry formatRegistry, Settings settings) {
-        if (storageRegistry == null) {
-            throw new IllegalArgumentException("storageRegistry cannot be null");
-        }
-        if (formatRegistry == null) {
-            throw new IllegalArgumentException("formatRegistry cannot be null");
-        }
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings
+    ) {
+        Check.notNull(storageRegistry, "storageRegistry cannot be null");
+        Check.notNull(formatRegistry, "formatRegistry cannot be null");
         this.storageRegistry = storageRegistry;
         this.formatRegistry = formatRegistry;
+        this.codecRegistry = codecRegistry != null ? codecRegistry : new DecompressionCodecRegistry();
         this.settings = settings != null ? settings : Settings.EMPTY;
     }
 
@@ -71,7 +75,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 return false;
             }
             String ext = objectName.substring(objectName.lastIndexOf('.'));
-            return formatRegistry.hasExtension(ext);
+            if (formatRegistry.hasExtension(ext)) {
+                return true;
+            }
+            if (codecRegistry.hasCompressionExtension(ext) && formatRegistry.hasCompressedExtension(objectName)) {
+                return true;
+            }
+            return false;
         } catch (IllegalArgumentException e) {
             return false;
         }

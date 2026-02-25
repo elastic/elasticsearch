@@ -28,8 +28,8 @@ TS index_pattern [METADATA fields]
 
 The `TS` source command enables time series semantics and adds support for
 [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md) to the `STATS` command, such as
-[`AVG_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-avg_over_time),
-or [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-rate).
+[`AVG_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/avg_over_time.md),
+or [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md).
 These functions are implicitly evaluated per time series, then aggregated by group using a secondary aggregation
 function. For an example, refer to [Calculate the rate of search requests per host](#calculate-the-rate-of-search-requests-per-host).
 

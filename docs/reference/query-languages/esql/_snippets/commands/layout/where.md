@@ -50,7 +50,7 @@ retrieve the last hour of logs:
 ### Use WHERE with a function
 
 `WHERE` supports various [functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions).
-For example the [`LENGTH`](/reference/query-languages/esql/functions-operators/string-functions.md#esql-length) function:
+For example the [`LENGTH`](/reference/query-languages/esql/functions-operators/string-functions/length.md) function:
 
 :::{include} ../examples/docs.csv-spec/whereFunction.md
 :::

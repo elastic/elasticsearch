@@ -56,14 +56,6 @@ public class JsonExtract extends EsqlScalarFunction {
     private final Expression str;
     private final Expression path;
 
-    // Separates our errors from XContentParseException (which extends IllegalArgumentException)
-    // so doExtract can preserve our messages while converting parser errors to "invalid JSON input".
-    private static class JsonExtractException extends Exception {
-        JsonExtractException(String message) {
-            super(message);
-        }
-    }
-
     @FunctionInfo(
         returnType = "keyword",
         preview = true,
@@ -232,11 +224,9 @@ public class JsonExtract extends EsqlScalarFunction {
         }
         try (XContentParser parser = type.xContent().createParser(XContentParserConfiguration.EMPTY, str.bytes, str.offset, str.length)) {
             if (parser.nextToken() == null) {
-                throw new JsonExtractException("invalid JSON input");
+                throw new IllegalArgumentException("empty JSON input");
             }
             extractValue(builder, parser, path.segments(), 0, path.originalPath());
-        } catch (JsonExtractException e) {
-            throw new IllegalArgumentException(e.getMessage());
         } catch (IOException | XContentParseException e) {
             throw new IllegalArgumentException("invalid JSON input");
         }
@@ -248,7 +238,7 @@ public class JsonExtract extends EsqlScalarFunction {
         List<JsonPath.Segment> segments,
         int depth,
         String originalPath
-    ) throws IOException, JsonExtractException {
+    ) throws IOException {
         XContentParser.Token token = parser.currentToken();
 
         if (depth == segments.size()) {
@@ -261,7 +251,7 @@ public class JsonExtract extends EsqlScalarFunction {
         } else if (token == XContentParser.Token.START_ARRAY && segments.get(depth) instanceof JsonPath.Segment.Index idx) {
             navigateArray(builder, parser, segments, depth, originalPath, idx);
         } else {
-            throw new JsonExtractException("path [" + originalPath + "] does not exist");
+            throw new IllegalArgumentException("path [" + originalPath + "] does not exist");
         }
     }
 
@@ -272,7 +262,7 @@ public class JsonExtract extends EsqlScalarFunction {
         int depth,
         String originalPath,
         JsonPath.Segment.Key key
-    ) throws IOException, JsonExtractException {
+    ) throws IOException {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -286,7 +276,7 @@ public class JsonExtract extends EsqlScalarFunction {
                 }
             }
         }
-        throw new JsonExtractException("path [" + originalPath + "] does not exist");
+        throw new IllegalArgumentException("path [" + originalPath + "] does not exist");
     }
 
     private static void navigateArray(
@@ -296,7 +286,7 @@ public class JsonExtract extends EsqlScalarFunction {
         int depth,
         String originalPath,
         JsonPath.Segment.Index idx
-    ) throws IOException, JsonExtractException {
+    ) throws IOException {
         int currentIndex = 0;
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (currentIndex == idx.index()) {
@@ -306,7 +296,7 @@ public class JsonExtract extends EsqlScalarFunction {
             parser.skipChildren();
             currentIndex++;
         }
-        throw new JsonExtractException("array index out of bounds");
+        throw new IllegalArgumentException("array index out of bounds");
     }
 
     private static void extractCurrentValue(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {

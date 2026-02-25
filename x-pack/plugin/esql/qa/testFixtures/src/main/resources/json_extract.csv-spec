@@ -494,3 +494,16 @@ FROM json_logs
 2024-10-01T12:08:00.000Z     | api-gateway
 ;
 
+jsonExtractFromEmployeesConcatRoundTrip
+required_capability: fn_json_extract
+FROM employees
+| EVAL json = CONCAT("{\"first\": \"", first_name, "\", \"last\": \"", last_name, "\"}")
+| KEEP json
+| EVAL fn = JSON_EXTRACT(json, "first"), ln = JSON_EXTRACT(json, "last")
+| WHERE fn == "Parto"
+;
+
+json:keyword                                                               | fn:keyword | ln:keyword
+"{""first"": ""Parto"", ""last"": ""Bamford""}"                            | Parto      | Bamford
+;
+

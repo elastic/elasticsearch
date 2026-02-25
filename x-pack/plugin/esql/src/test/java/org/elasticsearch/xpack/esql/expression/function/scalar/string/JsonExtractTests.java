@@ -213,7 +213,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         // Missing path / invalid input
         suppliers.add(warningCase("missing path", "{\"a\":1}", "b", "path [b] does not exist"));
         suppliers.add(warningCase("invalid JSON", "not valid json", "field", "invalid JSON input"));
-        suppliers.add(warningCase("empty input", "", "$", "invalid JSON input"));
+        suppliers.add(warningCase("empty input", "", "$", "empty JSON input"));
         suppliers.add(warningCase("empty object path miss", "{}", "anything", "path [anything] does not exist"));
 
         // Array bounds and type mismatches

@@ -137,8 +137,8 @@ Note that if you return both the original `location` and the extracted `x` and `
 #### Partial support in 9.2.0
 
 * {applies_to}`stack: preview 9.2.0` The following types are only partially supported on 9.2.0. This is fixed in 9.2.1:
-  * `dense_vector`: The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) and the [`TO_DENSE_VECTOR` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_dense_vector) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when these functions are not used.
-  * `aggregate_metric_double`: Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_aggregate_metric_double) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
+  * `dense_vector`: The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) and the [`TO_DENSE_VECTOR` function](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when these functions are not used.
+  * `aggregate_metric_double`: Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_aggregate_metric_double.md) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
 
     :::{note}
     This means that a simple query like `FROM test` will not retrieve `dense_vector` or `aggregate_metric_double` data. However, using the appropriate functions will work:
@@ -153,7 +153,7 @@ Note that if you return both the original `location` and the extracted `x` and `
 ## Full-text search [esql-limitations-full-text-search]
 
 One limitation of [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is that it is necessary to use the search function,
-like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
+like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
 in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command directly after the
 [`FROM`](/reference/query-languages/esql/commands/from.md) source command, or close enough to it.
 Otherwise, the query will fail with a validation error.
@@ -174,9 +174,9 @@ FROM books
 ```
 
 Note that any queries on `text` fields that do not explicitly use the full-text functions,
-[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
-[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr) or
-[`KQL`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-kql),
+[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) or
+[`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md),
 will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.
 
 
@@ -254,7 +254,7 @@ Work around this limitation by converting the field to single value with one of 
 
 ## INLINE STATS limitations [esql-limitations-inlinestats]
 
-[`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not currently supported.
+[`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions/categorize.md) grouping function is not currently supported.
 
 Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
 

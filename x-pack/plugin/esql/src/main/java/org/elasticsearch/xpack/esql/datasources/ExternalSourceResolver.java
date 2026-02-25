@@ -10,10 +10,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -234,10 +234,7 @@ public class ExternalSourceResolver {
         );
     }
 
-    static ExternalSourceMetadata enrichSchemaWithPartitionColumns(
-        ExternalSourceMetadata metadata,
-        PartitionMetadata partitionMetadata
-    ) {
+    static ExternalSourceMetadata enrichSchemaWithPartitionColumns(ExternalSourceMetadata metadata, PartitionMetadata partitionMetadata) {
         List<Attribute> originalSchema = metadata.schema();
         Map<String, DataType> partitionColumns = partitionMetadata.partitionColumns();
 

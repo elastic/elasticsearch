@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import static org.elasticsearch.xpack.esql.datasources.PartitionConfig.CONFIG_PARTITIONING_DETECTION;
-import static org.elasticsearch.xpack.esql.datasources.PartitionConfig.CONFIG_PARTITIONING_PATH;
-
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.datasources.PartitionConfig.CONFIG_PARTITIONING_DETECTION;
+import static org.elasticsearch.xpack.esql.datasources.PartitionConfig.CONFIG_PARTITIONING_PATH;
 
 public class PartitionConfigTests extends ESTestCase {
 

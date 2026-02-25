@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import static org.hamcrest.Matchers.instanceOf;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -43,6 +41,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests for ExternalSourceResolver schema resolution behavior.

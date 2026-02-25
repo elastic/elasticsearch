@@ -89,11 +89,16 @@ public class VirtualColumnInjectorTests extends ESTestCase {
         );
         Set<String> partitionCols = new LinkedHashSet<>(List.of("intCol", "longCol", "doubleCol", "boolCol", "keywordCol"));
         Map<String, Object> partitionValues = Map.of(
-            "intCol", 42,
-            "longCol", 9999999999L,
-            "doubleCol", 3.14,
-            "boolCol", true,
-            "keywordCol", "hello"
+            "intCol",
+            42,
+            "longCol",
+            9999999999L,
+            "doubleCol",
+            3.14,
+            "boolCol",
+            true,
+            "keywordCol",
+            "hello"
         );
 
         VirtualColumnInjector injector = new VirtualColumnInjector(fullOutput, partitionCols, partitionValues, blockFactory);

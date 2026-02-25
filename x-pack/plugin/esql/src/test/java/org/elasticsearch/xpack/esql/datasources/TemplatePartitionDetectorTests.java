@@ -110,8 +110,14 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         PartitionMetadata result = detector.detect(files, Map.of());
 
         assertFalse(result.isEmpty());
-        assertEquals("americas", result.filePartitionValues().get(StoragePath.of("s3://bucket/data/americas/sao_paulo/file.parquet")).get("region"));
-        assertEquals("sao_paulo", result.filePartitionValues().get(StoragePath.of("s3://bucket/data/americas/sao_paulo/file.parquet")).get("city"));
+        assertEquals(
+            "americas",
+            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/americas/sao_paulo/file.parquet")).get("region")
+        );
+        assertEquals(
+            "sao_paulo",
+            result.filePartitionValues().get(StoragePath.of("s3://bucket/data/americas/sao_paulo/file.parquet")).get("city")
+        );
     }
 
     public void testUrlEncodedValues() {

@@ -77,19 +77,9 @@ public class FileSplitProvider implements SplitProvider {
                 Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, FileSplitProvider::compareEquals);
                 yield result != null ? result == false : null;
             }
-            case GreaterThanOrEqual gte -> evaluateComparison(
-                gte.left(),
-                gte.right(),
-                partitionValues,
-                (a, b) -> compareValues(a, b) >= 0
-            );
+            case GreaterThanOrEqual gte -> evaluateComparison(gte.left(), gte.right(), partitionValues, (a, b) -> compareValues(a, b) >= 0);
             case GreaterThan gt -> evaluateComparison(gt.left(), gt.right(), partitionValues, (a, b) -> compareValues(a, b) > 0);
-            case LessThanOrEqual lte -> evaluateComparison(
-                lte.left(),
-                lte.right(),
-                partitionValues,
-                (a, b) -> compareValues(a, b) <= 0
-            );
+            case LessThanOrEqual lte -> evaluateComparison(lte.left(), lte.right(), partitionValues, (a, b) -> compareValues(a, b) <= 0);
             case LessThan lt -> evaluateComparison(lt.left(), lt.right(), partitionValues, (a, b) -> compareValues(a, b) < 0);
             case In in -> {
                 String columnName = extractColumnName(in.value());

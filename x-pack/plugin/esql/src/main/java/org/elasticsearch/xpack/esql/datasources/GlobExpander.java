@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
-import org.elasticsearch.common.util.Maps;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -272,11 +271,7 @@ final class GlobExpander {
         return result.toString();
     }
 
-    static String rewriteGlobWithTemplate(
-        String pattern,
-        Map<String, PartitionFilterHint> rewritableHints,
-        String template
-    ) {
+    static String rewriteGlobWithTemplate(String pattern, Map<String, PartitionFilterHint> rewritableHints, String template) {
         List<String> templateColumns = TemplatePartitionDetector.parseTemplateColumns(template);
         if (templateColumns.isEmpty()) {
             return null;

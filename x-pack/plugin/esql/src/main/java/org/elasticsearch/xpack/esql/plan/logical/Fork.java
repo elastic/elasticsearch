@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,10 +28,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributes;
 
 /**
  * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
@@ -105,9 +106,19 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     }
 
     public Fork withSubPlans(List<LogicalPlan> subPlans) {
-        // We don't want to keep the same attributes that are outputted by the FORK branches.
+        // Preserve existing attribute NameIds so that references from upper plan nodes remain valid
+        // after sub-plans are updated. Only genuinely new attributes get fresh NameIds.
         // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
-        return replaceSubPlansAndOutput(subPlans, toReferenceAttributes(outputUnion(subPlans)));
+        Map<String, Attribute> collect = this.output().stream().collect(Collectors.toMap(Attribute::name, Function.identity()));
+        List<Attribute> attributes = new ArrayList<>();
+        for (Attribute attribute : outputUnion(subPlans)) {
+            if (collect.containsKey(attribute.name())) {
+                attributes.add(collect.get(attribute.name()));
+            } else {
+                attributes.add(attribute.withId(new NameId()));
+            }
+        }
+        return replaceSubPlansAndOutput(subPlans, attributes);
     }
 
     @Override

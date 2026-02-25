@@ -246,6 +246,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new InsertFromAggregateMetricDouble(),
             new TimeSeriesGroupByAll(),
             new ResolveUnionTypesInUnionAll(),
+            // needs to run after ImplicitCasting again, which may introduce new unresolved attribute references
+            // when rebuilding expression trees (e.g. wrapping literals for type alignment); must resolve
+            // them before ResolveUnmapped runs, otherwise ResolveUnmapped will incorrectly treat those
+            // references as unmapped fields and nullify them
+            new ResolveRefs(),
             new ResolveUnmapped()
         ),
         new Batch<>(

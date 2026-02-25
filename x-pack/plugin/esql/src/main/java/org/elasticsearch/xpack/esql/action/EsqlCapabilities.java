@@ -2198,6 +2198,17 @@ public class EsqlCapabilities {
          */
         INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
 
+        /**
+         * Fixes two independent analysis bugs in {@code FORK} with {@code unmapped_fields="nullify"}.
+         * Bug 1: {@code Fork.withSubPlans()} was reassigning new {@code NameId}s to all output attributes,
+         * breaking references from upper plan nodes.
+         * Bug 2: After {@code ImplicitCasting} runs, the plan may remain unresolved because it requires a
+         * subsequent {@code ResolveRefs} pass to fully resolve. However, {@code ResolveUnmapped} runs before
+         * that second {@code ResolveRefs} pass and mistakenly treats those still-unresolved attributes as
+         * user-introduced unmapped fields, incorrectly nullifying valid references.
+         */
+        FIX_FORK_UNMAPPED_NULLIFY,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

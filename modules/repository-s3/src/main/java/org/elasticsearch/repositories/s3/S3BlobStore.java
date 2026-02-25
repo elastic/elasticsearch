@@ -261,6 +261,12 @@ class S3BlobStore implements BlobStore {
                     .httpRequestTimeInMillisHistogram()
                     .record(TimeUnit.NANOSECONDS.toMillis(totalTimeNanoseconds), attributes);
             }
+
+            if (operation == Operation.COPY_OBJECT || operation == Operation.COPY_MULTIPART_OBJECT) {
+                s3RepositoriesMetrics.common()
+                    .copyRequestTimeInSecondsHistogram()
+                    .record(TimeUnit.NANOSECONDS.toSeconds(totalTimeNanoseconds), attributes);
+            }
         }
 
         @Override

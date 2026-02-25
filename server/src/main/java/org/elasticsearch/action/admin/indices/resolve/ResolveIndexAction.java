@@ -684,7 +684,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
                     connectionListener.addListener(gal.delegateResponse((l, failure) -> {
                         logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
-                        l.onFailure(failure);
+                        l.onResponse(null);
                     })
                         .delegateFailure(
                             (ignored, connection) -> transportService.sendRequest(
@@ -694,7 +694,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(gal.delegateResponse((l, failure) -> {
                                     logger.info("Error occurred on remote cluster [" + clusterAlias + "]", failure);
-                                    l.onFailure(failure);
+                                    l.onResponse(null);
                                 }).map(resolveIndexResponse -> Map.entry(clusterAlias, resolveIndexResponse)),
                                     Response::new,
                                     EsExecutors.DIRECT_EXECUTOR_SERVICE

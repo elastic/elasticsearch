@@ -13,9 +13,8 @@ esplugin {
   classname ='org.elasticsearch.telemetry.apm.APM'
 }
 
-def otelVersion = '1.53.0'
-// The instrumentation is mature but these specific packages are released as alpha as they don't strictly maintain a stable API.
-def otelInstrumentationVersion = '2.19.0-alpha'
+def otelVersion = '1.57.0'
+def otelInstrumentationVersion = '2.23.0-alpha'
 
 dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"

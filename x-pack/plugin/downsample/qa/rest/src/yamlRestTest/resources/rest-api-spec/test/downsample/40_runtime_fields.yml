@@ -1,9 +1,12 @@
 ---
 "Runtime fields accessing metric fields in downsample target index":
   - requires:
-      cluster_features: ["gte_v8.13.0"]
-      reason: _tsid hashing introduced in 8.13
-      test_runner_features: [close_to, allowed_warnings]
+      reason: Using average as the value of a downsampled gauge was added in 8.14
+      test_runner_features: [close_to, allowed_warnings, capabilities]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ aggregate_metric_double_defaults_to_average ]
 
   - do:
       indices.create:
@@ -144,23 +147,23 @@
 
   - close_to: { hits.hits.0.fields.received_kb.0: { value: 518142.3935, error: 0.0001 } }
   - close_to: { hits.hits.0.fields.sent_kb.0: { value: 1400935.4472, error: 0.0001 } }
-  - close_to: { hits.hits.0.fields.tx_kb.0: { value: 1400955.0009, error: 0.0001 } }
-  - close_to: { hits.hits.0.fields.rx_kb.0: { value: 518164.1484, error: 0.0001 } }
+  - close_to: { hits.hits.0.fields.tx_kb.0: { value: 1400927.6132, error: 0.0001 } }
+  - close_to: { hits.hits.0.fields.rx_kb.0: { value: 518151.9951, error: 0.0001 } }
 
   - close_to: { hits.hits.1.fields.received_kb.0: { value: 518186.5039, error: 0.0001 } }
   - close_to: { hits.hits.1.fields.sent_kb.0: { value: 1400988.2822, error: 0.0001 } }
-  - close_to: { hits.hits.1.fields.tx_kb.0: { value: 1400971.9453, error: 0.0001 } }
-  - close_to: { hits.hits.1.fields.rx_kb.0: { value: 518169.4443, error: 0.0001 } }
+  - close_to: { hits.hits.1.fields.tx_kb.0: { value: 1400968.2451, error: 0.0001 } }
+  - close_to: { hits.hits.1.fields.rx_kb.0: { value: 518169.0957, error: 0.0001 } }
 
   - close_to: { hits.hits.2.fields.received_kb.0: { value: 783343.5488, error: 0.0001 } }
   - close_to: { hits.hits.2.fields.sent_kb.0: { value: 1954908.8779, error: 0.0001 } }
-  - close_to: { hits.hits.2.fields.tx_kb.0: { value: 1958181.5957, error: 0.0001 } }
-  - close_to: { hits.hits.2.fields.rx_kb.0: { value: 783333.7832, error: 0.0001 } }
+  - close_to: { hits.hits.2.fields.tx_kb.0: { value: 1956541.3305, error: 0.0001 } }
+  - close_to: { hits.hits.2.fields.rx_kb.0: { value: 783014.5332, error: 0.0001 } }
 
   - close_to: { hits.hits.3.fields.received_kb.0: { value: 783377.7343, error: 0.0001 } }
   - close_to: { hits.hits.3.fields.sent_kb.0: { value: 1955339.7343, error: 0.0001 } }
-  - close_to: { hits.hits.3.fields.tx_kb.0: { value: 1965738.4785, error: 0.0001 } }
-  - close_to: { hits.hits.3.fields.rx_kb.0: { value: 784849.3369, error: 0.0001 } }
+  - close_to: { hits.hits.3.fields.tx_kb.0: { value: 1962470.67333, error: 0.0001 } }
+  - close_to: { hits.hits.3.fields.rx_kb.0: { value: 784190.9179, error: 0.0001 } }
 
 ---
 "Runtime field accessing dimension fields in downsample target index":

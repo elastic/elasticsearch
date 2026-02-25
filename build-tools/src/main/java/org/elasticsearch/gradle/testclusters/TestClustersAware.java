@@ -68,7 +68,7 @@ public interface TestClustersAware extends Task {
         for (ElasticsearchCluster cluster : getClusters()) {
             for (ElasticsearchNode node : cluster.getNodes()) {
                 getLogger().lifecycle("Running elasticsearch in debug mode, {} expecting running debug server on port {}", node, debugPort);
-                node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
+                node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:" + debugPort);
                 debugPort += 1;
             }
         }

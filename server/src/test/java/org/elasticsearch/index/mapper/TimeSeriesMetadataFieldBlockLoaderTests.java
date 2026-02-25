@@ -216,6 +216,45 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         assertThat(requiredFields, equalTo(Set.of("host", "env", "cpu", "request_count")));
     }
 
+    public void testBlockLoaderWithExcludedDimensions() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
+            .build();
+
+        String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": { "type": "date" },
+                  "host": { "type": "keyword", "time_series_dimension": true },
+                  "env": { "type": "keyword", "time_series_dimension": true },
+                  "region": { "type": "keyword", "time_series_dimension": true },
+                  "cpu": { "type": "double", "time_series_metric": "gauge" }
+                }
+              }
+            }
+            """;
+
+        MapperService mapperService = createMapperService(settings, mapping);
+        SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
+
+        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.WithExclusions(
+            BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS,
+            Set.of("host")
+        );
+
+        BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(createBlockLoaderContext(mapperService, config));
+
+        assertThat(blockLoader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
+
+        var storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
+        Set<String> requiredFields = storedFieldsSpec.requiresSource() ? storedFieldsSpec.sourcePaths() : Set.of();
+        assertThat("excluded dimension 'host' should not be in required fields", requiredFields, equalTo(Set.of("env", "region")));
+    }
+
     private MappedFieldType.BlockLoaderContext createBlockLoaderContext(MapperService mapperService, BlockLoaderFunctionConfig config) {
         return new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
             @Override

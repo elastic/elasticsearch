@@ -311,7 +311,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             firstPassGroupings,
             mergeExpressions(firstPassAggs, firstPassGroupings),
             (Bucket) Alias.unwrap(timeBucket),
-            aggregate.timestamp()
+            aggregate.timestamp(),
+            aggregate.excludedDimensions()
         );
         checkWindow(firstPhase);
         if (packDimensions.isEmpty()) {

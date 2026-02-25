@@ -30,10 +30,20 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     private final Set<String> metadataFields;
 
     public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadDimensions, boolean loadMetrics) {
+        this(context, loadDimensions, loadMetrics, Set.of());
+    }
+
+    public TimeSeriesMetadataFieldBlockLoader(
+        MappedFieldType.BlockLoaderContext context,
+        boolean loadDimensions,
+        boolean loadMetrics,
+        Set<String> excludedFields
+    ) {
         if (loadDimensions == false && loadMetrics == false) {
             throw new IllegalArgumentException("At least one type of metadata (dimension or metric) is required");
         }
         this.metadataFields = timeSeriesMetadata(context, loadDimensions, loadMetrics);
+        this.metadataFields.removeAll(excludedFields);
     }
 
     @Override

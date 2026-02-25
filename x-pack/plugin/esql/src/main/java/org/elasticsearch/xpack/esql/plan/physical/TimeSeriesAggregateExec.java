@@ -21,9 +21,11 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
@@ -37,6 +39,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
     );
 
     private final Bucket timeBucket;
+    private final Set<String> excludedDimensions;
 
     public TimeSeriesAggregateExec(
         Source source,
@@ -48,19 +51,42 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         Integer estimatedRowSize,
         Bucket timeBucket
     ) {
+        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, Set.of());
+    }
+
+    public TimeSeriesAggregateExec(
+        Source source,
+        PhysicalPlan child,
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        AggregatorMode mode,
+        List<Attribute> intermediateAttributes,
+        Integer estimatedRowSize,
+        Bucket timeBucket,
+        Set<String> excludedDimensions
+    ) {
         super(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         this.timeBucket = timeBucket;
+        this.excludedDimensions = excludedDimensions.isEmpty() ? Set.of() : Set.copyOf(excludedDimensions);
     }
 
     private TimeSeriesAggregateExec(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        if (in.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_AGGREGATE_EXCLUDED_DIMENSIONS)) {
+            this.excludedDimensions = in.readCollectionAsImmutableSet(StreamInput::readString);
+        } else {
+            this.excludedDimensions = Set.of();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
+        if (out.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_AGGREGATE_EXCLUDED_DIMENSIONS)) {
+            out.writeStringCollection(excludedDimensions);
+        }
     }
 
     @Override
@@ -79,7 +105,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            timeBucket,
+            excludedDimensions
         );
     }
 
@@ -93,7 +120,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            timeBucket,
+            excludedDimensions
         );
     }
 
@@ -107,7 +135,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            timeBucket,
+            excludedDimensions
         );
     }
 
@@ -121,7 +150,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             newMode,
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            timeBucket,
+            excludedDimensions
         );
     }
 
@@ -135,12 +165,17 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize,
-            timeBucket
+            timeBucket,
+            excludedDimensions
         );
     }
 
     public Bucket timeBucket() {
         return timeBucket;
+    }
+
+    public Set<String> excludedDimensions() {
+        return excludedDimensions;
     }
 
     public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {

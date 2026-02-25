@@ -805,3 +805,18 @@ result:double | step:datetime
 62.0          | 2024-05-10T00:00:00.000Z
 ;
 
+// without grouping
+
+without_excludes_pod_and_region
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: promql_without
+PROMQL index=k8s step=1h result=(sum without (pod, region) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double          | step:datetime            | _timeseries:keyword
+17.521233974358974     | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+18.032269021739133     | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+20.76903735632184      | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+

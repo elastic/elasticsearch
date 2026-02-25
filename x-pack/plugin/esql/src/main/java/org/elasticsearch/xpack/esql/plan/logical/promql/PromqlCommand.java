@@ -372,11 +372,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                     }
                 }
                 case PromqlFunctionCall functionCall -> {
-                    if (functionCall instanceof AcrossSeriesAggregate asa) {
-                        if (asa.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
-                            failures.add(fail(asa, "'without' grouping is not supported at this time [{}]", asa.sourceText()));
-                        }
-                    }
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok

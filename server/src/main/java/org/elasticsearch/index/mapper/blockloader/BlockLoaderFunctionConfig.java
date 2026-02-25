@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Configuration needed to transform loaded values into blocks.
@@ -43,6 +44,8 @@ public interface BlockLoaderFunctionConfig {
             return Objects.hashCode(function);
         }
     }
+
+    record WithExclusions(Function function, Set<String> excludedFields) implements BlockLoaderFunctionConfig {};
 
     enum Function {
         AMD_COUNT,

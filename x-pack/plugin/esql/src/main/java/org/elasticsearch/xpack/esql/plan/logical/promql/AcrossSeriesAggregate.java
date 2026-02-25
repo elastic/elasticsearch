@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -51,6 +52,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     private final Grouping grouping;
     private final List<Attribute> groupings;
+    private final List<Attribute> outputGroupings;
 
     public AcrossSeriesAggregate(
         Source source,
@@ -63,6 +65,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         super(source, child, functionName, parameters);
         this.grouping = grouping;
         this.groupings = groupings;
+        this.outputGroupings = grouping == Grouping.WITHOUT ? List.of(FieldAttribute.timeSeriesAttribute(source)) : groupings;
     }
 
     public Grouping grouping() {
@@ -104,7 +107,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     @Override
     public List<Attribute> output() {
-        return groupings.stream().filter(not(a -> a.dataType() == DataType.NULL)).toList();
+        return outputGroupings.stream().filter(not(a -> a.dataType() == DataType.NULL)).toList();
     }
 
     @Override

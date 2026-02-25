@@ -63,8 +63,10 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
 
     @Override
     public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
-        if (plan instanceof TimeSeriesAggregateExec oldAgg && oldAgg.getMode() == AggregatorMode.INITIAL) {
-            return rule(oldAgg, context);
+        if (plan instanceof TimeSeriesAggregateExec oldAgg) {
+            if (oldAgg.getMode() == AggregatorMode.INITIAL) {
+                return rule(oldAgg, context);
+            }
         }
         return plan;
     }
@@ -75,6 +77,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         if (sourceAttr == null) {
             return oldAgg;
         }
+        Set<String> excludedDimensions = oldAgg.excludedDimensions();
         List<NamedExpression> newAggregates = new ArrayList<>();
         List<Attribute> dimensionFields = new ArrayList<>();
         List<Alias> aliases = new ArrayList<>();
@@ -94,6 +97,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
                         if (MetadataAttribute.isTimeSeriesAttribute(dimensionField)) {
+                            BlockLoaderFunctionConfig loaderConfig = blockLoaderConfigForTimeSeries(excludedDimensions);
                             var sourceField = new FieldAttribute(
                                 dimensionField.source(),
                                 null,
@@ -108,7 +112,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                         EsField.TimeSeriesFieldType.DIMENSION
                                     ),
                                     DataType.KEYWORD,
-                                    new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS)
+                                    loaderConfig
                                 ),
                                 true
                             );
@@ -157,6 +161,16 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
             evalExec = new EvalExec(oldAgg.source(), fieldExtractExec, aliases);
         }
         return new ProjectExec(oldAgg.source(), evalExec, oldIntermediates);
+    }
+
+    private static BlockLoaderFunctionConfig blockLoaderConfigForTimeSeries(Set<String> excludedDimensions) {
+        if (excludedDimensions.isEmpty() == false) {
+            return new BlockLoaderFunctionConfig.WithExclusions(
+                BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS,
+                excludedDimensions
+            );
+        }
+        return new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS);
     }
 
     private static Attribute valuesOfDimensionField(AggregateFunction af, AttributeSet inputAttributes) {

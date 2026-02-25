@@ -74,6 +74,8 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
@@ -177,7 +179,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         // TODO: If we ever support metric references without last_over_time, we could
         // skip TimeSeriesAggregate and use plain Aggregate instead (see #141501 discussion).
         if (containsAggregation(plan) == false) {
-            plan = createInnerAggregate(ctx, plan, promqlCommand.promqlPlan().output(), valueExpr);
+            plan = createInnerAggregate(ctx, plan, promqlCommand.promqlPlan().output(), valueExpr, false, Set.of());
             valueExpr = plan.output().getFirst().toAttribute();
         }
 
@@ -219,6 +221,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private TranslationResult translateAcrossSeriesAggregate(AcrossSeriesAggregate agg, LogicalPlan currentPlan, TranslationContext ctx) {
         TranslationResult childResult = translateNode(agg.child(), currentPlan, ctx);
         Expression aggExpr = buildAggregateExpression(agg, childResult.expression(), ctx);
+        boolean isWithout = agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT;
         if (containsAggregation(childResult.plan())) {
             // Child already has an aggregate: create outer Aggregate
             LogicalPlan aggregatePlan = createOuterAggregate(ctx, childResult.plan(), agg, aggExpr);
@@ -227,7 +230,10 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         } else {
             // No aggregate yet: create the innermost TimeSeriesAggregate, folding within-series
             // function expressions into the aggregation.
-            LogicalPlan timeSeriesAgg = createInnerAggregate(ctx, childResult.plan(), agg.output(), aggExpr);
+            Set<String> excludedDimensions = isWithout
+                ? agg.groupings().stream().map(Attribute::name).collect(Collectors.toSet())
+                : Set.of();
+            LogicalPlan timeSeriesAgg = createInnerAggregate(ctx, childResult.plan(), agg.output(), aggExpr, isWithout, excludedDimensions);
             Expression outputRef = getValueOutput(timeSeriesAgg);
             return new TranslationResult(timeSeriesAgg, outputRef, childResult.selectorFilter());
         }
@@ -268,7 +274,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             return new TranslationResult(aggregate, getValueOutput(aggregate), childResult.selectorFilter());
         }
 
-        LogicalPlan timeSeriesAgg = createInnerAggregate(ctx, childResult.plan(), scalarFunc.output(), scalarExpr);
+        LogicalPlan timeSeriesAgg = createInnerAggregate(ctx, childResult.plan(), scalarFunc.output(), scalarExpr, false, Set.of());
         return new TranslationResult(timeSeriesAgg, getValueOutput(timeSeriesAgg), childResult.selectorFilter());
     }
 
@@ -522,16 +528,19 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         TranslationContext ctx,
         LogicalPlan basePlan,
         List<Attribute> labelGroupings,
-        Expression aggExpr
+        Expression aggExpr,
+        boolean isWithout,
+        Set<String> excludedDimensions
     ) {
         PromqlCommand promqlCommand = ctx.promqlCommand();
         List<NamedExpression> aggs = new ArrayList<>();
         List<Expression> groupings = new ArrayList<>();
 
-        // Check for time series grouping (special handling for _tsid)
         FieldAttribute timeSeriesGrouping = getTimeSeriesGrouping(labelGroupings);
         if (timeSeriesGrouping != null) {
-            aggExpr = new Values(aggExpr.source(), aggExpr);
+            if (isWithout == false) {
+                aggExpr = new Values(aggExpr.source(), aggExpr);
+            }
             basePlan = basePlan.transformDown(EsRelation.class, r -> r.withAdditionalAttribute(timeSeriesGrouping));
         }
 
@@ -549,7 +558,15 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         groupings.add(ctx.stepBucketAlias());
         groupings.addAll(labelGroupings);
 
-        return new TimeSeriesAggregate(promqlCommand.promqlPlan().source(), basePlan, groupings, aggs, null, promqlCommand.timestamp());
+        return new TimeSeriesAggregate(
+            promqlCommand.promqlPlan().source(),
+            basePlan,
+            groupings,
+            aggs,
+            null,
+            promqlCommand.timestamp(),
+            excludedDimensions
+        );
     }
 
     /**

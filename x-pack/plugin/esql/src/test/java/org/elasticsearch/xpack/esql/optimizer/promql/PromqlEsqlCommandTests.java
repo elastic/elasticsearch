@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
@@ -32,6 +33,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -208,6 +210,37 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
                 .count(),
             equalTo(2L)
         );
+    }
+
+    /**
+     * {@code sum without (pod) (network.bytes_in)} groups by _timeseries (all dims except pod).
+     * After TranslateTimeSeriesAggregate, the plan becomes:
+     * <pre>
+     * Project[result, step, _timeseries]
+     *   \_Filter[ISNOTNULL(result)]
+     *     \_Eval[TODOUBLE]
+     *       \_Project (unpack)
+     *         \_Eval[UnpackDimension]
+     *           \_Aggregate[sum(...) BY pack_timeseries, step]        (second pass)
+     *             \_Eval[PackDimension]
+     *               \_TimeSeriesAggregate[..., DIMENSION_VALUES BY _tsid, step]  (first pass)
+     * </pre>
+     */
+    public void testWithoutGrouping() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))");
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem("result"));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem("step"));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
+
+        var tsAggregates = plan.collect(TimeSeriesAggregate.class);
+        assertThat("should have first-pass TimeSeriesAggregate", tsAggregates, hasSize(1));
+
+        var aggregates = plan.collect(Aggregate.class);
+        assertThat("should have second-pass Aggregate", aggregates, not(empty()));
+
+        var firstPassAgg = tsAggregates.getFirst();
+        assertThat("TimeSeriesAggregate should carry 'pod' exclusion", firstPassAgg.excludedDimensions(), hasItem("pod"));
     }
 
     public void testInferredStepUsesDefaultBuckets() {

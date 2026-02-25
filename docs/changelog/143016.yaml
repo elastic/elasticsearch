@@ -1,5 +1,6 @@
 area: ES|QL
-issues: []
+issues:
+ - 142662
 pr: 143016
 summary: Cancel async query on expiry
 type: bug

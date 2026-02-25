@@ -14,7 +14,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -108,8 +107,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         assertNull(doc.rootDoc().getField("field"));
         assertNotNull(doc.dynamicMappingsUpdate());
 
-        CompressedXContent mappingUpdate = new CompressedXContent(Strings.toString(doc.dynamicMappingsUpdate()));
-        DocumentMapper updatedMapper = mapperService.merge("_doc", mappingUpdate, MergeReason.MAPPING_UPDATE);
+        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_UPDATE);
         String expectedMapping = Strings.toString(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
 
@@ -128,8 +126,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         assertNull(doc.rootDoc().getField("field"));
         assertNotNull(doc.dynamicMappingsUpdate());
 
-        CompressedXContent mappingUpdate = new CompressedXContent(Strings.toString(doc.dynamicMappingsUpdate()));
-        DocumentMapper updatedMapper = mapperService.merge("_doc", mappingUpdate, MergeReason.MAPPING_UPDATE);
+        DocumentMapper updatedMapper = mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MergeReason.MAPPING_UPDATE);
         String expectedMapping = Strings.toString(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
         assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
 

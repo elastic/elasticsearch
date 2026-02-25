@@ -10,13 +10,10 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
@@ -68,6 +65,11 @@ public class CrossClusterQueryLogUnavailableRemotesIT extends AbstractCrossClust
         return false;
     }
 
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings()).put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING.getKey(), "0ms").build();
+    }
+
     /**
      * Tests that query logging works correctly when all remote clusters are unavailable
      * with skip_unavailable=true. This reproduces issue #142915 where NPE occurred due to
@@ -77,8 +79,6 @@ public class CrossClusterQueryLogUnavailableRemotesIT extends AbstractCrossClust
         int numClusters = 2;
         setupClusters(numClusters);
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
-
-        enableQueryLogging();
 
         try {
             cluster(REMOTE_CLUSTER_1).close();
@@ -106,7 +106,6 @@ public class CrossClusterQueryLogUnavailableRemotesIT extends AbstractCrossClust
                 assertQueryLogged(query);
             }
         } finally {
-            disableQueryLogging();
             clearSkipUnavailable(numClusters);
         }
     }
@@ -121,8 +120,6 @@ public class CrossClusterQueryLogUnavailableRemotesIT extends AbstractCrossClust
         int remote2NumShards = (Integer) testClusterInfo.get("remote2.num_shards");
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         setSkipUnavailable(REMOTE_CLUSTER_2, true);
-
-        enableQueryLogging();
 
         try {
             cluster(REMOTE_CLUSTER_1).close();
@@ -160,7 +157,6 @@ public class CrossClusterQueryLogUnavailableRemotesIT extends AbstractCrossClust
                 assertQueryLogged(query);
             }
         } finally {
-            disableQueryLogging();
             clearSkipUnavailable(numClusters);
         }
     }
@@ -174,8 +170,6 @@ public class CrossClusterQueryLogUnavailableRemotesIT extends AbstractCrossClust
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         setSkipUnavailable(REMOTE_CLUSTER_2, true);
-
-        enableQueryLogging();
 
         try {
             cluster(REMOTE_CLUSTER_1).close();
@@ -210,27 +204,8 @@ public class CrossClusterQueryLogUnavailableRemotesIT extends AbstractCrossClust
                 assertQueryLogged(query);
             }
         } finally {
-            disableQueryLogging();
             clearSkipUnavailable(numClusters);
         }
-    }
-
-    private void enableQueryLogging() throws Exception {
-        client(LOCAL_CLUSTER).execute(
-            ClusterUpdateSettingsAction.INSTANCE,
-            new ClusterUpdateSettingsRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).persistentSettings(
-                Settings.builder().put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING.getKey(), "0ms")
-            )
-        ).get();
-    }
-
-    private void disableQueryLogging() throws Exception {
-        client(LOCAL_CLUSTER).execute(
-            ClusterUpdateSettingsAction.INSTANCE,
-            new ClusterUpdateSettingsRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).persistentSettings(
-                Settings.builder().putNull(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING.getKey())
-            )
-        ).get();
     }
 
     private void assertQueryLogged(String expectedQuery) {

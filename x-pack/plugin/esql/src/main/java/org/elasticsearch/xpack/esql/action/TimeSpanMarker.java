@@ -65,6 +65,13 @@ public class TimeSpanMarker {
         return timeSpan == null ? null : timeSpan.toTimeValue();
     }
 
+    /**
+     * Returns true if this marker was started (regardless of whether it was stopped).
+     */
+    public boolean wasStarted() {
+        return timeSpanBuilder != null;
+    }
+
     public TimeValue timeSinceStarted() {
         return timeSpanBuilder != null ? timeSpanBuilder.stop().toTimeValue() : TimeValue.ZERO;
     }

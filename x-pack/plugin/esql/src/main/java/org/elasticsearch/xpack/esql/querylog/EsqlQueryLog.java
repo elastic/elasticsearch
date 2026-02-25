@@ -145,7 +145,8 @@ public final class EsqlQueryLog {
             for (TimeSpanMarker timeSpanMarker : esqlQueryProfile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();
                 if (timeTook == null) {
-                    logger.error("TimeSpanMarker [{}] was not stopped", timeSpanMarker.name());
+                    assert timeSpanMarker.wasStarted() == false
+                        : "TimeSpanMarker [" + timeSpanMarker.name() + "] was started but not stopped before query logging";
                     continue;
                 }
                 String namePrefix = ELASTICSEARCH_QUERYLOG_PREFIX + timeSpanMarker.name();

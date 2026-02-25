@@ -206,25 +206,23 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                 (l, ignored) -> getDeploymentStats(client, request.getResourceId(), parentTaskId, assignmentMetadata, l)
             )
             .andThenApply(deploymentStats -> {
-                // deployment stats for each matching deployment not necessarily for all models
-                responseBuilder.setDeploymentStatsByDeploymentId(
-                    deploymentStats.getStats()
-                        .results()
-                        .stream()
-                        .collect(Collectors.toMap(AssignmentStats::getDeploymentId, Function.identity()))
-                );
-                return deploymentStats.getStats().results().stream().mapToInt(AssignmentStats::getNumberOfAllocations).sum();
+                Map<String, AssignmentStats> byDeploymentId = deploymentStats.getStats()
+                    .results()
+                    .stream()
+                    .collect(Collectors.toMap(AssignmentStats::getDeploymentId, Function.identity()));
+                responseBuilder.setDeploymentStatsByDeploymentId(byDeploymentId);
+                return byDeploymentId;
             })
 
             .<Map<String, TrainedModelSizeStats>>andThen(
                 executor,
                 null,
-                (l, numberOfAllocations) -> modelSizeStats(
+                (l, deploymentStatsByDeploymentId) -> modelSizeStats(
                     responseBuilder.getExpandedModelIdsWithAliases(),
                     request.isAllowNoResources(),
                     parentTaskId,
                     l,
-                    numberOfAllocations
+                    deploymentStatsByDeploymentId
                 )
             )
             .andThenAccept(responseBuilder::setModelSizeStatsByModelId)
@@ -312,7 +310,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         boolean allowNoResources,
         TaskId parentTaskId,
         ActionListener<Map<String, TrainedModelSizeStats>> listener,
-        int numberOfAllocations
+        Map<String, AssignmentStats> deploymentStatsByDeploymentId
     ) {
         ActionListener<List<TrainedModelConfig>> modelsListener = ActionListener.wrap(models -> {
             final List<String> pytorchModelIds = models.stream()
@@ -320,30 +318,58 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                 .map(TrainedModelConfig::getModelId)
                 .toList();
             definitionLengths(pytorchModelIds, parentTaskId, ActionListener.wrap(pytorchTotalDefinitionLengthsByModelId -> {
-                Map<String, TrainedModelSizeStats> modelSizeStatsByModelId = new HashMap<>();
+                Map<String, TrainedModelSizeStats> modelSizeStatsByKey = new HashMap<>();
+
+                Map<String, List<String>> modelIdToDeploymentIds = new HashMap<>();
+                for (AssignmentStats stats : deploymentStatsByDeploymentId.values()) {
+                    modelIdToDeploymentIds.computeIfAbsent(stats.getModelId(), k -> new ArrayList<>()).add(stats.getDeploymentId());
+                }
+
                 for (TrainedModelConfig model : models) {
                     if (model.getModelType() == TrainedModelType.PYTORCH) {
                         long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
-                        // We ensure that in the mixed cluster state trained model stats uses the same values for memory estimation
-                        // as the rebalancer.
-                        long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
-                            ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                        List<String> deploymentIds = modelIdToDeploymentIds.get(model.getModelId());
+
+                        if (deploymentIds != null && deploymentIds.isEmpty() == false) {
+                            for (String deploymentId : deploymentIds) {
+                                AssignmentStats assignmentStats = deploymentStatsByDeploymentId.get(deploymentId);
+                                int numberOfAllocations = assignmentStats.getNumberOfAllocations() != null
+                                    ? assignmentStats.getNumberOfAllocations()
+                                    : 0;
+                                long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
+                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                                        model.getModelId(),
+                                        totalDefinitionLength,
+                                        model.getPerDeploymentMemoryBytes(),
+                                        model.getPerAllocationMemoryBytes(),
+                                        numberOfAllocations
+                                    )
+                                    : 0L;
+                                modelSizeStatsByKey.put(
+                                    deploymentId,
+                                    new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
+                                );
+                            }
+                        } else {
+                            long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
+                                ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+                                    model.getModelId(),
+                                    totalDefinitionLength,
+                                    model.getPerDeploymentMemoryBytes(),
+                                    model.getPerAllocationMemoryBytes(),
+                                    0
+                                )
+                                : 0L;
+                            modelSizeStatsByKey.put(
                                 model.getModelId(),
-                                totalDefinitionLength,
-                                model.getPerDeploymentMemoryBytes(),
-                                model.getPerAllocationMemoryBytes(),
-                                numberOfAllocations
-                            )
-                            : 0L;
-                        modelSizeStatsByModelId.put(
-                            model.getModelId(),
-                            new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
-                        );
+                                new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
+                            );
+                        }
                     } else {
-                        modelSizeStatsByModelId.put(model.getModelId(), new TrainedModelSizeStats(model.getModelSize(), 0));
+                        modelSizeStatsByKey.put(model.getModelId(), new TrainedModelSizeStats(model.getModelSize(), 0));
                     }
                 }
-                listener.onResponse(modelSizeStatsByModelId);
+                listener.onResponse(modelSizeStatsByKey);
             }, listener::onFailure));
         }, listener::onFailure);
 

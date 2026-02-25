@@ -300,7 +300,10 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                                 // look up by model id
                                 ingestStats = ingestStatsMap.get(modelId);
                             }
-                            TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(modelId);
+                            TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.getOrDefault(
+                                deploymentId,
+                                modelSizeStatsMap.get(modelId)
+                            );
                             trainedModelStats.add(
                                 new TrainedModelStats(
                                     modelId,

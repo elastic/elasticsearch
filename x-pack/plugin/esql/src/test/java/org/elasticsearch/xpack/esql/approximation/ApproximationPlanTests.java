@@ -16,7 +16,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.not;
 
-public class ApproximationPlanTests extends ApproximationBaseTestCase {
+public class ApproximationPlanTests extends ApproximationTestCase {
 
     @Override
     protected List<String> filteredWarnings() {

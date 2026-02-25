@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
 
 import static org.mockito.Mockito.mock;
 
-public class ApproximationBaseTestCase extends ESTestCase {
+public abstract class ApproximationTestCase extends ESTestCase {
 
     private static final EsqlParser parser = EsqlParser.INSTANCE;
     private static final LogicalPlanPreOptimizer preOptimizer = new LogicalPlanPreOptimizer(

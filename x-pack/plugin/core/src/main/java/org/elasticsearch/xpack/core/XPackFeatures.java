@@ -21,8 +21,10 @@ public class XPackFeatures implements FeatureSpecification {
         "aggregate_metric_double.default_metric.deprecated"
     );
 
+    public static final NodeFeature VECTORS_INDEXING_GPU_MONITORING = new NodeFeature("vectors.indexing.gpu_monitoring");
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(AGGREGATE_METRIC_DOUBLE_DEPRECATED_DEFAULT_METRIC);
+        return Set.of(AGGREGATE_METRIC_DOUBLE_DEPRECATED_DEFAULT_METRIC, VECTORS_INDEXING_GPU_MONITORING);
     }
 }

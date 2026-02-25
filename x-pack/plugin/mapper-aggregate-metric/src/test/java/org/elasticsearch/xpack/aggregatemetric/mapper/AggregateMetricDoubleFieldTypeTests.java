@@ -152,30 +152,9 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
     public void testUsedInScript() throws IOException {
         final MappedFieldType mappedFieldType = createDefaultFieldType("field", Collections.emptyMap());
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                List.of(
-                    new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(10)),
-                    new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(2)),
-                    new NumericDocValuesField(subfieldName("field", Metric.sum), Double.doubleToLongBits(20)),
-                    new NumericDocValuesField(subfieldName("field", Metric.value_count), 2)
-                )
-            );
-            iw.addDocument(
-                List.of(
-                    new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(4)),
-                    new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(1)),
-                    new NumericDocValuesField(subfieldName("field", Metric.sum), Double.doubleToLongBits(20)),
-                    new NumericDocValuesField(subfieldName("field", Metric.value_count), 5)
-                )
-            );
-            iw.addDocument(
-                List.of(
-                    new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(7)),
-                    new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(4)),
-                    new NumericDocValuesField(subfieldName("field", Metric.sum), Double.doubleToLongBits(21)),
-                    new NumericDocValuesField(subfieldName("field", Metric.value_count), 3)
-                )
-            );
+            iw.addDocument(createDocument("field", Map.of(Metric.max, 10, Metric.min, 2, Metric.sum, 20, Metric.value_count, 2)));
+            iw.addDocument(createDocument("field", Map.of(Metric.max, 4, Metric.min, 1, Metric.sum, 20, Metric.value_count, 5)));
+            iw.addDocument(createDocument("field", Map.of(Metric.max, 7, Metric.min, 4, Metric.sum, 21, Metric.value_count, 3)));
             try (DirectoryReader reader = iw.getReader()) {
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.getFieldType(anyString())).thenReturn(mappedFieldType);
@@ -224,9 +203,9 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
         Metric singleMetric = randomFrom(Metric.values());
         final MappedFieldType mappedFieldType = createFieldType("field", Collections.emptyMap(), singleMetric);
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new NumericDocValuesField(subfieldName("field", singleMetric), Double.doubleToLongBits(10))));
-            iw.addDocument(List.of(new NumericDocValuesField(subfieldName("field", singleMetric), Double.doubleToLongBits(4))));
-            iw.addDocument(List.of(new NumericDocValuesField(subfieldName("field", singleMetric), Double.doubleToLongBits(7))));
+            iw.addDocument(createDocument("field", Map.of(singleMetric, 10)));
+            iw.addDocument(createDocument("field", Map.of(singleMetric, 4)));
+            iw.addDocument(createDocument("field", Map.of(singleMetric, 7)));
             try (DirectoryReader reader = iw.getReader()) {
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.getFieldType(anyString())).thenReturn(mappedFieldType);
@@ -270,4 +249,17 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
+    private static List<NumericDocValuesField> createDocument(String fieldName, Map<Metric, Number> values) {
+        return values.entrySet()
+            .stream()
+            .map(
+                entry -> new NumericDocValuesField(
+                    subfieldName(fieldName, entry.getKey()),
+                    entry.getKey() == Metric.value_count
+                        ? entry.getValue().longValue()
+                        : Double.doubleToLongBits(entry.getValue().doubleValue())
+                )
+            )
+            .toList();
+    }
 }

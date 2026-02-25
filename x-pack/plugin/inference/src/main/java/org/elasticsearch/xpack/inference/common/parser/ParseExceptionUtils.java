@@ -14,11 +14,12 @@ import org.elasticsearch.xcontent.XContentParseException;
 public final class ParseExceptionUtils {
 
     private static final Logger logger = LogManager.getLogger(ParseExceptionUtils.class);
+    static final int MAX_UNWRAP_DEPTH = 10;
 
     private ParseExceptionUtils() {}
 
-    public static RuntimeException unwrapXContentParseException(Throwable t) {
-        var unwrapped = doUnwrap(t);
+    public static RuntimeException unwrapXContentParseException(XContentParseException e) {
+        var unwrapped = doUnwrap(e);
         if (unwrapped instanceof RuntimeException runtimeException) {
             return runtimeException;
         } else {
@@ -26,9 +27,9 @@ public final class ParseExceptionUtils {
         }
     }
 
-    private static Throwable doUnwrap(Throwable t) {
+    private static Throwable doUnwrap(XContentParseException e) {
         int counter = 0;
-        Throwable result = t;
+        Throwable result = e;
         while (result instanceof XContentParseException) {
             if (result.getCause() == null) {
                 return result;
@@ -36,8 +37,8 @@ public final class ParseExceptionUtils {
             if (result.getCause() == result) {
                 return result;
             }
-            if (counter++ > 10) {
-                logger.warn("XContentParseException cause unwrapping ran for 10 levels, skipping", t);
+            if (counter++ >= MAX_UNWRAP_DEPTH) {
+                logger.warn("XContentParseException cause unwrapping ran for 10 levels, skipping", e);
                 return result;
             }
             result = result.getCause();

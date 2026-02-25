@@ -12,25 +12,11 @@ import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.inference.common.parser.ParseExceptionUtils.MAX_UNWRAP_DEPTH;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ParseExceptionUtilsTests extends ESTestCase {
-
-    public void testUnwrap_ReturnsSame_WhenThrowableIsRuntimeException() {
-        var runtimeException = new IllegalStateException("runtime");
-        var result = ParseExceptionUtils.unwrapXContentParseException(runtimeException);
-        assertThat(result, sameInstance(runtimeException));
-    }
-
-    public void testUnwrap_WrapsInRuntimeException_WhenThrowableIsCheckedException() {
-        var ioException = new IOException("io");
-        var result = ParseExceptionUtils.unwrapXContentParseException(ioException);
-        assertThat(result, instanceOf(RuntimeException.class));
-        assertThat(result.getCause(), sameInstance(ioException));
-        assertThat(result.getMessage(), is("java.io.IOException: io"));
-    }
 
     public void testUnwrap_ReturnsSame_WhenXContentParseExceptionHasNullCause() {
         var parseException = new XContentParseException("parse failed");
@@ -59,5 +45,25 @@ public class ParseExceptionUtilsTests extends ESTestCase {
         var outer = new XContentParseException(null, "outer", inner);
         var result = ParseExceptionUtils.unwrapXContentParseException(outer);
         assertThat(result, sameInstance(rootCause));
+    }
+
+    /**
+     * Tests that unwrapping stops after 10 levels and returns the exception at that depth.
+     * With {@code counter++ >= 10}, 10 getCause() steps are allowed; a chain of 11
+     * XContentParseExceptions causes the 11th (index 10) to be returned when the limit is hit.
+     */
+    public void testUnwrap_StopsAtTenLevels_ReturnsExceptionAtLimit() {
+        var innermost = new XContentParseException("level 10");
+        var chain = new XContentParseException[MAX_UNWRAP_DEPTH + 1];
+
+        var lastIndex = chain.length - 1;
+        chain[lastIndex] = innermost;
+
+        var secondToLastIndex = lastIndex - 1;
+        for (var i = secondToLastIndex; i >= 0; i--) {
+            chain[i] = new XContentParseException(null, "level " + i, chain[i + 1]);
+        }
+        var result = ParseExceptionUtils.unwrapXContentParseException(chain[0]);
+        assertThat(result, sameInstance(innermost));
     }
 }

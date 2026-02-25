@@ -62,6 +62,8 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -840,11 +842,11 @@ public class ComputeService {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
         }
 
-        // TODO: How we generate intermediate attributes prevents us from cleanly checking dependencies here.
-        // FragmentExec.output() doesn't take into account intermediate attributes of aggs, and time series aggs
-        // have some peculiarities due to implicit dimensions. We should clean this up and add a proper check here.
+        // TODO: How we generate intermediate attributes prevents us from cleanly checking dependencies here. We should always be
+        // able to perform this check.
         if (Assertions.ENABLED == false
-            || (reductionPlan.dataNodePlan().child() instanceof FragmentExec fragment && fragment.fragment() instanceof Aggregate)) {
+            || (reductionPlan.dataNodePlan().child() instanceof FragmentExec fragment
+                && skipConsistencyCheckAfterReductionPlanning(fragment.fragment()))) {
             return reductionPlan;
         }
 
@@ -854,6 +856,16 @@ public class ComputeService {
         PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
 
         return reductionPlan;
+    }
+
+    private static boolean skipConsistencyCheckAfterReductionPlanning(LogicalPlan fragment) {
+        // FragmentExec.output() doesn't take into account intermediate attributes of aggs, and time series aggs
+        // have some peculiarities due to implicit dimensions. We should clean this up and add a proper check here.
+        return fragment instanceof Aggregate
+            // MetricsInfo does not serialize its output attributes (they are generated automatically and do not depend on the input).
+            // After de-serializing the data node plan, the output attributes have different NameIds than the ExchangeSink of the
+            // data node plan.
+            || fragment instanceof MetricsInfo;
     }
 
     String newChildSession(String session) {

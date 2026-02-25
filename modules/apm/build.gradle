@@ -44,6 +44,10 @@ dependencies {
 }
 
 tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    'io.opentelemetry.exporter.internal.marshal.UnsafeStringEncoder',
+    'io.opentelemetry.exporter.internal.marshal.UnsafeStringEncoder$UnsafeHolder'
+  )
   ignoreMissingClasses(
     'com.fasterxml.jackson.core.JsonFactory',
     'com.fasterxml.jackson.core.JsonGenerator',
@@ -61,16 +65,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.grpc.stub.AbstractFutureStub',
     'io.grpc.stub.AbstractStub',
     'io.grpc.stub.ClientCalls'
-  )
-  ignoreViolations(
-    // uses internal java api: sun.misc.Unsafe
-    'io.opentelemetry.internal.shaded.jctools.util.UnsafeRefArrayAccess',
-    'io.opentelemetry.internal.shaded.jctools.util.UnsafeAccess',
-    'io.opentelemetry.exporter.internal.marshal.UnsafeAccess',
-    'io.opentelemetry.exporter.internal.marshal.UnsafeAccess$UnsafeHolder',
-    'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerLimitField',
-    'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueProducerIndexField',
-    'io.opentelemetry.internal.shaded.jctools.queues.MpscArrayQueueConsumerIndexField'
   )
 }
 

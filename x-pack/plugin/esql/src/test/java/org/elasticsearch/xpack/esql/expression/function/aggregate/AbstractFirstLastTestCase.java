@@ -16,6 +16,7 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.unlimitedSuppliers;
@@ -80,6 +81,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                 }
 
                 String evaluatorStr = String.format(
+                    Locale.ROOT,
                     "All%sBy%s",
                     standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", values.type()),
                     standardAggregatorNameAllBytesTheSame("", sorts.type())

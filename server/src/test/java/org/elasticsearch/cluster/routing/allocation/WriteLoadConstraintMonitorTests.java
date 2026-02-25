@@ -1049,11 +1049,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 continue;
             }
             var nodeId = node.getId();
-            List<Long> nodeHotspotFlagCounts = hotspotFlagCounts.get(nodeId);
-            if (nodeHotspotFlagCounts == null) {
-                nodeHotspotFlagCounts = new ArrayList<>();
-                hotspotFlagCounts.put(nodeId, nodeHotspotFlagCounts);
-            }
+            List<Long> nodeHotspotFlagCounts = hotspotFlagCounts.computeIfAbsent(nodeId, nodeIdUnused -> new ArrayList<>());
             nodeHotspotFlagCounts.add(hotspotFlags.contains(nodeId) ? 1L : 0L);
         }
     }

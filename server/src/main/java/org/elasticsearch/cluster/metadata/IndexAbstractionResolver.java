@@ -238,12 +238,21 @@ public class IndexAbstractionResolver {
         Set<String> remoteExpressions
     ) {
         if (false == remoteExpressions.isEmpty()) {
+            // resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, remoteExpressions);
             if (originalIndexExpression.charAt(0) == '-') {
-                resolvedExpressionsBuilder.excludeRemoteExpressions(originalIndexExpression, originalIndexExpression.substring(1));
+                resolvedExpressionsBuilder.excludeRemoteExpressions(
+                    originalIndexExpression.substring(1),
+                    originalIndexExpression,
+                    remoteExpressions
+                );
             } else {
                 var split = RemoteClusterAware.splitIndexName(originalIndexExpression);
                 if (split[1].charAt(0) == '-') {
-                    resolvedExpressionsBuilder.excludeRemoteExpressions(originalIndexExpression, split[0] + ":" + split[1].substring(1));
+                    resolvedExpressionsBuilder.excludeRemoteExpressions(
+                        split[0] + ":" + split[1].substring(1),
+                        originalIndexExpression,
+                        remoteExpressions
+                    );
                 } else {
                     resolvedExpressionsBuilder.addRemoteExpressions(originalIndexExpression, remoteExpressions);
                 }

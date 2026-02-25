@@ -114,14 +114,15 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             }
         }
 
-        public void excludeRemoteExpressions(String original, String expressionToExclude) {
+        public void excludeRemoteExpressions(String expressionToExclude, String original, Set<String> remoteExpressions) {
             outer: for (var expression : expressions) {
                 var iter = expression.remoteExpressions().iterator();
                 while (iter.hasNext()) {
                     if (Regex.simpleMatch(expressionToExclude, iter.next())) {
                         iter.remove();
                     } else {
-                        expressions.add(new ResolvedIndexExpression(original, LocalExpressions.NONE, Set.of(original)));
+                        expressions.add(new ResolvedIndexExpression(original, LocalExpressions.NONE, remoteExpressions)
+                        );
                         break outer;
                     }
                 }

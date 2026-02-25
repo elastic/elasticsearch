@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -42,6 +43,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -67,6 +69,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
     private static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
 
+    public static final String CCS_EXCHANGE_ACTION_NAME = "indices:data/read/esql/exchange";
+
     /**
      * The time interval for an exchange sink handler to be considered inactive and subsequently
      * removed from the exchange service if no sinks are attached (i.e., no computation uses that sink handler).
@@ -80,6 +84,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
+    /**
+     * Tracks the original index expressions that each exchange sink was opened for.
+     * When a {@link CcsExchangeRequest} arrives, its {@link CcsExchangeRequest#originalQueryIndices()}
+     * must match the indices recorded here. This prevents a caller from consuming pages from an
+     * exchange sink opened by a different query by guessing the session ID.
+     */
+    private final Map<String, Set<String>> sinkExpectedIndices = ConcurrentCollections.newConcurrentMap();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
@@ -116,6 +127,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             OpenExchangeRequest::new,
             new OpenExchangeRequestHandler()
         );
+
+        transportService.registerRequestHandler(
+            CCS_EXCHANGE_ACTION_NAME,
+            this.executor,
+            CcsExchangeRequest::new,
+            new CcsExchangeTransportAction()
+        );
     }
 
     /**
@@ -146,8 +164,40 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * Removes the exchange sink handler associated with the given exchange id.
      * W will abort the sink handler if the given failure is not null.
      */
+    /**
+     * Records the original index expressions that a given exchange session is expected to serve.
+     * Called on the remote cluster when the compute request arrives.
+     */
+    public void setExpectedIndices(String exchangeId, Set<String> indices) {
+        sinkExpectedIndices.put(exchangeId, Set.copyOf(indices));
+    }
+
+    /**
+     * Validates that the given original query indices match the indices the exchange sink was opened for.
+     * This prevents an exchange sink opened for index X from being consumed by a query for index Y.
+     * <p>
+     * If no expected indices were recorded (e.g., the sink was opened by a node on a transport version
+     * older than {@link CcsExchangeRequest}), the check is bypassed.
+     *
+     * @throws ResourceNotFoundException if the indices do not match
+     */
+    public void validateSinkIndices(String exchangeId, String[] queryIndices) {
+        final Set<String> expectedIndices = sinkExpectedIndices.get(exchangeId);
+        if (expectedIndices == null) {
+            return;
+        }
+        if (queryIndices == null || queryIndices.length == 0) {
+            throw new ResourceNotFoundException("exchange sink [" + exchangeId + "] not found for empty indices");
+        }
+        final Set<String> requestIndices = Set.copyOf(Arrays.asList(queryIndices));
+        if (expectedIndices.equals(requestIndices) == false) {
+            throw new ResourceNotFoundException("exchange sink [" + exchangeId + "] not found for indices " + requestIndices);
+        }
+    }
+
     public void finishSinkHandler(String exchangeId, @Nullable Exception failure) {
         final ExchangeSinkHandler sinkHandler = sinks.remove(exchangeId);
+        sinkExpectedIndices.remove(exchangeId);
         if (sinkHandler != null) {
             if (failure != null) {
                 sinkHandler.onFailure(failure);
@@ -249,6 +299,30 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         }
     }
 
+    /**
+     * CCS-specific exchange handler that validates the original query indices against the exchange sink's
+     * expected indices before returning pages. Index-level authorization is enforced by the security layer
+     * because {@link CcsExchangeRequest} implements {@link org.elasticsearch.action.IndicesRequest.Replaceable};
+     * this handler additionally verifies that the claimed indices match what the compute session was set up for,
+     * using {@link CcsExchangeRequest#originalQueryIndices()} which are not affected by security's index rewriting.
+     */
+    private class CcsExchangeTransportAction implements TransportRequestHandler<CcsExchangeRequest> {
+        @Override
+        public void messageReceived(CcsExchangeRequest request, TransportChannel channel, Task exchangeTask) {
+            final String exchangeId = request.exchangeId();
+            ActionListener<ExchangeResponse> listener = new ChannelActionListener<>(channel);
+            final ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
+            if (sinkHandler == null) {
+                listener.onResponse(new ExchangeResponse(blockFactory, null, true));
+            } else {
+                validateSinkIndices(exchangeId, request.originalQueryIndices());
+                final CancellableTask task = (CancellableTask) exchangeTask;
+                task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
+                sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
+            }
+        }
+    }
+
     private final class InactiveSinksReaper extends AbstractRunnable {
         private final TimeValue keepAlive;
         private final ThreadPool threadPool;
@@ -312,7 +386,45 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param conn             the connection to the remote node where the remote exchange sink is located
      */
     public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
-        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
+        return new TransportRemoteSink(
+            transportService,
+            blockFactory,
+            conn,
+            parentTask,
+            exchangeId,
+            executor,
+            EXCHANGE_ACTION_NAME,
+            (id, finished) -> new ExchangeRequest(id, finished)
+        );
+    }
+
+    /**
+     * Creates a new {@link RemoteSink} for CCS that sends {@link CcsExchangeRequest}s carrying indices context,
+     * so the remote cluster can enforce index-level privileges.
+     */
+    public RemoteSink newCcsRemoteSink(
+        Task parentTask,
+        String exchangeId,
+        TransportService transportService,
+        Transport.Connection conn,
+        String[] indices,
+        IndicesOptions indicesOptions
+    ) {
+        return new TransportRemoteSink(
+            transportService,
+            blockFactory,
+            conn,
+            parentTask,
+            exchangeId,
+            executor,
+            CCS_EXCHANGE_ACTION_NAME,
+            (id, finished) -> new CcsExchangeRequest(id, finished, indices, indicesOptions)
+        );
+    }
+
+    @FunctionalInterface
+    interface ExchangeRequestFactory {
+        AbstractTransportRequest create(String exchangeId, boolean sourcesFinished);
     }
 
     static final class TransportRemoteSink implements RemoteSink {
@@ -322,6 +434,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final Task parentTask;
         final String exchangeId;
         final Executor responseExecutor;
+        final String actionName;
+        final ExchangeRequestFactory requestFactory;
 
         final AtomicLong estimatedPageSizeInBytes = new AtomicLong(0L);
         final AtomicReference<SubscribableListener<Void>> completionListenerRef = new AtomicReference<>(null);
@@ -332,7 +446,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             Transport.Connection connection,
             Task parentTask,
             String exchangeId,
-            Executor responseExecutor
+            Executor responseExecutor,
+            String actionName,
+            ExchangeRequestFactory requestFactory
         ) {
             this.transportService = transportService;
             this.blockFactory = blockFactory;
@@ -340,6 +456,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             this.parentTask = parentTask;
             this.exchangeId = exchangeId;
             this.responseExecutor = responseExecutor;
+            this.actionName = actionName;
+            this.requestFactory = requestFactory;
         }
 
         @Override
@@ -348,7 +466,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 close(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
                 return;
             }
-            // already finished
             SubscribableListener<Void> completionListener = completionListenerRef.get();
             if (completionListener != null) {
                 completionListener.addListener(listener.map(unused -> new ExchangeResponse(blockFactory, null, true)));
@@ -365,7 +482,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         private void doFetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
             final long reservedBytes = allSourcesFinished ? 0 : estimatedPageSizeInBytes.get();
             if (reservedBytes > 0) {
-                // This doesn't fully protect ESQL from OOM, but reduces the likelihood.
                 try {
                     blockFactory.breaker().addEstimateBytesAndMaybeBreak(reservedBytes, "fetch page");
                 } catch (Exception e) {
@@ -377,8 +493,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             }
             transportService.sendChildRequest(
                 connection,
-                EXCHANGE_ACTION_NAME,
-                new ExchangeRequest(exchangeId, allSourcesFinished),
+                actionName,
+                requestFactory.create(exchangeId, allSourcesFinished),
                 parentTask,
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(listener, in -> {

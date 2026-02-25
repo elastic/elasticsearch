@@ -93,6 +93,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Column \\[.*\\] has conflicting data types in FORK branches: \\[NULL\\] and \\[.*\\]",
         "Column \\[.*\\] has conflicting data types in FORK branches: \\[.*\\] and \\[NULL\\]",
         "illegal match option \\[zero_terms_query\\]", // https://github.com/elastic/elasticsearch/issues/143070
+        "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561

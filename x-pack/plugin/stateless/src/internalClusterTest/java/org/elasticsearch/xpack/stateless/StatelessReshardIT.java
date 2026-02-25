@@ -77,7 +77,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -1959,6 +1961,22 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> client().execute(TransportReshardAction.TYPE, dataStreamIndexRequest).actionGet()
+        );
+    }
+
+    // lookup indices are required to have exactly one shard
+    public void testReshardLookupIndexFails() {
+        startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        final var indexName = "lookup-index";
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP.getName()).build());
+        ensureGreen(indexName);
+
+        ReshardIndexRequest request = new ReshardIndexRequest(indexName);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> client().execute(TransportReshardAction.TYPE, request).actionGet(SAFE_AWAIT_TIMEOUT)
         );
     }
 

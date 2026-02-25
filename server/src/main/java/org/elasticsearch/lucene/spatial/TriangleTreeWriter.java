@@ -27,7 +27,7 @@ import java.util.function.Function;
  * with common tree traversal logic. Also provides the legacy writer that stores coordinate values as
  * VLong deltas from the node's bounding box maxX/maxY.
  *
- * @see V2TriangleTreeWriter
+ * @see V2TriangleTreeWriter for a version that writes the new format
  */
 public class TriangleTreeWriter {
 
@@ -52,18 +52,6 @@ public class TriangleTreeWriter {
         node.writeTo(out);
     }
 
-    static ShapeField.DecodedTriangle toDecodedTriangle(IndexableField field, byte[] scratch) {
-        final BytesRef bytesRef = field.binaryValue();
-        assert bytesRef.length == 7 * Integer.BYTES;
-        System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
-        final ShapeField.DecodedTriangle decodedTriangle = new ShapeField.DecodedTriangle();
-        ShapeField.decodeTriangle(scratch, decodedTriangle);
-        return decodedTriangle;
-    }
-
-    /**
-     * Builds a tree from the given fields using the provided factory to create format-specific nodes.
-     */
     static TriangleTreeNode build(
         List<IndexableField> fields,
         Extent extent,
@@ -71,9 +59,9 @@ public class TriangleTreeWriter {
     ) {
         final byte[] scratch = new byte[7 * Integer.BYTES];
         if (fields.size() == 1) {
-            final TriangleTreeNode node = nodeFactory.apply(toDecodedTriangle(fields.get(0), scratch));
-            extent.addRectangle(node.minX, node.minY, node.maxX, node.maxY);
-            return node;
+            final TriangleTreeNode triangleTreeNode = nodeFactory.apply(toDecodedTriangle(fields.get(0), scratch));
+            extent.addRectangle(triangleTreeNode.minX, triangleTreeNode.minY, triangleTreeNode.maxX, triangleTreeNode.maxY);
+            return triangleTreeNode;
         }
         final TriangleTreeNode[] nodes = new TriangleTreeNode[fields.size()];
         for (int i = 0; i < fields.size(); i++) {
@@ -81,6 +69,15 @@ public class TriangleTreeWriter {
             extent.addRectangle(nodes[i].minX, nodes[i].minY, nodes[i].maxX, nodes[i].maxY);
         }
         return createTree(nodes, 0, fields.size() - 1, true);
+    }
+
+    private static ShapeField.DecodedTriangle toDecodedTriangle(IndexableField field, byte[] scratch) {
+        final BytesRef bytesRef = field.binaryValue();
+        assert bytesRef.length == 7 * Integer.BYTES;
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, scratch, 0, 7 * Integer.BYTES);
+        final ShapeField.DecodedTriangle decodedTriangle = new ShapeField.DecodedTriangle();
+        ShapeField.decodeTriangle(scratch, decodedTriangle);
+        return decodedTriangle;
     }
 
     /** Creates tree from sorted components (with range low and high inclusive) */
@@ -99,9 +96,11 @@ public class TriangleTreeWriter {
             ArrayUtil.select(components, low, high + 1, mid, comparator);
         }
         TriangleTreeNode newNode = components[mid];
+        // find children
         newNode.left = createTree(components, low, mid - 1, splitX == false);
         newNode.right = createTree(components, mid + 1, high, splitX == false);
 
+        // pull up max values to this node
         if (newNode.left != null) {
             newNode.maxX = Math.max(newNode.maxX, newNode.left.maxX);
             newNode.maxY = Math.max(newNode.maxY, newNode.left.maxY);
@@ -118,12 +117,18 @@ public class TriangleTreeWriter {
      * Subclasses provide format-specific component writing via {@link #writeComponent} and {@link #componentSize}.
      */
     abstract static class TriangleTreeNode {
+        /** minimum latitude of this geometry's bounding box area */
         final int minY;
+        /** maximum latitude of this geometry's bounding box area */
         int maxY;
+        /** minimum longitude of this geometry's bounding box area */
         final int minX;
+        /**  maximum longitude of this geometry's bounding box area */
         int maxX;
+        // child components, or null.
         TriangleTreeNode left;
         TriangleTreeNode right;
+        /** root node of edge tree */
         final ShapeField.DecodedTriangle component;
 
         TriangleTreeNode(ShapeField.DecodedTriangle component) {
@@ -132,26 +137,6 @@ public class TriangleTreeWriter {
             this.minX = Math.min(Math.min(component.aX, component.bX), component.cX);
             this.maxX = Math.max(Math.max(component.aX, component.bX), component.cX);
             this.component = component;
-        }
-
-        abstract void writeComponent(StreamOutput out) throws IOException;
-
-        abstract long componentSize(CountingStreamOutput countingBuffer) throws IOException;
-
-        /**
-         * Computes the total size in bytes of the root node's serialized tree.
-         * Unlike non-root nodes, the root does NOT write a rightSize prefix before the right child.
-         */
-        long totalSize(CountingStreamOutput countingBuffer) throws IOException {
-            long size = 1; // metadata byte
-            size += componentSize(countingBuffer);
-            if (left != null) {
-                size += left.nodeSize(true, maxX, maxY, countingBuffer);
-            }
-            if (right != null) {
-                size += right.nodeSize(true, maxX, maxY, countingBuffer);
-            }
-            return size;
         }
 
         void writeTo(StreamOutput out) throws IOException {
@@ -200,8 +185,26 @@ public class TriangleTreeWriter {
             out.writeByte(metadata);
         }
 
+        abstract void writeComponent(StreamOutput out) throws IOException;
+
+        abstract long componentSize(CountingStreamOutput countingBuffer) throws IOException;
+
+        long totalSize(CountingStreamOutput countingBuffer) throws IOException {
+            long size = 0;
+            size++; // metadata byte
+            size += componentSize(countingBuffer);
+            if (left != null) {
+                size += left.nodeSize(true, maxX, maxY, countingBuffer);
+            }
+            if (right != null) {
+                size += right.nodeSize(true, maxX, maxY, countingBuffer);
+            }
+            return size;
+        }
+
         private long nodeSize(boolean includeBox, int parentMaxX, int parentMaxY, CountingStreamOutput countingBuffer) throws IOException {
-            long size = 1; // metadata
+            long size = 0;
+            size++; // metadata
             size += componentSize(countingBuffer);
             if (left != null) {
                 size += left.nodeSize(true, maxX, maxY, countingBuffer);
@@ -210,7 +213,7 @@ public class TriangleTreeWriter {
                 long rightSize = right.nodeSize(true, maxX, maxY, countingBuffer);
                 countingBuffer.reset();
                 countingBuffer.writeVLong(rightSize);
-                size += countingBuffer.position();
+                size += countingBuffer.position(); // jump size
                 size += rightSize;
             }
             if (includeBox) {
@@ -219,7 +222,7 @@ public class TriangleTreeWriter {
                 countingBuffer.writeVLong((long) parentMaxX - maxX);
                 countingBuffer.writeVLong((long) parentMaxY - maxY);
                 countingBuffer.writeVLong(jumpSize);
-                size += countingBuffer.position();
+                size += countingBuffer.position(); // box size
             }
             return size;
         }
@@ -250,12 +253,17 @@ public class TriangleTreeWriter {
         @Override
         long componentSize(CountingStreamOutput countingBuffer) throws IOException {
             countingBuffer.reset();
-            countingBuffer.writeVLong((long) maxX - component.aX);
-            countingBuffer.writeVLong((long) maxY - component.aY);
-            if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
+            if (component.type == ShapeField.DecodedTriangle.TYPE.POINT) {
+                countingBuffer.writeVLong((long) maxX - component.aX);
+                countingBuffer.writeVLong((long) maxY - component.aY);
+            } else if (component.type == ShapeField.DecodedTriangle.TYPE.LINE) {
+                countingBuffer.writeVLong((long) maxX - component.aX);
+                countingBuffer.writeVLong((long) maxY - component.aY);
                 countingBuffer.writeVLong((long) maxX - component.bX);
                 countingBuffer.writeVLong((long) maxY - component.bY);
-            } else if (component.type == ShapeField.DecodedTriangle.TYPE.TRIANGLE) {
+            } else {
+                countingBuffer.writeVLong((long) maxX - component.aX);
+                countingBuffer.writeVLong((long) maxY - component.aY);
                 countingBuffer.writeVLong((long) maxX - component.bX);
                 countingBuffer.writeVLong((long) maxY - component.bY);
                 countingBuffer.writeVLong((long) maxX - component.cX);

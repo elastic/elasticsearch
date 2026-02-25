@@ -357,7 +357,19 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         testTransformLifecycle(QueryBuilders.rangeQuery("@timestamp").from(100_000_000), 0);
     }
 
+    public void testTransformLifecycle_WithExcludedRemoteCluster() throws Exception {
+        testTransformLifecycle(
+            new String[] { "local_*", "*:remote_*", "-" + REMOTE_CLUSTER + ":*" },
+            QueryBuilders.matchAllQuery(),
+            localOldDocs + localNewDocs
+        );
+    }
+
     private void testTransformLifecycle(QueryBuilder query, long expectedHitCount) throws Exception {
+        testTransformLifecycle(new String[] { "local_*", "*:remote_*" }, query, expectedHitCount);
+    }
+
+    private void testTransformLifecycle(String[] sourceIndices, QueryBuilder query, long expectedHitCount) throws Exception {
         String transformId = "test-transform-lifecycle";
         {
             QueryConfig queryConfig;
@@ -367,7 +379,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             }
             TransformConfig transformConfig = TransformConfig.builder()
                 .setId(transformId)
-                .setSource(new SourceConfig(new String[] { "local_*", "*:remote_*" }, queryConfig, Map.of(), null))
+                .setSource(new SourceConfig(sourceIndices, queryConfig, Map.of(), null))
                 .setDest(new DestConfig(transformId + "-dest", null, null))
                 .setLatestConfig(new LatestConfig(List.of("position"), "@timestamp"))
                 .build();

@@ -18,8 +18,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A split representing a single file (or byte range within a file) in a file-based external source.
- * Carries Hive partition key-value pairs extracted from the file path for L1 pruning.
+ * Represents a byte range within a file for a file-based external source.
+ * A single file may map to one or more splits. Carries Hive partition
+ * key-value pairs extracted from the file path for partition pruning.
  */
 public class FileSplit implements ExternalSplit {
 

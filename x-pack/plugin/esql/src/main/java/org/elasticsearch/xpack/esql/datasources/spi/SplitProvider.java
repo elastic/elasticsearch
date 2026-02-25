@@ -13,9 +13,6 @@ import java.util.List;
  * Discovers parallelizable splits for an external data source.
  * File-based sources produce one split per file; connector-based sources
  * may use their own split discovery logic.
- *
- * <p>Wired into the execution pipeline in PR 2 (Split Discovery Phase) via
- * {@code SplitDiscoveryPhase} and {@code ComputeService.discoverSplits()}.
  */
 public interface SplitProvider {
 

@@ -17,12 +17,6 @@ import java.util.Map;
 /**
  * Context passed to {@link SplitProvider#discoverSplits} containing all information
  * needed to enumerate and optionally prune splits for an external source.
- *
- * <p>Constructed in PR 2 (Split Discovery Phase) by {@code SplitDiscoveryPhase}.
- *
- * <p>{@code filterHints} is typed as {@code List<Expression>} to keep the SPI decoupled from
- * the extractor. PR 2 will populate it with resolved expressions for L1 partition pruning
- * inside {@code FileSplitProvider}; the current placeholder type will be reconciled then.
  */
 public record SplitDiscoveryContext(
     SourceMetadata metadata,

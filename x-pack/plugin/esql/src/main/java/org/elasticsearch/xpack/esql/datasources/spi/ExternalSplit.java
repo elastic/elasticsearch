@@ -11,12 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 
 /**
  * A serializable, parallelizable unit of work for an external data source.
- * Each split represents a portion of data (e.g., a single file, a partition)
+ * Each split represents a portion of data (e.g., a file slice, a partition)
  * that can be read independently by a single driver and shipped across nodes.
- *
- * <p>Unlike {@link Split} (a marker interface for connector-internal use that is never
- * serialized), {@code ExternalSplit} extends {@link NamedWriteable} to support
- * cross-node distribution in PR 4/5.
  */
 public interface ExternalSplit extends NamedWriteable {
 

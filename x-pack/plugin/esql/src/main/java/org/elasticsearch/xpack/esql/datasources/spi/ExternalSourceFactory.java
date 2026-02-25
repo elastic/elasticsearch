@@ -33,7 +33,6 @@ public interface ExternalSourceFactory {
         return null;
     }
 
-    // Used in PR 2 (Split Discovery Phase) by SplitDiscoveryPhase
     default SplitProvider splitProvider() {
         return SplitProvider.SINGLE;
     }

@@ -19,9 +19,7 @@ import java.util.Map;
 /**
  * Default {@link SplitProvider} for file-based sources.
  * Converts each file in the {@link FileSet} into a {@link FileSplit},
- * applying L1 partition pruning when filter hints and partition metadata are available.
- *
- * <p>Invoked in PR 2 (Split Discovery Phase) via {@code FileSourceFactory.splitProvider()}.
+ * applying partition pruning when filter hints and partition metadata are available.
  */
 public class FileSplitProvider implements SplitProvider {
 

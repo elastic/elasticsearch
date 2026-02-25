@@ -830,6 +830,15 @@ public class CsvTestsDataLoader {
                 }
                 yield "{\"gte\": \"" + m.group(1) + "\", \"lt\": \"" + m.group(2) + "\"}";
             }
+            // Text and keyword fields are always strings — strip outer quotes if present
+            // (they are CSV formatting, not part of the value), escape inner quotes, and wrap.
+            case "text", "keyword" -> {
+                String content = value;
+                if (content.startsWith("\"") && content.endsWith("\"")) {
+                    content = content.substring(1, content.length() - 1);
+                }
+                yield "\"" + content.replace("\"", "\\\"") + "\"";
+            }
             default -> {
                 boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
                 boolean isNumeric = value.matches(NUMERIC_REGEX);

@@ -9,9 +9,9 @@
 
 
 import org.elasticsearch.gradle.OS
+
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
-import org.elasticsearch.gradle.Architecture
 
 import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
@@ -40,22 +40,6 @@ develocity {
     def fips = buildParams.inFipsJvm
     def gitRevision = buildParams.gitRevision
     def testSeed = buildParams.testSeed
-
-    // Store test seed in Buildkite metadata early (outside build scan hooks)
-    // This ensures retries can retrieve the seed even if the original build failed before publishing a scan
-    if (onCI) {
-      def jobId = System.getenv('BUILDKITE_JOB_ID')
-      if (jobId) {
-        try {
-          new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "tests-seed-${jobId}", testSeed)
-            .start()
-            .waitFor()
-        } catch (Exception e) {
-          // Ignore failures - this is best-effort
-          logger.warn("Failed to store test seed in Buildkite metadata: ${e.message}")
-        }
-      }
-    }
 
     background {
       tag OS.current().name()
@@ -130,6 +114,21 @@ develocity {
           link 'Source', "https://github.com/${repository}/tree/${gitRevision.get()}"
         }
 
+        // Store test seed in Buildkite metadata so it can be retrieved by retries or other steps in the pipeline
+        // strictly speaking this is not build scan specific, but it's a convenient place and the one place
+        // where we deal with build metadata within the gradle build.
+        def jobId = System.getenv('BUILDKITE_JOB_ID')
+        if (jobId) {
+          try {
+            new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "tests-seed-${jobId}", testSeed)
+              .start()
+              .waitFor()
+          } catch (Exception e) {
+            // Ignore failures - this is best-effort
+            logger.warn("Failed to store test seed in Buildkite metadata: ${e.message}")
+          }
+        }
+
         buildFinished { result ->
 
           buildScanPublished { scan
@@ -147,7 +146,8 @@ develocity {
 
             // Add a build annotation
             // See: https://buildkite.com/docs/agent/v3/cli-annotate
-            def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT')?:"0") > 0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
+            def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
+              0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
             def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
             def process = [
               'buildkite-agent',

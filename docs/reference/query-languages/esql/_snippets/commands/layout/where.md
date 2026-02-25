@@ -69,7 +69,7 @@ For NULL comparison, use the `IS NULL` and `IS NOT NULL` predicates.
 
 ### Matching text
 
-Use [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) to perform a
+Use [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) to perform a
 [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on a specified field.
 `MATCH` works on text fields as well as boolean, date, and numeric types.
 

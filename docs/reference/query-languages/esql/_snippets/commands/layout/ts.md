@@ -41,7 +41,7 @@ apply to downsampled data, with the same semantics as for raw data.
 
 ::::{note}
 If a query is missing an inner (time series) aggregation function,
-[`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-last_over_time)
+[`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md)
 is assumed and used implicitly. For example, two equivalent queries that return the average of the last memory usage values per time series are shown in [Aggregate with implicit LAST_OVER_TIME](#aggregate-with-implicit-last_over_time). To calculate the average memory usage across per-time-series averages, refer to [Calculate the average of per-time-series averages](#calculate-the-average-of-per-time-series-averages).
 ::::
 

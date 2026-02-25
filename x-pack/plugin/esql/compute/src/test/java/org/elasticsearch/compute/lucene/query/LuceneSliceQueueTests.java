@@ -47,7 +47,9 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests.simpleReader;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class LuceneSliceQueueTests extends ESTestCase {
 
@@ -248,6 +250,105 @@ public class LuceneSliceQueueTests extends ESTestCase {
             assertThat(slice.getLast().maxDoc(), equalTo(Integer.MAX_VALUE));
         }
         assertThat(slices, hasSize(sliceOffset));
+    }
+
+    public void testComputeSegmentGroupsSingleSlice() {
+        // taskConcurrency == 1 should produce exactly 1 group containing all leaves
+        LeafReaderContext leaf1 = new MockLeafReader(100_000).getContext();
+        LeafReaderContext leaf2 = new MockLeafReader(200_000).getContext();
+        LeafReaderContext leaf3 = new MockLeafReader(300_000).getContext();
+        List<List<PartialLeafReaderContext>> groups = LuceneSliceQueue.computeSegmentGroups(List.of(leaf1, leaf2, leaf3), 1, 50_000);
+        assertThat(groups, hasSize(1));
+        assertThat(groups.getFirst(), hasSize(3));
+    }
+
+    public void testComputeSegmentGroupsLimitsToTaskConcurrency() {
+        // 20 segments of 100K docs each = 2M total docs
+        // With taskConcurrency=3, the 10% floor means each slice needs at least 200K docs,
+        // so we get at most ~10 slices from the 10% floor, but taskConcurrency=3 limits further:
+        // effectiveMinDocs = max(250_000, max(0.1, 1/3) * 2_000_000) = max(250_000, 666_666) = 666_666
+        List<LeafReaderContext> leaves = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            leaves.add(new MockLeafReader(100_000).getContext());
+        }
+        List<List<PartialLeafReaderContext>> groups = LuceneSliceQueue.computeSegmentGroups(leaves, 3, LuceneSliceQueue.MAX_DOCS_PER_SLICE);
+        assertThat(groups.size(), lessThanOrEqualTo(3));
+        // all leaves must be present
+        int totalLeaves = groups.stream().mapToInt(List::size).sum();
+        assertThat(totalLeaves, equalTo(20));
+    }
+
+    public void testComputeSegmentGroupsRespectsMinDocsPerSlice() {
+        // 4 segments of 50K docs each = 200K total
+        // With taskConcurrency=10 and minDocsPerSlice=250K, effectiveMinDocs = max(250_000, 20_000) = 250_000
+        // All segments combined only have 200K docs, so everything goes into 1 group
+        List<LeafReaderContext> leaves = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            leaves.add(new MockLeafReader(50_000).getContext());
+        }
+        List<List<PartialLeafReaderContext>> groups = LuceneSliceQueue.computeSegmentGroups(
+            leaves,
+            10,
+            LuceneSliceQueue.MAX_DOCS_PER_SLICE
+        );
+        assertThat(groups, hasSize(1));
+        assertThat(groups.getFirst(), hasSize(4));
+    }
+
+    public void testComputeSegmentGroupsTenPercentFloor() {
+        // 10 segments of 500K docs each = 5M total
+        // With taskConcurrency=100, the 10% floor kicks in: max(0.1, 1/100) = 0.1
+        // effectiveMinDocs = max(250_000, 0.1 * 5_000_000) = 500_000
+        // Each segment is exactly 500K, so each forms its own group (500K > 500K is false,
+        // but two segments would be 1M > 500K). The algorithm accumulates greedily, so the
+        // first segment alone (500K) does NOT exceed 500K (it equals it), so it continues.
+        // Two segments: 1M > 500K -> group finalized. So we get 5 groups of 2 segments each.
+        List<LeafReaderContext> leaves = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            leaves.add(new MockLeafReader(500_000).getContext());
+        }
+        List<List<PartialLeafReaderContext>> groups = LuceneSliceQueue.computeSegmentGroups(leaves, 100, 250_000);
+        // The 10% floor ensures at most 10 groups regardless of high taskConcurrency
+        assertThat(groups.size(), lessThanOrEqualTo(10));
+        assertThat(groups.size(), greaterThanOrEqualTo(1));
+        int totalLeaves = groups.stream().mapToInt(List::size).sum();
+        assertThat(totalLeaves, equalTo(10));
+    }
+
+    public void testComputeSegmentGroupsEmptyLeaves() {
+        List<List<PartialLeafReaderContext>> groups = LuceneSliceQueue.computeSegmentGroups(List.of(), 5, 50_000);
+        assertThat(groups, hasSize(1));
+        assertThat(groups.getFirst(), hasSize(0));
+    }
+
+    public void testComputeSegmentGroupsInvalidMaxSliceNum() {
+        expectThrows(IllegalArgumentException.class, () -> LuceneSliceQueue.computeSegmentGroups(List.of(), 0, 50_000));
+    }
+
+    public void testComputeSegmentGroupsOrphanRedistribution() {
+        // 3 large segments + 2 small orphan segments
+        // taskConcurrency=3, minDocsPerSlice=250_000
+        // Large segments: 500K each -> each exceeds effectiveMinDocs on its own
+        // Small segments: 10K each -> these are orphans that get redistributed
+        LeafReaderContext large1 = new MockLeafReader(500_000).getContext();
+        LeafReaderContext large2 = new MockLeafReader(500_000).getContext();
+        LeafReaderContext large3 = new MockLeafReader(500_000).getContext();
+        LeafReaderContext small1 = new MockLeafReader(10_000).getContext();
+        LeafReaderContext small2 = new MockLeafReader(10_000).getContext();
+        // totalDocs = 1_520_000, percentageDocsPerThread = max(0.1, 1/3) = 0.333
+        // effectiveMinDocs = max(250_000, 506_666) = 506_666
+        // After sorting desc: large1, large2, large3, small1, small2
+        // large1 (500K) does not exceed 506K -> add large2 -> 1M > 506K -> group1 finalized
+        // large3 (500K) does not exceed 506K -> add small1 -> 510K > 506K -> group2 finalized
+        // small2 orphan -> redistributed to smallest group
+        List<List<PartialLeafReaderContext>> groups = LuceneSliceQueue.computeSegmentGroups(
+            List.of(large1, large2, large3, small1, small2),
+            3,
+            LuceneSliceQueue.MAX_DOCS_PER_SLICE
+        );
+        assertThat(groups.size(), lessThanOrEqualTo(3));
+        int totalLeaves = groups.stream().mapToInt(List::size).sum();
+        assertThat(totalLeaves, equalTo(5));
     }
 
     public void testCreateSlice() throws IOException {

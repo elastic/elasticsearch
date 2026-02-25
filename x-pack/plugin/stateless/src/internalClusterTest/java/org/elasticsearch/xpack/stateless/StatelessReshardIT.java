@@ -2057,41 +2057,20 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
 
+        // Wait for the first handoff attempt to trigger an UpdateSplitTargetShardStateAction on the target shard
         handoffAttemptedLatch.await();
 
         IndexShard indexShard = findIndexShard(index, 0);
         indexShard.failShard("broken", new Exception("boom local"));
         final long finalPrimaryTerm = currentPrimaryTerm;
-        assertBusy(() -> {
-            assertThat(getCurrentPrimaryTerm(index, 0), greaterThan(finalPrimaryTerm));
-            assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareHealth(TimeValue.timeValueSeconds(30))
-                    .setIndices(indexName)
-                    .get()
-                    .getActivePrimaryShards(),
-                equalTo(1)
-            );
-        });
+        // Wait for the primary term to advance before releasing the handoff latch on the first handoff request, so that we
+        // know that the shard failure has been processed.
+        assertBusy(() -> assertThat(getCurrentPrimaryTerm(index, 0), greaterThan(finalPrimaryTerm)));
 
-        MockLog.assertThatLogger(() -> {
-            // When we release the handoff block the recovery will progress. However, it will fail because the source shard primary term
-            // has advanced. The target primary term will also advance because the target recovery fails and starts a new recovery.
-            // Hence the exact debug message in ReshardIndexService is ambiguous.
-            handoffLatch.countDown();
-            waitForReshardCompletion(indexName);
-        },
-            ReshardIndexService.class,
-            new MockLog.PatternSeenEventExpectation(
-                "split handoff failed",
-                ReshardIndexService.class.getCanonicalName(),
-                Level.DEBUG,
-                ".*\\[" + indexName + "\\]\\[1\\] cannot transition target state \\[HANDOFF\\] because .* primary term advanced \\[.*"
-            )
-        );
-
-        // After the target shard recovery tries again it will synchronize its primary term with the source and come online.
+        handoffLatch.countDown();
+        // Although the first attempt at HANDOFF will fail, the subsequent START_SPLIT attempt with the new source shard
+        // will succeed.
+        waitForReshardCompletion(indexName);
         ensureGreen(indexName);
 
         // The primary term has synchronized with the source

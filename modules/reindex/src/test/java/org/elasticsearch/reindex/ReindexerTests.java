@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,6 +48,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -121,6 +123,19 @@ public class ReindexerTests extends ESTestCase {
         verify(metrics, never()).recordSuccess(anyBoolean());
         verify(metrics).recordFailure(true, exception);
         verify(metrics).recordTookTime(anyLong(), eq(true));
+    }
+
+    public void testWrapWithMetricsRecordsCorrectElapsedTime() {
+        ReindexMetrics metrics = mock();
+        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        long startTimeEpochMillis = System.currentTimeMillis() - TimeUnit.SECONDS.toMillis(10);
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, startTimeEpochMillis, true);
+
+        wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
+
+        verify(metrics).recordTookTime(longThat(t -> t >= 10), eq(true));
+        verify(metrics).recordSuccess(eq(true));
+        verifyNoMoreInteractions(metrics);
     }
 
     // listenerWithRelocations tests
@@ -275,7 +290,7 @@ public class ReindexerTests extends ESTestCase {
     private BulkByScrollResponse reindexResponseWithResumeInfo() {
         final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
             "test-scroll-id",
-            System.nanoTime(),
+            System.currentTimeMillis(),
             new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
             null
         );

@@ -56,6 +56,7 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
+import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
@@ -135,10 +136,6 @@ public class Reindexer {
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
-        // todo(szy/sam): handle sliced and non-sliced
-        // todo(szy/sam): bug, we send System::nanoTime across JVMs
-        final long startTime = System.nanoTime();
-
         // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
         final ActionListener<BulkByScrollResponse> listenerWithRelocations = listenerWithRelocations(task, request, listener);
@@ -151,6 +148,7 @@ public class Reindexer {
             client,
             clusterService.localNode(),
             () -> {
+                final long workerStartTimeEpochMillis = getWorkerStartTimeMillis(request);
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
                 ParentTaskAssigningClient assigningBulkClient = new ParentTaskAssigningClient(bulkClient, clusterService.localNode(), task);
                 AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(
@@ -163,7 +161,11 @@ public class Reindexer {
                     projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
-                    workerListenerWithRelocationAndMetrics(listenerWithRelocations, startTime, request.getRemoteInfo() != null)
+                    workerListenerWithRelocationAndMetrics(
+                        listenerWithRelocations,
+                        workerStartTimeEpochMillis,
+                        request.getRemoteInfo() != null
+                    )
                 );
                 searchAction.start();
             }
@@ -173,13 +175,13 @@ public class Reindexer {
     /** Wraps the listener with metrics tracking and relocation handling (if applicable). Visible for testing. */
     ActionListener<BulkByScrollResponse> workerListenerWithRelocationAndMetrics(
         ActionListener<BulkByScrollResponse> potentiallyWrappedRelocationListener,
-        long startTime,
+        long workerStartTimeEpochMillis,
         boolean isRemote
     ) {
         final ActionListener<BulkByScrollResponse> metricListener = wrapWithMetrics(
             potentiallyWrappedRelocationListener,
             reindexMetrics,
-            startTime,
+            workerStartTimeEpochMillis,
             isRemote
         );
 
@@ -200,13 +202,12 @@ public class Reindexer {
     static ActionListener<BulkByScrollResponse> wrapWithMetrics(
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ReindexMetrics metrics,
-        long startTime,
+        long workerStartTimeEpochMillis,
         boolean isRemote
     ) {
         if (metrics == null) {
             return listener;
         }
-        // todo(szy): add relocation metrics
         // add completion metrics
         var withCompletionMetrics = new ActionListener<BulkByScrollResponse>() {
             @Override
@@ -241,7 +242,7 @@ public class Reindexer {
 
         // add duration metric
         return ActionListener.runAfter(withCompletionMetrics, () -> {
-            long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+            long elapsedTime = TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - workerStartTimeEpochMillis);
             metrics.recordTookTime(elapsedTime, isRemote);
         });
     }
@@ -341,6 +342,16 @@ public class Reindexer {
                 )
             );
         }
+    }
+
+    private long getWorkerStartTimeMillis(final ReindexRequest request) {
+        if (request.getResumeInfo().isEmpty()) { // new task, not relocated
+            return System.currentTimeMillis();
+        }
+        final ResumeInfo resumeInfo = request.getResumeInfo().get();
+        // each sub-slice of a reindex will only have worker populated, rather than slices
+        assert resumeInfo.worker() != null && resumeInfo.slices() == null : "worker should have worker resume info and no slices";
+        return resumeInfo.worker().startTimeEpochMillis();
     }
 
     /**

@@ -74,7 +74,7 @@ public record ApproximationSettings(Integer rows, Double confidenceLevel) implem
     }
 
     public ApproximationSettings(StreamInput in) throws IOException {
-        this(in.readInt(), in.readOptionalDouble());
+        this(in.readOptionalInt(), in.readOptionalDouble());
     }
 
     @Override

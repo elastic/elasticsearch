@@ -19,7 +19,11 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * ...
+ * Aggregate, which upon execution is either:
+ * <ul>
+ * <li> sampled with the {@code sampleProbability} for fast execution; or
+ * <li> replaced by an exact aggregate if the {@code originalAggregates} can be pushed down to Lucene.
+ * </ul>
  */
 public class SampledAggregate extends Aggregate {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

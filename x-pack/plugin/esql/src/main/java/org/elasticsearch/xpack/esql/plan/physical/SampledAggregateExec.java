@@ -16,15 +16,17 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
- * The grouping must be `_tsid` and `tbucket` or just `_tsid`.
+ * Aggregate, which is either:
+ * <ul>
+ * <li> sampled with the {@code sampleProbability} for fast execution; or
+ * <li> replaced by an exact aggregate if the {@code originalAggregates} can be pushed down to Lucene.
+ * </ul>
  */
 public class SampledAggregateExec extends AggregateExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

@@ -278,6 +278,8 @@ public class ConfidenceInterval extends EsqlScalarFunction {
             }
         }
 
+        // Every single bucket being NaN indicates that the bestEstimate is exact,
+        // hence the confidence intervals should be zero width.
         if (allNaNs) {
             resultBuilder.beginPositionEntry();
             resultBuilder.appendDouble(bestEstimate);

@@ -71,7 +71,7 @@ public class ReplaceSampledStatsByExactStats extends PhysicalOptimizerRules.Para
             List<Alias> nullBuckets = sampledAggregateExec.outputSet()
                 .subtract(AttributeSet.of(sampledAggregateExec.originalIntermediateAttributes()))
                 .stream()
-                .map(attr -> new Alias(Source.EMPTY, attr.name(), Literal.NULL, attr.id()))
+                .map(attr -> new Alias(Source.EMPTY, attr.name(), new Literal(Source.EMPTY, null, attr.dataType()), attr.id()))
                 .toList();
 
             PhysicalPlan plan = new AggregateExec(

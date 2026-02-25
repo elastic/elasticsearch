@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
@@ -69,7 +70,6 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
         if (failures.hasFailures()) {
             return;
         }
-        if (true) return; // TODO !!!
         if (dataTypeEquals(expectedOutputAttributes, optimizedPlan.output()) == false) {
             // If the output level is empty we add a column called ProjectAwayColumns.ALL_FIELDS_PROJECTED
             // We will ignore such cases for output verification
@@ -90,15 +90,21 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 a -> a instanceof TimeSeriesAggregate ts
                     && ts.aggregates().stream().anyMatch(g -> Alias.unwrap(g) instanceof Values v && v.field().dataType() == DataType.TEXT)
             );
-
             // TranslateTimeSeriesAggregate may add a _timeseries attribute into the projection
             boolean hasTimeSeriesReplacingTsId = optimizedPlan.anyMatch(
                 a -> a instanceof TimeSeriesAggregate ts
                     && ts.output().stream().anyMatch(MetadataAttribute::isTimeSeriesAttribute)
                     && expectedOutputAttributes.stream().noneMatch(MetadataAttribute::isTimeSeriesAttribute)
             );
+            // Query approximation can add columns to the output with the confidence intervals.
+            boolean hasQueryApproximationAddingColumns = optimizedPlan.anyMatch(plan -> plan instanceof SampledAggregate)
+                && dataTypeEquals(expectedOutputAttributes, optimizedPlan.output().subList(0, expectedOutputAttributes.size()));
 
-            boolean ignoreError = hasProjectAwayColumns || hasLookupJoinExec || hasTextGroupingInTimeSeries || hasTimeSeriesReplacingTsId;
+            boolean ignoreError = hasProjectAwayColumns
+                || hasLookupJoinExec
+                || hasTextGroupingInTimeSeries
+                || hasTimeSeriesReplacingTsId
+                || hasQueryApproximationAddingColumns;
             if (ignoreError == false) {
                 failures.add(
                     fail(

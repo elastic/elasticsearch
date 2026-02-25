@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteApproximationPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -61,6 +62,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * The approximation plan, that is substituted during logical plan optimization
+ * in the rule {@link SubstituteApproximationPlan}.
+ * <p>
+ * See the JavaDocs of {@link Approximation} for more details.
+ */
 public class ApproximationPlan {
 
     /**
@@ -117,10 +124,10 @@ public class ApproximationPlan {
      * A placeholder expression in the main approximation plan, that is replaced
      * by the actual value after subplan execution.
      */
-    static class SampleProbabilityPlaceHolder extends LeafExpression {
+    public static class SampleProbabilityPlaceHolder extends LeafExpression {
 
-        SampleProbabilityPlaceHolder() {
-            super(Source.EMPTY);
+        public SampleProbabilityPlaceHolder(Source source) {
+            super(source);
         }
 
         @Override
@@ -201,7 +208,7 @@ public class ApproximationPlan {
      * <pre>
      *     {@code
      *         FROM index
-     *             | SAMPLE prob=PlaceHolder[sampleProbability]
+     *             | SAMPLE prob = SampleProbabilityPlaceHolder
      *             | EVAL x = 2*x
      *             | EVAL bucketId = MV_APPEND(RANDOM(B), ... , RANDOM(B))  // T times
      *             | STATS sampleSize = COUNT(*),
@@ -210,7 +217,7 @@ public class ApproximationPlan {
      *                     ...,
      *                     `s$T*B-1` = SUM(x) / (prob/B) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1
      *               BY group
-     *             | WHERE sampleSize >= PlaceHolder[sampleSizeThreshold]
+     *             | WHERE sampleSize >= sampleSizeThreshold
      *             | EVAL t = s*s, `t$0` = `s$0`*`s$0`, ..., `t$T*B-1` = `s$T*B-1`*`s$T*B-1`
      *             | EVAL `CONFIDENCE_INTERVAL(s)` = CONFIDENCE_INTERVAL(s, MV_APPEND(`s$0`, ... `s$T*B-1`), T, B, 0.90),
      *                    `CONFIDENCE_INTERVAL(t)` = CONFIDENCE_INTERVAL(t, MV_APPEND(`t$0`, ... `t$T*B-1`), T, B, 0.90)
@@ -301,7 +308,7 @@ public class ApproximationPlan {
         Map<NameId, List<Alias>> fieldBuckets,
         Map<NameId, NamedExpression> uncorrectedExpressions
     ) {
-        Expression sampleProbability = new SampleProbabilityPlaceHolder();
+        Expression sampleProbability = new SampleProbabilityPlaceHolder(Source.EMPTY);
         Expression bucketSampleProbability = new Div(Source.EMPTY, sampleProbability, Literal.integer(Source.EMPTY, BUCKET_COUNT));
 
         Expression randomBucketId = new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT));
@@ -684,6 +691,11 @@ public class ApproximationPlan {
         return confidenceIntervalsAndCertified;
     }
 
+    /**
+     * Substitutes the {@link SampleProbabilityPlaceHolder} in the approximation plan
+     * by the actual sample probability. If the sample probability is 1.0, the
+     * SampledAggregate is also replaced by a regular Aggregate.
+     */
     public static LogicalPlan substituteSampleProbability(LogicalPlan logicalPlan, double sampleProbability) {
         logicalPlan = logicalPlan.transformExpressionsDown(
             ApproximationPlan.SampleProbabilityPlaceHolder.class,
@@ -698,8 +710,9 @@ public class ApproximationPlan {
                         nullBuckets.add(new Alias(Source.EMPTY, attr.name(), Literal.NULL, attr.id()));
                     }
                 }
-
                 LogicalPlan plan = new Aggregate(agg.source(), agg.child(), agg.groupings(), agg.originalAggregates());
+                // All buckets being NULL indicates that the query was executed exactly,
+                // leading to trivial confidence intervals.
                 plan = new Eval(Source.EMPTY, plan, nullBuckets);
                 return plan;
             });

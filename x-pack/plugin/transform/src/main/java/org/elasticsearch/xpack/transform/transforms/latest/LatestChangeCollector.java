@@ -110,7 +110,7 @@ class LatestChangeCollector implements Function.ChangeCollector {
 
     /**
      * Phase 2 (APPLY_RESULTS): Build a filter so the main query searches only the collected
-     * unique keys. The indexer applies sync_field < nextCheckpoint separately, so the main
+     * unique keys. The indexer applies sync_field &lt; nextCheckpoint separately, so the main
      * query sees ALL historical data for those keys and top_hits correctly picks the document
      * with the highest sort field value.
      */

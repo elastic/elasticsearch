@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 142772
+summary: "ES819 Binary doc values: compact doc offsets using bit packing"
+type: enhancement

@@ -21,12 +21,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 import static java.util.Objects.requireNonNull;
 
 public class GetReindexResponse extends ActionResponse implements ToXContentObject {
 
     private final TaskResult task;
+
+    private static final Pattern DESCRIPTION_FILTER_PATTERN = Pattern.compile("(?s) query=.*?(?=\\]\\[[^\\]]*\\] to \\[)");
 
     public GetReindexResponse(TaskResult task) {
         this.task = requireNonNull(task, "task is required");
@@ -66,8 +69,10 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
 
     // reindex specific TaskInfo serialization
     static XContentBuilder taskInfoToXContent(XContentBuilder builder, Params params, TaskInfo taskInfo) throws IOException {
-        // TODO: revisit if we should expose taskInfo.description, since it may contain sensitive information like ip and username
         builder.field("id", taskInfo.node() + ":" + taskInfo.id());
+        if (taskInfo.description() != null) {
+            builder.field("description", sanitizeDescription(taskInfo.description()));
+        }
         builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", taskInfo.startTime());
         if (builder.humanReadable()) {
             builder.field("running_time", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString());
@@ -79,6 +84,10 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         }
 
         return builder;
+    }
+
+    static String sanitizeDescription(String description) {
+        return DESCRIPTION_FILTER_PATTERN.matcher(description).replaceAll("");
     }
 
     @Override

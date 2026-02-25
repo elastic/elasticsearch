@@ -195,6 +195,15 @@ public abstract class DocsV3Support {
         );
     }
     /**
+     * Non-function anchors that live on specific function pages after the split.
+     * These are section anchors (not function names) that exist within a function's content.
+     */
+    private static final Map<String, String> KNOWN_FUNCTION_ANCHORS = Map.ofEntries(
+        entry("percentile-approximate", "aggregation-functions/percentile.md"),
+        entry("agg-count-distinct-approximate", "aggregation-functions/count_distinct.md")
+    );
+
+    /**
      * Operators are unregistered functions.
      */
     static final Map<String, OperatorConfig> OPERATORS = Map.ofEntries(
@@ -510,21 +519,78 @@ public abstract class DocsV3Support {
     private String parentFileFor(String cmd) {
         if (knownCommands.containsKey(cmd)) {
             return "/reference/query-languages/esql/commands/processing-commands.md";
-        } else if (cmd.startsWith("mv_")) {
-            return "/reference/query-languages/esql/functions-operators/mv-functions.md";
         } else if (cmd.contains("-operator")) {
             return "/reference/query-languages/esql/functions-operators/operators.md";
-        } else if (cmd.startsWith("st_")) {
-            return "/reference/query-languages/esql/functions-operators/spatial-functions.md";
-        } else if (cmd.startsWith("to_")) {
-            return "/reference/query-languages/esql/functions-operators/type-conversion-functions.md";
-        } else if (cmd.startsWith("date_")) {
-            return "/reference/query-languages/esql/functions-operators/date-time-functions.md";
-        } else if (cmd.equals("split")) {
-            return "/reference/query-languages/esql/functions-operators/string-functions.md";
-        } else {
-            return "/reference/query-languages/esql/functions-operators/aggregation-functions.md";
+        } else if (cmd.endsWith("-functions")) {
+            // Reference to a group page, not an individual function (e.g. <<esql-aggregation-functions>>)
+            return "/reference/query-languages/esql/functions-operators/" + cmd + ".md";
         }
+        // Non-function anchors that live on specific function pages
+        if (KNOWN_FUNCTION_ANCHORS.containsKey(cmd)) {
+            return "/reference/query-languages/esql/functions-operators/" + KNOWN_FUNCTION_ANCHORS.get(cmd);
+        }
+        // Individual function page within its group
+        String group = functionGroupFor(cmd);
+        // Hyphenate filenames containing "snippets" to avoid docs-builder _snippets directory matching
+        String fileName = cmd.contains("snippets") ? cmd.replace("_", "-") : cmd;
+        return "/reference/query-languages/esql/functions-operators/" + group + "/" + fileName + ".md";
+    }
+
+    private static String functionGroupFor(String cmd) {
+        // ---------------------------------------------------------
+        // 1. AUTOMATIC: Standard Prefixes
+        // ---------------------------------------------------------
+        // You NEVER need to update the list for functions starting with these:
+        if (cmd.startsWith("mv_")) return "mv-functions";
+        if (cmd.startsWith("st_")) return "spatial-functions";
+        if (cmd.startsWith("to_")) return "type-conversion-functions";
+        if (cmd.startsWith("date_")) return "date-time-functions";
+        if (cmd.startsWith("is_")) return "predicate-operators";
+
+        // ---------------------------------------------------------
+        // 2. MANUAL: Un-prefixed / Legacy Functions
+        // ---------------------------------------------------------
+        // Only update this if you add a new "root level" function
+        // that doesn't match a known prefix.
+        return switch (cmd) {
+            // String
+            case "concat", "left", "length", "ltrim", "replace", "right", "rtrim", "split", "substring", "trim" -> "string-functions";
+
+            // Search
+            case "match" -> "search-functions";
+
+            // Grouping
+            case "bucket", "tbucket", "categorize" -> "grouping-functions";
+
+            // Time series
+            case "avg_over_time", "rate", "last_over_time", "count_distinct_over_time" -> "time-series-aggregation-functions";
+
+            // IP
+            case "cidr_match", "ip_prefix" -> "ip-functions";
+
+            // Math
+            case "abs", "acos", "asin", "atan", "atan2", "ceil", "cos", "cosh", "e", "floor", "log", "log10", "pi", "pow", "round", "sign",
+                "sin", "sinh", "sqrt", "tan", "tanh", "tau" -> "math-functions";
+
+            // Conditional
+            case "case", "coalesce", "greatest", "least" -> "conditional-functions";
+
+            // System
+            case "user", "version" -> "system-functions";
+
+            // Aggregation (The big bucket)
+            case "avg", "count", "count_distinct", "max", "median", "median_absolute_deviation", "min", "percentile", "sum", "top",
+                "values", "weighted_avg" -> "aggregation-functions";
+
+            // FAIL FAST: Don't guess. Force the developer to categorize new generic functions.
+            default -> throw new IllegalArgumentException(
+                "Docs Generation Error: Unknown function group for ["
+                    + cmd
+                    + "]. "
+                    + "This function does not have a recognized prefix (st_, mv_, etc). "
+                    + "Please add it to the switch statement in DocsV3Support#functionGroupFor."
+            );
+        };
     }
 
     private String makeLink(String key, String prefix, String parentFile) {
@@ -679,7 +745,7 @@ public abstract class DocsV3Support {
 
         private void renderFunctionNamedParams(EsqlFunctionRegistry.MapArgSignature mapArgSignature) throws IOException {
             StringBuilder rendered = new StringBuilder(DOCS_WARNING + """
-                **Supported function named parameters**
+                ### Supported function named parameters
 
                 """);
 
@@ -751,22 +817,19 @@ public abstract class DocsV3Support {
 
         private void renderFullLayout(FunctionInfo info, boolean hasExamples, boolean hasAppendix, boolean hasFunctionOptions)
             throws IOException {
-            String headingMarkdown = "#".repeat(2 + info.depthOffset());
+            // H2 heading generation removed here
             StringBuilder rendered = new StringBuilder(
                 DOCS_WARNING + """
-                    $HEAD$ `$UPPER_NAME$` [esql-$NAME$]
                     $APPLIES_TO$
-                    **Syntax**
+                    ## Syntax
 
                     :::{image} ../../../images/$CATEGORY$/$NAME$.svg
                     :alt: Embedded
                     :class: text-center
                     :::
 
-                    """.replace("$HEAD$", headingMarkdown)
-                    .replace("$NAME$", name)
+                    """.replace("$NAME$", name)
                     .replace("$CATEGORY$", category)
-                    .replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT))
                     .replace("$APPLIES_TO$", makeAppliesToText(Arrays.asList(info.appliesTo()), info.preview(), false))
             );
             for (String section : new String[] { "parameters", "description", "types" }) {
@@ -817,6 +880,16 @@ public abstract class DocsV3Support {
         ) {
             super("operators", name, testClass, signatures, callbacks);
             this.op = op;
+        }
+
+        /**
+         * Operator snippets are included inside H3 sections on operators.md
+         * (H1 page → H2 category → H3 operator). Using H2 for sub-sections like
+         * "Supported types" would break the heading hierarchy, so bold text is used instead.
+         */
+        @Override
+        protected String formatSectionTitle(String title) {
+            return "**" + title + "**\n\n";
         }
 
         @Override
@@ -1094,7 +1167,7 @@ public abstract class DocsV3Support {
             }
 
             String rendered = DOCS_WARNING + """
-                **Supported types**
+                ## Supported types
 
                 """ + header + "\n" + separator + "\n" + String.join("\n", table) + "\n\n";
             logger.info("Writing function types for [{}]", name);
@@ -1217,7 +1290,7 @@ public abstract class DocsV3Support {
             String exampleContent = loadExampleQuery(example);
             String exampleResult = loadExampleResult(example);
             if (exampleContent != null) {
-                builder.append("**Example**\n\n");
+                builder.append("## Example\n\n");
                 if (example.description().length() > 0) {
                     builder.append(example.description()).append("\n\n");
                 }
@@ -1311,7 +1384,7 @@ public abstract class DocsV3Support {
     void renderParametersList(List<String> argNames, List<String> argDescriptions) throws IOException {
         StringBuilder builder = new StringBuilder();
         builder.append(DOCS_WARNING);
-        builder.append("**Parameters**\n");
+        builder.append("## Parameters\n");
         for (int a = 0; a < argNames.size(); a++) {
             String description = replaceLinks(argDescriptions.get(a));
             builder.append("\n`").append(argNames.get(a)).append("`\n:   ").append(description).append('\n');
@@ -1321,6 +1394,16 @@ public abstract class DocsV3Support {
         logger.info("Writing parameters for [{}]", name);
         logger.debug("{}", rendered);
         writeToTempSnippetsDir("parameters", rendered);
+    }
+
+    /**
+     * Formats a section title (e.g. "Supported types", "Examples") for use in generated snippets.
+     * Functions each have their own individual page, so H2 headings are appropriate here.
+     * Override in subclasses where snippets are included into a different heading context —
+     * see {@link OperatorsDocsSupport#formatSectionTitle}.
+     */
+    protected String formatSectionTitle(String title) {
+        return "## " + title + "\n\n";
     }
 
     void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
@@ -1353,10 +1436,14 @@ public abstract class DocsV3Support {
             return;
         }
 
-        String rendered = DOCS_WARNING + """
-            **Supported types**
-
-            """ + header + "\n" + separator + "\n" + String.join("\n", table) + "\n\n";
+        String rendered = DOCS_WARNING
+            + formatSectionTitle("Supported types")
+            + header
+            + "\n"
+            + separator
+            + "\n"
+            + String.join("\n", table)
+            + "\n\n";
         logger.info("Writing function types for [{}]", name);
         logger.debug("{}", rendered);
         writeToTempSnippetsDir("types", rendered);
@@ -1435,7 +1522,7 @@ public abstract class DocsV3Support {
         description = replaceLinks(description.trim());
         note = replaceLinks(note);
         String rendered = DOCS_WARNING + """
-            **Description**
+            ## Description
 
             """ + description + "\n";
 
@@ -1460,9 +1547,9 @@ public abstract class DocsV3Support {
         StringBuilder builder = new StringBuilder();
         builder.append(DOCS_WARNING);
         if (info.examples().length == 1) {
-            builder.append("**Example**\n\n");
+            builder.append(formatSectionTitle("Example"));
         } else {
-            builder.append("**Examples**\n\n");
+            builder.append(formatSectionTitle("Examples"));
         }
         for (Example example : info.examples()) {
             if (example.applies_to().isEmpty() == false) {

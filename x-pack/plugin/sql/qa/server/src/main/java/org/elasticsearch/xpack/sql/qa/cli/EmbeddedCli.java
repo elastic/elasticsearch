@@ -66,9 +66,26 @@ public class EmbeddedCli implements Closeable {
      */
     private boolean closed = false;
 
-    @SuppressWarnings("this-escape")
     public EmbeddedCli(String elasticsearchAddress, boolean checkConnectionOnStartup, @Nullable SecurityConfig security)
         throws IOException {
+        this(elasticsearchAddress, checkConnectionOnStartup, security, null);
+    }
+
+    /**
+     * Create an embedded CLI with API key authentication.
+     */
+    public EmbeddedCli(String elasticsearchAddress, boolean checkConnectionOnStartup, ApiKeySecurityConfig apiKeySecurity)
+        throws IOException {
+        this(elasticsearchAddress, checkConnectionOnStartup, null, apiKeySecurity);
+    }
+
+    @SuppressWarnings("this-escape")
+    private EmbeddedCli(
+        String elasticsearchAddress,
+        boolean checkConnectionOnStartup,
+        @Nullable SecurityConfig security,
+        @Nullable ApiKeySecurityConfig apiKeySecurity
+    ) throws IOException {
         PipedOutputStream outgoing = new PipedOutputStream();
         PipedInputStream cliIn = new PipedInputStream(outgoing);
         PipedInputStream incoming = new PipedInputStream();
@@ -82,9 +99,25 @@ public class EmbeddedCli implements Closeable {
         in = new BufferedReader(new InputStreamReader(incoming, StandardCharsets.UTF_8));
 
         List<String> args = new ArrayList<>();
-        if (security == null) {
+        if (security == null && apiKeySecurity == null) {
             args.add(elasticsearchAddress);
+        } else if (apiKeySecurity != null) {
+            // API key authentication
+            String address = elasticsearchAddress;
+            if (apiKeySecurity.https) {
+                address = "https://" + address;
+            } else if (randomBoolean()) {
+                address = "http://" + address;
+            }
+            args.add(address);
+            args.add("-apikey");
+            args.add(apiKeySecurity.apiKey);
+            if (apiKeySecurity.keystoreLocation != null) {
+                args.add("-keystore_location");
+                args.add(apiKeySecurity.keystoreLocation);
+            }
         } else {
+            // Basic authentication
             String address = security.user + "@" + elasticsearchAddress;
             if (security.https) {
                 address = "https://" + address;
@@ -126,7 +159,7 @@ public class EmbeddedCli implements Closeable {
         exec.start();
 
         try {
-            // Feed it passwords if needed
+            // Feed it passwords if needed (only for basic auth, not API key)
             if (security != null) {
                 String passwordPrompt = "[?1h=[?2004hpassword: ";
                 if (security.keystoreLocation != null) {
@@ -154,6 +187,15 @@ public class EmbeddedCli implements Closeable {
                 out.flush();
                 logger.info("out: {}", security.password);
                 // Read the newline echoed after the password prompt
+                assertEquals("", readLine());
+            } else if (apiKeySecurity != null && apiKeySecurity.keystoreLocation != null) {
+                // For API key auth with SSL, we still need to provide keystore password
+                assertEquals("[?1h=[?2004hkeystore password: ", readUntil(s -> s.endsWith(": ")));
+                out.write(apiKeySecurity.keystorePassword + "\n");
+                out.flush();
+                logger.info("out: {}", apiKeySecurity.keystorePassword);
+                // Read the newline echoed after the password prompt
+                assertEquals("", readLine());
                 assertEquals("", readLine());
             }
 
@@ -365,6 +407,46 @@ public class EmbeddedCli implements Closeable {
             this.https = https;
             this.user = user;
             this.password = password;
+            this.keystoreLocation = keystoreLocation;
+            this.keystorePassword = keystorePassword;
+        }
+
+        public String keystoreLocation() {
+            return keystoreLocation;
+        }
+
+        public String keystorePassword() {
+            return keystorePassword;
+        }
+    }
+
+    /**
+     * Configuration for API key authentication.
+     */
+    public static class ApiKeySecurityConfig {
+        private final boolean https;
+        private final String apiKey;
+        @Nullable
+        private final String keystoreLocation;
+        @Nullable
+        private final String keystorePassword;
+
+        public ApiKeySecurityConfig(boolean https, String apiKey, @Nullable String keystoreLocation, @Nullable String keystorePassword) {
+            if (apiKey == null) {
+                throw new IllegalArgumentException("[apiKey] is required.");
+            }
+            if (keystoreLocation == null) {
+                if (keystorePassword != null) {
+                    throw new IllegalArgumentException("[keystorePassword] cannot be specified if [keystoreLocation] is not specified");
+                }
+            } else {
+                if (keystorePassword == null) {
+                    throw new IllegalArgumentException("[keystorePassword] is required if [keystoreLocation] is specified");
+                }
+            }
+
+            this.https = https;
+            this.apiKey = apiKey;
             this.keystoreLocation = keystoreLocation;
             this.keystorePassword = keystorePassword;
         }

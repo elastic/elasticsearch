@@ -327,7 +327,7 @@ public abstract class Engine implements Closeable {
     private static long getLiveDocsBytes(Bits liveDocs) {
         int words = FixedBitSet.bits2words(liveDocs.length());
         return ShardFieldStats.FIXED_BITSET_BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-            RamUsageEstimator.sizeOf(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * words)
+            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * words
         );
     }
 

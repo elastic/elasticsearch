@@ -20,10 +20,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public abstract class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
 
+    private final String sessionId;
     private EsqlExecutionInfo executionInfo;
     private final AtomicReference<Scheduler.ScheduledCancellable> scheduledCancellation = new AtomicReference<>();
 
     public EsqlQueryTask(
+        String sessionId,
         long id,
         String type,
         String action,
@@ -35,6 +37,7 @@ public abstract class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
         TimeValue keepAlive
     ) {
         super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);
+        this.sessionId = sessionId;
         this.executionInfo = null;
     }
 
@@ -44,6 +47,10 @@ public abstract class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
 
     public EsqlExecutionInfo executionInfo() {
         return executionInfo;
+    }
+
+    public String sessionId() {
+        return sessionId;
     }
 
     @Override

@@ -34,16 +34,8 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * {@link Function.ChangeCollector} implementation for the latest function.
- *
  * Uses a two-phase approach to correctly handle the case where the sort field and sync.time.field
- * don't increase monotonically together (gh#90643):
- *
- * Phase 1 (IDENTIFY_CHANGES): A composite aggregation over the checkpoint time window discovers
- * which unique_key values have new source documents.
- *
- * Phase 2 (APPLY_RESULTS): For those unique keys, the main query searches ALL historical data
- * (not just the checkpoint window), so top_hits correctly picks the document with the highest
- * sort field value.
+ * don't increase monotonically together (gh#90643).
  */
 class LatestChangeCollector implements Function.ChangeCollector {
 
@@ -73,6 +65,10 @@ class LatestChangeCollector implements Function.ChangeCollector {
         return AggregationBuilders.composite(COMPOSITE_AGGREGATION_NAME, sources);
     }
 
+    /**
+     * Phase 1 (IDENTIFY_CHANGES): Build a composite aggregation over the checkpoint time window
+     * to discover which unique_key values have new source documents.
+     */
     @Override
     public SearchSourceBuilder buildChangesQuery(SearchSourceBuilder searchSourceBuilder, Map<String, Object> position, int pageSize) {
         compositeAggregation.size(pageSize);
@@ -80,6 +76,10 @@ class LatestChangeCollector implements Function.ChangeCollector {
         return searchSourceBuilder.size(0).aggregation(compositeAggregation);
     }
 
+    /**
+     * Phase 1 (IDENTIFY_CHANGES): Collect the unique_key values from the composite agg response;
+     * these are the keys that need to be re-evaluated in phase 2.
+     */
     @Override
     public Map<String, Object> processSearchResponse(SearchResponse searchResponse) {
         clearCollectedKeys();
@@ -108,6 +108,12 @@ class LatestChangeCollector implements Function.ChangeCollector {
         return compositeAgg.afterKey();
     }
 
+    /**
+     * Phase 2 (APPLY_RESULTS): Build a filter so the main query searches only the collected
+     * unique keys. The indexer applies sync_field < nextCheckpoint separately, so the main
+     * query sees ALL historical data for those keys and top_hits correctly picks the document
+     * with the highest sort field value.
+     */
     @Override
     public QueryBuilder buildFilterQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint) {
         if (uniqueKey.size() == 1) {

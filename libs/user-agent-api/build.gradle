@@ -11,7 +11,9 @@ apply plugin: 'elasticsearch.publish'
 dependencies {
   api project(':libs:core')
 
-  testImplementation(project(":test:framework"))
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'user-agent-api'
+  }
 }
 
 tasks.named('forbiddenApisMain').configure {

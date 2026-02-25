@@ -144,8 +144,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
             assertMessageSuccess(message, "search", "fox");
-            assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("1"));
-            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(""));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("1"));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(""));
             assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
             assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), greaterThanOrEqualTo(0));
             assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
@@ -158,8 +158,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
             assertMessageSuccess(message, "search", "quick");
-            assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
-            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("3"));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
             assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
             assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), greaterThanOrEqualTo(0));
             assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
@@ -189,7 +189,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
         assertMessageSuccess(message, "search", "size");
-        assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
         assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThan(0));
         assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), equalTo(0));
         assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.failed")), greaterThan(0));

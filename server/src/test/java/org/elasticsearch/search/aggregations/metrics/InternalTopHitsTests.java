@@ -287,7 +287,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
     public void testReduceWithMixedSortFieldTypes() {
         AggregationBuilder builder = mock(AggregationBuilder.class);
-        AggregationReduceContext reduceContext = InternalAggregationTestCase.mockReduceContext(builder).forFinalReduction();
+        List<SearchHits> topHitsToRelease = new ArrayList<>();
+        AggregationReduceContext reduceContext = InternalAggregationTestCase.mockReduceContext(builder).forFinalReduction(topHitsToRelease);
 
         // Test FLOAT/LONG mixing - should convert to DOUBLE and merge successfully without ClassCastException
         // Before the fix, this would throw ClassCastException when merging TopDocs.
@@ -298,6 +299,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         assertNotNull("Reduced result should not be null", reduced);
         // Each shard has size=1, so merged result should have at least 1 hit (the top one)
         assertThat("Should have at least one merged result", reduced.getHits().getHits().length, greaterThanOrEqualTo(1));
+        releaseTopHits(topHitsToRelease);
 
         // Test INT/LONG mixing - should convert to LONG (not DOUBLE) and merge successfully
         InternalTopHits intShard = createTopHitsWithSortType("test", SortField.Type.INT, 1, 0);
@@ -308,6 +310,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         // Ensure INT/LONG mix was rewritten to LONG, not DOUBLE
         Object sortValue = reduced2.getHits().getHits()[0].getSortValues()[0];
         assertThat("Sort value after INT/LONG reduce should be Long, not Double", sortValue, instanceOf(Long.class));
+        releaseTopHits(topHitsToRelease);
 
         // Test incompatible types - should throw IllegalArgumentException with clear error message
         InternalTopHits stringShard = createTopHitsWithSortType("test", SortField.Type.STRING, new BytesRef("a"), 0);
@@ -317,6 +320,13 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             () -> InternalAggregationTestCase.reduce(List.of(stringShard, longShard3), reduceContext)
         );
         assertThat(e.getMessage(), containsString("incompatible sort types"));
+    }
+
+    private static void releaseTopHits(List<SearchHits> list) {
+        for (SearchHits h : list) {
+            h.decRef();
+        }
+        list.clear();
     }
 
     private InternalTopHits createTopHitsWithSortType(String name, SortField.Type type, Object sortValue, int shardIndex) {

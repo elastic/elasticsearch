@@ -13,14 +13,21 @@ import groovy.json.JsonOutput
 import spock.lang.Specification
 import spock.lang.TempDir
 
+import com.sun.net.httpserver.HttpHandler
+import com.sun.net.httpserver.HttpServer
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.BwcVersions
+import org.elasticsearch.gradle.internal.util.HttpUtils
 import org.gradle.api.Project
 import org.gradle.api.provider.Provider
 import org.gradle.api.provider.ProviderFactory
 import org.gradle.testfixtures.ProjectBuilder
 
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.nio.charset.StandardCharsets
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicInteger
 
 class GlobalBuildInfoPluginSpec extends Specification {
 

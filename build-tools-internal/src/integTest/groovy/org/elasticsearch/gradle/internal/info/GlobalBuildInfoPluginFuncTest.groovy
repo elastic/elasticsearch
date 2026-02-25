@@ -10,16 +10,14 @@
 package org.elasticsearch.gradle.internal.info
 
 import com.sun.net.httpserver.HttpServer
+
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
-import java.net.InetAddress
-import java.net.InetSocketAddress
-import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicInteger
 
-class GlobalBuildInfoPluginOfflineBranchesFallbackFuncTest extends AbstractGradleFuncTest {
+class GlobalBuildInfoPluginFuncTest extends AbstractGradleFuncTest {
     def "offline mode falls back to workspace root branches.json for http(s) branches location"() {
         given:
         // This test's build script uses task actions that aren't configuration-cache safe.
@@ -85,7 +83,8 @@ class GlobalBuildInfoPluginOfflineBranchesFallbackFuncTest extends AbstractGradl
         AtomicInteger requests = new AtomicInteger()
         byte[] body = branchesJsonBody().getBytes(StandardCharsets.UTF_8)
         HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
-        server.createContext("/branches.json", { exchange ->
+        server.createContext(
+            "/branches.json", { exchange ->
             int request = requests.getAndIncrement()
             if (request == 0) {
                 exchange.sendResponseHeaders(500, 0)
@@ -95,7 +94,8 @@ class GlobalBuildInfoPluginOfflineBranchesFallbackFuncTest extends AbstractGradl
                 exchange.responseBody.withCloseable { os -> os.write(body) }
             }
             exchange.close()
-        } as com.sun.net.httpserver.HttpHandler)
+        } as com.sun.net.httpserver.HttpHandler
+        )
         server.start()
 
         and:
@@ -124,12 +124,14 @@ class GlobalBuildInfoPluginOfflineBranchesFallbackFuncTest extends AbstractGradl
 
         AtomicInteger requests = new AtomicInteger()
         HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
-        server.createContext("/branches.json", { exchange ->
+        server.createContext(
+            "/branches.json", { exchange ->
             requests.incrementAndGet()
             exchange.sendResponseHeaders(500, 0)
             exchange.responseBody.close()
             exchange.close()
-        } as com.sun.net.httpserver.HttpHandler)
+        } as com.sun.net.httpserver.HttpHandler
+        )
         server.start()
 
         and:

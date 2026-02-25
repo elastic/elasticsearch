@@ -14,11 +14,18 @@ import java.net.URI;
 
 public final class HttpUtils {
 
+    private static final int HTTP_READ_MAX_ATTEMPTS = 3;
+    private static final long HTTP_READ_RETRY_BACKOFF_MILLIS = 1000L;
+
     private HttpUtils() {}
 
     @FunctionalInterface
     public interface Sleeper {
         void sleep(long millis) throws InterruptedException;
+    }
+
+    public static byte[] readHttpBytesWithRetry(String url) throws IOException {
+        return readHttpBytesWithRetry(url, HTTP_READ_MAX_ATTEMPTS, HTTP_READ_RETRY_BACKOFF_MILLIS, Thread::sleep);
     }
 
     public static byte[] readHttpBytesWithRetry(String url, int maxAttempts, long baseBackoffMillis, Sleeper sleeper) throws IOException {

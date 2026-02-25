@@ -41,6 +41,7 @@ import java.util.List;
  *   MULTILINE(4):        count(VInt), [numVertices(VInt), ordinals...(VInt)]...
  *   MULTIPOLYGON(5):     count(VInt), [POLYGON encoding]...
  *   GEOMETRYCOLLECTION(6): count(VInt), [recursive geometry]...
+ *   RECTANGLE(7):        minOrdinal(VInt), maxOrdinal(VInt)
  * </pre>
  *
  * <p>Polygon rings are stored WITHOUT the closing vertex (which always equals the first vertex)
@@ -55,6 +56,7 @@ public class GeometryConnectivityWriter {
     static final byte TYPE_MULTILINE = 4;
     static final byte TYPE_MULTIPOLYGON = 5;
     static final byte TYPE_GEOMETRYCOLLECTION = 6;
+    static final byte TYPE_RECTANGLE = 7;
 
     private GeometryConnectivityWriter() {}
 
@@ -187,14 +189,9 @@ public class GeometryConnectivityWriter {
 
         @Override
         public Void visit(Rectangle rectangle) throws IOException {
-            // Encode rectangle as a polygon with 4 vertices (5 including close, stored as 4)
-            out.writeByte(TYPE_POLYGON);
-            out.writeVInt(1); // one ring (outer)
-            out.writeVInt(4); // 4 vertices (without closing)
+            out.writeByte(TYPE_RECTANGLE);
             out.writeVInt(resolveOrdinal(rectangle.getMinX(), rectangle.getMinY()));
-            out.writeVInt(resolveOrdinal(rectangle.getMaxX(), rectangle.getMinY()));
             out.writeVInt(resolveOrdinal(rectangle.getMaxX(), rectangle.getMaxY()));
-            out.writeVInt(resolveOrdinal(rectangle.getMinX(), rectangle.getMaxY()));
             return null;
         }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_M
 import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_MULTIPOLYGON;
 import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_POINT;
 import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_POLYGON;
+import static org.elasticsearch.lucene.spatial.GeometryConnectivityWriter.TYPE_RECTANGLE;
 
 /**
  * Reads the vertex connectivity/ordering written by {@link GeometryConnectivityWriter}
@@ -83,6 +85,7 @@ public class GeometryConnectivityReader {
             case TYPE_MULTILINE -> readMultiLine(input, vertexTable, encoder);
             case TYPE_MULTIPOLYGON -> readMultiPolygon(input, vertexTable, encoder);
             case TYPE_GEOMETRYCOLLECTION -> readGeometryCollection(input, vertexTable, encoder);
+            case TYPE_RECTANGLE -> readRectangle(input, vertexTable, encoder);
             default -> throw new IllegalArgumentException("Unknown geometry connectivity type: " + type);
         };
     }
@@ -134,6 +137,17 @@ public class GeometryConnectivityReader {
         x[numVertices] = x[0];
         y[numVertices] = y[0];
         return new LinearRing(x, y);
+    }
+
+    private static Rectangle readRectangle(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
+        throws IOException {
+        int minOrdinal = input.readVInt();
+        int maxOrdinal = input.readVInt();
+        double minX = encoder.decodeX(vertexTable.getX(minOrdinal));
+        double minY = encoder.decodeY(vertexTable.getY(minOrdinal));
+        double maxX = encoder.decodeX(vertexTable.getX(maxOrdinal));
+        double maxY = encoder.decodeY(vertexTable.getY(maxOrdinal));
+        return new Rectangle(minX, maxX, maxY, minY);
     }
 
     private static MultiPoint readMultiPoint(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)

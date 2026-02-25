@@ -84,12 +84,21 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
     private static Matcher<ResponseException> statusCodeMatcher(int statusCode) {
         return new TypeSafeMatcher<>() {
             String expectedException = null;
+            String mismatchDetail = null;
 
             @Override
             protected boolean matchesSafely(ResponseException item) {
                 Response resp = item.getResponse();
                 expectedException = resp.getHeader("expectedException");
-                return resp.getStatusLine().getStatusCode() == statusCode && expectedException != null;
+                if (resp.getStatusLine().getStatusCode() != statusCode || expectedException == null) {
+                    return false;
+                }
+                String notEntitledCause = resp.getHeader("notEntitledCause");
+                if ("false".equals(notEntitledCause)) {
+                    mismatchDetail = "expected NotEntitledException in cause chain but it was absent";
+                    return false;
+                }
+                return true;
             }
 
             @Override
@@ -103,6 +112,9 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
                     .appendValue(item.getResponse().getStatusLine().getStatusCode())
                     .appendText("\n")
                     .appendValue(item.getMessage());
+                if (mismatchDetail != null) {
+                    description.appendText("\n").appendText(mismatchDetail);
+                }
             }
         };
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.FileSet;
 
 import java.util.Collections;
@@ -49,7 +50,8 @@ public record SourceOperatorContext(
     Object pushedFilter,
     FileSet fileSet,
     @Nullable ExternalSplit split,
-    Set<String> partitionColumnNames
+    Set<String> partitionColumnNames,
+    @Nullable ExternalSliceQueue sliceQueue
 ) {
     public SourceOperatorContext {
         if (path == null) {
@@ -88,21 +90,8 @@ public record SourceOperatorContext(
         FileSet fileSet,
         @Nullable ExternalSplit split
     ) {
-        this(
-            sourceType,
-            path,
-            projectedColumns,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            executor,
-            config,
-            sourceMetadata,
-            pushedFilter,
-            fileSet,
-            split,
-            null
-        );
+        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, sourceMetadata, pushedFilter,
+            fileSet, split, null, null);
     }
 
     public SourceOperatorContext(
@@ -118,21 +107,8 @@ public record SourceOperatorContext(
         Object pushedFilter,
         FileSet fileSet
     ) {
-        this(
-            sourceType,
-            path,
-            projectedColumns,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            executor,
-            config,
-            sourceMetadata,
-            pushedFilter,
-            fileSet,
-            null,
-            null
-        );
+        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, sourceMetadata, pushedFilter,
+            fileSet, null, null, null);
     }
 
     public SourceOperatorContext(
@@ -147,20 +123,8 @@ public record SourceOperatorContext(
         Map<String, Object> sourceMetadata,
         Object pushedFilter
     ) {
-        this(
-            sourceType,
-            path,
-            projectedColumns,
-            attributes,
-            batchSize,
-            maxBufferSize,
-            executor,
-            config,
-            sourceMetadata,
-            pushedFilter,
-            null,
-            null
-        );
+        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, sourceMetadata, pushedFilter,
+            null, null, null, null);
     }
 
     public SourceOperatorContext(
@@ -173,7 +137,8 @@ public record SourceOperatorContext(
         Executor executor,
         Map<String, Object> config
     ) {
-        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, Map.of(), null, null, null, null);
+        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, Map.of(), null, null, null,
+            null, null);
     }
 
     public static Builder builder() {
@@ -194,6 +159,7 @@ public record SourceOperatorContext(
         private FileSet fileSet;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
+        private ExternalSliceQueue sliceQueue;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -260,6 +226,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder sliceQueue(ExternalSliceQueue sliceQueue) {
+            this.sliceQueue = sliceQueue;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -274,7 +245,8 @@ public record SourceOperatorContext(
                 pushedFilter,
                 fileSet,
                 split,
-                partitionColumnNames
+                partitionColumnNames,
+                sliceQueue
             );
         }
     }

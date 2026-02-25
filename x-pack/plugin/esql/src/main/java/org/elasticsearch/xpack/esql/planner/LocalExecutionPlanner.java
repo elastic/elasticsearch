@@ -98,6 +98,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -1069,11 +1070,19 @@ public class LocalExecutionPlanner {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
         }
 
-        // Single path through OperatorFactoryRegistry — handles connectors, plugins, and storage+format
         StoragePath path = StoragePath.of(externalSource.sourcePath());
         List<String> projectedColumns = new ArrayList<>();
         for (Attribute attr : externalSource.output()) {
             projectedColumns.add(attr.name());
+        }
+
+        int splitCount = externalSource.splits().size();
+        ExternalSliceQueue sliceQueue = null;
+        int instanceCount = 1;
+
+        if (splitCount > 1) {
+            sliceQueue = new ExternalSliceQueue(externalSource.splits());
+            instanceCount = Math.min(splitCount, context.queryPragmas().taskConcurrency());
         }
 
         SourceOperatorContext operatorContext = SourceOperatorContext.builder()
@@ -1088,10 +1097,11 @@ public class LocalExecutionPlanner {
             .sourceMetadata(externalSource.sourceMetadata())
             .pushedFilter(externalSource.pushedFilter())
             .fileSet(externalSource.fileSet())
+            .sliceQueue(sliceQueue)
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 

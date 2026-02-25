@@ -681,8 +681,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         long latencyThresholdMillis
     ) {
         final var nodeRoles = clusterState.getNodes().get(nodeId).getRoles();
-        return nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE) == false
-            && nodeRoles.contains(DiscoveryNodeRole.ML_ROLE) == false
+        return nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE)
             && nodeUsageStats.threadPoolUsageStatsMap()
                 .get(ThreadPool.Names.WRITE)
                 .maxThreadPoolQueueLatencyMillis() < latencyThresholdMillis;
@@ -840,7 +839,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final float maxRatioForUnderUtilised = (highUtilizationThresholdPercent - 1) / 100.0f;
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(state.nodes().stream().collect(Collectors.toMap(DiscoveryNode::getId, node -> {
-                if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE) || node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
+                if (node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
                     // Search & ML nodes are skipped for write load hot-spots.
                     return new NodeUsageStatsForThreadPools(node.getId(), ZERO_USAGE_THREAD_POOL_USAGE_MAP);
                 }
@@ -1044,8 +1043,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     private void recordHotspotStatusFlags(Map<String, List<Long>> hotspotFlagCounts, Set<String> hotspotFlags, ClusterState state) {
         for (var node : state.nodes()) {
             final var nodeRoles = node.getRoles();
-            if (nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE) || nodeRoles.contains(DiscoveryNodeRole.ML_ROLE)) {
-                // TODO (ES-13314): consider stateful data tiers
+            if (nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
                 continue;
             }
             var nodeId = node.getId();

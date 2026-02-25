@@ -128,9 +128,7 @@ public class WriteLoadConstraintMonitor {
         var totalIngestNodes = 0;
         for (var node : state.nodes()) {
             final var nodeRoles = node.getRoles();
-            if (nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE) || nodeRoles.contains(DiscoveryNodeRole.ML_ROLE)) {
-                // Search & ML nodes are not expected to have write load hot-spots and are not considered for shard relocation.
-                // TODO (ES-13314): consider stateful data tiers
+            if (nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
                 continue;
             }
             final var nodeId = node.getId();
@@ -264,8 +262,7 @@ public class WriteLoadConstraintMonitor {
 
         for (var node : state.nodes()) {
             final var nodeRoles = node.getRoles();
-            if (nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE) || nodeRoles.contains(DiscoveryNodeRole.ML_ROLE)) {
-                // TODO (ES-13314): consider stateful data tiers
+            if (nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
                 continue;
             }
             NodeIdName nodeIdName = NodeIdName.nodeIdName(node);

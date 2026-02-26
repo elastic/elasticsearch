@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.approximation;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
@@ -134,7 +133,7 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 0.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = Approximation.approximationPlan(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
         Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -156,7 +155,7 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 1_000.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = Approximation.approximationPlan(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
         Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -178,7 +177,7 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^9.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = Approximation.approximationPlan(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
         Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -201,7 +200,7 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^12, and a filtered count of 10^9.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = Approximation.approximationPlan(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
         Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -240,7 +239,7 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^18, and a filtered count of 100.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = Approximation.approximationPlan(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
         Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -293,7 +292,7 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 1_000, and a filtered count of 10.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE gender == \"X\" | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = Approximation.approximationPlan(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
         Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -317,7 +316,7 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 1_000, and a mv_expanded count of 10_000.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = Approximation.approximationPlan(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
         Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -350,7 +349,7 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 1_000, and a mv_expanded count of 10^9
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = Approximation.approximationPlan(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
         Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -383,7 +382,7 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^9, and a mv_expanded count of 10^12
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = Approximation.approximationPlan(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
         Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -417,7 +416,7 @@ public class ApproximationTests extends ApproximationTestCase {
         // which is above the threshold, so no sampling should be applied.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = Approximation.approximationPlan(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
         Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -441,7 +440,7 @@ public class ApproximationTests extends ApproximationTestCase {
         // so no sampling should be applied.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE emp_no > 1 | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = Approximation.approximationPlan(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
         Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -477,54 +476,5 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(mainPlan, hasPlan(Filter.class));
         assertThat(mainPlan, not(hasPlan(SampledAggregate.class)));
         assertThat(mainPlan, hasPlan(Aggregate.class, withAggs(Sum.class)));
-    }
-
-    public void testApproximationPlan_createsConfidenceInterval_withoutGrouping() throws Exception {
-        LogicalPlan approximationPlan = Approximation.approximationPlan(
-            ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no)"),
-            ApproximationSettings.DEFAULT
-        );
-
-        assertThat(approximationPlan, hasPlan(SampledAggregate.class));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField("CONFIDENCE_INTERVAL(COUNT())")));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(COUNT())"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(SUM(emp_no))"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(SUM(emp_no))"))));
-    }
-
-    public void testApproximationPlan_createsConfidenceInterval_withGrouping() throws Exception {
-        LogicalPlan approximationPlan = Approximation.approximationPlan(
-            ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no) BY emp_no"),
-            ApproximationSettings.DEFAULT
-        );
-
-        assertThat(approximationPlan, hasPlan(SampledAggregate.class));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(COUNT())"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(COUNT())"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(SUM(emp_no))"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(SUM(emp_no))"))));
-    }
-
-    public void testApproximationPlan_dependentConfidenceIntervals() throws Exception {
-        LogicalPlan approximationPlan = Approximation.approximationPlan(
-            ApproximationTests.getLogicalPlan(
-                "FROM test | STATS x=SUM(emp_no) | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)"
-            ),
-            ApproximationSettings.DEFAULT
-        );
-
-        assertThat(approximationPlan, hasPlan(SampledAggregate.class));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(x)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(x)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(a)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(a)"))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(b)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CERTIFIED(b)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(c)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CERTIFIED(c)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(d)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CERTIFIED(d)")))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(e)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(e)"))));
     }
 }

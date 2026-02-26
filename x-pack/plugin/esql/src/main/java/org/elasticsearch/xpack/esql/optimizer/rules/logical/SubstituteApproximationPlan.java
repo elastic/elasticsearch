@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -26,7 +27,7 @@ public final class SubstituteApproximationPlan extends ParameterizedRule<Logical
             Approximation.verifyPlan(logicalPlan);
             // Returns an approximation plan with a placeholders for the sample probability.
             // This placeholder will be replaced after executing the corresponding subplans.
-            return Approximation.approximationPlan(logicalPlan, context.configuration().approximationSettings());
+            return ApproximationPlan.get(logicalPlan, context.configuration().approximationSettings());
         }
     }
 }

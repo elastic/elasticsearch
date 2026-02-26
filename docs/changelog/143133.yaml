@@ -1,5 +1,6 @@
 area: ES|QL
-issues: []
+issues:
+  - 141770
 pr: 143133
-summary: ES|QL - `LuceneTopNSourceOperator` data partition strategy using task concurrency
+summary: ES|QL - Top N queries are parallelized
 type: enhancement

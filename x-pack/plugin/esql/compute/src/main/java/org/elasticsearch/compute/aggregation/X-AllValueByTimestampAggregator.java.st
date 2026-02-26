@@ -50,12 +50,12 @@ import java.util.BitSet;
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
         @IntermediateState(name = "values", type = "$v1_TYPE$_BLOCK") }
 )
-public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
+public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
     public static String describe() {
         $if(v1_BytesRef)$
-        return "all_$occurrence$_bytesref_by_timestamp";
+        return "all_$occurrence$_bytesref_by_$v2_type$";
         $else$
-        return "all_$occurrence$_$v1_type$_by_timestamp";
+        return "all_$occurrence$_$v1_type$_by_$v2_type$";
         $endif$
     }
 

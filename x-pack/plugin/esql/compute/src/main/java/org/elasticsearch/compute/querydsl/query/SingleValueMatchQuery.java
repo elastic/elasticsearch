@@ -156,6 +156,7 @@ public final class SingleValueMatchQuery extends Query {
                             // NOCOMMIT - to discuss - I think it's correct to advance the skipper here, but I'd like confirmation
                             skipper.advance(doc);
                         }
+                        // NOCOMMIT TODO: DO we need to check for empty docs here?
                         if (skipper.valueCount(0) == skipper.docCount(0)) {
                             return true;
                         }
@@ -170,7 +171,14 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(
+                    boost,
+                    scoreMode,
+                    maxDoc,
+                    MULTI_VALUE_MATCH_COST,
+                    predicate,
+                    dvs instanceof EsDocValueSkipper esds ? esds : null
+                );
             }
 
             private ScorerSupplier scorerSupplier(
@@ -195,7 +203,7 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate, null);
             }
 
             private ScorerSupplier scorerSupplier(
@@ -212,7 +220,8 @@ public final class SingleValueMatchQuery extends Query {
                         scoreMode,
                         maxDoc,
                         MULTI_VALUE_MATCH_COST,
-                        sortedBinaryDocValues::advanceExact
+                        sortedBinaryDocValues::advanceExact,
+                        null
                     );
                 }
                 final CheckedIntPredicate predicate = doc -> {
@@ -225,7 +234,7 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate, null);
             }
         };
     }
@@ -347,13 +356,22 @@ public final class SingleValueMatchQuery extends Query {
         private final ScoreMode scoreMode;
         private final int maxDoc;
         private final int matchCost;
+        private final EsDocValueSkipper skipper;
         private final CheckedIntPredicate predicate;
 
-        private PredicateScorerSupplier(float score, ScoreMode scoreMode, int maxDoc, int matchCost, CheckedIntPredicate predicate) {
+        private PredicateScorerSupplier(
+            float score,
+            ScoreMode scoreMode,
+            int maxDoc,
+            int matchCost,
+            CheckedIntPredicate predicate,
+            EsDocValueSkipper skipper
+        ) {
             this.score = score;
             this.scoreMode = scoreMode;
             this.maxDoc = maxDoc;
             this.matchCost = matchCost;
+            this.skipper = skipper;
             this.predicate = predicate;
         }
 
@@ -368,6 +386,31 @@ public final class SingleValueMatchQuery extends Query {
                 @Override
                 public float matchCost() {
                     return matchCost;
+                }
+
+                @Override
+                public int docIDRunEnd() throws IOException {
+                    if (skipper == null) {
+                        return super.docIDRunEnd();
+                    }
+                    // NOCOMMIT - it seems wrong to advance the skipper here, but I don't see where else to do it
+                    if (approximation.docID() > skipper.maxDocID(0)) {
+                        skipper.advance(approximation.docID());
+                    }
+
+                    // Skipper is correctly positioned, we can try to use it
+                    if (skipper.valueCount(0) != skipper.docCount(0)) {
+                        // this block has multi-values, we need to look at each doc
+                        return super.docIDRunEnd();
+                    }
+                    // current block is all single valued, check how many levels up we can go
+                    int maxDocID = skipper.maxDocID(0);
+                    int nextLevel = 1;
+                    while (nextLevel < skipper.numLevels() && skipper.valueCount(nextLevel) == skipper.docCount(nextLevel)) {
+                        maxDocID = skipper.maxDocID(nextLevel);
+                        nextLevel++;
+                    }
+                    return maxDocID + 1;
                 }
             };
             return new ConstantScoreScorer(score, scoreMode, iterator);

@@ -35,11 +35,6 @@ public class RepositoryStatsWireSerializationTests extends AbstractWireSerializi
 
     @Override
     protected RepositoriesStats mutateInstance(RepositoriesStats instance) throws IOException {
-        Map<String, RepositoriesStats.SnapshotStats> original = instance.getRepositorySnapshotStats();
-        Map<String, RepositoriesStats.SnapshotStats> mutated;
-        do {
-            mutated = generateRepositorySnapshotStatsMap();
-        } while (mutated.equals(original));
-        return new RepositoriesStats(mutated);
+        return new RepositoriesStats(randomValueOtherThan(instance.getRepositorySnapshotStats(), this::generateRepositorySnapshotStatsMap));
     }
 }

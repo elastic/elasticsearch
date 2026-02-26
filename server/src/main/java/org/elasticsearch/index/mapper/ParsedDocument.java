@@ -111,10 +111,10 @@ public class ParsedDocument {
 
             if (useDocValuesSkipper) {
                 document.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
-                document.add(SortedNumericDocValuesField.indexedField("@timestamp", timestamp));
+                document.add(SortedNumericDocValuesField.indexedField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
             } else {
                 document.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
-                document.add(new LongField("@timestamp", timestamp, Field.Store.NO));
+                document.add(new LongField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp, Field.Store.NO));
             }
             var field = new SortedDocValuesField(
                 TimeSeriesRoutingHashFieldMapper.NAME,

@@ -78,7 +78,7 @@ class TSDBSyntheticIdDocValuesHolder {
             cachedTsId = null;
         }
         boolean found = tsIdDocValues.advanceExact(docID);
-        assert found : "No value found for field [" + tsIdFieldInfo.getName() + " and docID " + docID;
+        assert found : "No value found for field [" + tsIdFieldInfo.getName() + "] and docID " + docID;
         return tsIdDocValues.ordValue();
     }
 
@@ -94,7 +94,7 @@ class TSDBSyntheticIdDocValuesHolder {
             timestampDocValues = docValuesProducer.getSortedNumeric(timestampFieldInfo);
         }
         boolean found = timestampDocValues.advanceExact(docID);
-        assert found : "No value found for field [" + timestampFieldInfo.getName() + " and docID " + docID;
+        assert found : "No value found for field [" + timestampFieldInfo.getName() + "] and docID " + docID;
         assert timestampDocValues.docValueCount() == 1;
         return timestampDocValues.nextValue();
     }
@@ -111,7 +111,7 @@ class TSDBSyntheticIdDocValuesHolder {
             routingHashDocValues = docValuesProducer.getSorted(routingHashFieldInfo);
         }
         boolean found = routingHashDocValues.advanceExact(docID);
-        assert found : "No value found for field [" + routingHashFieldInfo.getName() + " and docID " + docID;
+        assert found : "No value found for field [" + routingHashFieldInfo.getName() + "] and docID " + docID;
         return routingHashDocValues.lookupOrd(routingHashDocValues.ordValue());
     }
 
@@ -209,7 +209,7 @@ class TSDBSyntheticIdDocValuesHolder {
 
         for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
             boolean found = tsIdDocValues.advanceExact(docID);
-            assert found : "No value found for field [" + tsIdFieldInfo.getName() + " and docID " + docID;
+            assert found : "No value found for field [" + tsIdFieldInfo.getName() + "] and docID " + docID;
             var ord = tsIdDocValues.ordValue();
             if (ord == tsIdOrd || tsIdOrd < ord) {
                 if (ord != cachedTsIdOrd) {
@@ -247,7 +247,7 @@ class TSDBSyntheticIdDocValuesHolder {
 
         for (int docID = startDocId; docID != DocIdSetIterator.NO_MORE_DOCS; docID = tsIdDocValues.nextDoc()) {
             boolean found = tsIdDocValues.advanceExact(docID);
-            assert found : "No value found for field [" + tsIdFieldInfo.getName() + " and docID " + docID;
+            assert found : "No value found for field [" + tsIdFieldInfo.getName() + "] and docID " + docID;
             var ord = tsIdDocValues.ordValue();
             if (ord == tsIdOrd) {
                 if (ord != cachedTsIdOrd) {

@@ -75,7 +75,15 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
      * the {@code _id} so it can be fetched easily from the index.
      */
     public static Field standardIdField(String id) {
-        return new StringField(NAME, Uid.encodeId(id), Field.Store.YES);
+        return standardIdField(Uid.encodeId(id), Field.Store.YES);
+    }
+
+    /**
+     * Create a {@link Field} to store the provided {@code _id} that "stores"
+     * the {@code _id} so it can be fetched easily from the index.
+     */
+    public static Field standardIdField(BytesRef uid, Field.Store stored) {
+        return new StringField(NAME, uid, stored);
     }
 
     /**

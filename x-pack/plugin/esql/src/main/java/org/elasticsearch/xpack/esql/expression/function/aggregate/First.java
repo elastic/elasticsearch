@@ -36,7 +36,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class First extends AggregateFunction implements ToAggregator {
@@ -147,16 +146,15 @@ public class First extends AggregateFunction implements ToAggregator {
             "ip",
             "string",
             "numeric except unsigned_long or counter types"
-        ).and(isNotNull(sort(), sourceText(), SECOND))
-            .and(
-                isType(
-                    sort,
-                    dt -> dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
-                    sourceText(),
-                    SECOND,
-                    "long or date_nanos or datetime"
-                )
-            );
+        ).and(
+            isType(
+                sort,
+                dt -> dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
+                sourceText(),
+                SECOND,
+                "long or date_nanos or datetime"
+            )
+        );
     }
 
     @Override

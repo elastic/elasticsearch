@@ -228,7 +228,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-
     private IndexVersion getIndexVersionCreated(final DocumentParserContext context) {
         return context.indexSettings().getIndexVersionCreated();
     }

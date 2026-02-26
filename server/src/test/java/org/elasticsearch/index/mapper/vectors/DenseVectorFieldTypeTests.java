@@ -74,12 +74,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public static DenseVectorFieldMapper.DenseVectorIndexOptions randomFlatIndexOptions() {
         return randomFrom(
             new DenseVectorFieldMapper.FlatIndexOptions(),
-            new DenseVectorFieldMapper.Int8FlatIndexOptions(
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
-            ),
-            new DenseVectorFieldMapper.Int4FlatIndexOptions(
-                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
-            )
+            new DenseVectorFieldMapper.Int8FlatIndexOptions(randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())),
+            new DenseVectorFieldMapper.Int4FlatIndexOptions(randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()))
         );
     }
 

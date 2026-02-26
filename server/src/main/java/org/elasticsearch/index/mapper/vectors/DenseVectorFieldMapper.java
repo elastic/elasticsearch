@@ -2013,13 +2013,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean onDiskRescore;
         private final int flatIndexThreshold;
 
-        public Int4HnswIndexOptions(
-            int m,
-            int efConstruction,
-            boolean onDiskRescore,
-            RescoreVector rescoreVector,
-            int flatIndexThreshold
-        ) {
+        public Int4HnswIndexOptions(int m, int efConstruction, boolean onDiskRescore, RescoreVector rescoreVector, int flatIndexThreshold) {
             super(VectorIndexType.INT4_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
@@ -2179,13 +2173,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final boolean onDiskRescore;
         private final int flatIndexThreshold;
 
-        public Int8HnswIndexOptions(
-            int m,
-            int efConstruction,
-            boolean onDiskRescore,
-            RescoreVector rescoreVector,
-            int flatIndexThreshold
-        ) {
+        public Int8HnswIndexOptions(int m, int efConstruction, boolean onDiskRescore, RescoreVector rescoreVector, int flatIndexThreshold) {
             super(VectorIndexType.INT8_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;

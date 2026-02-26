@@ -123,10 +123,20 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
     @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
-        double value = lhs / rhs;
-        if (Double.isNaN(value) || Double.isInfinite(value)) {
+        if (rhs == 0d) {
             throw new ArithmeticException("/ by zero");
         }
+
+        double value = lhs / rhs;
+
+        if (Double.isInfinite(value)) {
+            throw new ArithmeticException("double overflow");
+        }
+
+        if (Double.isNaN(value)) {
+            throw new ArithmeticException("invalid floating point operation");
+        }
+
         return value;
     }
 }

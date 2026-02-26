@@ -102,6 +102,11 @@ public class WriteLoadConstraintMonitor {
         );
     }
 
+    public static boolean nodeIsHotspotEligible(DiscoveryNode node) {
+        final var nodeRoles = node.getRoles();
+        return nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE) || nodeRoles.contains(DiscoveryNodeRole.DATA_ROLE);
+    }
+
     /**
      * Receives a copy of the latest {@link ClusterInfo} whenever the {@link ClusterInfoService} collects it. Processes the new
      * {@link org.elasticsearch.cluster.NodeUsageStatsForThreadPools} and initiates rebalancing, via reroute, if a node in the cluster
@@ -127,8 +132,7 @@ public class WriteLoadConstraintMonitor {
         var haveWriteNodesBelowQueueLatencyThreshold = false;
         var totalIngestNodes = 0;
         for (var node : state.nodes()) {
-            final var nodeRoles = node.getRoles();
-            if (nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
+            if (nodeIsHotspotEligible(node) == false) {
                 continue;
             }
             final var nodeId = node.getId();

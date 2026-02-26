@@ -680,8 +680,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         NodeUsageStatsForThreadPools nodeUsageStats,
         long latencyThresholdMillis
     ) {
-        final var nodeRoles = clusterState.getNodes().get(nodeId).getRoles();
-        return nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE)
+        final DiscoveryNode node = clusterState.getNodes().get(nodeId);
+        return WriteLoadConstraintMonitor.nodeIsHotspotEligible(node)
             && nodeUsageStats.threadPoolUsageStatsMap()
                 .get(ThreadPool.Names.WRITE)
                 .maxThreadPoolQueueLatencyMillis() < latencyThresholdMillis;
@@ -769,7 +769,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     private static Set<String> indexNodeIds(ClusterState clusterState) {
         return clusterState.nodes()
             .stream()
-            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE))
+            .filter(node -> WriteLoadConstraintMonitor.nodeIsHotspotEligible(node))
             .map(node -> node.getId())
             .collect(Collectors.toSet());
     }
@@ -839,7 +839,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         final float maxRatioForUnderUtilised = (highUtilizationThresholdPercent - 1) / 100.0f;
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(state.nodes().stream().collect(Collectors.toMap(DiscoveryNode::getId, node -> {
-                if (node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
+                if (WriteLoadConstraintMonitor.nodeIsHotspotEligible(node) == false) {
                     // Search & ML nodes are skipped for write load hot-spots.
                     return new NodeUsageStatsForThreadPools(node.getId(), ZERO_USAGE_THREAD_POOL_USAGE_MAP);
                 }
@@ -1042,8 +1042,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
     private void recordHotspotStatusFlags(Map<String, List<Long>> hotspotFlagCounts, Set<String> hotspotFlags, ClusterState state) {
         for (var node : state.nodes()) {
-            final var nodeRoles = node.getRoles();
-            if (nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE) == false) {
+            if (WriteLoadConstraintMonitor.nodeIsHotspotEligible(node) == false) {
                 continue;
             }
             var nodeId = node.getId();

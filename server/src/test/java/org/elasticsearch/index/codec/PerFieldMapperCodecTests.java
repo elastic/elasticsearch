@@ -327,7 +327,15 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         String mapping,
         Boolean syntheticId
     ) throws IOException {
-        return createFormatSupplier(useTimeSeriesDocValuesFormatSetting, enableES87TSDBCodec, useEs812PostingsFormat, null, mode, mapping);
+        return createFormatSupplier(
+            useTimeSeriesDocValuesFormatSetting,
+            enableES87TSDBCodec,
+            useEs812PostingsFormat,
+            null,
+            mode,
+            mapping,
+            syntheticId
+        );
     }
 
     private PerFieldFormatSupplier createFormatSupplier(
@@ -336,7 +344,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         Boolean useEs812PostingsFormat,
         Boolean adaptiveEncodingProfiler,
         IndexMode mode,
-        String mapping
+        String mapping,
+        Boolean syntheticId
     ) throws IOException {
         Settings.Builder settings = Settings.builder();
         settings.put(IndexSettings.MODE.getKey(), mode);
@@ -364,13 +373,13 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testAdaptiveEncodingProfilerEnabled() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(null, true, false, true, IndexMode.TIME_SERIES, MAPPING_1);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(null, true, false, true, IndexMode.TIME_SERIES, MAPPING_1, null);
         assertThat(perFieldMapperCodec.useTSDBDocValuesFormat("gauge"), is(true));
         assertNotNull(perFieldMapperCodec.getDocValuesFormatForField("gauge"));
     }
 
     public void testAdaptiveEncodingProfilerDisabled() throws IOException {
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(null, true, false, false, IndexMode.TIME_SERIES, MAPPING_1);
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(null, true, false, false, IndexMode.TIME_SERIES, MAPPING_1, null);
         assertThat(perFieldMapperCodec.useTSDBDocValuesFormat("gauge"), is(true));
         assertNotNull(perFieldMapperCodec.getDocValuesFormatForField("gauge"));
     }

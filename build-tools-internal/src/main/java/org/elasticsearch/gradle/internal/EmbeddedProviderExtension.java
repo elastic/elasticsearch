@@ -38,10 +38,6 @@ public class EmbeddedProviderExtension {
         String capitalName = capitalize(projectName);
 
         Configuration implConfig = project.getConfigurations().detachedConfiguration(project.getDependencies().create(implProject));
-        implConfig.attributes(attrs -> {
-            attrs.attribute(ARTIFACT_TYPE_ATTRIBUTE, DIRECTORY_TYPE);
-            attrs.attribute(EmbeddedProviderPlugin.IMPL_ATTR, true);
-        });
 
         String manifestTaskName = "generate" + capitalName + "ProviderManifest";
         Provider<Directory> generatedResourcesRoot = project.getLayout().getBuildDirectory().dir("generated-resources");
@@ -51,11 +47,17 @@ public class EmbeddedProviderExtension {
             t.getProviderImplClasspath().from(implConfig);
         });
         String implTaskName = "generate" + capitalName + "ProviderImpl";
+
+        Configuration extractedImplConfig = implConfig.copy();
+        extractedImplConfig.attributes(attrs -> {
+            attrs.attribute(ARTIFACT_TYPE_ATTRIBUTE, DIRECTORY_TYPE);
+            attrs.attribute(EmbeddedProviderPlugin.IMPL_ATTR, true);
+        });
         var generateProviderImpl = project.getTasks().register(implTaskName, Sync.class);
         generateProviderImpl.configure(t -> {
             t.into(generatedResourcesRoot.map(d -> d.dir(implTaskName)));
             t.into("IMPL-JARS/" + implName, spec -> {
-                spec.from(implConfig);
+                spec.from(extractedImplConfig);
                 spec.from(generateProviderManifest);
             });
         });

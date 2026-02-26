@@ -103,8 +103,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
-    private static final RoutingChangesObserver NOOP = new RoutingChangesObserver() {
-    };
+    private static final RoutingChangesObserver NOOP = new RoutingChangesObserver() {};
     private static final Settings WITH_DISK_BALANCING = Settings.builder().put(DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9").build();
 
     public void testExplainShardAllocation() {

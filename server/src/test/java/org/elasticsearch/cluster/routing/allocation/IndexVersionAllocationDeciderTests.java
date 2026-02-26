@@ -652,8 +652,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
             )
         );
 
-        final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver() {
-        };
+        final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver() {};
         final RoutingNodes routingNodes = clusterState.mutableRoutingNodes();
         final ShardRouting startedPrimary = routingNodes.startShard(
             routingNodes.initializeShard(primaryShard, "newNode", null, 0, routingChangesObserver),

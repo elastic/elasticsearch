@@ -21,6 +21,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -34,7 +35,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
@@ -145,6 +145,7 @@ class Elasticsearch {
 
             // DO NOT MOVE THIS
             // Logging must remain the last step of phase 1. Anything init steps needing logging should be in phase 2.
+            LogConfigurator.setClusterName(ClusterName.CLUSTER_NAME_SETTING.get(args.nodeSettings()).value());
             LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(args.nodeSettings()));
             LogConfigurator.configure(nodeEnv, args.quiet() == false);
         } catch (Throwable t) {
@@ -353,10 +354,11 @@ class Elasticsearch {
             try {
                 // The command doesn't matter; it doesn't even need to exist
                 startProcess.accept(new ProcessBuilder(""));
-            } catch (NotEntitledException e) {
-                return;
             } catch (Exception e) {
-                throw new IllegalStateException("Failed entitlement protection self-test", e);
+                if (e.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException") == false) {
+                    throw new IllegalStateException("Failed entitlement protection self-test", e);
+                }
+                return;
             }
             throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
         }

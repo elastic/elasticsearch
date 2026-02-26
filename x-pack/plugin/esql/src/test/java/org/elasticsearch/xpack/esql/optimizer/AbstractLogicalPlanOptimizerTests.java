@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +66,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static Map<String, EsField> metricMapping;
     protected static Analyzer metricsAnalyzer;
     protected static Analyzer multiIndexAnalyzer;
+    protected static Analyzer unionIndexAnalyzer;
     protected static Analyzer sampleDataIndexAnalyzer;
     protected static Analyzer subqueryAnalyzer;
     protected static Map<String, EsField> mappingBaseConversion;
@@ -217,6 +220,48 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             TEST_VERIFIER
         );
 
+        // Create a union index with conflicting types (keyword vs integer) for field 'id'
+        var typesToIndices_languages = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_languages.put("byte", Set.of("union_types_index"));
+        typesToIndices_languages.put("integer", Set.of("union_types_index_incompatible"));
+        EsField languages = new InvalidMappedField("languages", typesToIndices_languages);
+
+        var typesToIndices_lastName = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_lastName.put("text", Set.of("union_types_index"));
+        typesToIndices_lastName.put("keyword", Set.of("union_types_index_incompatible"));
+        EsField lastName = new InvalidMappedField("last_name", typesToIndices_lastName);
+
+        var typesToIndices_salaryChange = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_salaryChange.put("float", Set.of("union_types_index"));
+        typesToIndices_salaryChange.put("double", Set.of("union_types_index_incompatible"));
+        EsField salaryChange = new InvalidMappedField("salary_change", typesToIndices_salaryChange);
+
+        var typesToIndices_firstName = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_firstName.put("text", Set.of("union_types_index"));
+        typesToIndices_firstName.put("keyword", Set.of("union_types_index_incompatible"));
+        EsField firstName = new InvalidMappedField("first_name", typesToIndices_firstName);
+
+        EsField idField = new EsField("id", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var unionIndex = new EsIndex(
+            "union_types_index*",
+            Map.of("languages", languages, "last_name", lastName, "salary_change", salaryChange, "first_name", firstName, "id", idField),
+            Map.of("union_types_index", IndexMode.STANDARD, "union_types_index_incompatible", IndexMode.STANDARD),
+            Map.of("", List.of("union_types_index*")),
+            Map.of("", List.of("union_types_index_incompatible", "union_types_index")),
+            Set.of()
+        );
+        unionIndexAnalyzer = new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(unionIndex),
+                defaultLookupResolution(),
+                enrichResolution,
+                emptyInferenceResolution()
+            ),
+            TEST_VERIFIER
+        );
+
         var sampleDataMapping = loadMapping("mapping-sample_data.json");
         var sampleDataIndex = new EsIndex(
             "sample_data",
@@ -311,6 +356,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected LogicalPlan planMultiIndex(String query) {
         return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.parseQuery(query)));
+    }
+
+    protected LogicalPlan planUnionIndex(String query) {
+        return logicalOptimizer.optimize(unionIndexAnalyzer.analyze(parser.parseQuery(query)));
     }
 
     protected LogicalPlan planSample(String query) {

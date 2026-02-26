@@ -14,15 +14,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.JsonIngestPipelineConfig;
 
-import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -48,32 +44,20 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
     static final String EVENT_DATA_STREAM_INGEST_PIPELINE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "final_pipeline";
 
-    static final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
-
-    static {
-        final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
-        for (IndexTemplateConfig config : List.of(
-            new IndexTemplateConfig(
-                EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME,
-                ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME + ".json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            ),
-            new IndexTemplateConfig(
-                EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME,
-                ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME + ".json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE
-            )
-        )) {
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes())) {
-                componentTemplates.put(config.getTemplateName(), ComponentTemplate.parse(parser));
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        }
-        COMPONENT_TEMPLATES = Map.copyOf(componentTemplates);
-    }
+    final Map<String, ComponentTemplate> componentTemplates = parseComponentTemplates(
+        new IndexTemplateConfig(
+            EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME,
+            ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME + ".json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME,
+            ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_MAPPINGS_COMPONENT_NAME + ".json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        )
+    );
 
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
@@ -91,7 +75,7 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     static final String EVENT_DATA_STREAM_TEMPLATE_NAME = EVENT_DATA_STREAM_INDEX_PREFIX + "default";
     static final String EVENT_DATA_STREAM_TEMPLATE_FILENAME = EVENT_DATA_STREAM_INDEX_PREFIX + "template";
 
-    static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATES = parseComposableTemplates(
+    final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
         new IndexTemplateConfig(
             EVENT_DATA_STREAM_TEMPLATE_NAME,
             ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_TEMPLATE_FILENAME + ".json",
@@ -117,12 +101,12 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return COMPONENT_TEMPLATES;
+        return componentTemplates;
     }
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return COMPOSABLE_INDEX_TEMPLATES;
+        return composableIndexTemplates;
     }
 
     @Override

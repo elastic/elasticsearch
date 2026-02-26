@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -18,6 +17,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -862,19 +862,35 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         TaskInfo taskInfo = task.taskInfo(localNode, true);
         String json = taskInfo.toString();
-        String expected = Streams.readFully(getClass().getClassLoader().getResourceAsStream("query_task.json")).utf8ToString();
-        expected = expected.replaceAll("\r\n", "\n")
-            .replaceAll("\s*<\\d+>", "")
-            .replaceAll("FROM test \\| STATS MAX\\(d\\) by a, b", query)
-            .replaceAll("5326", Integer.toString(id))
-            .replaceAll("2j8UKw1bRO283PMwDugNNg", localNode)
-            .replaceAll("Ks5ApyqMTtWj5LrKigmCjQ", ((EsqlQueryStatus) taskInfo.status()).id().getEncoded())
-            .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
-            .replaceAll("2023-07-31T15:46:32\\.328Z", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()))
-            .replaceAll("1690818392328", Long.toString(taskInfo.startTime()))
-            .replaceAll("41.7ms", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString())
-            .replaceAll("41770830", Long.toString(taskInfo.runningTimeNanos()))
-            .trim();
+        String expected = Strings.format(
+            """
+                {
+                  "node" : "%s",
+                  "id" : %d,
+                  "type" : "transport",
+                  "action" : "indices:data/read/esql",
+                  "status" : {
+                    "request_id" : "%s"
+                  },
+                  "description" : "%s",
+                  "start_time" : "%s",
+                  "start_time_in_millis" : %d,
+                  "running_time" : "%s",
+                  "running_time_in_nanos" : %d,
+                  "cancellable" : true,
+                  "cancelled" : false,
+                  "headers" : { }
+                }
+                """.trim(),
+            localNode,
+            id,
+            ((EsqlQueryStatus) taskInfo.status()).id().getEncoded(),
+            query,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(taskInfo.startTime()),
+            taskInfo.startTime(),
+            TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString(),
+            taskInfo.runningTimeNanos()
+        );
         assertThat(json, equalTo(expected));
     }
 

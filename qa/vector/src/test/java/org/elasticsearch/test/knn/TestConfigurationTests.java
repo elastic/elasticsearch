@@ -14,12 +14,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
 import java.util.List;
 
 public class TestConfigurationTests extends ESTestCase {
 
-    public void testParameterParsing() throws IOException {
+    public void testParameterParsing() throws Exception {
         String json = """
             {
               "doc_vectors": ["/path/to/docs"],
@@ -64,6 +63,10 @@ public class TestConfigurationTests extends ESTestCase {
             assertEquals(20, params.get(3).numCandidates());
             assertEquals(10, params.get(3).topK());
         }
+    }
+
+    public void testHelp() throws Exception {
+        KnnIndexTester.main(new String[] { "--help" });
     }
 
 }

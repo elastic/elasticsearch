@@ -48,6 +48,6 @@ public class LimitGenerator implements CommandGenerator {
         if (output.size() > limit) {
             return new ValidationResult(false, "Expecting at most [" + limit + "] records, got [" + output.size() + "]");
         }
-        return CommandGenerator.expectSameColumns(previousColumns, columns);
+        return CommandGenerator.expectSameColumns(previousCommands, previousColumns, columns);
     }
 }

@@ -119,9 +119,13 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         description = """
             Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.
-            The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
-            [TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](#esql-to_geoshape) to calculate
-            the `geo_shape` bounding geometry.
+            The result is long encoded.
+            Use [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md)
+            to convert the result to a string,
+            [`TO_LONG`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_long.md)
+            to convert it to a `long`, or
+            [`TO_GEOSHAPE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape.md)
+            to calculate the `geo_shape` bounding geometry.
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
             and the [`geohex_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md).""",
@@ -139,8 +143,9 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             Expression of type `integer`. If `null`, the function returns `null`.
             Valid values are between [0 and 15](https://h3geo.org/docs/core-library/restable/).""") Expression precision,
         @Param(name = "bounds", type = { "geo_shape" }, description = """
-            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`.
-            Use [`ST_ENVELOPE`](#esql-st_envelope) if the `geo_shape` is of any other type.""", optional = true) Expression bounds
+            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use
+            [`ST_ENVELOPE`](/reference/query-languages/esql/functions-operators/spatial-functions/st_envelope.md)
+            if the `geo_shape` is of any other type.""", optional = true) Expression bounds
     ) {
         this(source, field, precision, bounds, false);
     }

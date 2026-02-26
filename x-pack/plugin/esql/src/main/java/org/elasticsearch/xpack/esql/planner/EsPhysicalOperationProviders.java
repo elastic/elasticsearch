@@ -405,14 +405,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private static AutoStrategy topNAutoStrategy() {
         return unusedLimit -> {
             if (EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled()) {
-                // Wrap the high speed strategy to replace SEGMENT with SEGMENT_LIMIT_CONCURRENCY for TopN operations.
-                // SEGMENT_LIMIT_CONCURRENCY limits slices to taskConcurrency via bin-packing, whereas SEGMENT does not.
-                return query -> {
-                    var strategy = LuceneSourceOperator.highSpeedAutoStrategy(query);
-                    return strategy == LuceneSliceQueue.PartitioningStrategy.SEGMENT
-                        ? LuceneSliceQueue.PartitioningStrategy.SEGMENT_LIMIT_CONCURRENCY
-                        : strategy;
-                };
+                // Use high speed strategy for TopN - we want to parallelize searches as much as possible given the query structure
+                return LuceneSourceOperator::highSpeedAutoStrategy;
             }
             return query -> LuceneSliceQueue.PartitioningStrategy.SHARD;
         };

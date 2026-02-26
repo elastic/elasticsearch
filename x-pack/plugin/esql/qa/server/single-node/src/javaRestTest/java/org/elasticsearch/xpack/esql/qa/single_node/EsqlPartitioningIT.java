@@ -74,12 +74,12 @@ public class EsqlPartitioningIT extends ESRestTestCase {
                     new Case("| WHERE QSTR(\"a:1\")", "SHARD"),
                     new Case("| WHERE KQL(\"a:1\")", "SHARD"),
                     new Case("| WHERE a:\"1\"", "SHARD"),
-                    new Case("| WHERE MATCH(a, \"2\") | SORT _score DESC", "SEGMENT_LIMIT_CONCURRENCY", true),
-                    new Case("| WHERE QSTR(\"a:2\") | SORT _score DESC", "SEGMENT_LIMIT_CONCURRENCY", true),
-                    new Case("| WHERE KQL(\"a:2\") | SORT _score DESC", "SEGMENT_LIMIT_CONCURRENCY", true),
-                    new Case("| WHERE MATCH(a, \"3\") | SORT _score DESC | LIMIT 10", "SEGMENT_LIMIT_CONCURRENCY", true),
-                    new Case("| WHERE MATCH(a, \"3\") OR MATCH(a, \"4\") | SORT _score DESC | LIMIT 10", "SEGMENT_LIMIT_CONCURRENCY", true),
-                    new Case("| WHERE a:\"3\" | WHERE a:\"4\" | SORT _score DESC | LIMIT 10", "SEGMENT_LIMIT_CONCURRENCY", true), }) {
+                    new Case("| WHERE MATCH(a, \"2\") | SORT _score DESC", "SEGMENT", true),
+                    new Case("| WHERE QSTR(\"a:2\") | SORT _score DESC", "SEGMENT", true),
+                    new Case("| WHERE KQL(\"a:2\") | SORT _score DESC", "SEGMENT", true),
+                    new Case("| WHERE MATCH(a, \"3\") | SORT _score DESC | LIMIT 10", "SEGMENT", true),
+                    new Case("| WHERE MATCH(a, \"3\") OR MATCH(a, \"4\") | SORT _score DESC | LIMIT 10", "SEGMENT", true),
+                    new Case("| WHERE a:\"3\" | WHERE a:\"4\" | SORT _score DESC | LIMIT 10", "SEGMENT", true), }) {
                     params.add(
                         new Object[] {
                             defaultDataPartitioning,

@@ -519,7 +519,10 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                         IndexSearcher.getDefaultSimilarity(),
                         IndexSearcher.getDefaultQueryCache(),
                         TrivialQueryCachingPolicy.NEVER,
-                        true
+                        true,
+                        Runnable::run,
+                        10,
+                        LuceneSliceQueue.MIN_DOCS_PER_SLICE
                     );
                 } else {
                     this.searcher = null;

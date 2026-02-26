@@ -21,22 +21,14 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.aggregation.FirstLastAggregatorTestingUtils.processPages;
 
-public class AllLastBytesRefByLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
+public class AllLastLongByIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen tsgen = randomFrom(
-            FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen.values()
-        );
         return new ListRowsBlockSourceOperator(
             blockFactory,
-            List.of(ElementType.BYTES_REF, ElementType.LONG),
-            IntStream.range(0, size).mapToObj(l -> List.of(randomAlphanumericOfLength(randomInt(20)), tsgen.gen())).toList()
+            List.of(ElementType.LONG, ElementType.LONG, ElementType.INT),
+            IntStream.range(0, size).mapToObj(l -> List.of(randomLongBetween(0, 4), randomLong(), randomInt())).toList()
         );
-    }
-
-    @Override
-    protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new AllLastBytesRefByLongAggregatorFunctionSupplier();
     }
 
     @Override
@@ -45,14 +37,19 @@ public class AllLastBytesRefByLongAggregatorFunctionTests extends AggregatorFunc
     }
 
     @Override
-    protected String expectedDescriptionOfAggregator() {
-        return "all_last_bytesref_by_long";
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new AllLastLongByIntAggregatorFunctionSupplier();
     }
 
     @Override
-    public void assertSimpleOutput(List<Page> input, Block result) {
+    protected String expectedDescriptionOfAggregator() {
+        return "all_last_long_by_int";
+    }
+
+    @Override
+    protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         GroundTruthFirstLastAggregator work = new GroundTruthFirstLastAggregator(false);
-        processPages(work, input);
-        work.check(BlockUtils.toJavaObject(result, 0));
+        processPages(work, input, group);
+        work.check(BlockUtils.toJavaObject(result, position));
     }
 }

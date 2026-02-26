@@ -110,7 +110,6 @@ public class VectorScorerOSQBenchmark {
     IndexInput input;
 
     float[] scratchScores;
-    float[] corrections;
 
     @Setup
     public void setup() throws IOException {
@@ -177,7 +176,6 @@ public class VectorScorerOSQBenchmark {
                 .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
         };
         scratchScores = new float[bulkSize];
-        corrections = new float[3];
     }
 
     Path createTempDirectory(String name) throws IOException {
@@ -194,7 +192,6 @@ public class VectorScorerOSQBenchmark {
     public float[] score() throws IOException {
         float[] results = new float[numQueries * numVectors];
 
-        float[] scores = new float[bulkSize];
         float[] lowerIntervals = new float[bulkSize];
         float[] upperIntervals = new float[bulkSize];
         int[] sums = new int[bulkSize];
@@ -203,7 +200,7 @@ public class VectorScorerOSQBenchmark {
         for (int j = 0; j < numQueries; j++) {
             input.seek(0);
             for (int i = 0; i < numVectors; i += bulkSize) {
-                scorer.quantizeScoreBulk(binaryQueries[j].quantizedVector(), bulkSize, scores);
+                scorer.quantizeScoreBulk(binaryQueries[j].quantizedVector(), bulkSize, scratchScores);
                 input.readFloats(lowerIntervals, 0, bulkSize);
                 input.readFloats(upperIntervals, 0, bulkSize);
                 input.readInts(sums, 0, bulkSize);
@@ -221,7 +218,7 @@ public class VectorScorerOSQBenchmark {
                         upperIntervals[b],
                         sums[b],
                         additional[b],
-                        scores[b]
+                        scratchScores[b]
                     );
                     results[j * numVectors + i + b] = score;
                 }

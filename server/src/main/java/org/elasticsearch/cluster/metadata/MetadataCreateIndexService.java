@@ -12,6 +12,10 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -23,7 +27,9 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -74,6 +80,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndexLimitExceededException;
 import org.elasticsearch.indices.IndicesService;
@@ -90,6 +97,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -121,11 +129,12 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
+import static org.elasticsearch.indices.AssociatedIndexDescriptor.buildAutomaton;
 
 /**
  * Service responsible for submitting create index requests
  */
-public class MetadataCreateIndexService {
+public class MetadataCreateIndexService implements ClusterStateListener {
     public static TransportVersion INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION = TransportVersion.fromName("index_limit_exceeded_exception");
 
     // Deliberately not registered so it can only be set in tests/plugins.
@@ -193,6 +202,7 @@ public class MetadataCreateIndexService {
     private volatile TimeValue maxMasterNodeTimeout;
     private volatile int maxIndicesPerProject;
     private volatile boolean maxIndicesPerProjectEnabled;
+    private volatile CharacterRunAutomaton associatedIndicesAutomaton;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -222,6 +232,7 @@ public class MetadataCreateIndexService {
         this.threadPool = threadPool;
         this.blocksTransformerUponIndexCreation = createClusterBlocksTransformerForIndexCreation(settings);
         this.clusterStateUpdateTaskPriority = CREATE_INDEX_PRIORITY_SETTING.get(settings);
+        this.associatedIndicesAutomaton = new CharacterRunAutomaton(getAssociatedIndicesAutomaton());
 
         if (clusterService.getClusterSettings().isDynamicSetting(CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey())) {
             // setting only registered in some tests today
@@ -244,12 +255,43 @@ public class MetadataCreateIndexService {
         }
     }
 
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().clusterFeatures().equals(event.previousState().clusterFeatures()) == false) {
+            this.associatedIndicesAutomaton = new CharacterRunAutomaton(getAssociatedIndicesAutomaton());
+        }
+    }
+
+    /**
+     * Visible for testing
+     * Builds a single automaton that matches any index name matched by any of the given associated index descriptors.
+     * @return determinized automaton matching any of the descriptors' patterns, or an empty automaton if the collection is empty
+     */
+    Automaton getAssociatedIndicesAutomaton() {
+        List<AssociatedIndexDescriptor> associatedDescriptors = systemIndices.getFeatures()
+            .stream()
+            .map(SystemIndices.Feature::getAssociatedIndexDescriptors)
+            .flatMap(Collection::stream)
+            .toList();
+
+        if (associatedDescriptors.isEmpty()) {
+            return Automata.makeEmpty();
+        }
+        List<Automaton> automata = associatedDescriptors.stream().map(descriptor -> buildAutomaton(descriptor.getIndexPattern())).toList();
+
+        return Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    }
+
     public void validateIndexLimit(ProjectMetadata projectMetadata, CreateIndexClusterStateUpdateRequest request) {
         if (maxIndicesPerProjectEnabled == false) {
             return;
         }
 
         if (systemIndices.isSystemIndex(request.index()) || systemIndices.isSystemIndexBackingDataStream(request.index())) {
+            return;
+        }
+
+        if (associatedIndicesAutomaton.run(request.index())) {
             return;
         }
 

@@ -255,6 +255,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
                 new IndexedByShardIdFromList<>(shardContexts),
                 queryFunction,
                 DataPartitioning.SHARD,
+                DataPartitioning.AutoStrategy.DEFAULT,
                 taskConcurrency,
                 maxPageSize,
                 10,

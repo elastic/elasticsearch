@@ -13,6 +13,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -288,7 +289,13 @@ public final class LuceneSliceQueue {
         SEGMENT(1) {
             @Override
             List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
-                return computeSegmentGroups(searcher.getLeafContexts(), taskConcurrency, MIN_DOCS_PER_SLICE);
+                IndexSearcher.LeafSlice[] gs = IndexSearcher.slices(
+                    searcher.getLeafContexts(),
+                    MAX_DOCS_PER_SLICE,
+                    MAX_SEGMENTS_PER_SLICE,
+                    false
+                );
+                return Arrays.stream(gs).map(g -> Arrays.stream(g.partitions).map(PartialLeafReaderContext::new).toList()).toList();
             }
         },
         /**
@@ -302,7 +309,23 @@ public final class LuceneSliceQueue {
                 int desiredSliceSize = Math.clamp(Math.ceilDiv(totalDocCount, taskConcurrency), 1, MAX_DOCS_PER_SLICE);
                 return new AdaptivePartitioner(Math.max(1, desiredSliceSize), MAX_SEGMENTS_PER_SLICE).partition(searcher.getLeafContexts());
             }
+        },
+        /**
+         * Like {@link #SEGMENT} but with taskConcurrency limiting for TopN operations.
+         * Uses {@link ContextIndexSearcher#computeLeafGroups} for balanced bin-packing
+         * that respects the taskConcurrency limit, ensuring at most taskConcurrency slices
+         * are created.
+         */
+        SEGMENT_LIMIT_CONCURRENCY(3) {
+            @Override
+            List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
+                return computeSegmentGroups(searcher.getLeafContexts(), taskConcurrency, MIN_DOCS_PER_SLICE);
+            }
         };
+
+        private static final TransportVersion ESQL_SEGMENT_TOP_N_PARTITIONING = TransportVersion.fromName(
+            "esql_segment_top_n_partitioning"
+        );
 
         private final byte id;
 
@@ -316,13 +339,19 @@ public final class LuceneSliceQueue {
                 case 0 -> SHARD;
                 case 1 -> SEGMENT;
                 case 2 -> DOC;
+                case 3 -> SEGMENT_LIMIT_CONCURRENCY;
                 default -> throw new IllegalArgumentException("invalid PartitioningStrategyId [" + id + "]");
             };
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(id);
+            if (this == SEGMENT_LIMIT_CONCURRENCY && out.getTransportVersion().supports(ESQL_SEGMENT_TOP_N_PARTITIONING) == false) {
+                // Older nodes don't understand SEGMENT_TOP_N, fall back to SEGMENT
+                out.writeByte(SEGMENT.id);
+            } else {
+                out.writeByte(id);
+            }
         }
 
         abstract List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency);
@@ -378,10 +407,11 @@ public final class LuceneSliceQueue {
     }
 
     /**
-     * Computes segment groups ensuring at most {@code maxSliceNum} groups are created.
-     * Each group contains at least {@code max(minDocsPerSlice, 10% * totalDocs)} documents.
-     * Delegates to {@link ContextIndexSearcher#computeLeafGroups} for the core bin-packing
-     * algorithm and converts the result to {@link PartialLeafReaderContext}.
+     * Computes segment groups for the {@link PartitioningStrategy#SEGMENT_LIMIT_CONCURRENCY} strategy,
+     * ensuring at most {@code maxSliceNum} groups are created. Each group contains at least
+     * {@code max(minDocsPerSlice, 10% * totalDocs)} documents. Delegates to
+     * {@link ContextIndexSearcher#computeLeafGroups} for the core bin-packing algorithm
+     * and converts the result to {@link PartialLeafReaderContext}.
      */
     static List<List<PartialLeafReaderContext>> computeSegmentGroups(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
         List<List<LeafReaderContext>> groups = ContextIndexSearcher.computeLeafGroups(leaves, maxSliceNum, minDocsPerSlice);

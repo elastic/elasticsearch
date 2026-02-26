@@ -1,0 +1,25 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "across_series",
+  "name" : "avg",
+  "description" : "Calculates the average of the values across the input vector.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "avg(http_requests_total)"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

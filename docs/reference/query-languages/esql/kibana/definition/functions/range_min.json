@@ -7,6 +7,6 @@
   "examples" : [
     "FROM decades\n| WHERE decade == 1900\n| EVAL min_bound = RANGE_MIN(date_range)\n| KEEP date_range, min_bound"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

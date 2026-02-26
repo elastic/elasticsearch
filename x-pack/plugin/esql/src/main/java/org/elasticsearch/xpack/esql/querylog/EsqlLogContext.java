@@ -57,4 +57,11 @@ public class EsqlLogContext extends ActivityLoggerContext {
         return new ShardInfo(successShards.get(), skippedShards.get(), failedShards.get());
     }
 
+
+    long getHits() {
+        if (response == null) {
+            return 0;
+        }
+        return response.getRowCount();
+    }
 }

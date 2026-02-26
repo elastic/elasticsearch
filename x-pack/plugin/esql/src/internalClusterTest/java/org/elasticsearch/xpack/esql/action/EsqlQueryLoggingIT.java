@@ -24,17 +24,14 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.assertNotNull;
 
-public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
+public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     static AccumulatingMockAppender appender;
     static Logger queryLog = LogManager.getLogger(EsqlLogProducer.LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
@@ -70,7 +67,8 @@ public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
         setupIndex("index-1", "192.");
         setupIndex("index-2", "10.");
 
-        assertQuery("FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100");
+        assertQuery("FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100", 2);
+        assertQuery("FROM index-* | LIMIT 100", numDocs1 + numDocs2);
         assertFailedQuery(
             "FROM index-* | EVAL a = count(*) | LIMIT 100",
             "aggregate function [count(*)] not allowed outside STATS command",
@@ -78,13 +76,14 @@ public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    private void assertQuery(String query) {
+    private void assertQuery(String query, long hits) {
         try (var resp = run(query)) {
             var message = getMessageData(appender.getLastEventAndReset());
             assertMessageSuccess(message, "esql", query);
             assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
             assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), greaterThanOrEqualTo(0));
             assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo(Long.toString(hits)));
         }
     }
 

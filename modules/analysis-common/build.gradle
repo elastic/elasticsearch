@@ -27,6 +27,7 @@ dependencies {
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:codecs-common')
+  testImplementation(project(':modules:codecs-common'))
 }
 
 artifacts {

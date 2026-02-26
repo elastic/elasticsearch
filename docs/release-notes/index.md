@@ -20,6 +20,69 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
+## 9.2.6 [elasticsearch-9.2.6-release-notes]
+```{applies_to}
+stack: ga 9.2.6
+```
+
+### Features and enhancements [elasticsearch-9.2.6-features-enhancements]
+
+Packaging:
+* Updating bundled jdk version to 25.0.2+10 [#142500](https://github.com/elastic/elasticsearch/pull/142500)
+
+
+### Fixes [elasticsearch-9.2.6-fixes]
+
+Cluster Coordination:
+* Suppress success callback when failing master task [#142042](https://github.com/elastic/elasticsearch/pull/142042)
+
+ES|QL:
+* Avoid a possible NPE by throwing an EIAE instead with more info [#141711](https://github.com/elastic/elasticsearch/pull/141711) (issue: [#141267](https://github.com/elastic/elasticsearch/issues/141267))
+* Deep copy `BytesRef` when creating a constant vector block [#141242](https://github.com/elastic/elasticsearch/pull/141242) (issues: [#140615](https://github.com/elastic/elasticsearch/issues/140615), [#140809](https://github.com/elastic/elasticsearch/issues/140809), [#140621](https://github.com/elastic/elasticsearch/issues/140621))
+* Dynamically grow hash in linear counting in HLL [#142047](https://github.com/elastic/elasticsearch/pull/142047) (issue: [#41847](https://github.com/elastic/elasticsearch/issues/41847))
+* ESQL fix TO_IP leading_zeros=octal parsing [#141776](https://github.com/elastic/elasticsearch/pull/141776) (issue: [#141627](https://github.com/elastic/elasticsearch/issues/141627))
+* Fix IP_PREFIX function leaking data in scratch [#141940](https://github.com/elastic/elasticsearch/pull/141940) (issue: [#141628](https://github.com/elastic/elasticsearch/issues/141628))
+* Fix NPE with null field parameter [#142328](https://github.com/elastic/elasticsearch/pull/142328) (issue: [#142281](https://github.com/elastic/elasticsearch/issues/142281))
+* Fix bug with multiple spatial aggs filtering in ES|QL [#142332](https://github.com/elastic/elasticsearch/pull/142332) (issue: [#142329](https://github.com/elastic/elasticsearch/issues/142329))
+
+Inference:
+* [Inference API] Do not write "task" field in Jina embedding request if unsupported [#142181](https://github.com/elastic/elasticsearch/pull/142181)
+* [Inference API] Fix `ChunkingSettings` field missing from `ModelConfigurations` equals method [#142238](https://github.com/elastic/elasticsearch/pull/142238)
+* [Inference API] Prevent trailing slashes from being included in URLs [#141692](https://github.com/elastic/elasticsearch/pull/141692)
+
+Infra/Core:
+* Reindexing older indices with percolator fields clears migration assistant errors [#141539](https://github.com/elastic/elasticsearch/pull/141539)
+
+Infra/Logging:
+* Fix cluster name in ECS upgrade [#141792](https://github.com/elastic/elasticsearch/pull/141792)
+
+Machine Learning:
+* Add missing `job_id` filter to Anomaly Detection data deleter [#138160](https://github.com/elastic/elasticsearch/pull/138160)
+* Reduce locking when persisting ML job statistics [#141519](https://github.com/elastic/elasticsearch/pull/141519) (issue: [#140511](https://github.com/elastic/elasticsearch/issues/140511))
+
+Mapping:
+* Allow shadowing time series metrics and dimension in non time series indexing [#141549](https://github.com/elastic/elasticsearch/pull/141549) (issue: [#140882](https://github.com/elastic/elasticsearch/issues/140882))
+
+Ranking:
+* Fixing for NPE when there is no query specified for the standard retriever [#142479](https://github.com/elastic/elasticsearch/pull/142479) (issue: [#142336](https://github.com/elastic/elasticsearch/issues/142336))
+* Implement comprehensive top N parameter handling for text similarity reranker [#142039](https://github.com/elastic/elasticsearch/pull/142039)
+
+Search:
+* Ensure Rewriteable.rewriteAndFetch listeners are not executed on transport threads [#141904](https://github.com/elastic/elasticsearch/pull/141904)
+* Fix Top Hits Incompatible Field Types on Sort Across Indices [#142046](https://github.com/elastic/elasticsearch/pull/142046) (issue: [#141906](https://github.com/elastic/elasticsearch/issues/141906))
+* Fix handling empty collapse construct [#141973](https://github.com/elastic/elasticsearch/pull/141973) (issue: [#139299](https://github.com/elastic/elasticsearch/issues/139299))
+* Prevent large CancelTasksRequest descriptions by truncating nodes and actions [#141815](https://github.com/elastic/elasticsearch/pull/141815)
+* Reduce cancellation check interval in `CancellableBulkScorer` for better responsiveness [#141747](https://github.com/elastic/elasticsearch/pull/141747)
+
+Snapshot/Restore:
+* Ensure paused shard snapshot can be deleted [#141408](https://github.com/elastic/elasticsearch/pull/141408)
+
+Transform:
+* Fix transform producing empty dest index when source query references runtime fields [#142450](https://github.com/elastic/elasticsearch/pull/142450) (issue: [#113156](https://github.com/elastic/elasticsearch/issues/113156))
+* Fix transform validation to reject PUT and `_start` when user lacks remote index permissions [#142403](https://github.com/elastic/elasticsearch/pull/142403) (issue: [#95367](https://github.com/elastic/elasticsearch/issues/95367))
+
+
+
 ## 9.3.1 [elasticsearch-9.3.1-release-notes]
 ```{applies_to}
 stack: ga 9.3.1
@@ -95,65 +158,6 @@ Transform:
 
 Vector Search:
 * [GPU] Handle segments too big for MSAI segment access [#141872](https://github.com/elastic/elasticsearch/pull/141872) (issue: [#141746](https://github.com/elastic/elasticsearch/issues/141746))
-
-## 9.2.6 [elasticsearch-9.2.6-release-notes]
-```{applies_to}
-stack: ga 9.2.6
-```
-
-### Features and enhancements [elasticsearch-9.2.6-features-enhancements]
-
-Packaging:
-* Updating bundled jdk version to 25.0.2+10 [#142500](https://github.com/elastic/elasticsearch/pull/142500)
-
-
-### Fixes [elasticsearch-9.2.6-fixes]
-
-Cluster Coordination:
-* Suppress success callback when failing master task [#142042](https://github.com/elastic/elasticsearch/pull/142042)
-
-ES|QL:
-* Avoid a possible NPE by throwing an EIAE instead with more info [#141711](https://github.com/elastic/elasticsearch/pull/141711) (issue: [#141267](https://github.com/elastic/elasticsearch/issues/141267))
-* Deep copy `BytesRef` when creating a constant vector block [#141242](https://github.com/elastic/elasticsearch/pull/141242) (issues: [#140615](https://github.com/elastic/elasticsearch/issues/140615), [#140809](https://github.com/elastic/elasticsearch/issues/140809), [#140621](https://github.com/elastic/elasticsearch/issues/140621))
-* Dynamically grow hash in linear counting in HLL [#142047](https://github.com/elastic/elasticsearch/pull/142047) (issue: [#41847](https://github.com/elastic/elasticsearch/issues/41847))
-* ESQL fix TO_IP leading_zeros=octal parsing [#141776](https://github.com/elastic/elasticsearch/pull/141776) (issue: [#141627](https://github.com/elastic/elasticsearch/issues/141627))
-* Fix IP_PREFIX function leaking data in scratch [#141940](https://github.com/elastic/elasticsearch/pull/141940) (issue: [#141628](https://github.com/elastic/elasticsearch/issues/141628))
-* Fix NPE with null field parameter [#142328](https://github.com/elastic/elasticsearch/pull/142328) (issue: [#142281](https://github.com/elastic/elasticsearch/issues/142281))
-* Fix bug with multiple spatial aggs filtering in ES|QL [#142332](https://github.com/elastic/elasticsearch/pull/142332) (issue: [#142329](https://github.com/elastic/elasticsearch/issues/142329))
-
-Inference:
-* [Inference API] Do not write "task" field in Jina embedding request if unsupported [#142181](https://github.com/elastic/elasticsearch/pull/142181)
-* [Inference API] Fix `ChunkingSettings` field missing from `ModelConfigurations` equals method [#142238](https://github.com/elastic/elasticsearch/pull/142238)
-* [Inference API] Prevent trailing slashes from being included in URLs [#141692](https://github.com/elastic/elasticsearch/pull/141692)
-
-Infra/Core:
-* Reindexing older indices with percolator fields clears migration assistant errors [#141539](https://github.com/elastic/elasticsearch/pull/141539)
-
-Infra/Logging:
-* Fix cluster name in ECS upgrade [#141792](https://github.com/elastic/elasticsearch/pull/141792)
-
-Machine Learning:
-* Reduce locking when persisting ML job statistics [#141519](https://github.com/elastic/elasticsearch/pull/141519) (issue: [#140511](https://github.com/elastic/elasticsearch/issues/140511))
-
-Mapping:
-* Allow shadowing time series metrics and dimension in non time series indexing [#141549](https://github.com/elastic/elasticsearch/pull/141549) (issue: [#140882](https://github.com/elastic/elasticsearch/issues/140882))
-
-Ranking:
-* Fixing for NPE when there is no query specified for the standard retriever [#142479](https://github.com/elastic/elasticsearch/pull/142479) (issue: [#142336](https://github.com/elastic/elasticsearch/issues/142336))
-* Implement comprehensive top N parameter handling for text similarity reranker [#142039](https://github.com/elastic/elasticsearch/pull/142039)
-
-Search:
-* Ensure Rewriteable.rewriteAndFetch listeners are not executed on transport threads [#141904](https://github.com/elastic/elasticsearch/pull/141904)
-* Fix Top Hits Incompatible Field Types on Sort Across Indices [#142046](https://github.com/elastic/elasticsearch/pull/142046) (issue: [#141906](https://github.com/elastic/elasticsearch/issues/141906))
-* Fix handling empty collapse construct [#141973](https://github.com/elastic/elasticsearch/pull/141973) (issue: [#139299](https://github.com/elastic/elasticsearch/issues/139299))
-* Prevent large CancelTasksRequest descriptions by truncating nodes and actions [#141815](https://github.com/elastic/elasticsearch/pull/141815)
-* Reduce cancellation check interval in `CancellableBulkScorer` for better responsiveness [#141747](https://github.com/elastic/elasticsearch/pull/141747)
-
-Snapshot/Restore:
-* Ensure paused shard snapshot can be deleted [#141408](https://github.com/elastic/elasticsearch/pull/141408)
-
-Transform:
-* Fix transform validation to reject PUT and `_start` when user lacks remote index permissions [#142403](https://github.com/elastic/elasticsearch/pull/142403) (issue: [#95367](https://github.com/elastic/elasticsearch/issues/95367))
 
 
 

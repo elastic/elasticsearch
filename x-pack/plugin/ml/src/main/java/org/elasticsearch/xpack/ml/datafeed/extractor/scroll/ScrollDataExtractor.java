@@ -116,7 +116,7 @@ class ScrollDataExtractor implements DataExtractor {
             if (searchHasShardFailure) {
                 throw e;
             }
-            logger.debug("[{}] Resetting scroll search after shard failure", context.jobId);
+            logger.warn("[" + context.jobId + "] Resetting scroll search after shard failure", e);
             markScrollAsErrored();
             return Optional.ofNullable(initScroll(lastTimestamp == null ? context.queryContext.start : lastTimestamp));
         }

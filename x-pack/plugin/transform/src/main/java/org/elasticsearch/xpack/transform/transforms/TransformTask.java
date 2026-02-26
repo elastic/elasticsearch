@@ -201,6 +201,7 @@ public class TransformTask extends AllocatedPersistentTask
 
         ClientTransformIndexer transformIndexer = getIndexer();
         if (transformIndexer == null) {
+            logger.info("[{}] getCheckpointingInfo called but indexer is not initialized yet.", transform.getId());
             transformsCheckpointService.getCheckpointingInfo(
                 parentTaskClient,
                 timeout,
@@ -212,6 +213,7 @@ public class TransformTask extends AllocatedPersistentTask
             );
             return;
         }
+        logger.info("[{}] getCheckpointingInfo called.", transform.getId());
         transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformIndexer.getConfig())
             .getCheckpointingInfo(
                 transformIndexer.getLastCheckpoint(),

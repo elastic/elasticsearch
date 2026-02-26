@@ -330,6 +330,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                     function.buildSearchQueryForInitialProgress(searchSourceBuilder);
                     searchSourceBuilder.query(QueryBuilders.boolQuery().filter(buildFilterQuery()).filter(searchSourceBuilder.query()));
                     request.allowPartialSearchResults(false).source(searchSourceBuilder);
+                    // TODO make this conditional
+                    IndicesOptions indicesOptions = IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
+                        .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                        .build();
+                    request.indicesOptions(indicesOptions);
 
                     doGetInitialProgress(request, ActionListener.wrap(response -> {
                         function.getInitialProgressFromResponse(response, ActionListener.wrap(newProgress -> {
@@ -1129,7 +1134,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
 
         request.allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
+            .indicesOptions(
+                IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            ); // TODO: make configurable
 
         changeCollector.buildChangesQuery(sourceBuilder, position != null ? position.getBucketsPosition() : null, context.getPageSize());
 
@@ -1192,7 +1201,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         return request.source(sourceBuilder)
             .allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
+            .indicesOptions(
+                IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            ); // TODO: make configurable
     }
 
     /**

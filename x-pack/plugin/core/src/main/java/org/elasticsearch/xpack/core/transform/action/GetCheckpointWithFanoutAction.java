@@ -4,7 +4,6 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -34,17 +33,17 @@ import java.util.Objects;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Transform internal API (no REST layer) to retrieve index checkpoints.
+ * Transform internal API (no REST layer) to retrieve index checkpoints with CPS fanout support.
  */
-public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response> {
+public class GetCheckpointWithFanoutAction extends ActionType<GetCheckpointWithFanoutAction.Response> {
 
-    public static final GetCheckpointAction INSTANCE = new GetCheckpointAction();
+    public static final GetCheckpointWithFanoutAction INSTANCE = new GetCheckpointWithFanoutAction();
 
     // note: this is an index action and requires `monitor` or `view_index_metadata`
-    public static final String NAME = "indices:monitor/transform/checkpoint";
+    public static final String NAME = GetCheckpointAction.NAME + "[fanout]";
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(NAME, Response::new);
 
-    private GetCheckpointAction() {
+    private GetCheckpointWithFanoutAction() {
         super(NAME);
     }
 
@@ -139,10 +138,14 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             return this;
         }
 
-        // this action does not allow remote indices, but they have to be resolved upfront, see {@link DefaultCheckpointProvider}
         @Override
         public boolean allowsRemoteIndices() {
-            return false;
+            return true;
+        }
+
+        @Override
+        public boolean allowsCrossProject() {
+            return true;
         }
 
         @Override
@@ -157,7 +160,7 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
 
         @Override
         public CancellableTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, format("get_checkpoint[%d]", indices.length), parentTaskId, headers);
+            return new CancellableTask(id, type, action, format("get_checkpoint_fanout[%d]", indices.length), parentTaskId, headers);
         }
     }
 

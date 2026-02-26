@@ -57,9 +57,6 @@ import java.util.stream.Stream;
 @State(Scope.Thread)
 @Fork(1)
 public class TopNBenchmark {
-    static {
-        LogConfigurator.configureESLogging();
-    }
 
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop"),

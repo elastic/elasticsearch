@@ -29,11 +29,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notANumber;
 
-public class AbstractReadableTDigestTests extends TDigestTestCase {
+public class AbstractCentroidBackedTDigestTests extends TDigestTestCase {
 
     public void testCdfMatchesWrappedDigest() {
         try (TDigest digest = randomDigest()) {
-            ReadableTDigest wrapped = new WrappedReadableTDigest(new ArrayList<>(digest.centroids()));
+            ReadableTDigest wrapped = new CentroidListBackedTDigest(new ArrayList<>(digest.centroids()));
             List<Centroid> expectedCentroids = new ArrayList<>(digest.centroids());
             List<Double> cdfProbes = new ArrayList<>();
             for (Centroid centroid : expectedCentroids) {
@@ -52,7 +52,7 @@ public class AbstractReadableTDigestTests extends TDigestTestCase {
 
     public void testQuantileMatchesWrappedDigest() {
         try (TDigest digest = randomDigest()) {
-            ReadableTDigest wrapped = new WrappedReadableTDigest(new ArrayList<>(digest.centroids()));
+            ReadableTDigest wrapped = new CentroidListBackedTDigest(new ArrayList<>(digest.centroids()));
             List<Double> quantileProbes = new ArrayList<>();
             quantileProbes.add(0.0);
             quantileProbes.add(1.0);
@@ -67,7 +67,7 @@ public class AbstractReadableTDigestTests extends TDigestTestCase {
     }
 
     public void testEmptyDigest() {
-        ReadableTDigest wrapped = new WrappedReadableTDigest(List.of());
+        ReadableTDigest wrapped = new CentroidListBackedTDigest(List.of());
         assertThat(wrapped.cdf(0.0), is(notANumber()));
         assertThat(wrapped.quantile(0.0), is(notANumber()));
         assertThat(wrapped.quantile(1.0), is(notANumber()));
@@ -93,10 +93,10 @@ public class AbstractReadableTDigestTests extends TDigestTestCase {
         }
     }
 
-    private static final class WrappedReadableTDigest extends AbstractReadableTDigest {
+    private static final class CentroidListBackedTDigest extends AbstractCentroidBackedTDigest {
         private final List<Centroid> centroids;
 
-        private WrappedReadableTDigest(List<Centroid> centroids) {
+        private CentroidListBackedTDigest(List<Centroid> centroids) {
             this.centroids = centroids;
         }
 
@@ -122,8 +122,8 @@ public class AbstractReadableTDigestTests extends TDigestTestCase {
                 }
 
                 @Override
-                public boolean endReached() {
-                    return index + 1 >= centroids.size();
+                public boolean hasNext() {
+                    return index + 1 < centroids.size();
                 }
             };
         }

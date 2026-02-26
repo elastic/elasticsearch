@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.analytics.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.tdigest.AbstractReadableTDigest;
+import org.elasticsearch.tdigest.AbstractCentroidBackedTDigest;
 import org.elasticsearch.tdigest.Centroid;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ import java.util.List;
  *     <li>centroid mean as IEEE754 double (8 bytes, big-endian)</li>
  * </ul>
  */
-public final class EncodedTDigest extends AbstractReadableTDigest {
+public final class EncodedTDigest extends AbstractCentroidBackedTDigest {
 
     private final BytesRef encodedDigest = new BytesRef();
     private long cachedSize = -1L;
@@ -94,8 +94,8 @@ public final class EncodedTDigest extends AbstractReadableTDigest {
             }
 
             @Override
-            public boolean endReached() {
-                return index + 1 >= centroids.size();
+            public boolean hasNext() {
+                return index + 1 < centroids.size();
             }
 
         });
@@ -126,8 +126,8 @@ public final class EncodedTDigest extends AbstractReadableTDigest {
             }
 
             @Override
-            public boolean endReached() {
-                return index + 1 >= means.size();
+            public boolean hasNext() {
+                return index + 1 < means.size();
             }
         });
     }
@@ -173,7 +173,7 @@ public final class EncodedTDigest extends AbstractReadableTDigest {
     }
 
     private static BytesRef encodeCentroidsFromIterator(CentroidIterator centroids) {
-        try (BytesStreamOutput out = new BytesStreamOutput(32)) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
             while (centroids.next()) {
                 long count = centroids.currentCount();
                 if (count < 0) {
@@ -227,16 +227,16 @@ public final class EncodedTDigest extends AbstractReadableTDigest {
 
         @Override
         public boolean next() {
-            if (endReached()) {
-                return false;
+            if (hasNext()) {
+                try {
+                    count = input.readVLong();
+                    mean = input.readDouble();
+                    return true;
+                } catch (IOException e) {
+                    throw new IllegalStateException("Malformed TDigest bytes", e);
+                }
             }
-            try {
-                count = input.readVLong();
-                mean = input.readDouble();
-                return true;
-            } catch (IOException e) {
-                throw new IllegalStateException("Malformed TDigest bytes", e);
-            }
+            return false;
         }
 
         @Override
@@ -252,8 +252,8 @@ public final class EncodedTDigest extends AbstractReadableTDigest {
         }
 
         @Override
-        public boolean endReached() {
-            return input.available() == 0;
+        public boolean hasNext() {
+            return input.available() > 0;
         }
     }
 }

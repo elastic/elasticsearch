@@ -22,9 +22,9 @@
 package org.elasticsearch.tdigest;
 
 /**
- * Base class for read-only digest implementations backed by centroid iterators.
+ * A {@link ReadableTDigest} whose internal representation consists of a sorted list of unique centroids with counts.
  */
-public abstract class AbstractReadableTDigest implements ReadableTDigest {
+public abstract class AbstractCentroidBackedTDigest implements ReadableTDigest {
 
     /**
      * Iterator over centroids in increasing mean order.
@@ -39,7 +39,7 @@ public abstract class AbstractReadableTDigest implements ReadableTDigest {
         /**
          * Returns {@code true} iff a call to {@link #next()} would return {@code false}.
          */
-        boolean endReached();
+        boolean hasNext();
     }
 
     /**

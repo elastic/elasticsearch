@@ -1943,6 +1943,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } finally {
                 engineResetLock.writeLock().unlock();
             }
+            checkAndCallWaitForEngineOrClosedShardListeners();
+
             synchronized (mutex) {
                 if (state == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(shardId);
@@ -1953,7 +1955,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 recoveryState.setStage(RecoveryState.Stage.DONE);
             }
 
-            checkAndCallWaitForEngineOrClosedShardListeners();
             SubscribableListener.newForked(
                 (CheckedConsumer<ActionListener<Void>, Exception>) l -> indexEventListener.afterIndexShardRecovery(IndexShard.this, l)
             ).andThenAccept(v -> {

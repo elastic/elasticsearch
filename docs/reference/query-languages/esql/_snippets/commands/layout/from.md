@@ -6,6 +6,10 @@ stack: ga
 The `FROM` source command returns a table with data from a data stream, index,
 or alias.
 
+::::{tip}
+For time series data, use the [`TS`](/reference/query-languages/esql/commands/ts.md) source command instead of `FROM`. `TS` enables time series aggregation functions and is optimized for processing time series indices.
+::::
+
 ## Syntax
 
 ```esql

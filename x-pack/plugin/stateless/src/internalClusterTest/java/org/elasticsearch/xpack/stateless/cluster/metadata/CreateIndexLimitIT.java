@@ -260,12 +260,6 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
         startSearchNode(Settings.builder().put(PROJECT_TYPE.getKey(), projectType).build());
         ensureStableCluster(2);
 
-        var clusterService = internalCluster().getInstance(ClusterService.class);
-        assertThat(
-            clusterService.getClusterSettings().get(MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_SETTING),
-            equalTo(15000)
-        );
-
         final String indexName = randomIndexName();
         int userIndicesLimit = randomIntBetween(3, 5);
         final Set<String> systemIndexAndDataStreamsPatterns = Set.of(

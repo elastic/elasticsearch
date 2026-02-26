@@ -60,22 +60,22 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     // TODO is this what we want to test?
     public void testKnnQueryLookupCcsMinimizeRoundTripsTrue() throws Exception {
         knnQueryBaseTestCases(true);
-        // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
+        // Verify lookup query vector builder works across clusters for mixed semantic/dense mappings.
         assertSearchResponse(
             new KnnVectorQueryBuilder(
                 MIXED_TYPE_FIELD_2,
-                new LookupQueryVectorBuilder(getDocId(DENSE_VECTOR_FIELD), LOCAL_INDEX_NAME, DENSE_VECTOR_FIELD, null),
+                new LookupQueryVectorBuilder(getDocId(MIXED_TYPE_FIELD_1), LOCAL_INDEX_NAME, MIXED_TYPE_FIELD_1, null),
                 10,
                 100,
                 10f,
                 null
             ),
             QUERY_INDICES,
-            List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
-            new ClusterFailure(
-                SearchResponse.Cluster.Status.SKIPPED,
-                Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must not be null."))
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
             ),
+            null,
             null
         );
     }
@@ -83,22 +83,22 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     // TODO is this what we want to test?
     public void testKnnQueryLookupCcsMinimizeRoundTripsFalse() throws Exception {
         knnQueryBaseTestCases(false);
-        // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
+        // Verify lookup query vector builder works across clusters for mixed semantic/dense mappings.
         assertSearchResponse(
             new KnnVectorQueryBuilder(
                 MIXED_TYPE_FIELD_2,
-                new LookupQueryVectorBuilder(getDocId(DENSE_VECTOR_FIELD), LOCAL_INDEX_NAME, DENSE_VECTOR_FIELD, null),
+                new LookupQueryVectorBuilder(getDocId(MIXED_TYPE_FIELD_1), LOCAL_INDEX_NAME, MIXED_TYPE_FIELD_1, null),
                 10,
                 100,
                 10f,
                 null
             ),
             QUERY_INDICES,
-            List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
-            new ClusterFailure(
-                SearchResponse.Cluster.Status.SKIPPED,
-                Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must not be null."))
+            List.of(
+                new SearchResult("", LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
             ),
+            null,
             null
         );
     }

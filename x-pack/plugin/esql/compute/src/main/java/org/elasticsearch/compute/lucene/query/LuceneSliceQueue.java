@@ -80,12 +80,10 @@ public final class LuceneSliceQueue {
      */
     public record QueryAndTags(Query query, List<Object> tags) {}
 
-    public static final int MIN_DOCS_PER_SLICE = 50_000; // copied from IndexSearcher
     public static final int MAX_DOCS_PER_SLICE = 250_000; // copied from IndexSearcher
     public static final int MAX_SEGMENTS_PER_SLICE = 5; // copied from IndexSearcher
 
     private final int maxShardIndex;
-
     private final IntFunction<ShardContext> shardContexts;
     private final int totalSlices;
     private final Map<String, PartitioningStrategy> partitioningStrategies;

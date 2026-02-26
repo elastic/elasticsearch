@@ -360,7 +360,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
              * references to the same underlying data, but we're being a bit paranoid here.
              */
             estimatedPerRowSortSize *= 2;
-
             // LuceneTopNSourceOperator does not support QueryAndTags, if there are multiple queries or if the single query has tags,
             // UnsupportedOperationException will be thrown by esQueryExec.query()
             luceneFactory = new LuceneTopNSourceOperator.Factory(

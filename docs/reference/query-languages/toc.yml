@@ -332,6 +332,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_long.md
                   - file: esql/functions-operators/type-conversion-functions/to_radians.md
                   - file: esql/functions-operators/type-conversion-functions/to_string.md
+                  - file: esql/functions-operators/type-conversion-functions/to_tdigest.md
                   - file: esql/functions-operators/type-conversion-functions/to_timeduration.md
                   - file: esql/functions-operators/type-conversion-functions/to_unsigned_long.md
                   - file: esql/functions-operators/type-conversion-functions/to_version.md

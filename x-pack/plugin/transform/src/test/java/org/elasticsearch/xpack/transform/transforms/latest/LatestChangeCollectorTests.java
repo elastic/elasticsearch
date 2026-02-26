@@ -126,37 +126,6 @@ public class LatestChangeCollectorTests extends ESTestCase {
         }
     }
 
-    public void testProcessSearchResponsePaginationOptimization() throws IOException {
-        LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp", List.of("orderId"));
-
-        // Case 1: Full page (buckets.size == pageSize) -> return afterKey (more pages may exist)
-        changeCollector.buildChangesQuery(new SearchSourceBuilder(), null, 3);
-        SearchResponse fullPageResponse = createSearchResponse(
-            List.of(Map.of("orderId", "id1"), Map.of("orderId", "id2"), Map.of("orderId", "id3")),
-            Map.of("orderId", "id3")
-        );
-        try {
-            Map<String, Object> afterKey = changeCollector.processSearchResponse(fullPageResponse);
-            assertThat("Full page should return afterKey", afterKey, is(notNullValue()));
-            assertThat(afterKey.get("orderId"), is(equalTo("id3")));
-        } finally {
-            fullPageResponse.decRef();
-        }
-
-        // Case 2: Partial page (buckets.size < pageSize) -> return null (last page)
-        changeCollector.buildChangesQuery(new SearchSourceBuilder(), null, 5);
-        SearchResponse partialPageResponse = createSearchResponse(
-            List.of(Map.of("orderId", "id4"), Map.of("orderId", "id5")),
-            Map.of("orderId", "id5")
-        );
-        try {
-            Map<String, Object> afterKey = changeCollector.processSearchResponse(partialPageResponse);
-            assertThat("Partial page should return null to avoid empty search", afterKey, is(nullValue()));
-        } finally {
-            partialPageResponse.decRef();
-        }
-    }
-
     public void testBuildFilterQuerySingleField() throws IOException {
         LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp", List.of("orderId"));
 

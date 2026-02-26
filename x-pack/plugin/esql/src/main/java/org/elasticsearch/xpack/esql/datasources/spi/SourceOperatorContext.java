@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.FileSet;
 
@@ -54,12 +55,8 @@ public record SourceOperatorContext(
     @Nullable ExternalSliceQueue sliceQueue
 ) {
     public SourceOperatorContext {
-        if (path == null) {
-            throw new IllegalArgumentException("path cannot be null");
-        }
-        if (executor == null) {
-            throw new IllegalArgumentException("executor cannot be null");
-        }
+        Check.notNull(path, "path cannot be null");
+        Check.notNull(executor, "executor cannot be null");
         projectedColumns = projectedColumns != null ? List.copyOf(projectedColumns) : List.of();
         attributes = attributes != null ? List.copyOf(attributes) : List.of();
         config = config != null ? Map.copyOf(config) : Map.of();

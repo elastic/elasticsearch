@@ -10,7 +10,10 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -19,6 +22,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -38,10 +42,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> implements RestRequestFilter {
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestReindexAction(Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestReindexAction(Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
         super(ReindexAction.INSTANCE);
         this.clusterSupportsFeature = clusterSupportsFeature;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -70,6 +76,14 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         ReindexRequest internal;
         try (XContentParser parser = request.contentParser()) {
             internal = ReindexRequest.fromXContent(parser, clusterSupportsFeature);
+        }
+        if (internal.getRemoteInfo() == null && crossProjectModeDecider.crossProjectEnabled()) {
+            SearchRequest searchRequest = internal.getSearchRequest();
+            searchRequest.indicesOptions(
+                IndicesOptions.builder(searchRequest.indicesOptions())
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            );
         }
 
         if (request.hasParam("scroll")) {

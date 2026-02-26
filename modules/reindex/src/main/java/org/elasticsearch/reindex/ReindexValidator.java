@@ -67,15 +67,24 @@ public class ReindexValidator {
     public void initialValidation(ReindexRequest request) {
         checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
         ClusterState state = clusterService.state();
+        SearchRequest source = request.getSearchRequest();
+
+        if (source.indicesOptions().resolveCrossProjectIndexExpression() == false && source.getProjectRouting() != null) {
+            ActionRequestValidationException e = new ActionRequestValidationException();
+            e.addValidationError(
+                "reindex doesn't support project routing [" + source.getProjectRouting() + "] when cross-project search is disabled"
+            );
+            throw e;
+        }
         validateAgainstAliases(
-            request.getSearchRequest(),
+            source,
             request.getDestination(),
             request.getRemoteInfo(),
             indexResolver,
             autoCreateIndex,
             projectResolver.getProjectMetadata(state)
         );
-        SearchSourceBuilder searchSource = request.getSearchRequest().source();
+        SearchSourceBuilder searchSource = source.source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
             deprecationLogger.warn(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
         }
@@ -137,13 +146,6 @@ public class ReindexValidator {
              * uses to decide to autocreate the index.
              */
             target = indexNameExpressionResolver.concreteWriteIndex(project, destination).getName();
-        }
-        if (source.indicesOptions().resolveCrossProjectIndexExpression() == false && source.getProjectRouting() != null) {
-            ActionRequestValidationException e = new ActionRequestValidationException();
-            e.addValidationError(
-                "reindex doesn't support project routing [" + source.getProjectRouting() + "] when cross-project search is disabled"
-            );
-            throw e;
         }
         SearchRequest filteredSource = skipRemoteIndexNames(source);
         if (filteredSource.indices().length == 0) {

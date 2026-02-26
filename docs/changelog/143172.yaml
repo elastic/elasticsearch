@@ -1,0 +1,5 @@
+area: Packaging
+issues: []
+pr: 143172
+summary: "[ES-14264] Updating 8.19 ubuntu image to fix issues with dotted env vars"
+type: bug

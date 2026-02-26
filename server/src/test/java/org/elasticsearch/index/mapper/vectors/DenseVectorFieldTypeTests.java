@@ -140,6 +140,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         options.add(
             new DenseVectorFieldMapper.BBQIVFIndexOptions(
                 randomIntBetween(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
+                randomFrom(-1, randomIntBetween(0, MAX_VECTORS_PER_CLUSTER * 3)),
                 randomFloatBetween(0.0f, 100.0f, true),
                 randomBoolean(),
                 randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),

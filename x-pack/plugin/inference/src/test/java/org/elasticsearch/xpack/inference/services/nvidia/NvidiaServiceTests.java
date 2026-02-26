@@ -37,6 +37,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -540,16 +542,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(
-                        new UnifiedCompletionRequest.Message(
-                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
-                            ROLE_VALUE,
-                            null,
-                            null
-                        )
-                    )
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -584,16 +577,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(
-                        new UnifiedCompletionRequest.Message(
-                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
-                            ROLE_VALUE,
-                            null,
-                            null
-                        )
-                    )
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -674,16 +658,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(
-                        new UnifiedCompletionRequest.Message(
-                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
-                            ROLE_VALUE,
-                            null,
-                            null
-                        )
-                    )
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

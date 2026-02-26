@@ -23,6 +23,7 @@ public class MainInstrumentationProvider implements InstrumentationConfig {
             new FileSystemProviderInstrumentation(),
             new L10nInstrumentation(),
             new NetworkInstrumentation(),
+            new DeprecatedNetworkInstrumentation(),
             new PathInstrumentation(),
             new SecurityInstrumentation(),
             new SelectorProviderInstrumentation(),

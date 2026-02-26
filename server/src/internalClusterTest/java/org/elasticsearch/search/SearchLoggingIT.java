@@ -60,7 +60,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.action.search.SearchLogProducer.SEARCH_IS_SYSTEM_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
@@ -139,8 +141,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
             assertMessageSuccess(message, "search", "fox");
-            assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("1"));
-            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(""));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("1"));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(""));
             assertNull(message.get(ES_FIELDS_PREFIX + "timed_out"));
         }
 
@@ -150,8 +152,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
             assertMessageSuccess(message, "search", "quick");
-            assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
-            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("3"));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
             assertNull(message.get(ES_FIELDS_PREFIX + "timed_out"));
         }
     }
@@ -172,8 +174,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         var event = appender.getLastEventAndReset();
         Map<String, String> message = getMessageData(event);
         assertMessageFailure(message, "search", "quick brown", SearchPhaseExecutionException.class, "all shards failed");
-        assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("0"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("0"));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
     }
 
     public void testSearchCancel() throws Exception {
@@ -192,8 +194,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         var event = appender.getLastEventAndReset();
         Map<String, String> message = getMessageData(event);
         assertMessageFailure(message, "search", "mockscript", SearchPhaseExecutionException.class, null);
-        assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("0"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo("test"));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("0"));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo("test"));
     }
 
     public void testMultiSearch() {
@@ -211,13 +213,13 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo("search"));
             assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took")), greaterThan(0L));
             assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
-            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
-            if (message.get(ES_FIELDS_PREFIX + "query").contains("quick")) {
-                assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
-            } else if (message.get(ES_FIELDS_PREFIX + "query").contains("fox")) {
-                assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("1"));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
+            if (message.get(ES_QUERY_FIELDS_PREFIX + "query").contains("quick")) {
+                assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("3"));
+            } else if (message.get(ES_QUERY_FIELDS_PREFIX + "query").contains("fox")) {
+                assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("1"));
             } else {
-                fail("unexpected query logged: " + message.get(ES_FIELDS_PREFIX + "query"));
+                fail("unexpected query logged: " + message.get(ES_QUERY_FIELDS_PREFIX + "query"));
             }
         });
     }
@@ -236,8 +238,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
             assertMessageSuccess(message, "search", "fox");
-            assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("1"));
-            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("1"));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
         } finally {
             response.decRef();
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
@@ -278,8 +280,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             );
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
-            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME));
-            assertThat(message.get(ES_FIELDS_PREFIX + "is_system"), equalTo("true"));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(TestSystemIndexDescriptor.PRIMARY_INDEX_NAME));
+            assertThat(message.get(SEARCH_IS_SYSTEM_FIELD), equalTo("true"));
         } finally {
             ActivityLoggingUtils.disableLoggingSystem();
         }
@@ -306,8 +308,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             );
             var event = appender.getLastEventAndReset();
             Map<String, String> message = getMessageData(event);
-            assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME));
-            assertThat(message.get(ES_FIELDS_PREFIX + "is_system"), equalTo("true"));
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo(TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME));
+            assertThat(message.get(SEARCH_IS_SYSTEM_FIELD), equalTo("true"));
         } finally {
             ActivityLoggingUtils.disableLoggingSystem();
             client().execute(
@@ -335,7 +337,7 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         var eventWithAgg = appender.getLastEventAndReset();
         Map<String, String> messageWithAgg = getMessageData(eventWithAgg);
         assertMessageSuccess(messageWithAgg, "search", "match_all");
-        assertThat(messageNoAgg.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
+        assertThat(messageNoAgg.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("3"));
         assertThat(messageWithAgg.get(SearchLogProducer.SEARCH_HAS_AGGREGATIONS_FIELD), equalTo("true"));
     }
 

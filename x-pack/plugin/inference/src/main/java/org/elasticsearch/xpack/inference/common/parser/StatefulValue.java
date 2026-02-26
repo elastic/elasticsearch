@@ -14,16 +14,21 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * This class holds a value of type {@param T} that can be in one of three states: absent, null, or present with a non-null value.
+ * It provides methods to check the state and retrieve the value if present.
+ * <p>
+ * Absent means that the value is not defined
+ * Null means that the value is defined but explicitly set to null
+ * Present means that the value is defined and not null
+ * @param <T> the type of the value
+ */
 public final class StatefulValue<T> {
 
-    private enum State {
-        ABSENT,
-        NULL,
-        VALUE
-    }
+    static final IllegalStateException NO_VALUE_PRESENT = new IllegalStateException("No value present");
 
-    private static final StatefulValue<?> ABSENT_INSTANCE = new StatefulValue<>(null, State.ABSENT);
-    private static final StatefulValue<?> NULL_INSTANCE = new StatefulValue<>(null, State.NULL);
+    private static final StatefulValue<?> ABSENT_INSTANCE = new StatefulValue<>(null, false);
+    private static final StatefulValue<?> NULL_INSTANCE = new StatefulValue<>(null, true);
 
     public static <T> StatefulValue<T> absent() {
         @SuppressWarnings("unchecked")
@@ -38,50 +43,57 @@ public final class StatefulValue<T> {
     }
 
     public static <T> StatefulValue<T> of(T value) {
-        return new StatefulValue<>(Objects.requireNonNull(value), State.VALUE);
+        return new StatefulValue<>(Objects.requireNonNull(value), true);
     }
 
     public static <T> StatefulValue<T> read(StreamInput in, Writeable.Reader<T> reader) throws IOException {
-        var state = in.readEnum(State.class);
-        if (state == State.ABSENT) {
+        var isDefined = in.readBoolean();
+        if (isDefined == false) {
             return absent();
-        } else if (state == State.NULL) {
-            return nullInstance();
-        } else {
-            return of(reader.read(in));
         }
+
+        var isNull = in.readBoolean();
+        if (isNull) {
+            return nullInstance();
+        }
+
+        var value = reader.read(in);
+        return of(value);
     }
 
-    public static <T> void write(StreamOutput out, StatefulValue<T> presence, Writeable.Writer<T> writer) throws IOException {
-        out.writeEnum(presence.state);
-        if (presence.state == State.VALUE) {
-            writer.write(out, presence.value);
+    public static <T> void write(StreamOutput out, StatefulValue<T> statefulValue, Writeable.Writer<T> writer) throws IOException {
+        out.writeBoolean(statefulValue.isDefined);
+        if (statefulValue.isDefined) {
+            out.writeBoolean(statefulValue.isNull());
+            if (statefulValue.isPresent()) {
+                writer.write(out, statefulValue.value);
+            }
         }
     }
 
     private final T value;
-    private final State state;
+    private final boolean isDefined;
 
-    private StatefulValue(T value, State state) {
+    private StatefulValue(T value, boolean isDefined) {
         this.value = value;
-        this.state = Objects.requireNonNull(state);
+        this.isDefined = isDefined;
     }
 
     public boolean isAbsent() {
-        return state == State.ABSENT;
+        return isDefined == false;
     }
 
     public boolean isNull() {
-        return state == State.NULL;
+        return isDefined && value == null;
     }
 
     public boolean isPresent() {
-        return state == State.VALUE;
+        return isDefined && value != null;
     }
 
     public T get() {
-        if (state != State.VALUE) {
-            throw new IllegalStateException("No value present");
+        if (isPresent() == false) {
+            throw NO_VALUE_PRESENT;
         }
         return value;
     }
@@ -94,11 +106,11 @@ public final class StatefulValue<T> {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         StatefulValue<?> statefulValue = (StatefulValue<?>) o;
-        return Objects.equals(value, statefulValue.value) && state == statefulValue.state;
+        return Objects.equals(value, statefulValue.value) && isDefined == statefulValue.isDefined;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value, state);
+        return Objects.hash(value, isDefined);
     }
 }

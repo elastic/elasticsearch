@@ -23,12 +23,11 @@ public class UnresolvedNamePatternTests extends AbstractNamedExpressionSerializa
     protected UnresolvedNamePattern mutateInstance(UnresolvedNamePattern instance) {
         Source source = instance.source();
         String name = instance.name();
-        String pattern = instance.pattern();
-        switch (between(0, 1)) {
-            case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(4));
-            case 1 -> pattern = randomValueOtherThan(pattern, () -> randomAlphaOfLength(4));
+        String pattern = randomValueOtherThan(instance.pattern(), () -> randomAlphaOfLength(4));
+        if (randomBoolean()) {
+            name = randomValueOtherThan(name, () -> randomAlphaOfLength(4));
         }
-        return new UnresolvedNamePattern(source, null, name, pattern);
+        return new UnresolvedNamePattern(source, null, pattern, name);
     }
 
     @Override

@@ -30,6 +30,8 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
@@ -407,10 +409,8 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         var request = new UnifiedCompletionRequest(
             List.of(
-                new UnifiedCompletionRequest.Message(
-                    new UnifiedCompletionRequest.ContentObjects(
-                        List.of(randomContentObjectText(), randomContentObjectImage(), randomContentObjectFile())
-                    ),
+                new Message(
+                    new ContentObjects(List.of(randomContentObjectText(), randomContentObjectImage(), randomContentObjectFile())),
                     "user",
                     null,
                     null

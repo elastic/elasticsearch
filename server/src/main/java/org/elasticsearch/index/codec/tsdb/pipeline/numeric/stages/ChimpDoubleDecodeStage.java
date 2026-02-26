@@ -17,11 +17,11 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadDecoder;
 
 import java.io.IOException;
 
-public final class GorillaFloatDecodeStage implements PayloadDecoder {
+public final class ChimpDoubleDecodeStage implements PayloadDecoder {
 
     private static final int BIT_STATE_SIZE = 16;
-    private static final int LEADING_ZEROS_BITS = 5;
-    private static final int MEANINGFUL_BITS_BITS = 5;
+    private static final int BUCKET_BITS = 3;
+    private static final int MEANINGFUL_BITS_BITS = 6;
     private static final int BIT_BUFFER_OFFSET = 0;
     private static final int BITS_IN_BUFFER_OFFSET = 8;
 
@@ -29,12 +29,12 @@ public final class GorillaFloatDecodeStage implements PayloadDecoder {
 
     @Override
     public byte id() {
-        return StageId.GORILLA_FLOAT_PAYLOAD.id;
+        return StageId.CHIMP_PAYLOAD.id;
     }
 
     @Override
     public int decode(final long[] values, final DataInput in, final DecodingContext context) throws IOException {
-        final int valueCount = in.readVInt();
+        int valueCount = in.readVInt();
         if (valueCount == 0) {
             return 0;
         }
@@ -42,45 +42,45 @@ public final class GorillaFloatDecodeStage implements PayloadDecoder {
         final byte[] bits = bitState;
         initBitBuffer(bits);
 
-        values[0] = readBits(32, in, bits);
+        values[0] = readBits(64, in, bits);
 
-        int prevValue = (int) values[0];
-        int prevLeadingZeros = 33;
+        long prevValue = values[0];
+        int prevLeadingZeros = 65;
         int prevMeaningfulBits = 0;
 
         for (int i = 1; i < valueCount; i++) {
             final int firstBit = (int) readBits(1, in, bits);
 
             if (firstBit == 0) {
-                values[i] = prevValue & 0xFFFFFFFFL;
-                prevValue = (int) values[i];
+                values[i] = prevValue;
                 continue;
             }
 
             final int secondBit = (int) readBits(1, in, bits);
 
-            final int xor;
+            final long xor;
             if (secondBit == 0) {
-                final int prevTrailingZeros = 32 - prevLeadingZeros - prevMeaningfulBits;
-                final int windowBits = (int) readBits(prevMeaningfulBits, in, bits);
+                final int prevTrailingZeros = 64 - prevLeadingZeros - prevMeaningfulBits;
+                final long windowBits = readBits(prevMeaningfulBits, in, bits);
                 xor = windowBits << prevTrailingZeros;
             } else {
-                final int leadingZeros = (int) readBits(LEADING_ZEROS_BITS, in, bits);
+                final int bucketIndex = (int) readBits(BUCKET_BITS, in, bits);
+                final int leadingZeros = ChimpDoubleEncodeStage.LEADING_ZERO_BUCKETS[bucketIndex];
                 final int meaningfulBits = (int) readBits(MEANINGFUL_BITS_BITS, in, bits) + 1;
-                final int trailingZeros = 32 - leadingZeros - meaningfulBits;
+                final int trailingZeros = 64 - leadingZeros - meaningfulBits;
 
-                final int meaningful = (int) readBits(meaningfulBits, in, bits);
+                final long meaningful = readBits(meaningfulBits, in, bits);
                 xor = meaningful << trailingZeros;
 
                 prevLeadingZeros = leadingZeros;
                 prevMeaningfulBits = meaningfulBits;
             }
-            prevValue = prevValue ^ xor;
-            values[i] = prevValue & 0xFFFFFFFFL;
+            values[i] = prevValue ^ xor;
+            prevValue = values[i];
         }
 
         for (int i = 0; i < valueCount; i++) {
-            values[i] = NumericUtils.floatToSortableInt(Float.intBitsToFloat((int) values[i]));
+            values[i] = NumericUtils.doubleToSortableLong(Double.longBitsToDouble(values[i]));
         }
 
         return valueCount;
@@ -96,6 +96,30 @@ public final class GorillaFloatDecodeStage implements PayloadDecoder {
 
         long buffer = getLong(bits, BIT_BUFFER_OFFSET);
         int bitsInBuffer = getInt(bits, BITS_IN_BUFFER_OFFSET);
+
+        if (numBits > 56) {
+            long result = 0;
+            if (bitsInBuffer > 0) {
+                result = buffer & mask(bitsInBuffer);
+                numBits -= bitsInBuffer;
+                bitsInBuffer = 0;
+            }
+            while (numBits >= 8) {
+                int byteVal = in.readByte() & 0xFF;
+                result = (result << 8) | byteVal;
+                numBits -= 8;
+            }
+            if (numBits > 0) {
+                int byteVal = in.readByte() & 0xFF;
+                buffer = byteVal;
+                bitsInBuffer = 8 - numBits;
+                long chunk = (buffer >>> bitsInBuffer) & mask(numBits);
+                result = (result << numBits) | chunk;
+            }
+            putLong(bits, BIT_BUFFER_OFFSET, buffer);
+            putInt(bits, BITS_IN_BUFFER_OFFSET, bitsInBuffer);
+            return result;
+        }
 
         while (bitsInBuffer < numBits) {
             int byteVal = in.readByte() & 0xFF;
@@ -146,6 +170,6 @@ public final class GorillaFloatDecodeStage implements PayloadDecoder {
 
     @Override
     public String toString() {
-        return "GorillaFloatDecodeStage";
+        return "ChimpDoubleDecodeStage";
     }
 }

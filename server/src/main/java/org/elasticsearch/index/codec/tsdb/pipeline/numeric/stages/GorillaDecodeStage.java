@@ -19,13 +19,13 @@ import java.io.IOException;
 
 public final class GorillaDecodeStage implements PayloadDecoder {
 
-    private static final int SCRATCHPAD_SIZE = 16;
+    private static final int BIT_STATE_SIZE = 16;
     private static final int LEADING_ZEROS_BITS = 6;
     private static final int MEANINGFUL_BITS_BITS = 6;
     private static final int BIT_BUFFER_OFFSET = 0;
     private static final int BITS_IN_BUFFER_OFFSET = 8;
 
-    private final byte[] scratchpad = new byte[SCRATCHPAD_SIZE];
+    private final byte[] bitState = new byte[BIT_STATE_SIZE];
 
     @Override
     public byte id() {
@@ -46,36 +46,36 @@ public final class GorillaDecodeStage implements PayloadDecoder {
             return 0;
         }
 
-        final byte[] scratch = scratchpad;
-        initBitBuffer(scratch);
+        final byte[] bits = bitState;
+        initBitBuffer(bits);
 
-        values[0] = readBits(64, in, scratch);
+        values[0] = readBits(64, in, bits);
 
         long prevValue = values[0];
         int prevLeadingZeros = 65;
         int prevMeaningfulBits = 0;
 
         for (int i = 1; i < valueCount; i++) {
-            final int firstBit = (int) readBits(1, in, scratch);
+            final int firstBit = (int) readBits(1, in, bits);
 
             if (firstBit == 0) {
                 values[i] = prevValue;
                 continue;
             }
 
-            final int secondBit = (int) readBits(1, in, scratch);
+            final int secondBit = (int) readBits(1, in, bits);
 
             final long xor;
             if (secondBit == 0) {
                 final int prevTrailingZeros = 64 - prevLeadingZeros - prevMeaningfulBits;
-                final long windowBits = readBits(prevMeaningfulBits, in, scratch);
+                final long windowBits = readBits(prevMeaningfulBits, in, bits);
                 xor = windowBits << prevTrailingZeros;
             } else {
-                final int leadingZeros = (int) readBits(LEADING_ZEROS_BITS, in, scratch);
-                final int meaningfulBits = (int) readBits(MEANINGFUL_BITS_BITS, in, scratch) + 1;
+                final int leadingZeros = (int) readBits(LEADING_ZEROS_BITS, in, bits);
+                final int meaningfulBits = (int) readBits(MEANINGFUL_BITS_BITS, in, bits) + 1;
                 final int trailingZeros = 64 - leadingZeros - meaningfulBits;
 
-                final long meaningful = readBits(meaningfulBits, in, scratch);
+                final long meaningful = readBits(meaningfulBits, in, bits);
                 xor = meaningful << trailingZeros;
 
                 prevLeadingZeros = leadingZeros;
@@ -92,16 +92,16 @@ public final class GorillaDecodeStage implements PayloadDecoder {
         return valueCount;
     }
 
-    private static void initBitBuffer(byte[] scratch) {
-        putLong(scratch, BIT_BUFFER_OFFSET, 0L);
-        putInt(scratch, BITS_IN_BUFFER_OFFSET, 0);
+    private static void initBitBuffer(byte[] bits) {
+        putLong(bits, BIT_BUFFER_OFFSET, 0L);
+        putInt(bits, BITS_IN_BUFFER_OFFSET, 0);
     }
 
-    private static long readBits(int numBits, DataInput in, byte[] scratch) throws IOException {
+    private static long readBits(int numBits, DataInput in, byte[] bits) throws IOException {
         if (numBits == 0) return 0;
 
-        long buffer = getLong(scratch, BIT_BUFFER_OFFSET);
-        int bitsInBuffer = getInt(scratch, BITS_IN_BUFFER_OFFSET);
+        long buffer = getLong(bits, BIT_BUFFER_OFFSET);
+        int bitsInBuffer = getInt(bits, BITS_IN_BUFFER_OFFSET);
 
         if (numBits > 56) {
             long result = 0;
@@ -119,11 +119,11 @@ public final class GorillaDecodeStage implements PayloadDecoder {
                 int byteVal = in.readByte() & 0xFF;
                 buffer = byteVal;
                 bitsInBuffer = 8 - numBits;
-                long bits = (buffer >>> bitsInBuffer) & mask(numBits);
-                result = (result << numBits) | bits;
+                long chunk = (buffer >>> bitsInBuffer) & mask(numBits);
+                result = (result << numBits) | chunk;
             }
-            putLong(scratch, BIT_BUFFER_OFFSET, buffer);
-            putInt(scratch, BITS_IN_BUFFER_OFFSET, bitsInBuffer);
+            putLong(bits, BIT_BUFFER_OFFSET, buffer);
+            putInt(bits, BITS_IN_BUFFER_OFFSET, bitsInBuffer);
             return result;
         }
 
@@ -137,8 +137,8 @@ public final class GorillaDecodeStage implements PayloadDecoder {
         long result = (buffer >>> bitsInBuffer) & mask(numBits);
         buffer &= mask(bitsInBuffer);
 
-        putLong(scratch, BIT_BUFFER_OFFSET, buffer);
-        putInt(scratch, BITS_IN_BUFFER_OFFSET, bitsInBuffer);
+        putLong(bits, BIT_BUFFER_OFFSET, buffer);
+        putInt(bits, BITS_IN_BUFFER_OFFSET, bitsInBuffer);
         return result;
     }
 

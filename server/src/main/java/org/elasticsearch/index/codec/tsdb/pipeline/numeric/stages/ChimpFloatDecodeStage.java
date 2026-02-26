@@ -17,10 +17,10 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadDecoder;
 
 import java.io.IOException;
 
-public final class GorillaFloatDecodeStage implements PayloadDecoder {
+public final class ChimpFloatDecodeStage implements PayloadDecoder {
 
     private static final int BIT_STATE_SIZE = 16;
-    private static final int LEADING_ZEROS_BITS = 5;
+    private static final int BUCKET_BITS = 3;
     private static final int MEANINGFUL_BITS_BITS = 5;
     private static final int BIT_BUFFER_OFFSET = 0;
     private static final int BITS_IN_BUFFER_OFFSET = 8;
@@ -29,7 +29,7 @@ public final class GorillaFloatDecodeStage implements PayloadDecoder {
 
     @Override
     public byte id() {
-        return StageId.GORILLA_FLOAT_PAYLOAD.id;
+        return StageId.CHIMP_FLOAT_PAYLOAD.id;
     }
 
     @Override
@@ -65,7 +65,8 @@ public final class GorillaFloatDecodeStage implements PayloadDecoder {
                 final int windowBits = (int) readBits(prevMeaningfulBits, in, bits);
                 xor = windowBits << prevTrailingZeros;
             } else {
-                final int leadingZeros = (int) readBits(LEADING_ZEROS_BITS, in, bits);
+                final int bucketIndex = (int) readBits(BUCKET_BITS, in, bits);
+                final int leadingZeros = ChimpFloatEncodeStage.LEADING_ZERO_BUCKETS[bucketIndex];
                 final int meaningfulBits = (int) readBits(MEANINGFUL_BITS_BITS, in, bits) + 1;
                 final int trailingZeros = 32 - leadingZeros - meaningfulBits;
 
@@ -146,6 +147,6 @@ public final class GorillaFloatDecodeStage implements PayloadDecoder {
 
     @Override
     public String toString() {
-        return "GorillaFloatDecodeStage";
+        return "ChimpFloatDecodeStage";
     }
 }

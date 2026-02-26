@@ -28,8 +28,16 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatEnco
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.BitPackCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.Chimp128DoubleDecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.Chimp128DoubleEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.Chimp128FloatDecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.Chimp128FloatEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleDecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatDecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
@@ -144,6 +152,10 @@ public final class StageFactory {
             case StageSpec.AlpRdFloat(double maxError) -> maxError > 0
                 ? new AlpRdFloatEncodeStage(blockSize, maxError)
                 : new AlpRdFloatEncodeStage(blockSize);
+            case StageSpec.ChimpPayload() -> new ChimpDoubleEncodeStage();
+            case StageSpec.ChimpFloatPayload() -> new ChimpFloatEncodeStage();
+            case StageSpec.Chimp128DoublePayload(int bs) -> new Chimp128DoubleEncodeStage(bs);
+            case StageSpec.Chimp128FloatPayload(int bs) -> new Chimp128FloatEncodeStage(bs);
             default -> throw new IllegalArgumentException("Not a payload stage: " + spec);
         };
     }
@@ -160,6 +172,10 @@ public final class StageFactory {
             case StageSpec.AlpRdDouble alpRdDouble -> new AlpRdDoubleDecodeStage(blockSize);
             case StageSpec.AlpFloat alpFloat -> new AlpFloatDecodeStage(blockSize);
             case StageSpec.AlpRdFloat alpRdFloat -> new AlpRdFloatDecodeStage(blockSize);
+            case StageSpec.ChimpPayload() -> new ChimpDoubleDecodeStage();
+            case StageSpec.ChimpFloatPayload() -> new ChimpFloatDecodeStage();
+            case StageSpec.Chimp128DoublePayload chimp128DoublePayload -> new Chimp128DoubleDecodeStage();
+            case StageSpec.Chimp128FloatPayload chimp128FloatPayload -> new Chimp128FloatDecodeStage();
             default -> throw new IllegalArgumentException("Not a payload stage: " + spec);
         };
     }
@@ -194,6 +210,10 @@ public final class StageFactory {
             case ALP_RD_DOUBLE -> new StageSpec.AlpRdDouble();
             case ALP_FLOAT -> new StageSpec.AlpFloat();
             case ALP_RD_FLOAT -> new StageSpec.AlpRdFloat();
+            case CHIMP_PAYLOAD -> new StageSpec.ChimpPayload();
+            case CHIMP_FLOAT_PAYLOAD -> new StageSpec.ChimpFloatPayload();
+            case CHIMP128_DOUBLE_PAYLOAD -> new StageSpec.Chimp128DoublePayload();
+            case CHIMP128_FLOAT_PAYLOAD -> new StageSpec.Chimp128FloatPayload();
         };
     }
 }

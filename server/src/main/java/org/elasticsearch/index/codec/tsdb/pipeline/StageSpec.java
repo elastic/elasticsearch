@@ -254,4 +254,44 @@ public sealed interface StageSpec {
             return StageId.ALP_RD_FLOAT;
         }
     }
+
+    record ChimpPayload() implements StageSpec {
+        @Override
+        public StageId stageId() {
+            return StageId.CHIMP_PAYLOAD;
+        }
+    }
+
+    record ChimpFloatPayload() implements StageSpec {
+        @Override
+        public StageId stageId() {
+            return StageId.CHIMP_FLOAT_PAYLOAD;
+        }
+    }
+
+    record Chimp128DoublePayload(int bufferSize) implements StageSpec {
+        private static final int DEFAULT_BUFFER_SIZE = 128;
+
+        public Chimp128DoublePayload() {
+            this(DEFAULT_BUFFER_SIZE);
+        }
+
+        @Override
+        public StageId stageId() {
+            return StageId.CHIMP128_DOUBLE_PAYLOAD;
+        }
+    }
+
+    record Chimp128FloatPayload(int bufferSize) implements StageSpec {
+        private static final int DEFAULT_BUFFER_SIZE = 128;
+
+        public Chimp128FloatPayload() {
+            this(DEFAULT_BUFFER_SIZE);
+        }
+
+        @Override
+        public StageId stageId() {
+            return StageId.CHIMP128_FLOAT_PAYLOAD;
+        }
+    }
 }

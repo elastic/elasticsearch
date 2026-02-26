@@ -19,7 +19,7 @@ import java.io.IOException;
 
 public final class GorillaEncodeStage implements PayloadEncoder {
 
-    private static final int SCRATCHPAD_SIZE = 16;
+    private static final int BIT_STATE_SIZE = 16;
 
     // NOTE: 6-bit leading-zeros field. The original Gorilla paper used 5 bits and
     // clamped to 0-31, which inflates meaningfulBits when XOR has >31 leading zeros.
@@ -28,11 +28,11 @@ public final class GorillaEncodeStage implements PayloadEncoder {
     private static final int LEADING_ZEROS_BITS = 6;
     private static final int MEANINGFUL_BITS_BITS = 6;
 
-    // NOTE: Scratchpad offsets for bit buffer state persisted across writeBits/readBits calls.
+    // NOTE: Offsets for bit buffer state persisted across writeBits/readBits calls.
     private static final int BIT_BUFFER_OFFSET = 0;
     private static final int BITS_IN_BUFFER_OFFSET = 8;
 
-    private final byte[] scratchpad = new byte[SCRATCHPAD_SIZE];
+    private final byte[] bitState = new byte[BIT_STATE_SIZE];
 
     @Override
     public byte id() {
@@ -48,7 +48,7 @@ public final class GorillaEncodeStage implements PayloadEncoder {
     // '11' -- new window: [leadingZeros: 6 bits (0-63, no clamping)]
     // [meaningfulBits-1: 6 bits] [meaningful bits].
     // Trailing zeros are derived as 64 - leadingZeros - meaningfulBits.
-    // Writes directly to DataOutput via the scratchpad bit buffer, not MetadataWriter.
+    // Writes directly to DataOutput via the bitState bit buffer, not MetadataWriter.
     @Override
     public void encode(final long[] values, int valueCount, final DataOutput out, final EncodingContext context) throws IOException {
         if (valueCount == 0) {
@@ -64,10 +64,10 @@ public final class GorillaEncodeStage implements PayloadEncoder {
 
         out.writeVInt(valueCount);
 
-        final byte[] scratch = scratchpad;
-        initBitBuffer(scratch);
+        final byte[] bits = bitState;
+        initBitBuffer(bits);
 
-        writeBits(values[0], 64, out, scratch);
+        writeBits(values[0], 64, out, bits);
 
         long prevValue = values[0];
 
@@ -76,29 +76,29 @@ public final class GorillaEncodeStage implements PayloadEncoder {
         int prevMeaningfulBits = 0;
 
         for (int i = 1; i < valueCount; i++) {
-            long bits = values[i] ^ prevValue;
+            long xor = values[i] ^ prevValue;
 
-            if (bits == 0) {
-                writeBits(0, 1, out, scratch);
+            if (xor == 0) {
+                writeBits(0, 1, out, bits);
             } else {
-                int leadingZeros = Long.numberOfLeadingZeros(bits);
-                int trailingZeros = Long.numberOfTrailingZeros(bits);
+                int leadingZeros = Long.numberOfLeadingZeros(xor);
+                int trailingZeros = Long.numberOfTrailingZeros(xor);
                 int meaningfulBits = 64 - leadingZeros - trailingZeros;
 
                 int prevTrailingZeros = 64 - prevLeadingZeros - prevMeaningfulBits;
 
                 if (leadingZeros >= prevLeadingZeros && trailingZeros >= prevTrailingZeros && prevMeaningfulBits > 0) {
-                    writeBits(0b10, 2, out, scratch);
-                    long windowBits = (bits >>> prevTrailingZeros) & mask(prevMeaningfulBits);
-                    writeBits(windowBits, prevMeaningfulBits, out, scratch);
+                    writeBits(0b10, 2, out, bits);
+                    long windowBits = (xor >>> prevTrailingZeros) & mask(prevMeaningfulBits);
+                    writeBits(windowBits, prevMeaningfulBits, out, bits);
                 } else {
-                    writeBits(0b11, 2, out, scratch);
+                    writeBits(0b11, 2, out, bits);
 
                     // NOTE: With 6-bit leading-zeros field, no clamping is needed.
                     // Store exact leadingZeros (0-63) directly.
-                    writeBits(leadingZeros, LEADING_ZEROS_BITS, out, scratch);
-                    writeBits(meaningfulBits - 1, MEANINGFUL_BITS_BITS, out, scratch);
-                    writeBits(bits >>> trailingZeros, meaningfulBits, out, scratch);
+                    writeBits(leadingZeros, LEADING_ZEROS_BITS, out, bits);
+                    writeBits(meaningfulBits - 1, MEANINGFUL_BITS_BITS, out, bits);
+                    writeBits(xor >>> trailingZeros, meaningfulBits, out, bits);
 
                     prevLeadingZeros = leadingZeros;
                     prevMeaningfulBits = meaningfulBits;
@@ -107,33 +107,33 @@ public final class GorillaEncodeStage implements PayloadEncoder {
             prevValue = values[i];
         }
 
-        flushBits(out, scratch);
+        flushBits(out, bits);
     }
 
-    private static void initBitBuffer(byte[] scratch) {
-        putLong(scratch, BIT_BUFFER_OFFSET, 0L);
-        putInt(scratch, BITS_IN_BUFFER_OFFSET, 0);
+    private static void initBitBuffer(byte[] bits) {
+        putLong(bits, BIT_BUFFER_OFFSET, 0L);
+        putInt(bits, BITS_IN_BUFFER_OFFSET, 0);
     }
 
-    private static void writeBits(long value, int numBits, DataOutput out, byte[] scratch) throws IOException {
-        long buffer = getLong(scratch, BIT_BUFFER_OFFSET);
-        int bitsInBuffer = getInt(scratch, BITS_IN_BUFFER_OFFSET);
+    private static void writeBits(long value, int numBits, DataOutput out, byte[] bits) throws IOException {
+        long buffer = getLong(bits, BIT_BUFFER_OFFSET);
+        int bitsInBuffer = getInt(bits, BITS_IN_BUFFER_OFFSET);
 
         while (numBits > 0) {
             int available = 64 - bitsInBuffer;
             int toWrite = Math.min(numBits, available);
 
-            long bits;
+            long chunk;
             if (toWrite == 64) {
-                bits = value;
+                chunk = value;
             } else {
-                bits = (value >>> (numBits - toWrite)) & ((1L << toWrite) - 1);
+                chunk = (value >>> (numBits - toWrite)) & ((1L << toWrite) - 1);
             }
 
             if (toWrite >= 64) {
-                buffer = bits;
+                buffer = chunk;
             } else {
-                buffer = (buffer << toWrite) | bits;
+                buffer = (buffer << toWrite) | chunk;
             }
             bitsInBuffer += toWrite;
             numBits -= toWrite;
@@ -145,13 +145,13 @@ public final class GorillaEncodeStage implements PayloadEncoder {
             buffer &= mask(bitsInBuffer);
         }
 
-        putLong(scratch, BIT_BUFFER_OFFSET, buffer);
-        putInt(scratch, BITS_IN_BUFFER_OFFSET, bitsInBuffer);
+        putLong(bits, BIT_BUFFER_OFFSET, buffer);
+        putInt(bits, BITS_IN_BUFFER_OFFSET, bitsInBuffer);
     }
 
-    private static void flushBits(DataOutput out, byte[] scratch) throws IOException {
-        long buffer = getLong(scratch, BIT_BUFFER_OFFSET);
-        int bitsInBuffer = getInt(scratch, BITS_IN_BUFFER_OFFSET);
+    private static void flushBits(DataOutput out, byte[] bits) throws IOException {
+        long buffer = getLong(bits, BIT_BUFFER_OFFSET);
+        int bitsInBuffer = getInt(bits, BITS_IN_BUFFER_OFFSET);
 
         if (bitsInBuffer > 0) {
             int byteVal = (int) ((buffer << (8 - bitsInBuffer)) & 0xFF);

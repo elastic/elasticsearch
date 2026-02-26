@@ -340,6 +340,21 @@ public final class PipelineConfig {
             specs.add(new StageSpec.AlpRdDouble(maxError));
             return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
         }
+
+        public PipelineConfig chimp() {
+            specs.add(new StageSpec.ChimpPayload());
+            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+        }
+
+        public PipelineConfig chimp128() {
+            specs.add(new StageSpec.Chimp128DoublePayload());
+            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+        }
+
+        public PipelineConfig chimp128(int bufferSize) {
+            specs.add(new StageSpec.Chimp128DoublePayload(bufferSize));
+            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+        }
     }
 
     public static final class FloatBuilder {
@@ -492,6 +507,21 @@ public final class PipelineConfig {
 
         public PipelineConfig alpRdFloat(double maxError) {
             specs.add(new StageSpec.AlpRdFloat(maxError));
+            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+        }
+
+        public PipelineConfig chimp() {
+            specs.add(new StageSpec.ChimpFloatPayload());
+            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+        }
+
+        public PipelineConfig chimp128() {
+            specs.add(new StageSpec.Chimp128FloatPayload());
+            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+        }
+
+        public PipelineConfig chimp128(int bufferSize) {
+            specs.add(new StageSpec.Chimp128FloatPayload(bufferSize));
             return new PipelineConfig(DataType.FLOAT, blockSize, specs);
         }
     }

@@ -17,28 +17,44 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadEncoder;
 
 import java.io.IOException;
 
-public final class GorillaFloatEncodeStage implements PayloadEncoder {
+public final class Chimp128DoubleEncodeStage implements PayloadEncoder {
 
     private static final int BIT_STATE_SIZE = 16;
-
-    // NOTE: 5-bit fields for 32-bit float values (0-31 range).
-    private static final int LEADING_ZEROS_BITS = 5;
-    private static final int MEANINGFUL_BITS_BITS = 5;
-
+    private static final int BUCKET_BITS = 3;
+    private static final int MEANINGFUL_BITS_BITS = 6;
     private static final int BIT_BUFFER_OFFSET = 0;
     private static final int BITS_IN_BUFFER_OFFSET = 8;
 
+    private final int bufferSize;
+    private final int bufferMask;
+    private final int indexBits;
+    private final long[] ring;
     private final byte[] bitState = new byte[BIT_STATE_SIZE];
+
+    public Chimp128DoubleEncodeStage() {
+        this(128);
+    }
+
+    public Chimp128DoubleEncodeStage(final int bufferSize) {
+        assert bufferSize > 0 && (bufferSize & (bufferSize - 1)) == 0 : "bufferSize must be a power of 2";
+        this.bufferSize = bufferSize;
+        this.bufferMask = bufferSize - 1;
+        this.indexBits = bufferSize == 1 ? 0 : 32 - Integer.numberOfLeadingZeros(bufferSize - 1);
+        this.ring = new long[bufferSize];
+    }
 
     @Override
     public byte id() {
-        return StageId.GORILLA_FLOAT_PAYLOAD.id;
+        return StageId.CHIMP128_DOUBLE_PAYLOAD.id;
     }
 
-    // NOTE: Same Gorilla algorithm as GorillaDoubleEncodeStage but operating on 32-bit
-    // float values. The float pipeline stores sortable ints in the low 32 bits
-    // of long[]. We convert to raw IEEE 754 float bits before XOR.
-    // Control prefixes: '0' = identical, '10' = reuse window, '11' = new window.
+    // NOTE: Payload layout: [valueCount: VInt] [bufferSizeLog2: VInt] [first value: 64 raw bits]
+    // followed by a Chimp128-encoded XOR bitstream. Each subsequent value is XORed against the
+    // best match in a ring buffer of previous values (the one maximizing trailing zeros).
+    // Each entry is encoded as one of three cases:
+    // '0' [index: indexBits] — XOR is zero (exact match in ring buffer).
+    // '10' [index: indexBits] [meaningful bits in previous window] — reuse previous window.
+    // '11' [index: indexBits] [bucket: 3 bits] [meaningfulBits-1: 6 bits] [meaningful bits] — new window.
     @Override
     public void encode(final long[] values, int valueCount, final DataOutput out, final EncodingContext context) throws IOException {
         if (valueCount == 0) {
@@ -47,48 +63,84 @@ public final class GorillaFloatEncodeStage implements PayloadEncoder {
         }
 
         for (int i = 0; i < valueCount; i++) {
-            values[i] = NumericUtils.sortableFloatBits((int) values[i]);
+            values[i] = NumericUtils.sortableDoubleBits(values[i]);
         }
 
         out.writeVInt(valueCount);
+        out.writeVInt(Integer.numberOfTrailingZeros(bufferSize));
 
         final byte[] bits = bitState;
         initBitBuffer(bits);
 
-        writeBits(values[0] & 0xFFFFFFFFL, 32, out, bits);
+        writeBits(values[0], 64, out, bits);
 
-        int prevValue = (int) values[0];
-        int prevLeadingZeros = 33;
+        int head = 0;
+        ring[head] = values[0];
+        int ringCount = 1;
+
+        int prevLeadingZeros = 65;
         int prevMeaningfulBits = 0;
 
         for (int i = 1; i < valueCount; i++) {
-            final int current = (int) values[i];
-            final int xor = current ^ prevValue;
+            final long current = values[i];
+
+            // Scan ring buffer to find best reference (max trailing zeros)
+            int bestIndex = 0;
+            int bestTrailing = -1;
+            for (int j = 0; j < ringCount; j++) {
+                final long ref = ring[(head - j) & bufferMask];
+                final long xorCandidate = current ^ ref;
+                final int trailing = xorCandidate == 0 ? 65 : Long.numberOfTrailingZeros(xorCandidate);
+                if (trailing > bestTrailing) {
+                    bestTrailing = trailing;
+                    bestIndex = j;
+                }
+            }
+
+            final long ref = ring[(head - bestIndex) & bufferMask];
+            final long xor = current ^ ref;
 
             if (xor == 0) {
                 writeBits(0, 1, out, bits);
+                if (indexBits > 0) {
+                    writeBits(bestIndex, indexBits, out, bits);
+                }
             } else {
-                final int leadingZeros = Integer.numberOfLeadingZeros(xor);
-                final int trailingZeros = Integer.numberOfTrailingZeros(xor);
-                final int meaningfulBits = 32 - leadingZeros - trailingZeros;
-
-                final int prevTrailingZeros = 32 - prevLeadingZeros - prevMeaningfulBits;
+                final int leadingZeros = Long.numberOfLeadingZeros(xor);
+                final int trailingZeros = Long.numberOfTrailingZeros(xor);
+                final int prevTrailingZeros = 64 - prevLeadingZeros - prevMeaningfulBits;
 
                 if (leadingZeros >= prevLeadingZeros && trailingZeros >= prevTrailingZeros && prevMeaningfulBits > 0) {
                     writeBits(0b10, 2, out, bits);
-                    long windowBits = ((long) (xor >>> prevTrailingZeros)) & mask(prevMeaningfulBits);
+                    if (indexBits > 0) {
+                        writeBits(bestIndex, indexBits, out, bits);
+                    }
+                    final long windowBits = (xor >>> prevTrailingZeros) & mask(prevMeaningfulBits);
                     writeBits(windowBits, prevMeaningfulBits, out, bits);
                 } else {
                     writeBits(0b11, 2, out, bits);
-                    writeBits(leadingZeros, LEADING_ZEROS_BITS, out, bits);
+                    if (indexBits > 0) {
+                        writeBits(bestIndex, indexBits, out, bits);
+                    }
+
+                    final int bucketIndex = ChimpDoubleEncodeStage.findBucketIndex(leadingZeros);
+                    final int roundedLeadingZeros = ChimpDoubleEncodeStage.LEADING_ZERO_BUCKETS[bucketIndex];
+                    final int meaningfulBits = 64 - roundedLeadingZeros - trailingZeros;
+
+                    writeBits(bucketIndex, BUCKET_BITS, out, bits);
                     writeBits(meaningfulBits - 1, MEANINGFUL_BITS_BITS, out, bits);
                     writeBits(xor >>> trailingZeros, meaningfulBits, out, bits);
 
-                    prevLeadingZeros = leadingZeros;
+                    prevLeadingZeros = roundedLeadingZeros;
                     prevMeaningfulBits = meaningfulBits;
                 }
             }
-            prevValue = current;
+
+            head = (head + 1) & bufferMask;
+            ring[head] = current;
+            if (ringCount < bufferSize) {
+                ringCount++;
+            }
         }
 
         flushBits(out, bits);
@@ -177,6 +229,6 @@ public final class GorillaFloatEncodeStage implements PayloadEncoder {
 
     @Override
     public String toString() {
-        return "GorillaFloatEncodeStage";
+        return "Chimp128DoubleEncodeStage";
     }
 }

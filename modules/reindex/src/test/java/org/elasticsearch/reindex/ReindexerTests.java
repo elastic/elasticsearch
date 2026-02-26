@@ -19,16 +19,20 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -57,41 +62,108 @@ import static org.mockito.Mockito.when;
 
 public class ReindexerTests extends ESTestCase {
 
-    public void testWrapWithMetricsSuccess() {
+    public void testWrapWithMetricsSuccess_noSlicing() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true, slicingMode);
+        boolean isRemote = randomBoolean();
+        var wrapped = Reindexer.wrapWithMetrics(
+            listener,
+            metrics,
+            randomNonNegativeLong(),
+            createReindexRequest(isRemote, ReindexMetrics.SlicingMode.NONE)
+        );
 
         BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics).recordSuccess(true, slicingMode);
+        verify(metrics).recordSuccess(isRemote, ReindexMetrics.SlicingMode.NONE);
         verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
-        verify(metrics).recordTookTime(anyLong(), eq(true), eq(slicingMode));
+        verify(metrics).recordTookTime(anyLong(), eq(isRemote), eq(ReindexMetrics.SlicingMode.NONE));
+    }
+
+    public void testWrapWithMetricsSuccess_manualSlicing() {
+        ReindexMetrics metrics = mock();
+        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        boolean isRemote = randomBoolean();
+        var wrapped = Reindexer.wrapWithMetrics(
+            listener,
+            metrics,
+            randomNonNegativeLong(),
+            createReindexRequest(isRemote, ReindexMetrics.SlicingMode.MANUAL)
+        );
+
+        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        wrapped.onResponse(response);
+
+        verify(listener).onResponse(response);
+        verify(metrics).recordSuccess(isRemote, ReindexMetrics.SlicingMode.MANUAL);
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
+        verify(metrics).recordTookTime(anyLong(), eq(isRemote), eq(ReindexMetrics.SlicingMode.MANUAL));
+    }
+
+    public void testWrapWithMetricsSuccess_autoFixedSlicing() {
+        ReindexMetrics metrics = mock();
+        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        boolean isRemote = randomBoolean();
+        var wrapped = Reindexer.wrapWithMetrics(
+            listener,
+            metrics,
+            randomNonNegativeLong(),
+            createReindexRequest(isRemote, ReindexMetrics.SlicingMode.AUTO_FIXED)
+        );
+
+        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        wrapped.onResponse(response);
+
+        verify(listener).onResponse(response);
+        verify(metrics).recordSuccess(isRemote, ReindexMetrics.SlicingMode.AUTO_FIXED);
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
+        verify(metrics).recordTookTime(anyLong(), eq(isRemote), eq(ReindexMetrics.SlicingMode.AUTO_FIXED));
+    }
+
+    public void testWrapWithMetricsSuccess_autoAutoSlicing() {
+        ReindexMetrics metrics = mock();
+        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        boolean isRemote = randomBoolean();
+        var wrapped = Reindexer.wrapWithMetrics(
+            listener,
+            metrics,
+            randomNonNegativeLong(),
+            createReindexRequest(isRemote, ReindexMetrics.SlicingMode.AUTO_AUTO)
+        );
+
+        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        wrapped.onResponse(response);
+
+        verify(listener).onResponse(response);
+        verify(metrics).recordSuccess(isRemote, ReindexMetrics.SlicingMode.AUTO_AUTO);
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
+        verify(metrics).recordTookTime(anyLong(), eq(isRemote), eq(ReindexMetrics.SlicingMode.AUTO_AUTO));
     }
 
     public void testWrapWithMetricsFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        boolean isRemote = randomBoolean();
         var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true, slicingMode);
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), createReindexRequest(isRemote, slicingMode));
 
         Exception exception = new Exception("random failure");
         wrapped.onFailure(exception);
 
         verify(listener).onFailure(exception);
         verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(true, slicingMode, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(true), eq(slicingMode));
+        verify(metrics).recordFailure(isRemote, slicingMode, exception);
+        verify(metrics).recordTookTime(anyLong(), eq(isRemote), eq(slicingMode));
     }
 
     public void testWrapWithMetricsBulkFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        boolean isRemote = randomBoolean();
         var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), false, slicingMode);
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), createReindexRequest(isRemote, slicingMode));
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
@@ -103,15 +175,16 @@ public class ReindexerTests extends ESTestCase {
 
         verify(listener).onResponse(response);
         verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(false, slicingMode, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(false), eq(slicingMode));
+        verify(metrics).recordFailure(isRemote, slicingMode, exception);
+        verify(metrics).recordTookTime(anyLong(), eq(isRemote), eq(slicingMode));
     }
 
     public void testWrapWithMetricsSearchFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        boolean isRemote = randomBoolean();
         var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true, slicingMode);
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), createReindexRequest(isRemote, slicingMode));
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
@@ -123,8 +196,8 @@ public class ReindexerTests extends ESTestCase {
 
         verify(listener).onResponse(response);
         verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(true, slicingMode, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(true), eq(slicingMode));
+        verify(metrics).recordFailure(isRemote, slicingMode, exception);
+        verify(metrics).recordTookTime(anyLong(), eq(isRemote), eq(slicingMode));
     }
 
     // listenerWithRelocations tests
@@ -136,7 +209,11 @@ public class ReindexerTests extends ESTestCase {
         task.setWorker(Float.POSITIVE_INFINITY, null);
 
         final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), original);
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            createReindexRequest(randomBoolean(), randomFrom(ReindexMetrics.SlicingMode.values())),
+            original
+        );
 
         assertSame(original, wrapped);
         verifyNoMoreInteractions(original);
@@ -151,7 +228,11 @@ public class ReindexerTests extends ESTestCase {
         // do NOT call task.requestRelocation()
 
         final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), original);
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            createReindexRequest(randomBoolean(), randomFrom(ReindexMetrics.SlicingMode.values())),
+            original
+        );
 
         final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
@@ -170,7 +251,11 @@ public class ReindexerTests extends ESTestCase {
         task.requestRelocation();
 
         final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), original);
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            createReindexRequest(randomBoolean(), randomFrom(ReindexMetrics.SlicingMode.values())),
+            original
+        );
 
         // response without ResumeInfo
         final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
@@ -207,7 +292,11 @@ public class ReindexerTests extends ESTestCase {
         task.requestRelocation();
 
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), future);
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+            task,
+            createReindexRequest(randomBoolean(), randomFrom(ReindexMetrics.SlicingMode.values())),
+            future
+        );
 
         final BulkByScrollResponse response = reindexResponseWithResumeInfo();
         wrapped.onResponse(response);
@@ -227,9 +316,12 @@ public class ReindexerTests extends ESTestCase {
         final ReindexMetrics metrics = mock();
         final Reindexer reindexer = reindexerWithRelocationAndMetrics(metrics);
         final ActionListener<BulkByScrollResponse> outer = spy(ActionListener.noop());
-        var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
 
-        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(outer, randomNonNegativeLong(), randomBoolean(), slicingMode);
+        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(
+            outer,
+            randomNonNegativeLong(),
+            createReindexRequest(randomBoolean(), randomFrom(ReindexMetrics.SlicingMode.values()))
+        );
 
         final BulkByScrollResponse response = reindexResponseWithResumeInfo();
         wrapped.onResponse(response);
@@ -249,16 +341,21 @@ public class ReindexerTests extends ESTestCase {
         final ReindexMetrics metrics = mock();
         final Reindexer reindexer = reindexerWithRelocationAndMetrics(metrics);
         final ActionListener<BulkByScrollResponse> outer = spy(ActionListener.noop());
-        var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
 
-        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(outer, randomNonNegativeLong(), true, slicingMode);
+        boolean isRemote = randomBoolean();
+        var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
+        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(
+            outer,
+            randomNonNegativeLong(),
+            createReindexRequest(isRemote, slicingMode)
+        );
 
         final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         verify(outer).onResponse(response);
-        verify(metrics).recordSuccess(true, slicingMode);
-        verify(metrics).recordTookTime(anyLong(), eq(true), eq(slicingMode));
+        verify(metrics).recordSuccess(isRemote, slicingMode);
+        verify(metrics).recordTookTime(anyLong(), eq(isRemote), eq(slicingMode));
 
         verifyNoMoreInteractions(metrics, outer);
     }
@@ -333,7 +430,32 @@ public class ReindexerTests extends ESTestCase {
         );
     }
 
-    private static ReindexRequest reindexRequest() {
-        return new ReindexRequest();
+    private static ReindexRequest createReindexRequest(boolean isRemote, ReindexMetrics.SlicingMode slicingMode) {
+        ReindexRequest request = new ReindexRequest();
+        if (isRemote) {
+            request.setRemoteInfo(
+                new RemoteInfo(
+                    "http",
+                    "remote",
+                    9200,
+                    null,
+                    new BytesArray("{}"),
+                    null,
+                    null,
+                    Map.of(),
+                    RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                    RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+                )
+            );
+        }
+        switch (slicingMode) {
+            case MANUAL -> request.getSearchRequest().source().slice(new SliceBuilder(0, 2));
+            case AUTO_AUTO -> request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            case AUTO_FIXED -> request.setSlices(randomIntBetween(2, 10));
+            case NONE -> {
+                // no changes needed
+            }
+        }
+        return request;
     }
 }

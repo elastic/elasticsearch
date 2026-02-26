@@ -164,12 +164,7 @@ public class Reindexer {
                     projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
-                    workerListenerWithRelocationAndMetrics(
-                        listenerWithRelocations,
-                        startTime,
-                        request.getRemoteInfo() != null,
-                        slicingMode(request)
-                    )
+                    workerListenerWithRelocationAndMetrics(listenerWithRelocations, startTime, request)
                 );
                 searchAction.start();
             }
@@ -180,15 +175,13 @@ public class Reindexer {
     ActionListener<BulkByScrollResponse> workerListenerWithRelocationAndMetrics(
         ActionListener<BulkByScrollResponse> potentiallyWrappedRelocationListener,
         long startTime,
-        boolean isRemote,
-        ReindexMetrics.SlicingMode slicingMode
+        ReindexRequest request
     ) {
         final ActionListener<BulkByScrollResponse> metricListener = wrapWithMetrics(
             potentiallyWrappedRelocationListener,
             reindexMetrics,
             startTime,
-            isRemote,
-            slicingMode
+            request
         );
 
         return metricListener.delegateFailure((l, resp) -> {
@@ -209,14 +202,15 @@ public class Reindexer {
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ReindexMetrics metrics,
         long startTime,
-        boolean isRemote,
-        ReindexMetrics.SlicingMode slicingMode
+        ReindexRequest request
     ) {
         if (metrics == null) {
             return listener;
         }
         // todo(szy): add relocation metrics
         // add completion metrics
+        boolean isRemote = request.getRemoteInfo() != null;
+        ReindexMetrics.SlicingMode slicingMode = slicingMode(request);
         var withCompletionMetrics = new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {

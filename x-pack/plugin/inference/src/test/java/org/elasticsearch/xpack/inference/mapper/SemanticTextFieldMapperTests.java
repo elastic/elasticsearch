@@ -342,17 +342,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testIndexSettingOverridesDefaultInferenceId() throws Exception {
-        // When index.semantic_text.default_inference_id is set, it takes precedence over the cluster-level default
-        // (Jina V5 on EIS) regardless of index version.
+        // When index.semantic_text.default_inference_id is set, it takes precedence over the cluster-level default (EIS ELSER).
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
 
         var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), DEFAULT_FALLBACK_ELSER_INFERENCE_ID)
             .build();
-        MapperService mapperService = createMapperService(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5, settings, fieldMapping);
+        MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping);
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
     }
 
@@ -364,11 +363,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         final String customEndpoint = "my-custom-elser-endpoint";
 
         var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), customEndpoint)
             .build();
-        MapperService mapperService = createMapperService(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5, settings, fieldMapping);
+        MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping);
         assertInferenceEndpoints(mapperService, fieldName, customEndpoint, customEndpoint);
     }
 
@@ -381,11 +380,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
 
         var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), DEFAULT_FALLBACK_ELSER_INFERENCE_ID)
             .build();
-        MapperService mapperService = createMapperService(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5, settings, fieldMapping);
+        MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping);
         assertInferenceEndpoints(mapperService, fieldName, explicitEndpoint, explicitEndpoint);
     }
 

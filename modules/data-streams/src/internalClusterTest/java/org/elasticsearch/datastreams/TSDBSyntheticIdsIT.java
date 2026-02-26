@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -1382,7 +1383,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                         }
             """ : "";
 
-        final var mappings = """
+        final var mappings = Strings.format("""
             {
                 "_doc": {
                     "properties": {
@@ -1407,7 +1408,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                         }%s
                     }
                 }
-            }""".formatted(nestedMapping);
+            }""", nestedMapping);
 
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(getTestClass().getName().toLowerCase(Locale.ROOT))
             .indexTemplate(

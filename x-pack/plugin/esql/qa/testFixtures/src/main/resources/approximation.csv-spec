@@ -14,16 +14,15 @@
 // which would make the tests flaky.
 
 
-// wil be fixed by pushing down to Lucene in follow-up PR
-total count-Ignore
+exact total count
 required_capability: approximation_v2
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(*)
 ;
 
-count:long
-200100
+count:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
+200100     | [200100,200100]                 | {any}
 ;
 
 
@@ -56,17 +55,16 @@ count:long | avg:double | sum:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED
 ;
 
 
-// wil be fixed by pushing down to Lucene in follow-up PR
-exact total count and approximate stats on large data-Ignore
+multiple total counts
 required_capability: approximation_v2
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
-    | STATS count=COUNT(), count2=COUNT(*), count3=COUNT("*"), countValue=COUNT(value)
+    | STATS count=COUNT(*), count2=COUNT("*"), countValue=COUNT(value)
 ;
 
-count:long | count2:long | count3:long | countValue:long  | CONFIDENCE_INTERVAL(countValue):long | CERTIFIED(countValue):boolean
-200100     | 200100      | 200100      | 1300000..2700000 | [1300000..2700000,1300000..2700000]  | {any}
+count:long     | count2:long    | countValue:long  | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(count2):long| CERTIFIED(count2):boolean | CONFIDENCE_INTERVAL(countValue):long | CERTIFIED(countValue):boolean
+130000..270000 | 130000..270000 | 1300000..2700000 | [130000..270000,130000..270000] | {any}                    | [130000..270000,130000..270000] | {any}                     | [1300000..2700000,1300000..2700000]  | {any}
 ;
 
 

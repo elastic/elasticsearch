@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToS
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsByExactStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
@@ -69,17 +70,23 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(8);
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(10);
         esSourceRules.add(new ReplaceSourceAttributes());
-        esSourceRules.add(new ReplaceSampledStatsBySampleAndStats());
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushLimitToExternalSource());
             esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushSampleToSource());
-            esSourceRules.add(new PushStatsToSource());
             esSourceRules.add(new EnableSpatialDistancePushdown());
+        }
+        esSourceRules.add(new ReplaceSampledStatsByExactStats());
+        if (optimizeForEsSource) {
+            esSourceRules.add(new PushStatsToSource());
+        }
+        esSourceRules.add(new ReplaceSampledStatsBySampleAndStats());
+        if (optimizeForEsSource) {
+            esSourceRules.add(new PushSampleToSource());
         }
 
         // execute the rules multiple times to improve the chances of things being pushed down

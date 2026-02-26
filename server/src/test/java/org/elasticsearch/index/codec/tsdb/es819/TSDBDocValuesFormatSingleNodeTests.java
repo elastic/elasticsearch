@@ -16,7 +16,7 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -86,7 +86,7 @@ public class TSDBDocValuesFormatSingleNodeTests extends ESSingleNodeTestCase {
     private void assertDocValuesFormat(String indexName, DocValuesFormat expectedFormat, Set<String> expectedFields) {
         var indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         var shard = indexService.getShard(0);
-        var codec = (Elasticsearch92Lucene103Codec) shard.getEngineOrNull().config().getCodec();
+        var codec = (Elasticsearch93Lucene104Codec) shard.getEngineOrNull().config().getCodec();
         for (String field : expectedFields) {
             DocValuesFormat writerFormat = codec.getDocValuesFormatForField(field);
             assertThat(

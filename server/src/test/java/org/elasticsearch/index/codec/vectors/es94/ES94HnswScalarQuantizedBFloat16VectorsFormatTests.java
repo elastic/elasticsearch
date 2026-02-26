@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.es94;
 
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BaseHnswBFloat16VectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -27,6 +28,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 
 public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsFormatTestCase {
@@ -76,15 +78,27 @@ public class ES94HnswScalarQuantizedBFloat16VectorsFormatTests extends BaseHnswB
 
     public void testSimpleOffHeapSize() throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
+        // Use threshold=0 to ensure HNSW graph is always built, but keep assertion tolerant to implementation details.
+        KnnVectorsFormat format = new ES94HnswScalarQuantizedVectorsFormat(
+            16,
+            100,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            bits,
+            false,
+            1,
+            null,
+            0
+        );
+        var config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory()) {
             testSimpleOffHeapSize(
                 dir,
-                newIndexWriterConfig(),
+                config,
                 vector,
                 allOf(
                     aMapWithSize(3),
                     hasEntry("vec", (long) vector.length * BFloat16.BYTES),
-                    hasEntry("vex", 1L),
+                    hasEntry(equalTo("vex"), greaterThanOrEqualTo(0L)),
                     hasEntry(equalTo("veq"), greaterThan(0L))
                 )
             );

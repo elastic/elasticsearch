@@ -446,8 +446,8 @@ stats on aggregate_metric_double with partial submetrics missing sum and count:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
-      reason: "Support for partial submetrics in aggregate_metric_double"
+          capabilities: [aggregate_metric_double_avg_as_default_metric]
+      reason: "Support for using avg as default metric with std_dev"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -884,7 +884,7 @@ Stats with partial submetrics for aggregate metric double with average as defaul
           path: /_query
           parameters: []
           capabilities: [aggregate_metric_double_avg_as_default_metric]
-      reason: "Using avg as default metric"
+      reason: "Support for using avg as default metric with std_dev"
 
   - do:
       bulk:

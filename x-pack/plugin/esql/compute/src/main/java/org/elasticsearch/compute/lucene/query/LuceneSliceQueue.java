@@ -21,6 +21,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -231,12 +232,22 @@ public final class LuceneSliceQueue {
                     PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
                     partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
                     List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
-                    Weight weight = weight(ctx, query, scoreMode);
+                    var weightAndCache = weight(ctx, query, scoreMode, partitioning);
                     boolean queryHead = true;
                     for (List<PartialLeafReaderContext> group : groups) {
                         if (group.isEmpty() == false) {
                             final int slicePosition = nextSliceId++;
-                            slices.add(new LuceneSlice(slicePosition, queryHead, ctx, group, weight, queryAndExtra.tags));
+                            slices.add(
+                                new LuceneSlice(
+                                    slicePosition,
+                                    queryHead,
+                                    ctx,
+                                    group,
+                                    weightAndCache.weight,
+                                    queryAndExtra.tags,
+                                    weightAndCache.blockedOnCaching
+                                )
+                            );
                             queryHead = false;
                         }
                     }
@@ -348,11 +359,23 @@ public final class LuceneSliceQueue {
         }
     }
 
-    static Weight weight(ShardContext ctx, Query query, ScoreMode scoreMode) {
-        var searcher = ctx.searcher();
+    record WeightAndCache(Weight weight, LuceneSlice.BlockedOnCaching blockedOnCaching) {}
+
+    private static WeightAndCache weight(ShardContext ctx, Query query, ScoreMode scoreMode, PartitioningStrategy partitioning) {
         try {
-            Query actualQuery = scoreMode.needsScores() ? query : new ConstantScoreQuery(query);
-            return searcher.createWeight(actualQuery, scoreMode, 1);
+            if (scoreMode == ScoreMode.COMPLETE_NO_SCORES && partitioning == PartitioningStrategy.DOC) {
+                DocPartitioningQueryCache queryCache = new DocPartitioningQueryCache(ctx.searcher().getQueryCache());
+                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                    ctx.searcher().getIndexReader(),
+                    ctx.searcher().getSimilarity(),
+                    queryCache,
+                    ctx.searcher().getQueryCachingPolicy(),
+                    false
+                );
+                return new WeightAndCache(searcher.createWeight(query, scoreMode, 1), queryCache::blockedOnCaching);
+            } else {
+                return new WeightAndCache(ctx.searcher().createWeight(query, scoreMode, 1), LuceneSlice.NEVER_BLOCKED);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

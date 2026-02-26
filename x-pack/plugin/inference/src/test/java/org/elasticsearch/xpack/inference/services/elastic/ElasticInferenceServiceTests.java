@@ -36,6 +36,11 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage.ContentObjectImageUrl;
+import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -1060,9 +1065,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );
 
-            var request = UnifiedCompletionRequest.of(
-                List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("Hello"), "user", null, null))
-            );
+            var request = UnifiedCompletionRequest.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
@@ -1112,14 +1115,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             var request = UnifiedCompletionRequest.of(
                 List.of(
-                    new UnifiedCompletionRequest.Message(
-                        new UnifiedCompletionRequest.ContentObjects(
-                            List.of(
-                                new UnifiedCompletionRequest.ContentObjectImage(
-                                    new UnifiedCompletionRequest.ContentObjectImageUrl("image data", null)
-                                )
-                            )
-                        ),
+                    new Message(
+                        new ContentObjects(List.of(new ContentObjectImage(new ContentObjectImageUrl("image data", null)))),
                         "user",
                         null,
                         null
@@ -1787,9 +1784,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

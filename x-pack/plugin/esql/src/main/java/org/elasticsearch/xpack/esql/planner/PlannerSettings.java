@@ -141,6 +141,19 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Maximum number of keyword sort fields allowed when pushing TopN to Lucene.
+     * Sorting on many keyword fields in Lucene can be expensive. When exceeded,
+     * the sort falls back to the compute engine.
+     */
+    public static final Setting<Integer> MAX_KEYWORD_SORT_FIELDS = Setting.intSetting(
+        "esql.max_keyword_sort_fields",
+        10,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -152,7 +165,8 @@ public class PlannerSettings {
             PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
             REUSE_COLUMN_LOADERS_THRESHOLD,
             BLOCK_LOADER_SIZE_ORDINALS,
-            BLOCK_LOADER_SIZE_SCRIPT
+            BLOCK_LOADER_SIZE_SCRIPT,
+            MAX_KEYWORD_SORT_FIELDS
         );
     }
 
@@ -182,6 +196,7 @@ public class PlannerSettings {
             );
             clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_ORDINALS, v -> settings.updateAndGet(s -> s.blockLoaderSizeOrdinals(v)));
             clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_SCRIPT, v -> settings.updateAndGet(s -> s.blockLoaderSizeOrdinals(v)));
+            clusterSettings.initializeAndWatch(MAX_KEYWORD_SORT_FIELDS, v -> settings.updateAndGet(s -> s.maxKeywordSortFields(v)));
         }
 
         public PlannerSettings get() {
@@ -198,6 +213,7 @@ public class PlannerSettings {
     private final int reuseColumnLoadersThreshold;
     private final ByteSizeValue blockLoaderSizeOrdinals;
     private final ByteSizeValue blockLoaderSizeScript;
+    private final int maxKeywordSortFields;
 
     /**
      * Defaults.
@@ -211,7 +227,8 @@ public class PlannerSettings {
         PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getDefault(Settings.EMPTY),
         REUSE_COLUMN_LOADERS_THRESHOLD.getDefault(Settings.EMPTY),
         BLOCK_LOADER_SIZE_ORDINALS.getDefault(Settings.EMPTY),
-        BLOCK_LOADER_SIZE_SCRIPT.getDefault(Settings.EMPTY)
+        BLOCK_LOADER_SIZE_SCRIPT.getDefault(Settings.EMPTY),
+        MAX_KEYWORD_SORT_FIELDS.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -226,7 +243,8 @@ public class PlannerSettings {
         double partialEmitUniquenessThreshold,
         int reuseColumnLoadersThreshold,
         ByteSizeValue blockLoaderSizeOrdinals,
-        ByteSizeValue blockLoaderSizeScript
+        ByteSizeValue blockLoaderSizeScript,
+        int maxKeywordSortFields
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
@@ -237,6 +255,7 @@ public class PlannerSettings {
         this.reuseColumnLoadersThreshold = reuseColumnLoadersThreshold;
         this.blockLoaderSizeOrdinals = blockLoaderSizeOrdinals;
         this.blockLoaderSizeScript = blockLoaderSizeScript;
+        this.maxKeywordSortFields = maxKeywordSortFields;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -249,7 +268,8 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields
         );
     }
 
@@ -267,7 +287,8 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields
         );
     }
 
@@ -285,7 +306,8 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields
         );
     }
 
@@ -317,7 +339,8 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields
         );
     }
 
@@ -335,7 +358,8 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields
         );
     }
 
@@ -353,7 +377,8 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields
         );
     }
 
@@ -371,7 +396,8 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields
         );
     }
 
@@ -396,7 +422,8 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields
         );
     }
 
@@ -417,7 +444,8 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields
         );
     }
 
@@ -426,5 +454,24 @@ public class PlannerSettings {
      */
     public ByteSizeValue blockLoaderSizeScript() {
         return blockLoaderSizeScript;
+    }
+
+    public PlannerSettings maxKeywordSortFields(int maxKeywordSortFields) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields
+        );
+    }
+
+    public int maxKeywordSortFields() {
+        return maxKeywordSortFields;
     }
 }

@@ -51,7 +51,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
@@ -264,66 +263,50 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * of {@link LeafSlice} will be equal or lower than the max number of slices.
      */
     public static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
-        List<List<LeafReaderContext>> groups = computeLeafGroups(leaves, maxSliceNum, minDocsPerSlice);
-
-        final LeafSlice[] slices = new LeafSlice[groups.size()];
-        int upto = 0;
-        for (List<LeafReaderContext> group : groups) {
-            // LeafSlice ctor reorders leaves so that leaves within a slice preserve the order they had within the IndexReader.
-            // This is important given how Elasticsearch sorts leaves by descending @timestamp to get better query performance.
-            slices[upto++] = new LeafSlice(
-                group.stream().map(LeafReaderContextPartition::createForEntireSegment).collect(Collectors.toCollection(ArrayList::new))
-            );
-        }
-        return slices;
-    }
-
-    /**
-     * Computes leaf reader context groups using a greedy bin-packing algorithm.
-     * Each group contains at least {@code max(minDocsPerSlice, 10% * totalDocs)} documents,
-     * and the result contains at most {@code maxSliceNum} groups.
-     *
-     * @param leaves the leaf reader contexts to group
-     * @param maxSliceNum maximum number of groups to create
-     * @param minDocsPerSlice minimum documents per group (before applying the 10% floor)
-     * @return list of groups, where each group is a list of leaf contexts
-     */
-    public static List<List<LeafReaderContext>> computeLeafGroups(List<LeafReaderContext> leaves, int maxSliceNum, int minDocsPerSlice) {
         if (maxSliceNum < 1) {
             throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
         }
         if (maxSliceNum == 1) {
-            return List.of(leaves);
+            return new LeafSlice[] {
+                new LeafSlice(
+                    new ArrayList<>(
+                        leaves.stream()
+                            .map(LeafReaderContextPartition::createForEntireSegment)
+                            .collect(Collectors.toCollection(ArrayList::new))
+                    )
+                ) };
         }
-
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
         // percentage of documents per slice, minimum 10%
         final double percentageDocsPerThread = Math.max(MINIMUM_DOCS_PERCENT_PER_SLICE, 1.0 / maxSliceNum);
-        final int effectiveMinDocs = Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs));
+        // compute slices
+        return computeSlices(leaves, Math.max(minDocsPerSlice, (int) (percentageDocsPerThread * numDocs)));
+    }
 
+    private static LeafSlice[] computeSlices(List<LeafReaderContext> leaves, int minDocsPerSlice) {
         // Make a copy so we can sort:
         List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
         // Sort by maxDoc, descending:
         sortedLeaves.sort((c1, c2) -> Integer.compare(c2.reader().maxDoc(), c1.reader().maxDoc()));
         // we add the groups on a priority queue, so we can add orphan leafs to the smallest group
         final PriorityQueue<List<LeafReaderContext>> queue = new PriorityQueue<>(
-            Comparator.comparingInt(ContextIndexSearcher::sumMaxDocValues)
+            (c1, c2) -> Integer.compare(sumMaxDocValues(c1), sumMaxDocValues(c2))
         );
         long docSum = 0;
         List<LeafReaderContext> group = new ArrayList<>();
         for (LeafReaderContext ctx : sortedLeaves) {
             group.add(ctx);
             docSum += ctx.reader().maxDoc();
-            if (docSum > effectiveMinDocs) {
+            if (docSum > minDocsPerSlice) {
                 queue.add(group);
                 group = new ArrayList<>();
                 docSum = 0;
             }
         }
 
-        if (group.isEmpty() == false) {
-            if (queue.isEmpty()) {
+        if (group.size() > 0) {
+            if (queue.size() == 0) {
                 queue.add(group);
             } else {
                 for (LeafReaderContext context : group) {
@@ -334,7 +317,19 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
 
-        return new ArrayList<>(queue);
+        final LeafSlice[] slices = new LeafSlice[queue.size()];
+        int upto = 0;
+        for (List<LeafReaderContext> currentLeaf : queue) {
+            // LeafSlice ctor reorders leaves so that leaves within a slice preserve the order they had within the IndexReader.
+            // This is important given how Elasticsearch sorts leaves by descending @timestamp to get better query performance.
+            slices[upto++] = new LeafSlice(
+                currentLeaf.stream()
+                    .map(LeafReaderContextPartition::createForEntireSegment)
+                    .collect(Collectors.toCollection(ArrayList::new))
+            );
+        }
+
+        return slices;
     }
 
     private static int sumMaxDocValues(List<LeafReaderContext> l) {

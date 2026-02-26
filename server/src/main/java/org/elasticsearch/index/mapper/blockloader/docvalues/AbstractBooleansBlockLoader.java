@@ -9,11 +9,12 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 
@@ -33,30 +34,26 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
-        if (docValues != null) {
-            NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
-            if (singleton != null) {
-                return singletonReader(singleton);
-            }
-            return sortedReader(docValues);
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        NumericDvSingletonOrSorted dv = NumericDvSingletonOrSorted.get(breaker, context, fieldName);
+        if (dv == null) {
+            return ConstantNull.READER;
         }
-        NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
-        if (singleton != null) {
-            return singletonReader(singleton);
+        if (dv.singleton() != null) {
+            return singletonReader(dv.singleton());
         }
-        return ConstantNull.READER;
+        return sortedReader(dv.sorted());
     }
 
-    protected abstract AllReader singletonReader(NumericDocValues docValues);
+    protected abstract AllReader singletonReader(TrackingNumericDocValues docValues);
 
-    protected abstract AllReader sortedReader(SortedNumericDocValues docValues);
+    protected abstract AllReader sortedReader(TrackingSortedNumericDocValues docValues);
 
     public static class Singleton extends BlockDocValuesReader {
-        private final NumericDocValues numericDocValues;
+        private final TrackingNumericDocValues numericDocValues;
 
-        public Singleton(NumericDocValues numericDocValues) {
+        public Singleton(TrackingNumericDocValues numericDocValues) {
+            super(null);
             this.numericDocValues = numericDocValues;
         }
 
@@ -69,8 +66,8 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
                     if (doc < lastDoc) {
                         throw new IllegalStateException("docs within same block must be in order");
                     }
-                    if (numericDocValues.advanceExact(doc)) {
-                        builder.appendBoolean(numericDocValues.longValue() != 0);
+                    if (numericDocValues.docValues().advanceExact(doc)) {
+                        builder.appendBoolean(numericDocValues.docValues().longValue() != 0);
                     } else {
                         builder.appendNull();
                     }
@@ -83,8 +80,8 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             BooleanBuilder blockBuilder = (BooleanBuilder) builder;
-            if (numericDocValues.advanceExact(docId)) {
-                blockBuilder.appendBoolean(numericDocValues.longValue() != 0);
+            if (numericDocValues.docValues().advanceExact(docId)) {
+                blockBuilder.appendBoolean(numericDocValues.docValues().longValue() != 0);
             } else {
                 blockBuilder.appendNull();
             }
@@ -92,19 +89,25 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "BooleansFromDocValues.Singleton";
         }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
+        }
     }
 
     static class Sorted extends BlockDocValuesReader {
-        private final SortedNumericDocValues numericDocValues;
+        private final TrackingSortedNumericDocValues numericDocValues;
 
-        Sorted(SortedNumericDocValues numericDocValues) {
+        Sorted(TrackingSortedNumericDocValues numericDocValues) {
+            super(null);
             this.numericDocValues = numericDocValues;
         }
 
@@ -125,30 +128,35 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
         }
 
         private void read(int doc, BooleanBuilder builder) throws IOException {
-            if (false == numericDocValues.advanceExact(doc)) {
+            if (false == numericDocValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            int count = numericDocValues.docValueCount();
+            int count = numericDocValues.docValues().docValueCount();
             if (count == 1) {
-                builder.appendBoolean(numericDocValues.nextValue() != 0);
+                builder.appendBoolean(numericDocValues.docValues().nextValue() != 0);
                 return;
             }
             builder.beginPositionEntry();
             for (int v = 0; v < count; v++) {
-                builder.appendBoolean(numericDocValues.nextValue() != 0);
+                builder.appendBoolean(numericDocValues.docValues().nextValue() != 0);
             }
             builder.endPositionEntry();
         }
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "BooleansFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
         }
     }
 }

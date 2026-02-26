@@ -10,6 +10,7 @@ a:integer | b:keyword
 // Employees dataset: 100 rows, 23 columns (integers, keywords, dates, doubles, booleans, multi-values)
 
 readAllEmployees
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | KEEP emp_no, first_name, last_name, birth_date, gender, hire_date, languages, height, salary, still_hired
 | SORT emp_no
@@ -24,6 +25,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | birth_date:date       
 ;
 
 selectSpecificColumns
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | KEEP emp_no, first_name, last_name, salary
 | SORT emp_no
@@ -38,6 +40,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | salary:integer
 ;
 
 filterByEmployeeNumber
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | WHERE emp_no == 10001
 | KEEP emp_no, first_name, last_name;
@@ -47,6 +50,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 filterBySalaryRange
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | WHERE salary > 60000 AND salary < 70000
 | KEEP emp_no, first_name, salary
@@ -62,6 +66,7 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 filterByGender
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | WHERE gender == "F"
 | KEEP emp_no, first_name, last_name, gender
@@ -75,6 +80,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | gender:keyword
 ;
 
 filterByEmploymentStatus
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | WHERE still_hired == false
 | KEEP emp_no, first_name, last_name, still_hired
@@ -88,6 +94,7 @@ emp_no:integer | first_name:keyword | last_name:keyword | still_hired:boolean
 ;
 
 aggregateCount
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | STATS count = COUNT(*);
 
@@ -96,6 +103,7 @@ count:long
 ;
 
 aggregateByGender
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | STATS count = COUNT(*) BY gender
 | SORT gender;
@@ -107,6 +115,7 @@ count:long | gender:keyword
 ;
 
 aggregateAverageSalary
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | STATS avg_salary = AVG(salary);
 
@@ -115,6 +124,7 @@ avg_salary:double
 ;
 
 aggregateSalaryStats
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | STATS min_salary = MIN(salary), max_salary = MAX(salary), avg_salary = AVG(salary);
 
@@ -123,6 +133,7 @@ min_salary:integer | max_salary:integer | avg_salary:double
 ;
 
 aggregateSalaryByGender
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | STATS avg_salary = AVG(salary), count = COUNT(*) BY gender
 | SORT gender;
@@ -134,6 +145,7 @@ avg_salary:double    | count:long | gender:keyword
 ;
 
 filterAndSort
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | WHERE salary > 70000
 | KEEP emp_no, first_name, salary
@@ -149,6 +161,7 @@ emp_no:integer | first_name:keyword | salary:integer
 ;
 
 evalComputedColumn
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | EVAL annual_bonus = salary * 0.1
 | KEEP emp_no, first_name, salary, annual_bonus
@@ -162,6 +175,7 @@ emp_no:integer | first_name:keyword | salary:integer | annual_bonus:double
 ;
 
 complexQuery
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | WHERE still_hired == true AND salary > 55000
 | EVAL salary_category = CASE(salary < 60000, "standard", salary < 70000, "senior", "principal")
@@ -177,6 +191,7 @@ count:long | avg_salary:double | salary_category:keyword
 // Additional column types
 
 selectAdditionalColumns
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | KEEP emp_no, first_name, `languages.long`, avg_worked_seconds
 | SORT emp_no
@@ -191,6 +206,7 @@ emp_no:integer | first_name:keyword | languages.long:long | avg_worked_seconds:l
 ;
 
 selectHeightVariants
+required_capability: external_command
 EXTERNAL "s3://iceberg-test/warehouse/employees"
 | EVAL height_float_rounded = ROUND(`height.float`, 2), height_half_float_rounded = ROUND(`height.half_float`, 2)
 | KEEP emp_no, height, height_float_rounded, `height.scaled_float`, height_half_float_rounded

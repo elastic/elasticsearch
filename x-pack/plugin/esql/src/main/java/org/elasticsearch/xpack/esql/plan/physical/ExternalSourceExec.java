@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 
@@ -51,6 +53,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         ExternalSourceExec::readFrom
     );
 
+    private static final TransportVersion ESQL_EXTERNAL_SOURCE_SPLITS = TransportVersion.fromName("esql_external_source_splits");
+
     private final String sourcePath;
     private final String sourceType;
     private final List<Attribute> attributes;
@@ -59,6 +63,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
     private final Object pushedFilter; // Opaque filter - NOT serialized (coordinator only)
     private final Integer estimatedRowSize;
     private final FileSet fileSet; // NOT serialized - coordinator only
+    private final List<ExternalSplit> splits;
 
     public ExternalSourceExec(
         Source source,
@@ -70,6 +75,21 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         Object pushedFilter,
         Integer estimatedRowSize,
         FileSet fileSet
+    ) {
+        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize, fileSet, List.of());
+    }
+
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        Integer estimatedRowSize,
+        FileSet fileSet,
+        List<ExternalSplit> splits
     ) {
         super(source);
         if (sourcePath == null) {
@@ -89,6 +109,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         this.pushedFilter = pushedFilter;
         this.estimatedRowSize = estimatedRowSize;
         this.fileSet = fileSet;
+        this.splits = splits != null ? List.copyOf(splits) : List.of();
     }
 
     public ExternalSourceExec(
@@ -101,7 +122,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         Object pushedFilter,
         Integer estimatedRowSize
     ) {
-        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize, null);
+        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize, null, List.of());
     }
 
     public ExternalSourceExec(
@@ -113,7 +134,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         Map<String, Object> sourceMetadata,
         Integer estimatedRowSize
     ) {
-        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, null, estimatedRowSize, null);
+        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, null, estimatedRowSize, null, List.of());
     }
 
     private static ExternalSourceExec readFrom(StreamInput in) throws IOException {
@@ -125,10 +146,23 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         Map<String, Object> config = (Map<String, Object>) in.readGenericValue();
         @SuppressWarnings("unchecked")
         Map<String, Object> sourceMetadata = (Map<String, Object>) in.readGenericValue();
-        // pushedFilter is NOT serialized - it's created during local optimization and consumed locally
         Integer estimatedRowSize = in.readOptionalVInt();
+        List<ExternalSplit> splits = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)
+            ? in.readNamedWriteableCollectionAsList(ExternalSplit.class)
+            : List.of();
 
-        return new ExternalSourceExec(source, sourcePath, sourceType, attributes, config, sourceMetadata, null, estimatedRowSize);
+        return new ExternalSourceExec(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            null,
+            estimatedRowSize,
+            null,
+            splits
+        );
     }
 
     @Override
@@ -139,8 +173,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         out.writeNamedWriteableCollection(attributes);
         out.writeGenericValue(config);
         out.writeGenericValue(sourceMetadata);
-        // pushedFilter is NOT serialized - it's coordinator-only
         out.writeOptionalVInt(estimatedRowSize);
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)) {
+            out.writeNamedWriteableCollection(splits);
+        }
     }
 
     @Override
@@ -181,6 +217,25 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         return fileSet;
     }
 
+    public List<ExternalSplit> splits() {
+        return splits;
+    }
+
+    public ExternalSourceExec withSplits(List<ExternalSplit> newSplits) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            estimatedRowSize,
+            fileSet,
+            newSplits
+        );
+    }
+
     public ExternalSourceExec withPushedFilter(Object newFilter) {
         return new ExternalSourceExec(
             source(),
@@ -191,7 +246,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             sourceMetadata,
             newFilter,
             estimatedRowSize,
-            fileSet
+            fileSet,
+            splits
         );
     }
 
@@ -212,7 +268,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             sourceMetadata,
             pushedFilter,
             newEstimatedRowSize,
-            fileSet
+            fileSet,
+            splits
         );
     }
 
@@ -228,13 +285,14 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             sourceMetadata,
             pushedFilter,
             estimatedRowSize,
-            fileSet
+            fileSet,
+            splits
         );
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize, fileSet);
+        return Objects.hash(sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize, fileSet, splits);
     }
 
     @Override
@@ -255,12 +313,14 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             && Objects.equals(sourceMetadata, other.sourceMetadata)
             && Objects.equals(pushedFilter, other.pushedFilter)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
-            && Objects.equals(fileSet, other.fileSet);
+            && Objects.equals(fileSet, other.fileSet)
+            && Objects.equals(splits, other.splits);
     }
 
     @Override
     public String nodeString(NodeStringFormat format) {
         String filterStr = pushedFilter != null ? "[filter=" + pushedFilter + "]" : "";
-        return nodeName() + "[" + sourcePath + "][" + sourceType + "]" + filterStr + NodeUtils.toString(attributes, format);
+        String splitsStr = splits.isEmpty() == false ? "[splits=" + splits.size() + "]" : "";
+        return nodeName() + "[" + sourcePath + "][" + sourceType + "]" + filterStr + splitsStr + NodeUtils.toString(attributes, format);
     }
 }

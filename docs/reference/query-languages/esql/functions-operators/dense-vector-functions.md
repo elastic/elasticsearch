@@ -23,35 +23,3 @@ and require appropriate field mappings.
 
 :::{include} ../_snippets/lists/dense-vector-functions.md
 :::
-
-:::{include} ../_snippets/functions/layout/knn.md
-:::
-
-:::{include} ../_snippets/functions/layout/text_embedding.md
-:::
-
-## Vector similarity functions
-
-Vector similarity functions calculate the similarity between two vectors as a double value, that represents how similar the vectors are.
-
-:::{include} ../_snippets/functions/layout/v_cosine.md
-:::
-
-:::{include} ../_snippets/functions/layout/v_dot_product.md
-:::
-
-:::{include} ../_snippets/functions/layout/v_hamming.md
-:::
-
-:::{include} ../_snippets/functions/layout/v_l1_norm.md
-:::
-
-lists/dense-vector-functions.md
-:::{include} ../_snippets/functions/layout/v_l2_norm.md
-:::
-
-% V_MAGNITUDE is currently a hidden feature
-% To make it visible again, uncomment this and the line in
-% lists/dense-vector-functions.md
-% :::{include} ../_snippets/functions/layout/v_magnitude.md
-% :::

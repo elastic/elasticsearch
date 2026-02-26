@@ -66,6 +66,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -539,17 +540,29 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         final SnapshotId sourceSnapshot = updatedEntry.source();
                         for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> indexClone : updatedEntry.shardSnapshotStatusByRepoShardId()
                             .entrySet()) {
-                            final ShardSnapshotStatus shardStatusBefore = indexClone.getValue();
-                            if (shardStatusBefore.state() != ShardState.INIT) {
-                                continue;
-                            }
                             final RepositoryShardId repoShardId = indexClone.getKey();
-                            runReadyClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
+                            final ShardSnapshotStatus shardStatusBefore = indexClone.getValue();
+                            if (shardStatusBefore.state() == ShardState.INIT) {
+                                runReadyClone(target, sourceSnapshot, shardStatusBefore, repoShardId, repository);
+                            } else if (shardStatusBefore.state() == ShardState.ABORTED) {
+                                createAndSubmitRequestToUpdateSnapshotState(
+                                    target,
+                                    null,
+                                    repoShardId,
+                                    new ShardSnapshotStatus(
+                                        shardStatusBefore.nodeId(),
+                                        ShardState.FAILED,
+                                        shardStatusBefore.generation(),
+                                        shardStatusBefore.reason()
+                                    ),
+                                    failedCloneUpdateListener(sourceSnapshot, target.getSnapshotId(), repoShardId)
+                                );
+                            }
                         }
                     } else {
-                        // Extremely unlikely corner case of master failing over between starting the clone and
-                        // starting shard clones.
-                        logger.warn("Did not find expected entry [{}] in the cluster state", cloneEntry);
+                        // The clone maybe deleted before it is fully populated. Or it could be an extremely unlikely corner case
+                        // of master failing over between starting the clone and starting shard clones.
+                        logger.info("Did not find expected clone entry [{}] in the cluster state", cloneEntry);
                     }
                 }
 
@@ -612,24 +625,27 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             "failed to clone shard snapshot"
                         ),
                         ActionListener.runBefore(
-                            ActionListener.wrap(
-                                v -> logger.trace(
-                                    "Marked [{}] as failed clone from [{}] to [{}]",
-                                    repoShardId,
-                                    sourceSnapshot,
-                                    targetSnapshot
-                                ),
-                                ex -> {
-                                    logger.warn("Cluster state update after failed shard clone [{}] failed", repoShardId);
-                                    failAllListenersOnMasterFailOver(ex);
-                                }
-                            ),
+                            failedCloneUpdateListener(sourceSnapshot, targetSnapshot, repoShardId),
                             () -> currentlyCloning.remove(repoShardId)
                         )
                     )
                 )
             );
         }
+    }
+
+    private ActionListener<Void> failedCloneUpdateListener(
+        SnapshotId sourceSnapshot,
+        SnapshotId targetSnapshot,
+        RepositoryShardId repoShardId
+    ) {
+        return ActionListener.wrap(
+            v -> logger.trace("Marked [{}] as failed clone from [{}] to [{}]", repoShardId, sourceSnapshot, targetSnapshot),
+            ex -> {
+                logger.warn("Cluster state update after failed shard clone [{}] failed", repoShardId);
+                failAllListenersOnMasterFailOver(ex);
+            }
+        );
     }
 
     // This limit is intentionally cluster wide across all projects
@@ -1234,6 +1250,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.startTime(),
                     indexSnapshotDetails
                 );
+                assert snapshotInfo.state() != null;
+                final boolean snapshotInfoStateInvariant = getSnapshotInfoStateInvariant(snapshotInfo);
                 final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();
                 repo.finalizeSnapshot(
                     new FinalizeSnapshotContext(
@@ -1243,7 +1261,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         metaForSnapshot,
                         snapshotInfo,
                         entry.version(),
-                        ActionListener.wrap(updatedRepositoryData -> {
+                        ActionListener.runBefore(ActionListener.wrap(updatedRepositoryData -> {
+                            assert snapshotInfoStateInvariant : snapshot + " FAILED without future deletion";
                             // get a hold of the listeners for this snapshot here and store them in the future so they can be used
                             // by the snapshot info callback below and won't be failed needlessly if #runNextQueuedOperation runs into
                             // a fatal like e.g. this node stopped being the master node
@@ -1257,18 +1276,20 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 // we might have written the new root blob before failing here, so we must use the updated shardGenerations
                                 updatedShardGenerations
                             )
-                        ),
+                        ), () -> {
+                            RepositoryMetadata repoMetadata = repo.getMetadata();
+                            final Map<String, Object> attributes = Maps.copyMapWithAddedEntry(
+                                SnapshotMetrics.createAttributesMap(snapshot.getProjectId(), repoMetadata),
+                                "state",
+                                snapshotInfo.state().name()
+                            );
+                            snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributes);
+                            snapshotMetrics.snapshotsDurationHistogram()
+                                .record((threadPool.absoluteTimeInMillis() - snapshotInfo.startTime()) / 1_000.0, attributes);
+                        }),
                         () -> snapshotListeners.addListener(new ActionListener<>() {
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
-                                final Map<String, Object> attributesWithState = Maps.copyMapWithAddedEntry(
-                                    SnapshotMetrics.createAttributesMap(snapshot.getProjectId(), repo.getMetadata()),
-                                    "state",
-                                    snapshotInfo.state().name()
-                                );
-                                snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributesWithState);
-                                snapshotMetrics.snapshotsDurationHistogram()
-                                    .record((snapshotInfo.endTime() - snapshotInfo.startTime()) / 1_000.0, attributesWithState);
                                 SnapshotsServiceUtils.completeListenersIgnoringException(actionListeners, snapshotInfo);
                                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                             }
@@ -1291,6 +1312,29 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     updatedShardGenerations
                 )
             ));
+        }
+
+        private boolean getSnapshotInfoStateInvariant(SnapshotInfo snapshotInfo) {
+            if (Assertions.ENABLED == false) {
+                return true;
+            }
+            final var state = snapshotInfo.state();
+            if (state == SnapshotState.SUCCESS || state == SnapshotState.PARTIAL) {
+                return true;
+            }
+            assert state == SnapshotState.FAILED : state;
+            assert SnapshotsInProgress.ABORTED_FAILURE_TEXT.equals(snapshotInfo.reason()) : snapshotInfo.reason();
+            // Cannot assert this right now - if there has been a master failover then the new master can in theory have finalized the
+            // snapshot and processed the delete making this condition false, but in that case finalization will fail, so we save this
+            // condition for now and check it again on finalization success.
+            return SnapshotDeletionsInProgress.get(clusterService.state())
+                .getEntries()
+                .stream()
+                .anyMatch(
+                    del -> del.projectId().equals(snapshotInfo.projectId())
+                        && del.repository().equals(snapshotInfo.repository())
+                        && del.snapshots().contains(snapshotInfo.snapshotId())
+                );
         }
 
         @Override
@@ -2741,6 +2785,19 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             clone.getValue(),
                             clone.getKey(),
                             repositoriesService.repository(entry.projectId(), entry.repository())
+                        );
+                    } else if (clone.getValue().state() == ShardState.ABORTED) {
+                        createAndSubmitRequestToUpdateSnapshotState(
+                            entry.snapshot(),
+                            null,
+                            clone.getKey(),
+                            new ShardSnapshotStatus(
+                                clone.getValue().nodeId(),
+                                ShardState.FAILED,
+                                clone.getValue().generation(),
+                                clone.getValue().reason()
+                            ),
+                            failedCloneUpdateListener(entry.source(), entry.snapshot().getSnapshotId(), clone.getKey())
                         );
                     }
                 }

@@ -15,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -767,7 +768,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         this.testCase = testCase;
         this.blockLoaderTestRunner = new BlockLoaderTestRunner(
             new BlockLoaderTestCase.Params(false, randomFrom(MappedFieldType.FieldExtractPreference.values()))
-        );
+        ).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
     }
 
     public void testExpectedIdWithRoutingPath() throws IOException {

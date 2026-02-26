@@ -23,12 +23,11 @@ import static org.hamcrest.Matchers.contains;
 public class DocumentParserContextTests extends ESTestCase {
 
     private TestDocumentParserContext context = new TestDocumentParserContext();
-    private final MapperBuilderContext root = MapperBuilderContext.root(false, false);
 
     public void testDynamicMapperSizeMultipleMappers() {
-        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()).build(root));
+        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()), "foo");
         assertEquals(1, context.getNewFieldsSize());
-        context.addDynamicMapper(new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers()).build(root));
+        context.addDynamicMapper(new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers()), "bar");
         assertEquals(2, context.getNewFieldsSize());
         context.addDynamicRuntimeField(new TestRuntimeField("runtime1", "keyword"));
         assertEquals(3, context.getNewFieldsSize());
@@ -43,9 +42,9 @@ public class DocumentParserContextTests extends ESTestCase {
     }
 
     public void testDynamicMapperSizeSameFieldMultipleMappers() {
-        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()).build(root));
+        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()), "foo");
         assertEquals(1, context.getNewFieldsSize());
-        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()).build(root));
+        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()), "foo");
         assertEquals(1, context.getNewFieldsSize());
     }
 
@@ -56,7 +55,7 @@ public class DocumentParserContextTests extends ESTestCase {
                 .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
                 .build()
         );
-        assertTrue(context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", defaultIndexSettings()).build(root)));
+        assertTrue(context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", defaultIndexSettings()), "keyword_field"));
         assertFalse(context.addDynamicRuntimeField(new TestRuntimeField("runtime_field", "keyword")));
         assertThat(context.getIgnoredFields(), contains("runtime_field"));
     }
@@ -69,7 +68,7 @@ public class DocumentParserContextTests extends ESTestCase {
                 .build()
         );
         assertTrue(context.addDynamicRuntimeField(new TestRuntimeField("runtime_field", "keyword")));
-        assertFalse(context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", defaultIndexSettings()).build(root)));
+        assertFalse(context.addDynamicMapper(new KeywordFieldMapper.Builder("keyword_field", defaultIndexSettings()), "keyword_field"));
         assertThat(context.getIgnoredFields(), contains("keyword_field"));
     }
 

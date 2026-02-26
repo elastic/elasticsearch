@@ -1,0 +1,115 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+
+dependencies {
+  // Test fixtures and spec reader infrastructure
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
+  javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
+
+  // S3 fixture infrastructure for mocking S3 operations
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+
+  // GCS fixture infrastructure for mocking GCS operations
+  javaRestTestImplementation project(':test:fixtures:gcs-fixture')
+
+  // S3 datasource provider for discovery tests
+  javaRestTestImplementation project(xpackModule('esql-datasource-s3'))
+
+  // ORC support for generating test fixtures and for the ORC plugin itself
+  javaRestTestImplementation("org.apache.orc:orc-core:2.2.2")
+  javaRestTestImplementation('org.apache.hive:hive-storage-api:2.8.1')
+  javaRestTestImplementation('com.google.protobuf:protobuf-java:3.25.8')
+  javaRestTestImplementation('org.apache.hadoop:hadoop-client-api:3.4.2')
+  javaRestTestImplementation('org.apache.hadoop:hadoop-client-runtime:3.4.2')
+
+  // Repository S3 module for cluster
+  clusterModules project(':modules:repository-s3')
+  // Repository GCS module for cluster
+  clusterModules project(':modules:repository-gcs')
+  clusterPlugins project(':plugins:mapper-size')
+  clusterPlugins project(':plugins:mapper-murmur3')
+
+  // The ORC datasource plugin under test
+  clusterPlugins project(xpackModule('esql-datasource-orc'))
+  clusterPlugins project(xpackModule('esql-datasource-http'))
+  clusterPlugins project(xpackModule('esql-datasource-s3'))
+  // GCS datasource plugin for gs:// storage backend
+  clusterPlugins project(xpackModule('esql-datasource-gcs'))
+}
+
+// S3GlobDiscoveryIT extends ESTestCase (not ESRestTestCase) since it tests S3StorageProvider
+// directly against the S3HttpFixture without needing an Elasticsearch cluster.
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.orc'
+}
+
+// Generate the employees.orc fixture file before tests run.
+// The OrcFixtureGenerator reads the canonical employees.csv and writes an equivalent ORC file.
+def orcFixtureDir = file("src/javaRestTest/resources/iceberg-fixtures/standalone")
+def orcFixtureFile = file("${orcFixtureDir}/employees.orc")
+def orcFixtureCsv = file("${orcFixtureDir}/employees.csv")
+
+tasks.register('generateOrcFixture', JavaExec) {
+  dependsOn tasks.named('javaRestTestClasses')
+  classpath = sourceSets.javaRestTest.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.qa.orc.OrcFixtureGenerator'
+  args = [orcFixtureFile.absolutePath]
+  inputs.file(orcFixtureCsv)
+  outputs.file(orcFixtureFile)
+  // Route SLF4J (used by Hadoop) to the NOP provider to avoid Log4j2 initialization errors:
+  // the test classpath includes log4j2-test.properties referencing Elasticsearch's
+  // HeaderWarningAppender plugin, which is not loadable in this standalone JavaExec context.
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+}
+
+tasks.named('javaRestTest') {
+  dependsOn 'generateOrcFixture'
+}
+
+tasks.named('filepermissions').configure {
+  dependsOn 'generateOrcFixture'
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
+
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+
+  testLogging {
+    events = ["passed", "skipped", "failed"]
+    exceptionFormat = "full"
+    showStandardStreams = false
+  }
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'cluster', 'capabilities', 'index'
+  }
+  restTests {
+    includeXpack 'esql'
+  }
+}

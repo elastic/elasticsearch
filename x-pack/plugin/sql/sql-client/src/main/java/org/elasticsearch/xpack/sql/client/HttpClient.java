@@ -189,6 +189,7 @@ public class HttpClient {
             cfg.pageSize(),
             cfg.authUser(),
             cfg.authPass(),
+            cfg.apiKey(),
             cfg.sslConfig(),
             cfg.proxyConfig(),
             CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS,

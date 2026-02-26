@@ -15,24 +15,25 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 
-import java.util.function.Supplier;
-
 public class ColumnExtractOperator extends AbstractPageMappingOperator {
 
-    public record Factory(
-        ElementType[] types,
-        ExpressionEvaluator.Factory inputEvalSupplier,
-        Supplier<ColumnExtractOperator.Evaluator> evaluatorSupplier
-    ) implements OperatorFactory {
+    public record Factory(ElementType[] types, ExpressionEvaluator.Factory inputEvalSupplier, Evaluator.Factory evaluatorProvider)
+        implements
+            OperatorFactory {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ColumnExtractOperator(types, inputEvalSupplier.get(driverContext), evaluatorSupplier.get(), driverContext);
+            return new ColumnExtractOperator(
+                types,
+                inputEvalSupplier.get(driverContext),
+                evaluatorProvider.create(driverContext),
+                driverContext
+            );
         }
 
         @Override
         public String describe() {
-            return "ColumnExtractOperator[evaluator=" + evaluatorSupplier.get() + "]";
+            return "ColumnExtractOperator[evaluator=" + evaluatorProvider.describe() + "]";
         }
     }
 
@@ -60,6 +61,7 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
         Block.Builder[] blockBuilders = new Block.Builder[types.length];
         try {
             for (int i = 0; i < types.length; i++) {
+                // noinspection resource we release in the finally section
                 blockBuilders[i] = types[i].newBlockBuilder(rowsCount, driverContext.blockFactory());
             }
 
@@ -76,11 +78,17 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
                 }
 
                 Block[] blocks = new Block[blockBuilders.length];
-                for (int i = 0; i < blockBuilders.length; i++) {
-                    blocks[i] = blockBuilders[i].build();
-                }
+                try {
+                    for (int i = 0; i < blockBuilders.length; i++) {
+                        blocks[i] = blockBuilders[i].build();
+                    }
 
-                return page.appendBlocks(blocks);
+                    return page.appendBlocks(blocks);
+                } catch (Exception e) {
+                    // If we built blocks but failed to append them, we need to release them
+                    Releasables.closeExpectNoException(blocks);
+                    throw e;
+                }
             }
         } finally {
             Releasables.closeExpectNoException(blockBuilders);
@@ -98,6 +106,12 @@ public class ColumnExtractOperator extends AbstractPageMappingOperator {
     }
 
     public interface Evaluator {
+        interface Factory {
+            Evaluator create(DriverContext driverContext);
+
+            String describe();
+        }
+
         void computeRow(BytesRefBlock input, int row, Block.Builder[] target, BytesRef spare);
     }
 

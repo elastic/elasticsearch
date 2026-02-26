@@ -270,6 +270,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         Setting.Property.NodeScope
     );
 
+    /**
+     * Fraction of the total number of regions. When the number of entries at frequency 0 falls below
+     * {@code max(1, numRegions * this ratio)}, a decay and new epoch is scheduled.
+     */
+    public static final Setting<Float> SHARED_CACHE_DECAY_FREQ0_THRESHOLD_RATIO_SETTING = Setting.floatSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "decay.freq0_threshold_ratio",
+        0.05f,
+        0f,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<TimeValue> SHARED_CACHE_MIN_TIME_DELTA_SETTING = Setting.timeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "min_time_delta",
         TimeValue.timeValueSeconds(60L),                        // default
@@ -1733,6 +1744,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     private class LFUCache implements Cache<KeyType, CacheFileRegion<KeyType>> {
 
+        /**
+         * Per-frequency level: holds the count of entries and the head of the doubly-linked list for that level.
+         */
+        private class FreqLevel {
+            int count;
+            LFUCacheEntry head;
+        }
+
         class LFUCacheEntry extends CacheEntry<CacheFileRegion<KeyType>> {
             LFUCacheEntry prev;
             LFUCacheEntry next;
@@ -1759,8 +1778,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         private final KeyMapping<ShardId, RegionKey<KeyType>, LFUCacheEntry> keyMapping = new KeyMapping<>();
-        private final LFUCacheEntry[] freqs;
+        private final FreqLevel[] freqs;
         private final int maxFreq;
+        private final int freq0DecayScheduleThreshold;
         private final DecayAndNewEpochTask decayAndNewEpochTask;
 
         private final AtomicLong epoch = new AtomicLong();
@@ -1770,8 +1790,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @SuppressWarnings("unchecked")
         LFUCache(Settings settings) {
             this.maxFreq = SHARED_CACHE_MAX_FREQ_SETTING.get(settings);
-            freqs = (LFUCacheEntry[]) Array.newInstance(LFUCacheEntry.class, maxFreq);
-            decayAndNewEpochTask = new DecayAndNewEpochTask(threadPool.generic());
+            this.freqs = (FreqLevel[]) Array.newInstance(FreqLevel.class, maxFreq);
+            for (int i = 0; i < maxFreq; i++) {
+                freqs[i] = new FreqLevel();
+            }
+            float thresholdRatio = SHARED_CACHE_DECAY_FREQ0_THRESHOLD_RATIO_SETTING.get(settings);
+            this.freq0DecayScheduleThreshold = Math.max(1, (int) (numRegions * thresholdRatio));
+            this.decayAndNewEpochTask = new DecayAndNewEpochTask(threadPool.generic());
             int initialDecays = SHARED_CACHE_INITIAL_DECAYS_SETTING.get(settings);
             if (initialDecays > 0) {
                 initialDecayPollCount = Math.max(numRegions / initialDecays, 1);
@@ -1974,9 +1999,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert invariant(entry, false);
             assert entry.prev == null;
             assert entry.next == null;
-            final LFUCacheEntry currFront = freqs[entry.freq];
+            final FreqLevel level = freqs[entry.freq];
+            assert level != null : entry.freq;
+            final LFUCacheEntry currFront = level.head;
             if (currFront == null) {
-                freqs[entry.freq] = entry;
+                level.head = entry;
                 entry.prev = entry;
                 entry.next = null;
             } else {
@@ -1987,8 +2014,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 entry.prev = last;
                 entry.next = null;
             }
-            assert freqs[entry.freq].prev == entry;
-            assert freqs[entry.freq].prev.next == null;
+            level.count++;
+            assert freqs[entry.freq].head.prev == entry;
+            assert freqs[entry.freq].head.prev.next == null;
             assert entry.prev != null;
             assert entry.prev.next == null || entry.prev.next == entry;
             assert entry.next == null;
@@ -1998,10 +2026,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private synchronized boolean invariant(final LFUCacheEntry e, boolean present) {
             boolean found = false;
             for (int i = 0; i < maxFreq; i++) {
-                assert freqs[i] == null || freqs[i].prev != null;
-                assert freqs[i] == null || freqs[i].prev != freqs[i] || freqs[i].next == null;
-                assert freqs[i] == null || freqs[i].prev.next == null;
-                for (LFUCacheEntry entry = freqs[i]; entry != null; entry = entry.next) {
+                FreqLevel level = freqs[i];
+                assert level.head == null || level.head.prev != null;
+                assert level.head == null || level.head.prev != level.head || level.head.next == null;
+                assert level.head == null || level.head.prev.next == null;
+                for (LFUCacheEntry entry = level.head; entry != null; entry = entry.next) {
                     assert entry.next == null || entry.next.prev == entry;
                     assert entry.prev != null;
                     assert entry.prev.next == null || entry.prev.next == entry;
@@ -2010,7 +2039,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         found = true;
                     }
                 }
-                for (LFUCacheEntry entry = freqs[i]; entry != null && entry.prev != freqs[i]; entry = entry.prev) {
+                for (LFUCacheEntry entry = level.head; entry != null && entry.prev != level.head; entry = entry.prev) {
                     assert entry.next == null || entry.next.prev == entry;
                     assert entry.prev != null;
                     assert entry.prev.next == null || entry.prev.next == entry;
@@ -2052,10 +2081,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert Thread.holdsLock(SharedBlobCacheService.this);
             assert invariant(entry, true);
             assert entry.prev != null;
-            final LFUCacheEntry currFront = freqs[entry.freq];
+            final FreqLevel level = freqs[entry.freq];
+            final LFUCacheEntry currFront = level.head;
             assert currFront != null;
             if (currFront == entry) {
-                freqs[entry.freq] = entry.next;
+                level.head = entry.next;
                 if (entry.next != null) {
                     assert entry.prev != entry;
                     entry.next.prev = entry.prev;
@@ -2069,6 +2099,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     currFront.prev = entry.prev;
                 }
             }
+            level.count--;
+            assert level.count >= 0 && level.count <= numRegions;
             entry.next = null;
             entry.prev = null;
             assert invariant(entry, false);
@@ -2076,11 +2108,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         private void appendLevel1ToLevel0() {
             assert Thread.holdsLock(SharedBlobCacheService.this);
-            var front0 = freqs[0];
-            var front1 = freqs[1];
+            FreqLevel level0 = freqs[0];
+            FreqLevel level1 = freqs[1];
+            var front0 = level0.head;
+            var front1 = level1.head;
             if (front0 == null) {
-                freqs[0] = front1;
-                freqs[1] = null;
+                level0.head = front1;
+                level0.count = level1.count;
+                level1.head = null;
+                level1.count = 0;
                 decrementFreqList(front1);
                 assert front1 == null || invariant(front1, true);
             } else if (front1 != null) {
@@ -2098,7 +2134,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 front1.prev = back0;
                 assert back1.next == null;
 
-                freqs[1] = null;
+                level0.count += level1.count;
+                level1.head = null;
+                level1.count = 0;
 
                 assert invariant(front0, true);
                 assert invariant(front1, true);
@@ -2126,8 +2164,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert Thread.holdsLock(SharedBlobCacheService.this);
             long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
             SharedBytes.IO freq0 = maybeEvictAndTakeForFrequency(evictedNotification, 0);
-            if (freqs[0] == null) {
-                // no frequency 0 entries, let us switch epoch and decay so we get some for next time.
+            if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
+                // frequency 0 is running low and no free regions; schedule decay and new epoch ahead of time.
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
             }
             if (freq0 != null) {
@@ -2149,7 +2187,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         private SharedBytes.IO maybeEvictAndTakeForFrequency(Runnable evictedNotification, int currentFreq) {
-            for (LFUCacheEntry entry = freqs[currentFreq]; entry != null; entry = entry.next) {
+            for (LFUCacheEntry entry = freqs[currentFreq].head; entry != null; entry = entry.next) {
                 boolean evicted = entry.chunk.tryEvictNoDecRef();
                 if (evicted) {
                     try {
@@ -2196,7 +2234,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          */
         public boolean maybeEvictLeastUsed() {
             synchronized (SharedBlobCacheService.this) {
-                for (LFUCacheEntry entry = freqs[0]; entry != null; entry = entry.next) {
+                for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
                         unlink(entry);
@@ -2216,11 +2254,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 afterLock = threadPool.rawRelativeTimeInMillis();
                 appendLevel1ToLevel0();
                 for (int i = 2; i < maxFreq; i++) {
-                    assert freqs[i - 1] == null;
-                    freqs[i - 1] = freqs[i];
-                    freqs[i] = null;
-                    decrementFreqList(freqs[i - 1]);
-                    assert freqs[i - 1] == null || invariant(freqs[i - 1], true);
+                    assert freqs[i - 1].head == null;
+                    freqs[i - 1].head = freqs[i].head;
+                    freqs[i - 1].count = freqs[i].count;
+                    freqs[i].head = null;
+                    freqs[i].count = 0;
+                    decrementFreqList(freqs[i - 1].head);
+                    assert freqs[i - 1].head == null || invariant(freqs[i - 1].head, true);
                 }
             }
             end = threadPool.rawRelativeTimeInMillis();

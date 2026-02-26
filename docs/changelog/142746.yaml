@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 142746
+summary: Add search task watchdog to log hot threads on slow search
+type: enhancement

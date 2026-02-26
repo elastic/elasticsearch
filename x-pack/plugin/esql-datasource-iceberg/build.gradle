@@ -8,6 +8,15 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 
+versions << [
+  'hadoop'       : '3.4.2',
+  'parquet'      : '1.16.0',
+  'arrow'        : '18.3.0',
+  'caffeine'     : '2.9.3',
+  'checker_qual' : '3.42.0',
+  'jodatime'     : '2.10.14',
+]
+
 esplugin {
   name = 'esql-datasource-iceberg'
   description = 'Iceberg table catalog support for ESQL external data sources'
@@ -80,13 +89,15 @@ dependencies {
     exclude group: 'commons-codec', module: 'commons-codec'
     exclude group: 'org.slf4j', module: 'slf4j-api'
     exclude group: 'org.checkerframework', module: 'checker-qual'
+    // Exclude Arrow transitive deps - provided at runtime by x-pack-esql's arrow module
+    exclude group: 'org.apache.arrow'
     // Exclude Jackson to avoid jar hell - x-pack-esql already provides Jackson 2.15.0
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
   }
-  implementation('org.apache.parquet:parquet-hadoop-bundle:1.16.0')
-  implementation('com.github.ben-manes.caffeine:caffeine:2.9.3') {
+  implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
+  implementation("com.github.ben-manes.caffeine:caffeine:${versions.caffeine}") {
     exclude group: 'org.checkerframework', module: 'checker-qual'
   }
   
@@ -97,17 +108,16 @@ dependencies {
   // 2. ParquetReadOptions.Builder() constructor creates HadoopParquetConfiguration internally,
   //    which requires the Configuration class to be present even when using non-Hadoop code paths
   // 3. parquet-hadoop-bundle includes shaded Parquet classes but not Hadoop Configuration
-  implementation('org.apache.hadoop:hadoop-client-api:3.4.1')
-  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.1')
+  implementation('org.apache.hadoop:hadoop-client-api:3.4.2')
+  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.2')
   
-  // Arrow dependencies (needed for Iceberg Vectorized Reader integration)
-  implementation('org.apache.arrow:arrow-vector:18.3.0')
-  implementation('org.apache.arrow:arrow-memory-core:18.3.0')
-  implementation('org.apache.arrow:arrow-memory-unsafe:18.3.0')
-  
+  // Arrow dependencies for compile time - provided at runtime by x-pack-esql's arrow module
+  compileOnly("org.apache.arrow:arrow-vector:${versions.arrow}")
+  compileOnly("org.apache.arrow:arrow-memory-core:${versions.arrow}")
+
   // Checker-qual is needed at compile time for Arrow annotations
   // Use compileOnly to avoid jar hell at runtime - x-pack-esql already provides it
-  compileOnly 'org.checkerframework:checker-qual:3.42.0'
+  compileOnly "org.checkerframework:checker-qual:${versions.checker_qual}"
   
   // AWS SDK for S3 access - following repository-s3 pattern
   implementation "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
@@ -136,7 +146,7 @@ dependencies {
   
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
   runtimeOnly "commons-logging:commons-logging:${versions.commonslogging}"
-  runtimeOnly "joda-time:joda-time:2.10.14"
+  runtimeOnly "joda-time:joda-time:${versions.jodatime}"
   runtimeOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   runtimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   runtimeOnly "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
@@ -165,7 +175,6 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /iceberg-.*/, to: 'iceberg'
   mapping from: /parquet-.*/, to: 'parquet'
   mapping from: /hadoop-.*/, to: 'hadoop'
-  mapping from: /arrow-.*/, to: 'arrow'
   mapping from: /log4j-.*/, to: 'log4j'
 }
 
@@ -266,9 +275,6 @@ tasks.named("thirdPartyAudit").configure {
     'com.github.benmanes.caffeine.cache.StripedBuffer',
     'com.github.benmanes.caffeine.cache.UnsafeAccess',
     'com.github.benmanes.caffeine.cache.UnsafeRefArrayAccess',
-    // Arrow memory uses sun.misc.Unsafe
-    'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1',
     // Hadoop internal uses sun.misc.Unsafe
     'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
     'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',

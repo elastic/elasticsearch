@@ -68,3 +68,57 @@ The following search settings are supported:
 * `search.aggs.rewrite_to_filter_by_filter`
 
 
+## Search task watchdog settings [search-task-watchdog-settings]
+```{applies_to}
+stack: ga 9.4
+```
+
+The search task watchdog monitors long-running search tasks and logs hot threads when thresholds are exceeded.
+This helps diagnose slow searches by capturing threads activity while the search is still running, rather
+than just logging after completion.
+
+On [data nodes](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#data-node-role),
+the watchdog logs hot threads when a shard-level search operation (query/fetch phase) exceeds the
+data node threshold. On [coordinator nodes](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#coordinating-only-node-role),
+it logs hot threads for long-running coordinator search tasks only when they have no outstanding
+shard child requests. This avoids redundant logging when the coordinator is simply waiting for
+slow shards, which log their own hot threads.
+
+The hot threads output is gzip compressed and base64-encoded. To decode it, use:
+
+```sh
+echo "<base64-data>" | base64 --decode | gzip --decompress
+```
+
+If the output is split across multiple log lines, concatenate them first.
+
+$$$search-task-watchdog-enabled$$$
+
+`search.task_watchdog.enabled`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), boolean) Enables or disables the search task watchdog. Defaults to `false`.
+
+$$$search-task-watchdog-coordinator-threshold$$$
+
+`search.task_watchdog.coordinator_threshold`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Threshold for coordinator tasks. When a search task on the coordinator node exceeds
+this duration and has no outstanding shard child requests, hot threads are logged. Set to `-1ms`
+to disable coordinator task monitoring.
+Defaults to `3s`.
+
+$$$search-task-watchdog-data-node-threshold$$$
+
+`search.task_watchdog.data_node_threshold`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Threshold for data node shard tasks. When a shard-level search operation (query or fetch phase) exceeds this duration, hot threads are logged.
+Set to `-1ms` to disable data node task monitoring. Defaults to `3s`.
+
+$$$search-task-watchdog-interval$$$
+
+`search.task_watchdog.interval`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How frequently the watchdog checks for slow tasks. Lower values detect slow tasks sooner but consume more resources. Minimum value is `100ms`. Defaults to `1s`.
+
+$$$search-task-watchdog-cooldown-period$$$
+
+`search.task_watchdog.cooldown_period`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Minimum time between hot threads logging on this node. This prevents flooding the logs when many tasks are slow simultaneously. Defaults to `30s`.
+
+

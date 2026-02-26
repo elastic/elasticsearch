@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,14 +20,14 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.completion.Goog
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.UnifiedCompletionRequest.DESCRIPTION_FIELD;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.MESSAGES_FIELD;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.NAME_FIELD;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.TEMPERATURE_FIELD;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.TOOL_CHOICE_FIELD;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.TOOL_FIELD;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.TOP_P_FIELD;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.TYPE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.DESCRIPTION_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MESSAGES_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.NAME_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TEMPERATURE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_CHOICE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOP_P_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MAX_TOKENS_FIELD;
 
 /**
@@ -76,11 +78,11 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
         }
         var toolChoice = unifiedRequest.toolChoice();
         if (toolChoice != null) {
-            if (toolChoice instanceof UnifiedCompletionRequest.ToolChoiceObject) {
+            if (toolChoice instanceof ToolChoiceObject) {
                 builder.startObject(TOOL_CHOICE_FIELD);
-                builder.field(TYPE_FIELD, ((UnifiedCompletionRequest.ToolChoiceObject) toolChoice).type());
+                builder.field(TYPE_FIELD, ((ToolChoiceObject) toolChoice).type());
                 builder.endObject();
-            } else if (toolChoice instanceof UnifiedCompletionRequest.ToolChoiceString) {
+            } else if (toolChoice instanceof ToolChoiceString) {
                 throw new ElasticsearchStatusException(
                     "Tool choice value is not supported as string by Google Model Garden Anthropic Chat Completion.",
                     RestStatus.BAD_REQUEST

@@ -12,16 +12,20 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
+apply plugin: 'java-test-fixtures'
 
 dependencies {
   implementation project(':libs:native')
   implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
+  testImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }
-  testImplementation(testArtifact(project(':x-pack:plugin:searchable-snapshots')))
+  testFixturesImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'native'
+  }
 }
 
 // compileMain21Java does not exist within idea (see MrJarPlugin) so we cannot reference directly by name

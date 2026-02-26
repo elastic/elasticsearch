@@ -3229,6 +3229,22 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    public void testUriPartsResolvesOnlyInput() {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assertFieldNames("""
+            from employees
+            | uri_parts u = first_name
+            | keep u.domain""", Set.of("_index", "first_name", "first_name.*"));
+    }
+
+    public void testRegisteredDomainResolvesOnlyInput() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        assertFieldNames("""
+            from employees
+            | registered_domain rd = first_name
+            | keep rd.registered_domain""", Set.of("_index", "first_name", "first_name.*"));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, false, expected, Set.of());
     }

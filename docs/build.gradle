@@ -2046,7 +2046,7 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
 
   /* Load the actual events only if we're going to use them. */
   File atomicRedRegsvr32File = new File("$projectDir/src/yamlRestTest/resources/normalized-T1117-AtomicRed-regsvr32.json")
-  inputs.file(atomicRedRegsvr32File)
+  inputs.file(atomicRedRegsvr32File).withPathSensitivity(PathSensitivity.RELATIVE)
 
   doFirst {
     String events = atomicRedRegsvr32File.getText('UTF-8')

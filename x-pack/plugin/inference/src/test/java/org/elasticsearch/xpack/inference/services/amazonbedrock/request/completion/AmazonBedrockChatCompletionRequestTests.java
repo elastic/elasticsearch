@@ -16,7 +16,9 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolInputSchema;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.Tool.FunctionField;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -40,9 +42,9 @@ public class AmazonBedrockChatCompletionRequestTests extends ESTestCase {
     public void testConvertTools_ForValidTool() {
         var description = "description";
         var name = "name";
-        var tool = new UnifiedCompletionRequest.Tool(
+        var tool = new org.elasticsearch.inference.completion.Tool(
             FUNCTION_TYPE,
-            new UnifiedCompletionRequest.Tool.FunctionField(description, name, Map.of("key", "value"), null)
+            new FunctionField(description, name, Map.of("key", "value"), null)
         );
 
         var convertedTools = AmazonBedrockChatCompletionRequest.convertTools(List.of(tool));
@@ -68,9 +70,9 @@ public class AmazonBedrockChatCompletionRequestTests extends ESTestCase {
     public void testConvertTools_ForInvalidTool() {
         var description = "description";
         var name = "name";
-        var tool = new UnifiedCompletionRequest.Tool(
+        var tool = new org.elasticsearch.inference.completion.Tool(
             "invalid type",
-            new UnifiedCompletionRequest.Tool.FunctionField(description, name, Map.of("key", "value"), null)
+            new FunctionField(description, name, Map.of("key", "value"), null)
         );
 
         var exception = expectThrows(IllegalArgumentException.class, () -> AmazonBedrockChatCompletionRequest.convertTools(List.of(tool)));
@@ -85,7 +87,7 @@ public class AmazonBedrockChatCompletionRequestTests extends ESTestCase {
     }
 
     public void testDetermineToolChoice_ReturnsAutoForAutoString() {
-        var toolChoice = new UnifiedCompletionRequest.ToolChoiceString(AUTO_TOOL_CHOICE);
+        var toolChoice = new ToolChoiceString(AUTO_TOOL_CHOICE);
 
         var result = AmazonBedrockChatCompletionRequest.determineToolChoice(toolChoice);
 
@@ -94,7 +96,7 @@ public class AmazonBedrockChatCompletionRequestTests extends ESTestCase {
     }
 
     public void testDetermineToolChoice_ReturnsAnyForRequiredString() {
-        var toolChoice = new UnifiedCompletionRequest.ToolChoiceString(REQUIRED_TOOL_CHOICE);
+        var toolChoice = new ToolChoiceString(REQUIRED_TOOL_CHOICE);
 
         var result = AmazonBedrockChatCompletionRequest.determineToolChoice(toolChoice);
 
@@ -103,7 +105,7 @@ public class AmazonBedrockChatCompletionRequestTests extends ESTestCase {
     }
 
     public void testDetermineToolChoice_ReturnsNullForNoneString() {
-        var toolChoice = new UnifiedCompletionRequest.ToolChoiceString(NONE_TOOL_CHOICE);
+        var toolChoice = new ToolChoiceString(NONE_TOOL_CHOICE);
 
         var result = AmazonBedrockChatCompletionRequest.determineToolChoice(toolChoice);
 
@@ -112,10 +114,7 @@ public class AmazonBedrockChatCompletionRequestTests extends ESTestCase {
 
     public void testDetermineToolChoice_ReturnsSpecificToolForObjectChoice() {
         var functionName = "specific_tool";
-        var toolChoice = new UnifiedCompletionRequest.ToolChoiceObject(
-            FUNCTION_TYPE,
-            new UnifiedCompletionRequest.ToolChoiceObject.FunctionField(functionName)
-        );
+        var toolChoice = new ToolChoiceObject(FUNCTION_TYPE, new ToolChoiceObject.FunctionField(functionName));
 
         var result = AmazonBedrockChatCompletionRequest.determineToolChoice(toolChoice);
         assertNotNull(result);
@@ -123,7 +122,7 @@ public class AmazonBedrockChatCompletionRequestTests extends ESTestCase {
     }
 
     public void testDetermineToolChoice_ThrowsForInvalidString() {
-        var toolChoice = new UnifiedCompletionRequest.ToolChoiceString("invalid");
+        var toolChoice = new ToolChoiceString("invalid");
 
         var exception = expectThrows(
             IllegalArgumentException.class,

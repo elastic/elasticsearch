@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 142667
+summary: Add Connector SPI and gRPC/Arrow Flight module
+type: enhancement

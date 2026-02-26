@@ -9,10 +9,10 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBooleansBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 
@@ -25,12 +25,12 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
     }
 
     @Override
-    protected AllReader singletonReader(NumericDocValues docValues) {
+    protected AllReader singletonReader(TrackingNumericDocValues docValues) {
         return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedReader(SortedNumericDocValues docValues) {
+    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues) {
         return new MvMinSorted(docValues);
     }
 
@@ -40,9 +40,10 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
     }
 
     private static class MvMinSorted extends BlockDocValuesReader {
-        private final SortedNumericDocValues numericDocValues;
+        private final TrackingSortedNumericDocValues numericDocValues;
 
-        MvMinSorted(SortedNumericDocValues numericDocValues) {
+        MvMinSorted(TrackingSortedNumericDocValues numericDocValues) {
+            super(null);
             this.numericDocValues = numericDocValues;
         }
 
@@ -63,21 +64,26 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
         }
 
         private void read(int doc, BooleanBuilder builder) throws IOException {
-            if (false == numericDocValues.advanceExact(doc)) {
+            if (false == numericDocValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            builder.appendBoolean(numericDocValues.nextValue() != 0);
+            builder.appendBoolean(numericDocValues.docValues().nextValue() != 0);
         }
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "MvMinBooleansFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
         }
     }
 }

@@ -9,12 +9,13 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
@@ -44,27 +45,27 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
-        if (docValues == null) {
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, fieldName);
+        if (dv == null) {
             return ConstantNull.READER;
         }
         return switch (elementType) {
-            case FLOAT -> new FloatDenseVectorFromBinary(docValues, dims, indexVersion);
-            case BFLOAT16 -> new BFloat16DenseVectorFromBinary(docValues, dims, indexVersion);
-            case BYTE -> new ByteDenseVectorFromBinary(docValues, dims, indexVersion);
-            case BIT -> new BitDenseVectorFromBinary(docValues, dims, indexVersion);
+            case FLOAT -> new FloatDenseVectorFromBinary(dv, dims, indexVersion);
+            case BFLOAT16 -> new BFloat16DenseVectorFromBinary(dv, dims, indexVersion);
+            case BYTE -> new ByteDenseVectorFromBinary(dv, dims, indexVersion);
+            case BIT -> new BitDenseVectorFromBinary(dv, dims, indexVersion);
         };
     }
 
-    // Abstract base for dense vector readers
     private abstract static class AbstractDenseVectorFromBinary<T> extends BlockDocValuesReader {
-        protected final BinaryDocValues docValues;
+        protected final TrackingBinaryDocValues docValues;
         protected final IndexVersion indexVersion;
         protected final int dimensions;
         protected final T scratch;
 
-        AbstractDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion, T scratch) {
+        AbstractDenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion, T scratch) {
+            super(null);
             this.docValues = docValues;
             this.indexVersion = indexVersion;
             this.dimensions = dims;
@@ -73,7 +74,7 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
 
         @Override
         public int docId() {
-            return docValues.docID();
+            return docValues.docValues().docID();
         }
 
         @Override
@@ -93,11 +94,11 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
         }
 
         private void read(int doc, BlockLoader.FloatBuilder builder) throws IOException {
-            if (docValues.advanceExact(doc) == false) {
+            if (docValues.docValues().advanceExact(doc) == false) {
                 builder.appendNull();
                 return;
             }
-            BytesRef bytesRef = docValues.binaryValue();
+            BytesRef bytesRef = docValues.docValues().binaryValue();
             assert bytesRef.length > 0;
             decodeDenseVector(bytesRef, scratch);
 
@@ -106,13 +107,18 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
             builder.endPositionEntry();
         }
 
+        @Override
+        public final void close() {
+            docValues.close();
+        }
+
         protected abstract void decodeDenseVector(BytesRef bytesRef, T scratch);
 
         protected abstract void writeScratchToBuilder(T scratch, BlockLoader.FloatBuilder builder);
     }
 
     private static class FloatDenseVectorFromBinary extends AbstractDenseVectorFromBinary<float[]> {
-        FloatDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+        FloatDenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion) {
             super(docValues, dims, indexVersion, new float[dims]);
         }
 
@@ -135,7 +141,7 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     private static class BFloat16DenseVectorFromBinary extends AbstractDenseVectorFromBinary<float[]> {
-        BFloat16DenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+        BFloat16DenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion) {
             super(docValues, dims, indexVersion, new float[dims]);
         }
 
@@ -158,11 +164,11 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     private static class ByteDenseVectorFromBinary extends AbstractDenseVectorFromBinary<byte[]> {
-        ByteDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+        ByteDenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion) {
             this(docValues, dims, indexVersion, dims);
         }
 
-        protected ByteDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion, int readScratchSize) {
+        protected ByteDenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion, int readScratchSize) {
             super(docValues, dims, indexVersion, new byte[readScratchSize]);
         }
 
@@ -183,7 +189,7 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     private static class BitDenseVectorFromBinary extends ByteDenseVectorFromBinary {
-        BitDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+        BitDenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion) {
             super(docValues, dims, indexVersion, dims / Byte.SIZE);
         }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 
 import java.util.EnumSet;
+import java.util.Objects;
 
 public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(
@@ -152,12 +153,12 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         return new EsqlTestUtils.TestSearchStats() {
             @Override
             public boolean exists(FieldAttribute.FieldName field) {
-                return false;
+                return Objects.equals(field.string(), missingField) == false;
             }
 
             @Override
             public boolean isIndexed(FieldAttribute.FieldName field) {
-                return false;
+                return exists(field);
             }
         };
     }

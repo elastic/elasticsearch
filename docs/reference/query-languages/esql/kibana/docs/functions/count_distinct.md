@@ -3,7 +3,7 @@
 ### COUNT DISTINCT
 Returns the approximate number of distinct values.
 
-Note: [Counts are approximate](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions#esql-agg-count-distinct-approximate).
+Note: [Counts are approximate](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/aggregation-functions/count_distinct#esql-agg-count-distinct-approximate).
 
 ```esql
 FROM hosts

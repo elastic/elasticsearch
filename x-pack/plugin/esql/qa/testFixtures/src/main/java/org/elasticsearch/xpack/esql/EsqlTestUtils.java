@@ -586,7 +586,10 @@ public final class EsqlTestUtils {
         return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
     }
 
-    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));
+    public static final Verifier TEST_VERIFIER = new Verifier(
+        new Metrics(new EsqlFunctionRegistry(), true, true),
+        new XPackLicenseState(() -> 0L)
+    );
 
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES;
     static {

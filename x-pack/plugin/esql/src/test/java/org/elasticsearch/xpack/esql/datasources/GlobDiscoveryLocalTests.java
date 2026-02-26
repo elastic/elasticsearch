@@ -65,7 +65,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
     }
 
     private String rootUri() {
-        return "file://" + fixtureRoot.toAbsolutePath();
+        return StoragePath.fileUri(fixtureRoot);
     }
 
     // -- predefined tests --
@@ -138,7 +138,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         long expectedCount = allPaths.stream().filter(p -> p.contains("/") == false).filter(p -> p.endsWith(".parquet")).count();
 
-        FileSet result = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/*.parquet", new TestLocalStorageProvider());
+        FileSet result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/*.parquet", new TestLocalStorageProvider());
         if (expectedCount == 0) {
             assertTrue("Expected EMPTY for no root .parquet files", result.isEmpty());
         } else {
@@ -152,7 +152,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         long expectedCount = allPaths.stream().filter(p -> p.endsWith(".parquet")).count();
 
-        FileSet result = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/**" + "/*.parquet", new TestLocalStorageProvider());
+        FileSet result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/**" + "/*.parquet", new TestLocalStorageProvider());
         if (expectedCount == 0) {
             assertTrue(result.isEmpty());
         } else {
@@ -166,7 +166,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
 
         long expectedCount = allPaths.stream().filter(p -> p.endsWith(".parquet") || p.endsWith(".csv")).count();
 
-        String uri = "file://" + root.toAbsolutePath() + "/**" + "/*.{parquet,csv}";
+        String uri = StoragePath.fileUri(root) + "/**" + "/*.{parquet,csv}";
         FileSet result = GlobExpander.expandGlob(uri, new TestLocalStorageProvider());
         if (expectedCount == 0) {
             assertTrue(result.isEmpty());
@@ -184,8 +184,8 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         long totalParquetCount = allPaths.stream().filter(p -> p.endsWith(".parquet")).count();
 
         TestLocalStorageProvider testProvider = new TestLocalStorageProvider();
-        FileSet flatResult = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/*.parquet", testProvider);
-        FileSet recursiveResult = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/**" + "/*.parquet", testProvider);
+        FileSet flatResult = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/*.parquet", testProvider);
+        FileSet recursiveResult = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/**" + "/*.parquet", testProvider);
 
         long flatSize = flatResult.isEmpty() ? 0 : flatResult.size();
         long recursiveSize = recursiveResult.isEmpty() ? 0 : recursiveResult.size();
@@ -207,7 +207,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         // Two-digit name won't match f?.parquet
         Files.createFile(root.resolve("f10.parquet"));
 
-        FileSet result = GlobExpander.expandGlob("file://" + root.toAbsolutePath() + "/f?.parquet", new TestLocalStorageProvider());
+        FileSet result = GlobExpander.expandGlob(StoragePath.fileUri(root) + "/f?.parquet", new TestLocalStorageProvider());
         assertEquals(expectedCount, result.size());
     }
 
@@ -342,7 +342,7 @@ public class GlobDiscoveryLocalTests extends ESTestCase {
         public void close() {}
 
         private static StorageEntry toEntry(Path file, BasicFileAttributes attrs) {
-            StoragePath storagePath = StoragePath.of("file://" + file.toAbsolutePath());
+            StoragePath storagePath = StoragePath.of(StoragePath.fileUri(file));
             return new StorageEntry(storagePath, attrs.size(), attrs.lastModifiedTime().toInstant());
         }
 

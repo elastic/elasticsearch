@@ -24,7 +24,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 
@@ -169,7 +169,7 @@ public class SlowCustomBinaryDocValuesWildcardQueryTests extends ESTestCase {
     private static RandomIndexWriter newRandomIndexWriter(Directory dir) throws IOException {
         IndexWriterConfig iwc = newIndexWriterConfig();
         if (randomBoolean()) {
-            iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
+            iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat()));
         }
         return new RandomIndexWriter(random(), dir, iwc);
     }

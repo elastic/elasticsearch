@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -233,6 +234,77 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             );
         } finally {
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
+        }
+    }
+
+    public void testRetryPointInTimeAfterNodeDrop() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(3);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int docCount = between(0, 100);
+        final int numShards = between(1, 3);
+        createTestIndex(indexName, docCount, numShards);
+
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, dataNodes.size() - 2)), indexName);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", String.join(",", dataNodes)), indexName);
+        ensureGreen(indexName);
+
+        final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
+            IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
+        ).keepAlive(TimeValue.timeValueMinutes(2));
+        final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
+        final SearchContextId searchContextId = SearchContextId.decode(writableRegistry(), pitId);
+        assertEquals(numShards, searchContextId.shards().size());
+
+        SetOnce<BytesReference> updatedPit = new SetOnce<>();
+        try {
+            assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
+                assertThat(resp.pointInTimeId(), equalBytes(pitId));
+                assertHitCount(resp, docCount);
+            });
+
+            final var discoveryNodes = clusterService().state().nodes();
+            final Set<String> pitNodeNames = searchContextId.shards()
+                .values()
+                .stream()
+                .map(ctx -> discoveryNodes.get(ctx.getNode()).getName())
+                .collect(Collectors.toSet());
+            assertFalse("PIT should reference at least one node", pitNodeNames.isEmpty());
+
+            final String droppedNode = randomFrom(pitNodeNames);
+            internalCluster().stopNode(droppedNode);
+            ensureGreen(indexName);
+
+            assertNoFailuresAndResponse(
+                prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .setAllowPartialSearchResults(randomBoolean())
+                    .setPointInTime(new PointInTimeBuilder(pitId).setKeepAlive(TimeValue.timeValueMinutes(2))),
+                resp -> {
+                    assertHitCount(resp, docCount);
+                    updatedPit.set(resp.pointInTimeId());
+                }
+            );
+            logger.info("---> first search after node drop finished");
+
+            assertNoFailuresAndResponse(
+                prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .setPreFilterShardSize(between(1, 10))
+                    .setAllowPartialSearchResults(randomBoolean())
+                    .setPointInTime(new PointInTimeBuilder(updatedPit.get()).setKeepAlive(TimeValue.timeValueMinutes(2))),
+                resp -> {
+                    assertThat(resp.pointInTimeId(), equalBytes(updatedPit.get()));
+                    assertHitCount(resp, docCount);
+                }
+            );
+            logger.info("---> second search after node drop finished");
+        } catch (Exception e) {
+            logger.error("---> unexpected exception", e);
+            throw e;
+        } finally {
+            BytesReference pitToClose = updatedPit.get() != null ? updatedPit.get() : pitId;
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitToClose)).actionGet();
         }
     }
 

@@ -9,12 +9,13 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 
 import java.io.IOException;
 
@@ -36,18 +37,19 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
-        if (docValues == null) {
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, fieldName);
+        if (dv == null) {
             return ConstantNull.READER;
         }
-        return new BytesRefsFromCustomBinary(docValues);
+        return new BytesRefsFromCustomBinary(dv);
     }
 
     public abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader {
-        protected final BinaryDocValues docValues;
+        protected final TrackingBinaryDocValues docValues;
 
-        public AbstractBytesRefsFromBinary(BinaryDocValues docValues) {
+        public AbstractBytesRefsFromBinary(TrackingBinaryDocValues docValues) {
+            super(null);
             this.docValues = docValues;
         }
 
@@ -69,10 +71,15 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
 
         @Override
         public int docId() {
-            return docValues.docID();
+            return docValues.docValues().docID();
         }
 
         public abstract void read(int docId, BytesRefBuilder builder) throws IOException;
+
+        @Override
+        public void close() {
+            docValues.close();
+        }
     }
 
     /**
@@ -81,13 +88,13 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
     static class BytesRefsFromCustomBinary extends AbstractBytesRefsFromBinary {
         private final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();
 
-        BytesRefsFromCustomBinary(BinaryDocValues docValues) {
+        BytesRefsFromCustomBinary(TrackingBinaryDocValues docValues) {
             super(docValues);
         }
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            if (docValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+            if (docValues.docValues() instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
                 BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, true);
                 if (block != null) {
                     return block;
@@ -98,11 +105,11 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
 
         @Override
         public void read(int doc, BytesRefBuilder builder) throws IOException {
-            if (false == docValues.advanceExact(doc)) {
+            if (false == docValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            BytesRef bytes = docValues.binaryValue();
+            BytesRef bytes = docValues.docValues().binaryValue();
             reader.read(bytes, builder);
         }
 

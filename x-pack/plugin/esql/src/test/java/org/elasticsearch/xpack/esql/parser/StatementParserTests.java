@@ -36,6 +36,8 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.command.RegisteredDomainFunctionBridge;
+import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
@@ -77,10 +79,12 @@ import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -100,6 +104,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -3588,7 +3593,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "mv_expand",
             "rename",
             "sort",
-            "stats" };
+            "stats",
+            "uri_parts",
+            "registered_domain" };
         for (String keyword : keywords) {
             var plan = query("FROM test | STATS avg(" + keyword + ")");
             var aggregate = as(plan, Aggregate.class);
@@ -4566,6 +4573,39 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "row a = 1 | sample 1",
             "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive"
         );
+    }
+
+    public void testUriPartsCommand() {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("uri_parts p = a");
+        UriParts parts = as(cmd, UriParts.class);
+        assertEqualsIgnoringIds(attribute("a"), parts.getInput());
+
+        // Dynamically get expected field names
+        List<String> expectedFieldNames = UriPartsFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .map(name -> "p." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = parts.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
+    }
+
+    public void testRegisteredDomainCommand() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("registered_domain rd = a");
+        RegisteredDomain domain = as(cmd, RegisteredDomain.class);
+        assertEqualsIgnoringIds(attribute("a"), domain.getInput());
+
+        List<String> expectedFieldNames = RegisteredDomainFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .map(name -> "rd." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = domain.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
     }
 
 }

@@ -4,6 +4,7 @@ mapped_pages:
 navigation_title: Index blocks
 applies_to:
   stack: all
+  serverless: all
 ---
 
 # Index blocks [index-modules-blocks]

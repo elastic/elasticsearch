@@ -39,7 +39,11 @@ public class DocumentMapper {
         RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
             MapperBuilderContext.root(false, false)
         );
-        MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
+        MetadataFieldMapper[] metadata = mapperService.getMetadataBuilders()
+            .values()
+            .stream()
+            .map(MetadataFieldMapper.Builder::build)
+            .toArray(MetadataFieldMapper[]::new);
         Mapping mapping = new Mapping(root, metadata, null);
         return new DocumentMapper(
             mapperService.documentParser(),

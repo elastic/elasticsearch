@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;
 
@@ -25,7 +26,17 @@ public interface EstimatedHeapUsageCollector {
     /**
      * This will be used when there is no EstimatedHeapUsageCollector available
      */
-    EstimatedHeapUsageCollector EMPTY = listener -> listener.onResponse(Map.of());
+    EstimatedHeapUsageCollector EMPTY = new EstimatedHeapUsageCollector() {
+        @Override
+        public void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener) {
+            listener.onResponse(Map.of());
+        }
+
+        @Override
+        public void collectShardHeapUsage(ActionListener<Map<ShardId, ShardAndIndexHeapUsage>> listener) {
+            listener.onResponse(Map.of());
+        }
+    };
 
     /**
      * Collect the estimated heap usage for every node in the cluster
@@ -33,4 +44,11 @@ public interface EstimatedHeapUsageCollector {
      * @param listener The listener which will receive the results
      */
     void collectClusterHeapUsage(ActionListener<Map<String, Long>> listener);
+
+    /**
+     * Collects the estimated heap usage for every shard in the cluster.
+     *
+     * @param listener The listener which will receive the results
+     */
+    void collectShardHeapUsage(ActionListener<Map<ShardId, ShardAndIndexHeapUsage>> listener);
 }

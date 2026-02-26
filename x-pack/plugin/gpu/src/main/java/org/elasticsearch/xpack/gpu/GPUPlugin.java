@@ -23,20 +23,23 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
 import java.util.List;
 
-public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
+public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin, ActionPlugin {
 
     private static final Logger log = LogManager.getLogger(GPUPlugin.class);
 
     public static final LicensedFeature.Momentary GPU_INDEXING_FEATURE = LicensedFeature.momentary(
         null,
-        XPackField.GPU_INDEXING,
+        XPackField.GPU_VECTOR_INDEXING,
         License.OperationMode.ENTERPRISE
     );
 
@@ -74,6 +77,15 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(VECTORS_INDEXING_USE_GPU_NODE_SETTING);
+    }
+
+    @Override
+    public List<ActionPlugin.ActionHandler> getActions() {
+        return List.of(
+            new ActionHandler(XPackUsageFeatureAction.GPU_VECTOR_INDEXING, GpuUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.GPU_VECTOR_INDEXING, GpuInfoTransportAction.class),
+            new ActionHandler(GpuStatsAction.INSTANCE, TransportGpuStatsAction.class)
+        );
     }
 
     // Allow tests to override the license state

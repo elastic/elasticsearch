@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.TestBlock;
@@ -27,17 +29,12 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBlockLoaderTests {
-    public Utf8CodePointsFromOrdsBlockLoaderTests(
-        boolean blockAtATime,
-        boolean highCardinality,
-        boolean multiValues,
-        boolean missingValues
-    ) {
-        super(blockAtATime, highCardinality, multiValues, missingValues);
+    public Utf8CodePointsFromOrdsBlockLoaderTests(boolean highCardinality, boolean multiValues, boolean missingValues) {
+        super(highCardinality, multiValues, missingValues);
     }
 
     @Override
-    protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
+    protected void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException {
         List<MockWarnings.MockWarning> expectedWarnings = new ArrayList<>();
         for (int i = 0; i < mvCount; i++) {
             expectedWarnings.add(
@@ -46,38 +43,32 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
         }
 
         var warnings = new MockWarnings();
-        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field");
-        var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field");
-
-        var stringsReader = stringsLoader.reader(ctx);
-        var codePointsReader = codePointsLoader.reader(ctx);
-        assertThat(codePointsReader, readerMatcher());
+        var stringsLoader = new BytesRefsFromOrdsBlockLoader("field", ByteSizeValue.ofKb(randomLongBetween(1, 1000)));
+        var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field", ByteSizeValue.ofKb(randomLongBetween(1, 1000)));
         BlockLoader.Docs docs = TestBlock.docs(ctx);
-        try (
-            TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-            TestBlock codePoints = read(codePointsLoader, codePointsReader, ctx, docs);
-        ) {
-            checkBlocks(strings, codePoints);
-        }
-        assertThat(warnings.warnings(), equalTo(expectedWarnings));
-        warnings.warnings().clear();
 
-        stringsReader = stringsLoader.reader(ctx);
-        codePointsReader = codePointsLoader.reader(ctx);
-        for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-            int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-            for (int d = 0; d < docsArray.length; d++) {
-                docsArray[d] = i + d;
-            }
-            docs = TestBlock.docs(docsArray);
-            try (
-                TestBlock strings = read(stringsLoader, stringsReader, ctx, docs);
-                TestBlock codePoints = read(codePointsLoader, codePointsReader, ctx, docs);
-            ) {
+        try (var stringsReader = stringsLoader.reader(breaker, ctx); var codePointsReader = codePointsLoader.reader(breaker, ctx)) {
+            assertThat(codePointsReader, readerMatcher());
+            try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs);) {
                 checkBlocks(strings, codePoints);
             }
+            assertThat(warnings.warnings(), equalTo(expectedWarnings));
+            warnings.warnings().clear();
         }
-        assertThat(warnings.warnings(), equalTo(expectedWarnings));
+
+        try (var stringsReader = stringsLoader.reader(breaker, ctx); var codePointsReader = codePointsLoader.reader(breaker, ctx);) {
+            for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                for (int d = 0; d < docsArray.length; d++) {
+                    docsArray[d] = i + d;
+                }
+                docs = TestBlock.docs(docsArray);
+                try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs);) {
+                    checkBlocks(strings, codePoints);
+                }
+            }
+            assertThat(warnings.warnings(), equalTo(expectedWarnings));
+        }
     }
 
     private Matcher<Object> readerMatcher() {

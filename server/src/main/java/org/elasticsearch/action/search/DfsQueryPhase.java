@@ -109,6 +109,9 @@ class DfsQueryPhase extends SearchPhase {
                     protected void innerOnResponse(QuerySearchResult response) {
                         try {
                             response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
+                            if (dfsResult.searchTimedOut()) {
+                                response.searchTimedOut(true);
+                            }
                             counter.onResult(response);
                         } catch (Exception e) {
                             context.onPhaseFailure(NAME, "", e);
@@ -217,8 +220,13 @@ class DfsQueryPhase extends SearchPhase {
 
         List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
         for (int i = 0; i < source.knnSearch().size(); i++) {
-            TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
+            List<TopDocs> topDocsList = topDocsLists.get(i);
+            if (topDocsList.isEmpty()) {
+                mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), new ScoreDoc[0]));
+            } else {
+                TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsList.toArray(new TopDocs[0]));
+                mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
+            }
         }
         return mergedResults;
     }

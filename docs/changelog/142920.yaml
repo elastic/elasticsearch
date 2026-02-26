@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 142920
+summary: Synthesize `ShardId` for `SnapshotInfo` of failed clones
+type: bug

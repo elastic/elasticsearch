@@ -125,12 +125,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            MergeReason.MAPPING_UPDATE,
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))))
-        );
-        Mapping merged = mapper.mapping().merge(mergeWith, reason, Long.MAX_VALUE);
+        CompressedXContent mergeWith = new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))));
+        Mapping merged = mapperService.mergeMappings(mergeWith, reason, Long.MAX_VALUE);
         assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }
 
@@ -314,27 +310,23 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            MergeReason.INDEX_TEMPLATE,
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> {
-                b.startObject("properties").startObject("obj").field("type", "object").field("subobjects", false).startObject("properties");
-                {
-                    b.startObject("my.field").field("type", "long").endObject();
-                }
-                b.endObject().endObject().endObject();
-            })))
-        );
+        CompressedXContent mergeWith = new CompressedXContent(BytesReference.bytes(topMapping(b -> {
+            b.startObject("properties").startObject("obj").field("type", "object").field("subobjects", false).startObject("properties");
+            {
+                b.startObject("my.field").field("type", "long").endObject();
+            }
+            b.endObject().endObject().endObject();
+        })));
 
         // Fails on mapping update.
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
+            () -> mapperService.mergeMappings(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
         );
         assertEquals("mapper [obj.my.field] cannot be changed from type [keyword] to [long]", exception.getMessage());
 
         // Passes on template merging.
-        Mapping merged = mapper.mapping().merge(mergeWith, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
+        Mapping merged = mapperService.mergeMappings(mergeWith, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
         assertThat(((ObjectMapper) merged.getRoot().getMapper("obj")).getMapper("my.field"), instanceOf(NumberFieldMapper.class));
     }
 
@@ -480,17 +472,13 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "object")));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            MergeReason.MAPPING_UPDATE,
-            new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
-                b.field("type", "object");
-                b.field("subobjects", "false");
-            })))
-        );
+        CompressedXContent mergeWith = new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
+            b.field("type", "object");
+            b.field("subobjects", "false");
+        })));
         MapperException exception = expectThrows(
             MapperException.class,
-            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
+            () -> mapperService.mergeMappings(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [field]", exception.getMessage());
     }
@@ -499,16 +487,10 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", false)));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            MergeReason.MAPPING_UPDATE,
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> {
-                b.field("subobjects", true);
-            })))
-        );
+        CompressedXContent mergeWith = new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("subobjects", true); })));
         MapperException exception = expectThrows(
             MapperException.class,
-            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
+            () -> mapperService.mergeMappings(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
     }
@@ -621,31 +603,20 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlatten() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").add(
-            new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", defaultIndexSettings()))
-        ).add(new KeywordFieldMapper.Builder("keyword1", defaultIndexSettings())).build(rootContext);
-        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
-        assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
-    }
-
-    public void testFlattenSubobjectsFalse() {
-        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
             new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", defaultIndexSettings()))
         ).add(new KeywordFieldMapper.Builder("keyword1", defaultIndexSettings())).build(rootContext);
-        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
+        List<String> fields = objectMapper.mappers.values().stream().map(Mapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
 
     public void testFlattenDynamicIncompatible() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").add(new ObjectMapper.Builder("child").dynamic(Dynamic.FALSE))
-            .build(rootContext);
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> objectMapper.asFlattenedFieldMappers(rootContext)
+        ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+            new ObjectMapper.Builder("child").dynamic(Dynamic.FALSE)
         );
+
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
         assertEquals(
             "Object mapper [parent.child] was found in a context where subobjects is set to false. "
                 + "Auto-flattening [parent.child] failed because the value of [dynamic] (FALSE) is not compatible with "
@@ -656,30 +627,28 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenEnabledFalse() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").enabled(false).build(rootContext);
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> objectMapper.asFlattenedFieldMappers(rootContext)
+        ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+            new ObjectMapper.Builder("child").enabled(false)
         );
+
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
         assertEquals(
-            "Object mapper [parent] was found in a context where subobjects is set to false. "
-                + "Auto-flattening [parent] failed because the value of [enabled] is [false]",
+            "Object mapper [parent.child] was found in a context where subobjects is set to false. "
+                + "Auto-flattening [parent.child] failed because the value of [enabled] is [false]",
             exception.getMessage()
         );
     }
 
     public void testFlattenExplicitSubobjectsTrue() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.ENABLED)).build(rootContext);
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> objectMapper.asFlattenedFieldMappers(rootContext)
+        ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+            new ObjectMapper.Builder("child", Explicit.of(ObjectMapper.Subobjects.ENABLED))
         );
+
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
         assertEquals(
-            "Object mapper [parent] was found in a context where subobjects is set to false. "
-                + "Auto-flattening [parent] failed because the value of [subobjects] is [true]",
+            "Object mapper [parent.child] was found in a context where subobjects is set to false. "
+                + "Auto-flattening [parent.child] failed because the value of [subobjects] is [true]",
             exception.getMessage()
         );
     }

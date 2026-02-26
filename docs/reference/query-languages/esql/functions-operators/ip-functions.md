@@ -14,11 +14,3 @@ mapped_pages:
 
 :::{include} ../_snippets/lists/ip-functions.md
 :::
-
-
-:::{include} ../_snippets/functions/layout/cidr_match.md
-:::
-
-:::{include} ../_snippets/functions/layout/ip_prefix.md
-:::
-

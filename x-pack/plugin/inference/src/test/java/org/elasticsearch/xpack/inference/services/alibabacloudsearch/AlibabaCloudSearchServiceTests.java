@@ -706,6 +706,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             secretSettingsMap,
             null
         ) {
+            @Override
             public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings) {
                 return (inferenceInputs, timeout, listener) -> {
                     DenseEmbeddingFloatResults results = new DenseEmbeddingFloatResults(
@@ -737,6 +738,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             secretSettingsMap,
             null
         ) {
+            @Override
             public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings) {
                 return (inferenceInputs, timeout, listener) -> {
                     listener.onResponse(SparseEmbeddingResultsTests.createRandomResults(2, 1));
@@ -821,16 +823,11 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                 thrownException.getMessage(),
                 is(
                     Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ENTITY_ID_VALUE,
-                        AlibabaCloudSearchService.NAME,
+                        "The [%s] service does not support task type [%s]",
                         AlibabaCloudSearchService.NAME,
                         TaskType.CHAT_COMPLETION
                     )
                 )
-
             );
         }
     }

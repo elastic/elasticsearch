@@ -486,6 +486,9 @@ public class EsqlDataTypeConverter {
             // Both TEXT and SEMANTIC_TEXT are processed as KEYWORD
             return KEYWORD;
         }
+        if ((left == DENSE_VECTOR && right.isNumeric()) || (right == DENSE_VECTOR && left.isNumeric())) {
+            return DENSE_VECTOR;
+        }
         if (left.isNumeric() && right.isNumeric()) {
             int lsize = left.estimatedSize();
             int rsize = right.estimatedSize();
@@ -838,6 +841,10 @@ public class EsqlDataTypeConverter {
     }
 
     public static String exponentialHistogramToString(ExponentialHistogram histo) {
+        int totalBucketCount = histo.negativeBuckets().bucketCount() + histo.positiveBuckets().bucketCount();
+        if (totalBucketCount >= 100_000) {
+            throw new IllegalArgumentException("Exponential histogram is too big to be converted to a string");
+        }
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             ExponentialHistogramXContent.serialize(builder, histo);
             return Strings.toString(builder);

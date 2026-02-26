@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,6 +26,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsi
 
 public class Div extends DenseVectorArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Div", Div::new);
+    public static final String OP_NAME = "Div";
 
     private DataType type;
 
@@ -53,7 +55,7 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator.DivFactory::new
+            DIV_DENSE_VECTOR_EVALUATOR
         );
         this.type = type;
     }
@@ -66,7 +68,7 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DenseVectorsEvaluator.DivFactory::new
+            DIV_DENSE_VECTOR_EVALUATOR
         );
     }
 
@@ -129,4 +131,41 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
         }
         return value;
     }
+
+    private static float divDenseVectorElements(float lhs, float rhs) {
+        float value = lhs / rhs;
+        if (Float.isNaN(value) || Float.isInfinite(value)) {
+            throw new ArithmeticException("/ by zero");
+        }
+        return value;
+    }
+
+    private static final DenseVectorBinaryEvaluator DIV_DENSE_VECTOR_EVALUATOR = new DenseVectorBinaryEvaluator() {
+        @Override
+        public EvalOperator.ExpressionEvaluator.Factory vectorsOperation(
+            Source source,
+            EvalOperator.ExpressionEvaluator.Factory lhs,
+            EvalOperator.ExpressionEvaluator.Factory rhs
+        ) {
+            return new DenseVectorsEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
+        }
+
+        @Override
+        public EvalOperator.ExpressionEvaluator.Factory scalarVectorOperation(
+            Source source,
+            float lhs,
+            EvalOperator.ExpressionEvaluator.Factory rhs
+        ) {
+            return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
+        }
+
+        @Override
+        public EvalOperator.ExpressionEvaluator.Factory vectorScalarOperation(
+            Source source,
+            EvalOperator.ExpressionEvaluator.Factory lhs,
+            float rhs
+        ) {
+            return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
+        }
+    };
 }

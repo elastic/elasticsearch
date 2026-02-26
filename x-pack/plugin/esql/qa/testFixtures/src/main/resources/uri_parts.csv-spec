@@ -1,0 +1,321 @@
+basic
+required_capability: uri_parts_command
+
+// tag::basic[]
+ROW uri = "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment"
+| URI_PARTS parts = uri
+| KEEP parts.*
+// end::basic[]
+;
+
+// tag::basic-result[]
+parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
+www.example.com      | fragment               | /foo.gif           | gif                     |                 80 | key1=val1&key2=val2 | http                 | myusername:mypassword   | myusername             | mypassword
+// end::basic-result[]
+;
+
+
+rename
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS parts = uri
+| KEEP parts.port, parts.scheme, parts.domain
+| RENAME parts.port AS port, parts.scheme AS scheme, parts.domain AS domain
+;
+
+port:integer | scheme:keyword | domain:keyword
+8080         | https          | www.example.com
+;
+
+
+testAfterFiltering
+required_capability: uri_parts_command
+
+FROM web_logs
+| WHERE domain == "www.elastic.co"
+| URI_PARTS p = uri
+| KEEP p.scheme, p.domain, p.path
+| SORT p.path
+;
+
+p.scheme:keyword     | p.domain:keyword       | p.path:keyword
+https                | www.elastic.co         | /downloads/elasticsearch
+https                | www.elastic.co         | /guide/en/elasticsearch/reference/current/esql.html
+;
+
+
+prefixSameAsInputFieldName
+required_capability: uri_parts_command
+
+FROM web_logs
+| WHERE timestamp == "2024-01-10T10:04:45.987Z"
+| URI_PARTS uri = uri
+| KEEP uri.scheme, uri.domain, uri.path
+;
+
+uri.scheme:keyword   | uri.domain:keyword     | uri.path:keyword
+https                | www.google.com         | /search
+;
+
+
+prefixSameAsInputFieldNameDropInputField
+required_capability: uri_parts_command
+
+FROM web_logs
+| URI_PARTS uri = uri
+| WHERE timestamp == "2024-01-10T10:04:45.987Z"
+| DROP uri
+| KEEP uri.scheme, uri.domain, uri.path
+;
+
+uri.scheme:keyword   | uri.domain:keyword     | uri.path:keyword
+https                | www.google.com         | /search
+;
+
+
+prefixSameAsInputFieldNameEvalInputField
+required_capability: uri_parts_command
+
+FROM web_logs
+| URI_PARTS uri = uri
+| WHERE timestamp == "2024-01-10T10:04:45.987Z"
+| EVAL uri = 5
+| KEEP uri.scheme, uri.domain, uri.path
+;
+
+uri.scheme:keyword   | uri.domain:keyword     | uri.path:keyword
+https                | www.google.com         | /search
+;
+
+
+testBeforeFiltering
+required_capability: uri_parts_command
+
+FROM web_logs
+| URI_PARTS p = uri
+| WHERE p.domain == "www.elastic.co"
+| KEEP p.scheme, p.domain, p.path
+| SORT p.path DESC
+;
+
+p.scheme:keyword     | p.domain:keyword       | p.path:keyword
+https                | www.elastic.co         | /guide/en/elasticsearch/reference/current/esql.html
+https                | www.elastic.co         | /downloads/elasticsearch
+;
+
+
+testNonWebUri
+required_capability: uri_parts_command
+
+FROM web_logs
+| WHERE domain == "files.internal"
+| URI_PARTS p = uri
+| KEEP p.scheme, p.domain, p.path, p.username, p.password
+;
+
+p.scheme:keyword | p.domain:keyword     | p.path:keyword   | p.username:keyword | p.password:keyword
+ftp              | files.internal       | /data.zip        | user               | pass
+;
+
+
+testNoSchemeUri
+required_capability: uri_parts_command
+
+FROM web_logs
+| WHERE domain == "app.example.com"
+| URI_PARTS p = uri
+| KEEP p.scheme, p.domain, p.path, p.query
+;
+
+p.scheme:keyword | p.domain:keyword       | p.path:keyword | p.query:keyword
+null             | null                   | /app/login     | session=expired
+;
+
+
+testInvalidUri
+required_capability: uri_parts_command
+
+ROW uri = "not a valid uri"
+| URI_PARTS parts = uri
+| KEEP parts.scheme, parts.domain, parts.path
+;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: unable to parse URI \[.*\]
+warningregex: Line 2:3: evaluation of \[URI_PARTS.* parts = uri\] failed, treating result as null. Only first 20 failures recorded.
+
+parts.scheme:keyword | parts.domain:keyword | parts.path:keyword
+null                 | null                 | null
+;
+
+
+dottedPrefix
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS a.b.c = uri
+| KEEP a.b.c.port, a.b.c.scheme, a.b.c.domain
+;
+
+a.b.c.port:integer | a.b.c.scheme:keyword | a.b.c.domain:keyword
+8080               | https                | www.example.com
+;
+
+
+dottedLiteralPrefix
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS `a.b.c` = uri
+| KEEP `a.b.c`.port, `a.b.c`.scheme, `a.b.c`.domain
+;
+
+a.b.c.port:integer | a.b.c.scheme:keyword | a.b.c.domain:keyword
+8080               | https              | www.example.com
+;
+
+
+literalPrefix
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS `a` = uri
+| KEEP `a`.port, `a`.scheme, `a`.domain
+;
+
+a.port:integer | a.scheme:keyword | a.domain:keyword
+8080           | https          | www.example.com
+;
+
+
+literalPrefixQuotingSubfields
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080"
+| URI_PARTS `a` = uri
+| KEEP `a.port`, `a.scheme`, `a.domain`
+;
+
+a.port:integer | a.scheme:keyword | a.domain:keyword
+8080           | https          | www.example.com
+;
+
+
+nameShadowing
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080", x = 5, `x.port` = "shadowed"
+| URI_PARTS x = uri
+| KEEP x.port, x.scheme, x.domain, x
+;
+
+x.port:integer | x.scheme:keyword | x.domain:keyword | x:integer
+8080           | https            | www.example.com  | 5       
+;
+
+
+shadowingAnotherUriParts
+required_capability: uri_parts_command
+
+ROW uri = "https://abc.asd:456", uri2 = "http://def.ghi:789"
+| URI_PARTS x = uri
+| URI_PARTS `x.port` = uri
+| URI_PARTS x = uri2
+| KEEP x.port, `x.port`.port
+;
+
+x.port:integer | x.port.port:integer
+789            | 456
+;
+
+
+uriPartsWithDrop
+required_capability: uri_parts_command
+
+ROW uri = "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment"
+| URI_PARTS parts = uri
+| DROP uri, parts.fragment, parts.path, parts.extension, parts.query, parts.user_info, parts.username, parts.password
+;
+
+parts.domain:keyword | parts.port:integer | parts.scheme:keyword
+www.example.com      |                 80 | http
+;
+
+
+statsTest
+required_capability: uri_parts_command
+
+ROW uri = "https://www.example.com:8080/path1"
+| URI_PARTS parts = uri
+| STATS VALUES(parts.port) BY parts.domain
+;
+
+VALUES(parts.port):integer | parts.domain:keyword
+8080                       | www.example.com
+;
+
+
+multiValueTest
+required_capability: uri_parts_command
+
+ROW uri = ["https://www.example.com:8080/path1", "http://www.example.com:80/path2"]
+| URI_PARTS parts = uri
+| KEEP parts.domain, parts.port, parts.scheme
+;
+warningregex: Line 2:3: evaluation of \[URI_PARTS.* parts = uri\] failed, treating result as null. Only first 20 failures recorded.
+warningregex: Line 2:3: java.lang.IllegalArgumentException: This command doesn't support multi-value input
+
+parts.domain:keyword | parts.port:integer | parts.scheme:keyword
+null                 | null               | null
+;
+
+
+promqlSourceWithGrok
+required_capability: uri_parts_command
+required_capability: promql_command_v0
+
+PROMQL index=k8s-downsampled step=1h oYJdEiiJ=(network.bytes_in{cluster!="qa",pod!="two"}) 
+| GROK _timeseries "%{WORD:zEyDkwmbYa} %{WORD:step} %{WORD:step}" 
+| URI_PARTS parts = _timeseries
+| DROP _timeseries, oYJdEiiJ, step, zEyDkwmbYa
+| LIMIT 1
+;
+warningregex: Line 3:3: evaluation of \[URI_PARTS parts = _timeseries\] failed, treating result as null. Only first 20 failures recorded.
+warningregex: Line 3:3: java.lang.IllegalArgumentException: unable to parse URI \[
+
+parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
+null                 | null                   | null               | null                    | null               | null                | null                 | null                    | null                   | null
+;
+
+
+promqlSource
+required_capability: uri_parts_command
+required_capability: promql_command_v0
+
+PROMQL index=k8s step=1m increase_cost=(sum(increase(network.total_cost[1m])))
+| LIMIT 2
+| EVAL uri = "https://www.elastic.co:443/downloads/elasticsearch"
+| URI_PARTS parts = uri
+| KEEP parts.domain, parts.port, parts.scheme
+;
+
+parts.domain:keyword | parts.port:integer | parts.scheme:keyword
+www.elastic.co       | 443                | https
+www.elastic.co       | 443                | https
+;
+
+
+tsSource
+required_capability: uri_parts_command
+required_capability: ts_command_v0
+
+TS k8s
+| LIMIT 2
+| EVAL uri = "https://www.elastic.co:443/downloads/elasticsearch"
+| URI_PARTS parts = uri
+| KEEP parts.domain, parts.port, parts.scheme
+;
+
+parts.domain:keyword | parts.port:integer | parts.scheme:keyword
+www.elastic.co       | 443                | https
+www.elastic.co       | 443                | https
+;

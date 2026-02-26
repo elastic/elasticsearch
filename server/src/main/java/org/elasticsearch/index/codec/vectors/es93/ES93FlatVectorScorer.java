@@ -12,9 +12,9 @@ package org.elasticsearch.index.codec.vectors.es93;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.lucene95.HasIndexSlice;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
-import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
@@ -22,6 +22,7 @@ import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
+import java.util.Optional;
 
 public class ES93FlatVectorScorer implements FlatVectorsScorer {
 
@@ -35,12 +36,19 @@ public class ES93FlatVectorScorer implements FlatVectorsScorer {
         VectorSimilarityFunction similarityFunction,
         KnnVectorValues vectorValues
     ) throws IOException {
-        if (FACTORY != null && vectorValues.getEncoding() == VectorEncoding.FLOAT32 && vectorValues instanceof HasIndexSlice sl) {
-            var scorer = FACTORY.getFloatVectorScorerSupplier(
-                VectorSimilarityType.of(similarityFunction),
-                sl.getSlice(),
-                (FloatVectorValues) vectorValues
-            );
+        if (FACTORY != null && vectorValues instanceof HasIndexSlice sl) {
+            Optional<RandomVectorScorerSupplier> scorer = switch (vectorValues.getEncoding()) {
+                case BYTE -> FACTORY.getByteVectorScorerSupplier(
+                    VectorSimilarityType.of(similarityFunction),
+                    sl.getSlice(),
+                    (ByteVectorValues) vectorValues
+                );
+                case FLOAT32 -> FACTORY.getFloatVectorScorerSupplier(
+                    VectorSimilarityType.of(similarityFunction),
+                    sl.getSlice(),
+                    (FloatVectorValues) vectorValues
+                );
+            };
             if (scorer.isPresent()) {
                 return scorer.get();
             }
@@ -69,6 +77,12 @@ public class ES93FlatVectorScorer implements FlatVectorsScorer {
         KnnVectorValues vectorValues,
         byte[] target
     ) throws IOException {
+        if (FACTORY != null) {
+            var scorer = FACTORY.getByteVectorScorer(similarityFunction, (ByteVectorValues) vectorValues, target);
+            if (scorer.isPresent()) {
+                return scorer.get();
+            }
+        }
         return FALLBACK.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
 

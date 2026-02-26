@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -421,6 +422,20 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     }
 
     protected QueryRewriteContext createQueryRewriteContext(
+        List<TestIndex> testIndices,
+        Map<String, String> remoteIndexNames,
+        TransportVersion minTransportVersion,
+        Boolean ccsMinimizeRoundTrips
+    ) {
+        Map<String, Map<String, String>> localIndexInferenceFields = new HashMap<>();
+        for (TestIndex testIndex : testIndices) {
+            localIndexInferenceFields.put(testIndex.name(), testIndex.semanticTextFields());
+        }
+
+        return createQueryRewriteContext(localIndexInferenceFields, remoteIndexNames, minTransportVersion, ccsMinimizeRoundTrips);
+    }
+
+    protected QueryRewriteContext createQueryRewriteContext(
         Map<String, Map<String, String>> localIndexInferenceFields,
         Map<String, String> remoteIndexNames,
         TransportVersion minTransportVersion,
@@ -662,10 +677,25 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     protected static void disableQueryInterception(QueryRewriteContext queryRewriteContext, CheckedRunnable<Exception> runnable)
         throws Exception {
+        disableQueryInterception(queryRewriteContext, () -> {
+            runnable.run();
+            return null;
+        });
+    }
+
+    protected static <T> T disableQueryInterception(QueryRewriteContext queryRewriteContext, CheckedSupplier<T, Exception> supplier)
+        throws Exception {
+
+        T result;
         QueryRewriteInterceptor interceptor = queryRewriteContext.getQueryRewriteInterceptor();
-        queryRewriteContext.setQueryRewriteInterceptor(null);
-        runnable.run();
-        queryRewriteContext.setQueryRewriteInterceptor(interceptor);
+        try {
+            queryRewriteContext.setQueryRewriteInterceptor(null);
+            result = supplier.get();
+        } finally {
+            queryRewriteContext.setQueryRewriteInterceptor(interceptor);
+        }
+
+        return result;
     }
 
     private static ModelRegistry createModelRegistry(ThreadPool threadPool) {

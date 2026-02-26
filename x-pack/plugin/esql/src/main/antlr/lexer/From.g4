@@ -15,7 +15,7 @@ FROM : 'from'                 -> pushMode(FROM_MODE);
 TS : 'ts' -> pushMode(FROM_MODE);
 
 // EXTERNAL command (development only)
-EXTERNAL : {this.isDevVersion()}? 'external' -> pushMode(FROM_MODE);
+DEV_EXTERNAL : {this.isDevVersion()}? 'external' -> pushMode(FROM_MODE);
 
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;

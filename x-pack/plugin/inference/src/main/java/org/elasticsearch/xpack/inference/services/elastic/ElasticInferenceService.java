@@ -213,6 +213,11 @@ public class ElasticInferenceService extends SenderService {
     }
 
     @Override
+    protected boolean supportsMultimodalCompletions() {
+        return true;
+    }
+
+    @Override
     protected void doInfer(
         Model model,
         InferenceInputs inputs,

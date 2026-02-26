@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 140134
+ - 141083
+pr: 142700
+summary: Do not push sort on many keyword fields to lucene
+type: bug

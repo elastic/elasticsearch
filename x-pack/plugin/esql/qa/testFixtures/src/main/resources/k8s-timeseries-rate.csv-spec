@@ -40,6 +40,27 @@ rate_bytes_in:double | step:datetime
 15.515104            | 2024-05-10T00:00:00.000Z
 ;
 
+rate_of_long_no_grouping_promql_implicit_range
+required_capability: promql_command_v0
+required_capability: promql_implicit_range_selector
+
+PROMQL index=k8s step=1m rate_bytes_in=(avg(rate(network.total_bytes_in)))
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step
+| SORT rate_bytes_in DESC, step DESC | LIMIT 10;
+
+rate_bytes_in:double | step:datetime
+26.69853             | 2024-05-10T00:04:00.000Z
+25.238823            | 2024-05-10T00:20:00.000Z
+22.148003            | 2024-05-10T00:01:00.000Z
+19.281831            | 2024-05-10T00:19:00.000Z
+18.744102            | 2024-05-10T00:11:00.000Z
+17.752681            | 2024-05-10T00:17:00.000Z
+16.945882            | 2024-05-10T00:10:00.000Z
+16.65479             | 2024-05-10T00:07:00.000Z
+15.773894            | 2024-05-10T00:18:00.000Z
+15.515104            | 2024-05-10T00:00:00.000Z
+;
+
 rate_of_long_grouping
 required_capability: rate_with_interpolation_v2
 required_capability: ts_command_v0

@@ -14,8 +14,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.lucene.DataPartitioning;
-import org.elasticsearch.compute.lucene.LuceneSliceQueue;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.TimeValue;
@@ -93,6 +93,14 @@ public final class QueryPragmas implements Writeable {
      * If the query level threshold is set to 0, no {@code RoundTo} pushdown will be performed.
      */
     public static final Setting<Integer> ROUNDTO_PUSHDOWN_THRESHOLD = Setting.intSetting("roundto_pushdown_threshold", -1, -1);
+
+    /**
+     * Query-level override for the maximum number of keyword sort fields allowed when pushing TopN to Lucene.
+     * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#MAX_KEYWORD_SORT_FIELDS} is used.
+     * When set to a value {@code >= 0}, it overrides the cluster-level threshold for this query only.
+     * The resolution logic lives in {@code PushTopNToSource}.
+     */
+    public static final Setting<Integer> MAX_KEYWORD_SORT_FIELDS = Setting.intSetting("max_keyword_sort_fields", -1, -1);
 
     public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
 
@@ -222,6 +230,10 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean forkImplicitLimit() {
         return FORK_IMPLICIT_LIMIT.get(settings);
+    }
+
+    public int maxKeywordSortFields() {
+        return MAX_KEYWORD_SORT_FIELDS.get(settings);
     }
 
     public int partialAggregationEmitKeysThreshold(int defaultThreshold) {

@@ -1139,10 +1139,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             validationException.getMessage(),
             containsString("Cross-project calls are not supported, but remote indices were requested: [project-1:src]")
         );
-        assertThat(
-            validationException.getMessage(),
-            containsString("Cross-project calls are not supported, but project_routing was requested: _alias:_origin")
-        );
     }
 
     public void testNotCrossProjectEnvironment() throws IOException {

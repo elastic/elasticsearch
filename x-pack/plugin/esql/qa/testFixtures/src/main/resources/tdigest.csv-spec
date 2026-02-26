@@ -118,7 +118,7 @@ FROM tdigest_standard_index
 ;
 
 instance:keyword | min:double | max:double | p95:double | sum:double  | avg:double
-instance-0       | 2.4E-4     | 6.786232   | 0.7       | 1472.744209 | 0.1665812
+instance-0       | 2.4E-4     | 6.786232   | 0.7        | 1472.744209 | 0.1665812
 instance-1       | 2.17E-4    | 3.190723   | 0.1        | 36.198484   | 0.011138
 instance-2       | 2.2E-4     | 2.744054   | 0.1        | 27.706021   | 0.008197
 ;
@@ -202,6 +202,94 @@ FROM tdigest_standard_index
 
 p50:double
 NULL
+;
+
+
+
+medianOnEmptyTDigest
+required_capability: tdigest_time_series_metric
+required_capability: tdigest_median
+
+FROM tdigest_standard_index 
+ | WHERE instance == "hand-rolled-empty"
+ | STATS  median = MEDIAN(responseTime)
+ | KEEP median
+;
+
+median:double
+NULL
+;
+
+
+
+ungroupedMedian
+required_capability: tdigest_time_series_metric
+required_capability: tdigest_median
+
+FROM tdigest_standard_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS median = MEDIAN(responseTime)
+ | KEEP median
+;
+
+median:double
+0.001..0.003
+;
+
+
+
+groupedMedian
+required_capability: tdigest_time_series_metric
+required_capability: tdigest_median
+
+FROM tdigest_standard_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS median = MEDIAN(responseTime) BY instance
+ | KEEP instance, median
+ | SORT instance
+;
+
+instance:keyword | median:double
+instance-0       | 0.02..0.03
+instance-1       | 5E-4..8E-4
+instance-2       | 5E-4..8E-4
+;
+
+
+
+timeseriesUngroupedMedian
+required_capability: tdigest_time_series_metric
+required_capability: tdigest_median
+required_capability: ts_command_v0
+
+TS tdigest_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS median = MEDIAN(responseTime)
+ | KEEP median
+;
+
+median:double
+0.001..0.003
+;
+
+
+
+timeseriesGroupedMedian
+required_capability: tdigest_time_series_metric
+required_capability: tdigest_median
+required_capability: ts_command_v0
+
+TS tdigest_timeseries_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS median = MEDIAN(responseTime) BY instance
+ | KEEP instance, median
+ | SORT instance
+;
+
+instance:keyword | median:double
+instance-0       | 0.02..0.03
+instance-1       | 5E-4..8E-4
+instance-2       | 5E-4..8E-4
 ;
 
 

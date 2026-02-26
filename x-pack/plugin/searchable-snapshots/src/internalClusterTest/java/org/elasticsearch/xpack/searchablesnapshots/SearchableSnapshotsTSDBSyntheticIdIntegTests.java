@@ -69,23 +69,25 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        createRepository(REPOSITORY, FsRepository.TYPE);
-        assertAcked(syntheticIdIndex(INDEX));
-        int initialNumberOfDocuments = scaledRandomIntBetween(20, 2_000);
-        docIds = indexRandomDocuments(INDEX, initialNumberOfDocuments);
-        deletedDocIds = deleteRandomDocuments(INDEX, docIds);
-        numberOfDocuments = docIds.size();
-        createSnapshot(REPOSITORY, SNAPSHOT, List.of(INDEX));
-        assertAcked(indicesAdmin().prepareDelete(INDEX));
-        mountSnapshot(
-            REPOSITORY,
-            SNAPSHOT,
-            INDEX,
-            MOUNTED_INDEX,
-            Settings.EMPTY,
-            randomFrom(MountSearchableSnapshotRequest.Storage.values())
-        );
-        ensureGreen(MOUNTED_INDEX);
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            createRepository(REPOSITORY, FsRepository.TYPE);
+            assertAcked(syntheticIdIndex(INDEX));
+            int initialNumberOfDocuments = scaledRandomIntBetween(20, 2_000);
+            docIds = indexRandomDocuments(INDEX, initialNumberOfDocuments);
+            deletedDocIds = deleteRandomDocuments(INDEX, docIds);
+            numberOfDocuments = docIds.size();
+            createSnapshot(REPOSITORY, SNAPSHOT, List.of(INDEX));
+            assertAcked(indicesAdmin().prepareDelete(INDEX));
+            mountSnapshot(
+                REPOSITORY,
+                SNAPSHOT,
+                INDEX,
+                MOUNTED_INDEX,
+                Settings.EMPTY,
+                randomFrom(MountSearchableSnapshotRequest.Storage.values())
+            );
+            ensureGreen(MOUNTED_INDEX);
+        }
     }
 
     private CreateIndexRequestBuilder syntheticIdIndex(String indexName) {
@@ -152,9 +154,11 @@ public class SearchableSnapshotsTSDBSyntheticIdIntegTests extends BaseFrozenSear
     @After
     @Override
     public void tearDown() throws Exception {
-        assertAcked(indicesAdmin().prepareDelete("mounted-*"));
-        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, REPOSITORY, SNAPSHOT).get());
-        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPOSITORY));
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            assertAcked(indicesAdmin().prepareDelete("mounted-*"));
+            assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, REPOSITORY, SNAPSHOT).get());
+            assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPOSITORY));
+        }
         super.tearDown();
     }
 

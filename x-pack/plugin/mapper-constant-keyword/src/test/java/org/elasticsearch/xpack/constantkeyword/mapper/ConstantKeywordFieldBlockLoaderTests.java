@@ -13,7 +13,6 @@ import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -24,8 +23,8 @@ public class ConstantKeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @Override
-    public void testBlockLoaderOfMultiField() throws IOException {
-        // Multi fields are noop for constant_keyword.
+    protected boolean supportsMultiField() {
+        return false;
     }
 
     @Override

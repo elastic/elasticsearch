@@ -15,7 +15,7 @@ setup:
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [min, max]
+                metrics: [min, max, sum, value_count]
                 default_metric: max
 
   - do:
@@ -23,16 +23,17 @@ setup:
         index: aggregate_metric_test
         refresh: true
         body:
+          - # we keep max == avg so that the test will keep working bwc
           - '{"index": {}}'
-          - '{"metric": {"min": 0, "max": 100} }'
+          - '{"metric": {"min": 0, "max": 100, "sum": 1000, "value_count": 10} }'
           - '{"index": {}}'
-          - '{"metric": {"min": 60, "max": 100} }'
+          - '{"metric": {"min": 60, "max": 100, "sum": 1000, "value_count": 10} }'
           - '{"index": {}}'
-          - '{"metric": {"min": -400.50, "max": 1000} }'
+          - '{"metric": {"min": -400.50, "max": 1000, "sum": 20000, "value_count": 20} }'
           - '{"index": {}}'
-          - '{"metric": {"min": 1, "max": 99.3} }'
+          - '{"metric": {"min": 1, "max": 99.3, "sum": 279.9, "value_count": 3} }'
           - '{"index": {}}'
-          - '{"metric": {"min": -100, "max": -40} }'
+          - '{"metric": {"min": -100, "max": -40, "sum": -80, "value_count": 2} }'
 ---
 "Test min_max aggs":
   - do:

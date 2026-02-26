@@ -372,7 +372,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             Map.of(fieldName, 1.0f),
             query,
             inferenceResultsMap,
-            null,
             false,
             false,
             false

@@ -216,7 +216,7 @@ The benefit of a dedicated project for these tests are:
 
 Sometimes we want to share test fixtures to set up the code under test across multiple projects. There are basically two ways doing so.
 
-Ideally we would use the build-in [java-test-fixtures](https://docs.gradle.org/current/userguide/java_testing.html#sec:java_test_fixtures) Gradle plugin.
+Ideally we would use the built-in [java-test-fixtures](https://docs.gradle.org/current/userguide/java_testing.html#sec:java_test_fixtures) Gradle plugin.
 This plugin relies on having a separate sourceSet for the test fixtures code.
 
 In the Elasticsearch codebase we have test fixtures and actual tests within the same sourceSet. Therefore we introduced the `elasticsearch.internal-test-artifact` plugin to provides another build artifact of your project based on the `test` sourceSet.
@@ -232,7 +232,7 @@ dependencies {
 ```
 
 This test artifact mechanism makes use of the concept of [component capabilities](https://docs.gradle.org/current/userguide/component_capabilities.html)
-similar to how the Gradle build-in `java-test-fixtures` plugin works.
+similar to how the Gradle built-in `java-test-fixtures` plugin works.
 
 `testArtifact` is a shortcut declared in the Elasticsearch build. Alternatively you can declare the dependency via
 

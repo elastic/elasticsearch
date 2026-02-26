@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -49,7 +51,7 @@ import static org.hamcrest.Matchers.hasEntry;
 public class AllocationStatsServiceTests extends ESAllocationTestCase {
 
     public void testShardStats() {
-
+        var projectId = randomProjectIdOrDefault();
         var ingestLoadForecast = randomDoubleBetween(0, 10, true);
         var shardSizeForecast = randomNonNegativeLong();
         var currentShardSize = randomNonNegativeLong();
@@ -63,14 +65,17 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
 
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNode("node-1")))
-            .metadata(Metadata.builder().put(indexMetadata, false))
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)))
             .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(indexMetadata.getIndex())
-                            .addShard(newShardRouting(shardId, "node-1", true, ShardRoutingState.STARTED))
-                            .build()
-                    )
+                GlobalRoutingTableTestHelper.routingTable(
+                    projectId,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(indexMetadata.getIndex())
+                                .addShard(newShardRouting(shardId, "node-1", true, ShardRoutingState.STARTED))
+                                .build()
+                        )
+                )
             )
             .build();
 
@@ -106,23 +111,19 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
     }
 
     public void testRelocatingShardIsOnlyCountedOnceOnTargetNode() {
-
+        var projectId = randomProjectIdOrDefault();
         var indexMetadata = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addShard(
+                shardRoutingBuilder(new ShardId(indexMetadata.getIndex(), 0), "node-1", true, ShardRoutingState.RELOCATING)
+                    .withRelocatingNodeId("node-2")
+                    .build()
+            )
+            .build();
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
-            .metadata(Metadata.builder().put(indexMetadata, false))
-            .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(indexMetadata.getIndex())
-                            .addShard(
-                                shardRoutingBuilder(new ShardId(indexMetadata.getIndex(), 0), "node-1", true, ShardRoutingState.RELOCATING)
-                                    .withRelocatingNodeId("node-2")
-                                    .build()
-                            )
-                            .build()
-                    )
-            )
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)))
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, RoutingTable.builder().add(indexRoutingTable)))
             .build();
 
         var queue = new DeterministicTaskQueue();
@@ -148,21 +149,17 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
     }
 
     public void testUndesiredShardCount() {
-
+        var projectId = randomProjectIdOrDefault();
         var indexMetadata = IndexMetadata.builder("my-index").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
 
+        final IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
+            .addShard(newShardRouting(new ShardId(indexMetadata.getIndex(), 0), "node-1", true, ShardRoutingState.STARTED))
+            .addShard(newShardRouting(new ShardId(indexMetadata.getIndex(), 1), "node-3", true, ShardRoutingState.STARTED))
+            .build();
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).add(newNode("node-3")))
-            .metadata(Metadata.builder().put(indexMetadata, false))
-            .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(indexMetadata.getIndex())
-                            .addShard(newShardRouting(new ShardId(indexMetadata.getIndex(), 0), "node-1", true, ShardRoutingState.STARTED))
-                            .addShard(newShardRouting(new ShardId(indexMetadata.getIndex(), 1), "node-3", true, ShardRoutingState.STARTED))
-                            .build()
-                    )
-            )
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)))
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, RoutingTable.builder().add(indexRoutingTable)))
             .build();
 
         var queue = new DeterministicTaskQueue();

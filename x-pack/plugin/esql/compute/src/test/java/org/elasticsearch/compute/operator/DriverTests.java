@@ -129,11 +129,11 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
-        assertThat(driver.status().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.status().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
-        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
@@ -168,11 +168,11 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
-        assertThat(driver.status().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.status().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
-        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
@@ -206,11 +206,11 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
-        assertThat(driver.status().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.status().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
-        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
@@ -256,46 +256,24 @@ public class DriverTests extends ESTestCase {
     }
 
     public void testServerErrorsAreLoggedAsError() {
-        assertFailureLogged(
+        for (RuntimeException failure : List.of(
             new IllegalStateException("simulated compute bug"),
-            IllegalStateException.class,
-            Level.ERROR,
-            "*Error running driver [test-task]*"
-        );
-        assertFailureLogged(
             new ArrayIndexOutOfBoundsException("simulated broken invariant"),
-            ArrayIndexOutOfBoundsException.class,
-            Level.ERROR,
-            "*Error running driver [test-task]*"
-        );
-        assertFailureLogged(
-            new RuntimeException(new IOException("io failure")),
-            RuntimeException.class,
-            Level.ERROR,
-            "*Error running driver [test-task]*"
-        );
+            new RuntimeException(new IOException("io failure"))
+        )) {
+            assertFailureLogged(failure, failure.getClass(), Level.ERROR, "*Error running driver [test-task]*");
+        }
     }
 
     @TestLogging(reason = "assert DEBUG user-error logging in Driver", value = "org.elasticsearch.compute.operator.Driver:DEBUG")
     public void testClientErrorsAreLoggedAsDebug() {
-        assertFailureLogged(
+        for (RuntimeException failure : List.of(
             new ElasticsearchStatusException("bad request", RestStatus.BAD_REQUEST),
-            ElasticsearchStatusException.class,
-            Level.DEBUG,
-            "*User error running driver [test-task]*"
-        );
-        assertFailureLogged(
             new IllegalArgumentException("bad argument"),
-            IllegalArgumentException.class,
-            Level.DEBUG,
-            "*User error running driver [test-task]*"
-        );
-        assertFailureLogged(
-            new CircuitBreakingException("too many bytes", CircuitBreaker.Durability.PERMANENT),
-            CircuitBreakingException.class,
-            Level.DEBUG,
-            "*User error running driver [test-task]*"
-        );
+            new CircuitBreakingException("too many bytes", CircuitBreaker.Durability.PERMANENT)
+        )) {
+            assertFailureLogged(failure, failure.getClass(), Level.DEBUG, "*User error running driver [test-task]*");
+        }
     }
 
     @TestLogging(reason = "assert DEBUG cancellation logging in Driver", value = "org.elasticsearch.compute.operator.Driver:DEBUG")

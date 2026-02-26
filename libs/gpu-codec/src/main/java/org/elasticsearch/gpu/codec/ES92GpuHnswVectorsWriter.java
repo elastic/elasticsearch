@@ -356,6 +356,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
         long startTime = System.nanoTime();
         var indexBuilder = CagraIndex.newBuilder(cuVSResources).withDataset(dataset).withIndexParams(cagraIndexParams);
         var index = indexBuilder.build();
+        GPUSupport.incrementUsageCount();
         cuVSResourceManager.finishedComputation(cuVSResources);
         if (logger.isDebugEnabled()) {
             logger.debug("Carga index created in: {} ms; #num vectors: {}", (System.nanoTime() - startTime) / 1_000_000.0, dataset.size());

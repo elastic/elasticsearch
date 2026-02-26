@@ -38,29 +38,21 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
     private final RateLimitSettings rateLimitSettings;
 
     // Rate limit for AI21 is 10 requests / sec or 200 requests / minute. Setting default to 200 requests / minute
-    protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(200);
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(200);
 
     private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName(
         "ml_inference_ai21_completion_added"
     );
 
     public static Ai21ChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String model = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            Ai21Service.NAME,
-            context
-        );
+        var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, Ai21Service.NAME, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
-        return new Ai21ChatCompletionServiceSettings(model, rateLimitSettings);
+        return new Ai21ChatCompletionServiceSettings(modelId, rateLimitSettings);
     }
 
     public Ai21ChatCompletionServiceSettings(StreamInput in) throws IOException {
@@ -86,6 +78,23 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
     @Override
     public String modelId() {
         return this.modelId;
+    }
+
+    @Override
+    public Ai21ChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            Ai21Service.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new Ai21ChatCompletionServiceSettings(this.modelId, extractedRateLimitSettings);
     }
 
     public RateLimitSettings rateLimitSettings() {

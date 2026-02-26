@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 142374
+ - 142316
+pr: 142401
+summary: Fix async logging consistency and severity
+type: bug

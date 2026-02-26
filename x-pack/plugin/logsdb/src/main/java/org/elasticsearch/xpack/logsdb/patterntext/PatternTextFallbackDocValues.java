@@ -12,6 +12,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -131,7 +132,26 @@ public abstract class PatternTextFallbackDocValues extends BinaryDocValues {
         }
     }
 
-    static BinaryDocValues from(LeafReader leafReader, PatternTextFieldType fieldType) throws IOException {
+    /**
+     * Returns doc values for a pattern_text field. If templating is disabled returns an alternative version consisting of either
+     * a flat binary doc values column or stored fields. The decision between proper pattern_text, flat binary doc values, or
+     * stored fields occurs at the column level. Returns null if the segment has no values for this field.
+     */
+    static BinaryDocValues from(LeafReaderContext context, PatternTextFieldType fieldType) throws IOException {
+        if (fieldType.disableTemplating()) {
+            if (fieldType.useBinaryDocValuesRawText()) {
+                return context.reader().getBinaryDocValues(fieldType.storedNamed());
+            }
+            return storedFieldAsBinaryDocValues(context, fieldType.storedNamed());
+        }
+        return fromEnabledPatternText(context.reader(), fieldType);
+    }
+
+    /**
+     * Returns doc values for a pattern_text field that has templating enabled. Single rows may fall back to binary doc values or a
+     * stored field. This decision happens on a per-doc basis. Returns null if the segment has no template_id values.
+     */
+    static BinaryDocValues fromEnabledPatternText(LeafReader leafReader, PatternTextFieldType fieldType) throws IOException {
         SortedSetDocValues templateIdDocValues = DocValues.getSortedSet(leafReader, fieldType.templateIdFieldName());
         if (templateIdDocValues.getValueCount() == 0) {
             return null;
@@ -159,5 +179,57 @@ public abstract class PatternTextFallbackDocValues extends BinaryDocValues {
             LeafStoredFieldLoader storedTemplateLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
             return new LegacyStoredFieldFallback(storedTemplateLoader, fieldType.storedNamed(), docValues, templateIdDocValues);
         }
+    }
+
+    /**
+     * It is not ideal that we are wrapping the stored fields loader in binary doc values. This is acceptable for this use case
+     * because combining a pattern_text doc values with its fallbacks is complicated and error-prone. Doing this in a single
+     * location reduces the chance of errors. Also, stored fields are only used as a fallback for proper pattern_text, either when
+     * a value exceeds 32kb, or templating is disabled.
+     */
+    private static BinaryDocValues storedFieldAsBinaryDocValues(LeafReaderContext context, String fieldName) throws IOException {
+        var loader = StoredFieldLoader.create(false, Set.of(fieldName));
+        var leafLoader = loader.getLoader(context, null);
+        return new BinaryDocValues() {
+            BytesRef currentValue;
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                leafLoader.advanceTo(target);
+                var storedFields = leafLoader.storedFields();
+                var fieldValues = storedFields.get(fieldName);
+                if (fieldValues != null && fieldValues.isEmpty() == false) {
+                    currentValue = (BytesRef) fieldValues.getFirst();
+                    return true;
+                }
+                currentValue = null;
+                return false;
+            }
+
+            @Override
+            public BytesRef binaryValue() {
+                return currentValue;
+            }
+
+            @Override
+            public int docID() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int nextDoc() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int advance(int target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long cost() {
+                return 0;
+            }
+        };
     }
 }

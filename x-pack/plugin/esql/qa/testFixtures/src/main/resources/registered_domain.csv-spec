@@ -1,0 +1,171 @@
+basic
+required_capability: registered_domain_command
+
+// tag::basic[]
+ROW fqdn = "www.example.co.uk"
+| REGISTERED_DOMAIN rd = fqdn
+| KEEP rd.*
+// end::basic[]
+;
+
+// tag::basic-result[]
+rd.domain:keyword | rd.registered_domain:keyword | rd.top_level_domain:keyword | rd.subdomain:keyword
+www.example.co.uk | example.co.uk                | co.uk                       | www
+// end::basic-result[]
+;
+
+
+partialColumns
+required_capability: registered_domain_command
+
+ROW fqdn = "www.example.co.uk"
+| REGISTERED_DOMAIN rd = fqdn
+| KEEP rd.registered_domain, rd.top_level_domain
+;
+
+rd.registered_domain:keyword | rd.top_level_domain:keyword
+example.co.uk                | co.uk
+;
+
+
+fromWebLogs
+required_capability: registered_domain_command
+
+FROM web_logs
+| WHERE timestamp == "2024-01-10T10:00:00.000Z"
+| REGISTERED_DOMAIN rd = domain
+| KEEP rd.domain, rd.registered_domain, rd.top_level_domain, rd.subdomain
+| SORT rd.registered_domain
+;
+
+rd.domain:keyword    | rd.registered_domain:keyword | rd.top_level_domain:keyword | rd.subdomain:keyword
+www.elastic.co       | elastic.co                   | co                          | www
+;
+
+
+tsSource
+required_capability: registered_domain_command
+required_capability: ts_command_v0
+
+TS k8s
+| LIMIT 2
+| EVAL fqdn = "content-autofill.googleapis.com"
+| REGISTERED_DOMAIN rd = fqdn
+| KEEP rd.domain, rd.registered_domain, rd.subdomain
+;
+
+rd.domain:keyword                    | rd.registered_domain:keyword | rd.subdomain:keyword
+content-autofill.googleapis.com      | googleapis.com               | content-autofill
+content-autofill.googleapis.com      | googleapis.com               | content-autofill
+;
+
+
+invalidFqdn
+required_capability: registered_domain_command
+
+ROW fqdn = "$"
+| REGISTERED_DOMAIN rd = fqdn
+| KEEP rd.domain, rd.registered_domain
+;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: Invalid domain \[\$\]
+warningregex: Line 2:3: evaluation of \[REGISTERED_DOMAIN rd = fqdn\] failed, treating result as null
+
+rd.domain:keyword | rd.registered_domain:keyword
+null              | null
+;
+
+
+blankFqdn
+required_capability: registered_domain_command
+
+ROW fqdn = "  "
+| REGISTERED_DOMAIN rd = fqdn
+| KEEP rd.domain, rd.registered_domain
+;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: Invalid domain \[  \]
+warningregex: Line 2:3: evaluation of \[REGISTERED_DOMAIN rd = fqdn\] failed, treating result as null
+
+rd.domain:keyword | rd.registered_domain:keyword
+null              | null
+;
+
+
+dottedPrefix
+required_capability: registered_domain_command
+
+ROW fqdn = "www.example.co.uk"
+| REGISTERED_DOMAIN a.b.c = fqdn
+| KEEP a.b.c.registered_domain, a.b.c.top_level_domain
+;
+
+a.b.c.registered_domain:keyword | a.b.c.top_level_domain:keyword
+example.co.uk                   | co.uk
+;
+
+
+multiValue
+required_capability: registered_domain_command
+
+ROW fqdn = ["www.example.co.uk", "elastic.co"]
+| REGISTERED_DOMAIN rd = fqdn
+| KEEP rd.registered_domain
+;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: This command doesn't support multi-value input
+warningregex: Line 2:3: evaluation of \[REGISTERED_DOMAIN.* rd = fqdn\] failed, treating result as null
+
+rd.registered_domain:keyword
+null
+;
+
+
+deepSubdomain
+required_capability: registered_domain_command
+
+ROW fqdn = "a.b.c.d.e.example.com"
+| REGISTERED_DOMAIN rd = fqdn
+| KEEP rd.domain, rd.registered_domain, rd.top_level_domain, rd.subdomain
+;
+
+rd.domain:keyword       | rd.registered_domain:keyword | rd.top_level_domain:keyword | rd.subdomain:keyword
+a.b.c.d.e.example.com   | example.com                  | com                         | a.b.c.d.e
+;
+
+
+urlInput
+required_capability: registered_domain_command
+
+ROW fqdn = "https://a.b.example.com"
+| REGISTERED_DOMAIN rd = fqdn
+;
+
+fqdn:keyword            | rd.domain:keyword       | rd.registered_domain:keyword | rd.top_level_domain:keyword | rd.subdomain:keyword
+https://a.b.example.com | https://a.b.example.com | example.com                  | com                         | https://a.b
+;
+
+
+pathInput
+required_capability: registered_domain_command
+
+ROW fqdn = "a.b.example.com/path"
+| REGISTERED_DOMAIN rd = fqdn
+| KEEP rd.domain, rd.registered_domain
+;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: Invalid domain \[a.b.example.com/path\]
+warningregex: Line 2:3: evaluation of \[REGISTERED_DOMAIN rd = fqdn\] failed, treating result as null
+
+rd.domain:keyword | rd.registered_domain:keyword
+null              | null
+;
+
+
+bareTLD
+required_capability: registered_domain_command
+
+ROW fqdn = "com"
+| REGISTERED_DOMAIN rd = fqdn
+| KEEP rd.domain, rd.registered_domain, rd.top_level_domain, rd.subdomain
+;
+
+rd.domain:keyword | rd.registered_domain:keyword | rd.top_level_domain:keyword | rd.subdomain:keyword
+com               | null                         | com                         | null
+;

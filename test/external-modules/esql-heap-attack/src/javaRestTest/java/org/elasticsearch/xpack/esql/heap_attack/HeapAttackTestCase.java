@@ -54,9 +54,17 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.buildCluster();
 
-    static volatile boolean SUITE_ABORTED = false;
-
     protected static final int MAX_ATTEMPTS = 5;
+
+    @Override
+    protected boolean shouldFailureSkipRemainingTests() {
+        /*
+         * Failures will frequently poison the cluster being tested, causing the next
+         * test to fail because the cluster has OOMed or exploded in some fun way. So
+         * we skip them.
+         */
+        return true;
+    }
 
     protected interface TryCircuitBreaking {
         Map<String, Object> attempt(int attempt) throws IOException;
@@ -65,11 +73,6 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
-    }
-
-    @Before
-    public void skipOnAborted() {
-        assumeFalse("skip on aborted", SUITE_ABORTED);
     }
 
     protected void assertCircuitBreaks(TryCircuitBreaking tryBreaking) throws IOException {
@@ -125,7 +128,6 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
 
                 @Override
                 protected void doRun() throws Exception {
-                    SUITE_ABORTED = true;
                     TimeValue elapsed = TimeValue.timeValueNanos(System.nanoTime() - startedTimeInNanos);
                     logger.info("--> test {} triggering OOM after {}", getTestName(), elapsed);
                     Request triggerOOM = new Request("POST", "/_trigger_out_of_memory");
@@ -301,7 +303,7 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
     @Before
     @After
     public void assertRequestBreakerEmpty() throws Exception {
-        if (SUITE_ABORTED) {
+        if (previousFailureSkipsRemaining()) {
             return;
         }
         assertBusy(() -> {

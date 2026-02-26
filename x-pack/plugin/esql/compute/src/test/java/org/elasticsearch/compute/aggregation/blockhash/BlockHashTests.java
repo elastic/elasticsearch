@@ -1147,7 +1147,7 @@ public class BlockHashTests extends BlockHashTestCase {
         if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
             return "213120b";
         }
-        return "483b";
+        return "491b";
     }
 
     public void testLongBytesRefHashWithMultiValuedFields() {

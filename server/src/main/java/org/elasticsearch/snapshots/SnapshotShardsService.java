@@ -393,6 +393,19 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 (outcomeInfoString) -> {}
                             );
                         }
+                    } else if (snapshotStatus.isPaused()) {
+                        // Shard was paused for node removal then aborted by snapshot deletion.
+                        // abortIfNotCompleted won't transition from PAUSED, so report FAILED directly.
+                        logger.debug("snapshot [{}] is deleted after PAUSED, updating shard snapshot for {} to FAILED", snapshot, sid);
+                        snapshotStatus.moveFromPausedToFailed();
+                        notifyUnsuccessfulSnapshotShard(
+                            snapshot,
+                            sid,
+                            ShardState.FAILED,
+                            shard.getValue().reason(),
+                            shard.getValue().generation(),
+                            (outcomeInfoString) -> {}
+                        );
                     } else {
                         snapshotStatus.abortIfNotCompleted("snapshot has been aborted", notifyOnAbortTaskRunner::enqueueTask);
                     }

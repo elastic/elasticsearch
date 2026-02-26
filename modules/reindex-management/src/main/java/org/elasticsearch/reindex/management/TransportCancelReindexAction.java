@@ -19,12 +19,14 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksProjectAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -40,12 +42,15 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
 
     public static final ActionType<CancelReindexResponse> TYPE = new ActionType<>("cluster:admin/reindex/cancel");
 
+    private final Client client;
+
     @Inject
     public TransportCancelReindexAction(
         final ClusterService clusterService,
         final TransportService transportService,
         final ActionFilters actionFilters,
-        final ProjectResolver projectResolver
+        final ProjectResolver projectResolver,
+        final Client client
     ) {
         super(
             TYPE.name(),
@@ -57,6 +62,7 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
             transportService.getThreadPool().executor(ThreadPool.Names.GENERIC),
             projectResolver
         );
+        this.client = client;
     }
 
     @Override
@@ -77,16 +83,29 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
     ) {
         assert task instanceof BulkByScrollTask : "Task should be a BulkByScrollTask";
 
+        // cancel the task asynchronously, and if waitForCompletion=true, then wait for it to finish to have the full correct response.
         taskManager.cancelTaskAndDescendants(
             task,
             CancelTasksRequest.DEFAULT_REASON,
-            request.waitForCompletion(),
-            ActionListener.wrap(ignored -> {
-                final TaskResult completedTaskResult = request.waitForCompletion()
-                    ? new TaskResult(true, task.taskInfo(clusterService.localNode().getId(), true))
-                    : null;
-                listener.onResponse(new CancelReindexTaskResponse(completedTaskResult));
-            }, listener::onFailure)
+            false,
+            listener.delegateFailureAndWrap((cancelListener, r) -> {
+                if (request.waitForCompletion()) {
+                    final TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
+                    final GetReindexRequest getRequest = new GetReindexRequest(taskId, true, null);
+                    client.execute(
+                        TransportGetReindexAction.TYPE,
+                        getRequest,
+                        cancelListener.delegateFailureAndWrap(
+                            (l, getResp) -> l.onResponse(
+                                // return cancelled=true. GET will return false since it's not *currently* cancelled.
+                                new CancelReindexTaskResponse(taskResultWithCancelledTrue(getResp.getTaskResult()))
+                            )
+                        )
+                    );
+                } else {
+                    cancelListener.onResponse(new CancelReindexTaskResponse((TaskResult) null));
+                }
+            })
         );
     }
 
@@ -118,5 +137,24 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
 
     private static ResourceNotFoundException reindexWithTaskIdNotFoundException(final TaskId requestedTaskId) {
         return new ResourceNotFoundException("reindex task [{}] either not found or completed", requestedTaskId);
+    }
+
+    private TaskResult taskResultWithCancelledTrue(final TaskResult r) {
+        final TaskInfo taskInfo = r.getTask();
+        final TaskInfo newTaskInfo = new TaskInfo(
+            taskInfo.taskId(),
+            taskInfo.type(),
+            taskInfo.node(),
+            taskInfo.action(),
+            taskInfo.description(),
+            taskInfo.status(),
+            taskInfo.startTime(),
+            taskInfo.runningTimeNanos(),
+            taskInfo.cancellable(),
+            true,
+            taskInfo.parentTaskId(),
+            taskInfo.headers()
+        );
+        return new TaskResult(r.isCompleted(), newTaskInfo, r.getError(), r.getResponse());
     }
 }

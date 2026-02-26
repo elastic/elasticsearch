@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.esql.EsqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
+import org.elasticsearch.xpack.core.gpu.GpuVectorIndexingFeatureSetUsage;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
@@ -335,7 +336,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
                     SecurityMigrationTaskParams.TASK_NAME,
                     SecurityMigrationTaskParams::new
                 ),
-                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB, LogsDBFeatureSetUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB, LogsDBFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(
+                    XPackFeatureUsage.class,
+                    XPackField.GPU_VECTOR_INDEXING,
+                    GpuVectorIndexingFeatureSetUsage::new
+                )
             ),
             getChunkingSettingsNamedWriteables().stream()
         ).filter(Objects::nonNull).toList();

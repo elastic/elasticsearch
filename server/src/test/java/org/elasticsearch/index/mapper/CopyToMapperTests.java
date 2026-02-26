@@ -104,7 +104,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
 
         assertNotNull(parsedDoc.dynamicMappingsUpdate());
 
-        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
 
         fieldMapper = mapperService.documentMapper().mappers().getMapper("new_field");
         assertThat(fieldMapper.typeName(), equalTo("long"));

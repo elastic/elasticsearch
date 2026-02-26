@@ -28,8 +28,8 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -59,7 +59,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             Codec codec = new Elasticsearch92Lucene103Codec() {
 
                 final DocValuesFormat docValuesFormat = randomBoolean()
-                    ? new ES819TSDBDocValuesFormat(
+                    ? new ES819Version3TSDBDocValuesFormat(
                         ESTestCase.randomIntBetween(1, 4096),
                         ESTestCase.randomIntBetween(1, 512),
                         random().nextBoolean(),

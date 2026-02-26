@@ -141,4 +141,29 @@ public class ConnectionBuilderTests extends SqlCliTestCase {
         throws UserException {
         return builder.buildConnection(connectionStringArg, keystoreLocation, randomBoolean());
     }
+
+    public void testApiKeyConnection() throws Exception {
+        CliTerminal testTerminal = mock(CliTerminal.class);
+        ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
+        String apiKey = "test_api_key_encoded";
+        ConnectionConfiguration con = connectionBuilder.buildConnection("http://foobar:9242/", null, randomBoolean(), apiKey);
+        assertNull(con.authUser());
+        assertNull(con.authPass());
+        assertEquals(apiKey, con.apiKey());
+        assertEquals("http://foobar:9242/", con.connectionString());
+        assertEquals(URI.create("http://foobar:9242/"), con.baseUri());
+        verifyNoMoreInteractions(testTerminal);
+    }
+
+    public void testApiKeyAndUserMutuallyExclusive() throws Exception {
+        CliTerminal testTerminal = mock(CliTerminal.class);
+        ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
+        String apiKey = "test_api_key_encoded";
+        UserException ue = expectThrows(
+            UserException.class,
+            () -> connectionBuilder.buildConnection("http://user:pass@foobar:9242/", null, randomBoolean(), apiKey)
+        );
+        assertEquals("Cannot use both API key and basic authentication", ue.getMessage());
+        verifyNoMoreInteractions(testTerminal);
+    }
 }

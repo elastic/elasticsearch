@@ -12,6 +12,7 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.util.Arrays;
 import java.util.Iterator;
@@ -46,7 +47,7 @@ public class ByteRankVectors implements RankVectors {
         while (vectorValues.hasNext()) {
             byte[] vv = vectorValues.next();
             for (int i = 0; i < query.length; i++) {
-                maxes[i] = Math.max(maxes[i], VectorUtil.dotProduct(query[i], vv));
+                maxes[i] = Math.max(maxes[i], ESVectorUtil.dotProduct(query[i], vv));
             }
         }
         float sum = 0;

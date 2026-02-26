@@ -1218,6 +1218,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          */
         @Nullable
         public Entry abort() {
+            if (isClone()) {
+                return abortClone();
+            }
             final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
             boolean allQueued = true;
@@ -1226,9 +1229,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 allQueued &= status.state() == ShardState.QUEUED;
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
-                    final var newState = (nodeId == null || status.state() == ShardState.PAUSED_FOR_NODE_REMOVAL)
-                        ? ShardState.FAILED
-                        : ShardState.ABORTED;
+                    final var newState = nodeId == null ? ShardState.FAILED : ShardState.ABORTED;
                     status = new ShardSnapshotStatus(nodeId, newState, status.generation(), "aborted by snapshot deletion");
                 }
                 completed &= status.state().completed();
@@ -1251,6 +1252,37 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 ABORTED_FAILURE_TEXT,
                 userMetadata,
                 version
+            );
+        }
+
+        private Entry abortClone() {
+            final Map<RepositoryShardId, ShardSnapshotStatus> clonesBuilder = new HashMap<>();
+            boolean allQueued = true;
+            for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardEntry : shardStatusByRepoShardId.entrySet()) {
+                ShardSnapshotStatus status = shardEntry.getValue();
+                allQueued &= status.state() == ShardState.QUEUED;
+                if (status.state().completed() == false) {
+                    final String nodeId = status.nodeId();
+                    final var newState = nodeId == null ? ShardState.FAILED : ShardState.ABORTED;
+                    status = new ShardSnapshotStatus(nodeId, newState, status.generation(), "aborted by snapshot deletion");
+                }
+                clonesBuilder.put(shardEntry.getKey(), status);
+            }
+            if (allQueued) {
+                return null;
+            }
+            return Entry.createClone(
+                snapshot,
+                // The clone is being deleted, simply mark it as FAILED if all shard clones are completed so that the entry
+                // gets deleted without the need for finalization.
+                completed(clonesBuilder.values()) ? State.FAILED : State.ABORTED,
+                indices,
+                startTime,
+                repositoryStateId,
+                failure,
+                version,
+                source,
+                clonesBuilder
             );
         }
 

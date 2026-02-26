@@ -2504,6 +2504,43 @@ under_40K:long |inbetween:long |over_60K:long  |total:long
 // end::aggFilteringNoGroup-result[]
 ;
 
+docsStatsWithFilteringOnGroup
+required_capability: per_agg_filtering
+// tag::aggFilteringOnGroup[]
+FROM employees
+| STATS `count` = COUNT(*) WHERE languages < 3 BY languages
+// end::aggFilteringOnGroup[]
+| SORT languages
+;
+
+// tag::aggFilteringOnGroup-result[]
+count:long | languages:integer
+15         | 1
+19         | 2
+0          | 3
+0          | 4
+0          | 5
+0          | null
+// end::aggFilteringOnGroup-result[]
+;
+
+docsStatsWithFilteringBefore
+required_capability: per_agg_filtering
+// tag::aggFilteringBefore[]
+FROM employees
+| WHERE languages < 3
+| STATS `count` = COUNT(*) BY languages
+// end::aggFilteringBefore[]
+| SORT languages
+;
+
+// tag::aggFilteringBefore-result[]
+count:long | languages:integer
+15         | 1
+19         | 2
+// end::aggFilteringBefore-result[]
+;
+
 statsWithFiltering
 required_capability: per_agg_filtering
 from employees

@@ -1,0 +1,6 @@
+area: CRUD
+issues:
+ - 141586
+pr: 142157
+summary: Do not mark bulk indexing requests as retried after primary relocations
+type: enhancement

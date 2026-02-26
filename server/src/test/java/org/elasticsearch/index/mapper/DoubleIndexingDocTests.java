@@ -30,7 +30,7 @@ public class DoubleIndexingDocTests extends MapperServiceTestCase {
             b.startArray("field5").value(1).value(2).value(3).endArray();
         }));
         assertNotNull(doc.dynamicMappingsUpdate());
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         when(context.indexVersionCreated()).thenReturn(IndexVersion.current());

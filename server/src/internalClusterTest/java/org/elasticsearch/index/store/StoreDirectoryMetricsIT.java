@@ -62,6 +62,12 @@ public class StoreDirectoryMetricsIT extends ESIntegTestCase {
         });
         DirectoryMetrics metrics = tuple.v2();
         StoreMetrics storeMetrics = metrics.metrics("store").cast(StoreMetrics.class);
-        assertThat(storeMetrics.getBytesRead(), equalTo(tuple.v1()));
+        // In release builds the directory_metrics feature flag is disabled by default, so the store directory is not
+        // wrapped with StoreMetricsDirectory and bytes read are not tracked.
+        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            assertThat(storeMetrics.getBytesRead(), equalTo(tuple.v1()));
+        } else {
+            assertThat(storeMetrics.getBytesRead(), equalTo(0L));
+        }
     }
 }

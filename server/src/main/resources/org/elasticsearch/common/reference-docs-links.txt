@@ -38,7 +38,7 @@ SNAPSHOT_REPOSITORY_ANALYSIS                                    api/doc/elastics
 S3_COMPATIBLE_REPOSITORIES                                      deploy-manage/tools/snapshot-and-restore/s3-repository#repository-s3-compatible-services
 LUCENE_MAX_DOCS_LIMIT                                           deploy-manage/production-guidance/optimize-performance/size-shards#troubleshooting-max-docs-limit
 MAX_SHARDS_PER_NODE                                             deploy-manage/production-guidance/optimize-performance/size-shards#troubleshooting-max-shards-open
-MAX_INDICES_PER_PROJECT                                         deploy-manage/production-guidance/optimize-performance/index-count-limit
+MAX_INDICES_PER_PROJECT                                         deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md#index-and-resource-limits
 FLOOD_STAGE_WATERMARK                                           troubleshoot/elasticsearch/fix-watermark-errors
 X_OPAQUE_ID                                                     reference/elasticsearch/rest-apis/api-conventions#x-opaque-id
 FORMING_SINGLE_NODE_CLUSTERS                                    deploy-manage/distributed-architecture/discovery-cluster-formation/modules-discovery-bootstrap-cluster#modules-discovery-bootstrap-cluster-joining
@@ -51,3 +51,4 @@ DEPLOY_CLOUD_DIFF_FROM_STATEFUL                                 deploy-manage/de
 DELETE_INDEX_BLOCK                                              api/doc/elasticsearch/operation/operation-indices-remove-block
 ARCHIVED_SETTINGS                                               deploy-manage/upgrade/deployment-or-cluster/archived-settings
 MACHINE_LEARNING_SETTINGS                                       reference/elasticsearch/configuration-reference/machine-learning-settings
+SEARCH_TASK_WATCHDOG                                            reference/elasticsearch/configuration-reference/search-settings#search-task-watchdog-settings

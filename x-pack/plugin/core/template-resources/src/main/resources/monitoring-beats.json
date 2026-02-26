@@ -1000,6 +1000,18 @@
                                 },
                                 "value_log_size": {
                                   "type": "long"
+                                },
+                                "storage_limit": {
+                                  "type": "long"
+                                },
+                                "disk_used": {
+                                  "type": "long"
+                                },
+                                "disk_total": {
+                                  "type": "long"
+                                },
+                                "disk_usage_threshold_pct": {
+                                  "type": "float"
                                 }
                               }
                             }

@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver
 
 pluginManagement {
   repositories {
@@ -42,6 +43,9 @@ toolchainManagement {
       }
       repository('archivedOracleJdks') {
         resolverClass = ArchivedOracleJdkToolchainResolver
+      }
+      repository('earlyAccessJdks') {
+        resolverClass = EarlyAccessCatalogJdkToolchainResolver
       }
     }
   }

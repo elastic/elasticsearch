@@ -9,10 +9,10 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractDoublesFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 
@@ -25,13 +25,13 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
     }
 
     @Override
-    protected AllReader singletonReader(NumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+    protected AllReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
         return new Singleton(docValues, toDouble);
     }
 
     @Override
-    protected AllReader sortedReader(SortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new MvMaxSorted(docValues, toDouble);
+    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+        return new MvMinSorted(docValues, toDouble);
     }
 
     @Override
@@ -39,11 +39,12 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
         return "DoublesFromDocValues[" + fieldName + "]";
     }
 
-    private static class MvMaxSorted extends BlockDocValuesReader {
-        private final SortedNumericDocValues numericDocValues;
+    private static class MvMinSorted extends BlockDocValuesReader {
+        private final TrackingSortedNumericDocValues numericDocValues;
         private final ToDouble toDouble;
 
-        MvMaxSorted(SortedNumericDocValues numericDocValues, ToDouble toDouble) {
+        MvMinSorted(TrackingSortedNumericDocValues numericDocValues, ToDouble toDouble) {
+            super(null);
             this.numericDocValues = numericDocValues;
             this.toDouble = toDouble;
         }
@@ -65,21 +66,26 @@ public class MvMinDoublesFromDocValuesBlockLoader extends AbstractDoublesFromDoc
         }
 
         private void read(int doc, DoubleBuilder builder) throws IOException {
-            if (false == numericDocValues.advanceExact(doc)) {
+            if (false == numericDocValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            builder.appendDouble(toDouble.convert(numericDocValues.nextValue()));
+            builder.appendDouble(toDouble.convert(numericDocValues.docValues().nextValue()));
         }
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "MvMinDoublesFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
         }
     }
 }

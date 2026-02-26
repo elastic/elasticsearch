@@ -17,7 +17,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -42,7 +42,7 @@ public class ParsedDocument {
 
     private BytesReference source;
     private XContentType xContentType;
-    private Mapping dynamicMappingsUpdate;
+    private CompressedXContent dynamicMappingsUpdate;
 
     /**
      * Create a no-op tombstone document
@@ -147,7 +147,7 @@ public class ParsedDocument {
         List<LuceneDocument> documents,
         BytesReference source,
         XContentType xContentType,
-        Mapping dynamicMappingsUpdate,
+        CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
         this.version = version;
@@ -206,15 +206,13 @@ public class ParsedDocument {
      * Return dynamic updates to mappings or {@code null} if there were no
      * updates to the mappings.
      */
-    public Mapping dynamicMappingsUpdate() {
+    public CompressedXContent dynamicMappingsUpdate() {
         return dynamicMappingsUpdate;
     }
 
-    public void addDynamicMappingsUpdate(Mapping update) {
+    public void addDynamicMappingsUpdate(CompressedXContent update) {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
-        } else {
-            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_AUTO_UPDATE, Long.MAX_VALUE);
         }
     }
 

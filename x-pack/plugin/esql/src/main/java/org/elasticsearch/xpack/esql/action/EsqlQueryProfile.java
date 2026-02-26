@@ -213,6 +213,16 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         return List.of(totalMarker, planningMarker, parsingMarker, preAnalysisMarker, dependencyResolutionMarker, analysisMarker);
     }
 
+    /**
+     * Safely stops all markers that were started but not yet stopped.
+     * This is useful in error paths where we need to ensure all timing data is captured.
+     */
+    public void stopAllStartedMarkers() {
+        for (TimeSpanMarker marker : timeSpanMarkers()) {
+            marker.stopIfStarted();
+        }
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (TimeSpanMarker timeSpanMarker : timeSpanMarkers()) {

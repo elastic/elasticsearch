@@ -236,9 +236,8 @@ FINAL WITNESS                                                              | 1.4
 // end::two-queries-result[]
 ;
 
-combine
+combine-Ignore
 required_capability: rerank
-required_capability: rerank_combine
 
 // tag::combine[]
 FROM books METADATA _score

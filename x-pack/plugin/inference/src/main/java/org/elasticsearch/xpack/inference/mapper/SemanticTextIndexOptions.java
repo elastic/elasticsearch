@@ -74,13 +74,23 @@ public class SemanticTextIndexOptions implements ToXContent {
     public enum SupportedIndexOptions {
         DENSE_VECTOR("dense_vector") {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion) {
-                return parseDenseVectorIndexOptionsFromMap(fieldName, map, indexVersion);
+            public IndexOptions parseIndexOptions(
+                String fieldName,
+                Map<String, Object> map,
+                IndexVersion indexVersion,
+                boolean experimentalFeaturesEnabled
+            ) {
+                return parseDenseVectorIndexOptionsFromMap(fieldName, map, indexVersion, experimentalFeaturesEnabled);
             }
         },
         SPARSE_VECTOR("sparse_vector") {
             @Override
-            public IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion) {
+            public IndexOptions parseIndexOptions(
+                String fieldName,
+                Map<String, Object> map,
+                IndexVersion indexVersion,
+                boolean experimentalFeaturesEnabled
+            ) {
                 return parseSparseVectorIndexOptionsFromMap(map);
             }
         };
@@ -91,7 +101,12 @@ public class SemanticTextIndexOptions implements ToXContent {
             this.value = value;
         }
 
-        public abstract IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion);
+        public abstract IndexOptions parseIndexOptions(
+            String fieldName,
+            Map<String, Object> map,
+            IndexVersion indexVersion,
+            boolean experimentalFeaturesEnabled
+        );
 
         public static SupportedIndexOptions fromValue(String value) {
             return Arrays.stream(SupportedIndexOptions.values())
@@ -118,7 +133,8 @@ public class SemanticTextIndexOptions implements ToXContent {
     private static DenseVectorFieldMapper.DenseVectorIndexOptions parseDenseVectorIndexOptionsFromMap(
         String fieldName,
         Map<String, Object> map,
-        IndexVersion indexVersion
+        IndexVersion indexVersion,
+        boolean experimentalFeaturesEnabled
     ) {
         try {
             Object type = map.remove(TYPE_FIELD);
@@ -129,7 +145,7 @@ public class SemanticTextIndexOptions implements ToXContent {
                 XContentMapValues.nodeStringValue(type, null)
             ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
 
-            return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion);
+            return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion, experimentalFeaturesEnabled);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }

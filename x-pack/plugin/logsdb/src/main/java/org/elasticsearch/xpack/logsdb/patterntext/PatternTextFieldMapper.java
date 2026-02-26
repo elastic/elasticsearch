@@ -209,6 +209,11 @@ public class PatternTextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return PatternTextFieldType.CONTENT_TYPE;
+        }
+
+        @Override
         public PatternTextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = buildLuceneFieldType(indexOptions);
             PatternTextFieldType patternTextFieldType = buildFieldType(fieldType, context);
@@ -386,7 +391,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             fullPath(),
             new PatternTextSyntheticFieldLoaderLayer(
                 fieldType().name(),
-                leafReader -> PatternTextFallbackDocValues.from(leafReader, fieldType())
+                leafReader -> PatternTextFallbackDocValues.fromEnabledPatternText(leafReader, fieldType())
             )
         );
     }

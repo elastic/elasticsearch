@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -149,6 +151,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Explain.class,
         ShowInfo.class,
         LocalRelation.class,
+        MetricsInfo.class,
         ExternalRelation.class,
 
         // The plans are superclasses of other plans.
@@ -157,6 +160,7 @@ public class ApproximationSupportTests extends ESTestCase {
         UnaryPlan.class,
         BinaryPlan.class,
         InferencePlan.class,
+        CompoundOutputEval.class,
 
         // These plans don't occur in a correct analyzed query.
         UnresolvedRelation.class,

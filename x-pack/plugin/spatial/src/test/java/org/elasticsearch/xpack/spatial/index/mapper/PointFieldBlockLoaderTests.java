@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.datageneration.PointDataSourceHandler;
 
-import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,8 +33,8 @@ public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @Override
-    public void testBlockLoaderOfMultiField() throws IOException {
-        // Multi fields are noop for point.
+    protected boolean supportsMultiField() {
+        return false;
     }
 
     @Override

@@ -11,8 +11,10 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedSetDocValues;
 
 import java.io.IOException;
 
@@ -22,17 +24,17 @@ import java.io.IOException;
  * style (i.e. non-ordinal single valued).
  */
 public class BytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlockLoader {
-    public BytesRefsFromOrdsBlockLoader(String fieldName) {
-        super(fieldName);
+    public BytesRefsFromOrdsBlockLoader(String fieldName, ByteSizeValue size) {
+        super(fieldName, size);
     }
 
     @Override
-    protected AllReader singletonReader(SortedDocValues docValues) {
+    protected AllReader singletonReader(TrackingSortedDocValues docValues) {
         return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedSetReader(SortedSetDocValues docValues) {
+    protected AllReader sortedSetReader(TrackingSortedSetDocValues docValues) {
         return new SortedSet(docValues);
     }
 

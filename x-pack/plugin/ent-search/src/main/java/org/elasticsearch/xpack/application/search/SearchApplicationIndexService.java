@@ -291,7 +291,7 @@ public class SearchApplicationIndexService {
     }
 
     private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
-        try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
+        try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
                     .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())

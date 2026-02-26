@@ -7,7 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 
 import java.util.Locale;
 import java.util.Map;
@@ -16,110 +22,140 @@ import java.util.function.Supplier;
 
 /**
  * Registry for FormatReader implementations, keyed by format name and file extension.
- * Allows pluggable discovery of format readers based on explicit format specification
- * or file extension inference.
+ * Readers are created lazily on first access to avoid pulling in heavy dependencies at startup.
+ * Supports compound extensions (e.g. .csv.gz) via {@link DecompressionCodecRegistry}.
  */
 public class FormatReaderRegistry {
+
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
+    private final DecompressionCodecRegistry codecRegistry;
 
-    public void register(FormatReader reader) {
-        if (reader == null) {
-            throw new IllegalArgumentException("Reader cannot be null");
-        }
-
-        String formatName = reader.formatName();
-        if (formatName == null || formatName.isEmpty()) {
-            throw new IllegalArgumentException("Format name cannot be null or empty");
-        }
-
-        // Store the reader instance directly - FormatReaders are expected to be thread-safe
-        Supplier<FormatReader> supplier = () -> reader;
-        byName.put(formatName.toLowerCase(Locale.ROOT), supplier);
-
-        for (String ext : reader.fileExtensions()) {
-            if (ext != null && ext.isEmpty() == false) {
-                String normalizedExt = ext.toLowerCase(Locale.ROOT);
-                // Ensure extension starts with a dot
-                if (normalizedExt.startsWith(".") == false) {
-                    normalizedExt = "." + normalizedExt;
-                }
-                byExtension.put(normalizedExt, supplier);
-            }
-        }
+    public FormatReaderRegistry(DecompressionCodecRegistry codecRegistry) {
+        this.codecRegistry = codecRegistry;
     }
 
-    public void register(String formatName, java.util.List<String> fileExtensions, Supplier<FormatReader> supplier) {
-        if (formatName == null || formatName.isEmpty()) {
+    public void registerLazy(String formatName, FormatReaderFactory factory, Settings settings, BlockFactory blockFactory) {
+        if (Strings.isNullOrEmpty(formatName)) {
             throw new IllegalArgumentException("Format name cannot be null or empty");
         }
-        if (supplier == null) {
-            throw new IllegalArgumentException("Supplier cannot be null");
-        }
+        Check.notNull(factory, "Factory cannot be null");
 
-        byName.put(formatName.toLowerCase(Locale.ROOT), supplier);
+        // Lazy supplier that creates the reader on first access and registers extensions
+        Supplier<FormatReader> lazySupplier = new Supplier<>() {
+            private volatile FormatReader instance;
 
-        if (fileExtensions != null) {
-            for (String ext : fileExtensions) {
-                if (ext != null && ext.isEmpty() == false) {
-                    String normalizedExt = ext.toLowerCase(Locale.ROOT);
-                    // Ensure extension starts with a dot
-                    if (normalizedExt.startsWith(".") == false) {
-                        normalizedExt = "." + normalizedExt;
+            @Override
+            public FormatReader get() {
+                if (instance == null) {
+                    synchronized (this) {
+                        if (instance == null) {
+                            instance = factory.create(settings, blockFactory);
+                            // Register extension mappings now that the reader is created
+                            for (String ext : instance.fileExtensions()) {
+                                if (Strings.isNullOrEmpty(ext) == false) {
+                                    String normalizedExt = ext.toLowerCase(Locale.ROOT);
+                                    if (normalizedExt.startsWith(".") == false) {
+                                        normalizedExt = "." + normalizedExt;
+                                    }
+                                    byExtension.put(normalizedExt, this);
+                                }
+                            }
+                        }
                     }
-                    byExtension.put(normalizedExt, supplier);
                 }
+                return instance;
             }
-        }
+        };
+
+        byName.put(formatName.toLowerCase(Locale.ROOT), lazySupplier);
     }
 
     public Supplier<FormatReader> unregister(String formatName) {
-        if (formatName == null || formatName.isEmpty()) {
+        if (Strings.isNullOrEmpty(formatName)) {
             return null;
         }
         return byName.remove(formatName.toLowerCase(Locale.ROOT));
     }
 
     public FormatReader byName(String formatName) {
-        if (formatName == null || formatName.isEmpty()) {
+        if (Strings.isNullOrEmpty(formatName)) {
             throw new IllegalArgumentException("Format name cannot be null or empty");
         }
 
         Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
-        if (supplier == null) {
-            throw new IllegalArgumentException("No format reader registered for format: " + formatName);
-        }
+        Check.notNull(supplier, "No format reader registered for format: " + formatName);
         return supplier.get();
     }
 
+    public void registerExtension(String extension, String formatName) {
+        String normalizedExt = extension.toLowerCase(Locale.ROOT);
+        if (normalizedExt.startsWith(".") == false) {
+            normalizedExt = "." + normalizedExt;
+        }
+        Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
+        Check.notNull(supplier, "Cannot register extension [{}] -- format [{}] not registered", extension, formatName);
+        byExtension.put(normalizedExt, supplier);
+    }
+
     public FormatReader byExtension(String objectName) {
-        if (objectName == null || objectName.isEmpty()) {
+        if (Strings.isNullOrEmpty(objectName)) {
             throw new IllegalArgumentException("Object name cannot be null or empty");
         }
 
-        // Find the last dot in the object name
         int lastDot = objectName.lastIndexOf('.');
         if (lastDot < 0 || lastDot == objectName.length() - 1) {
             throw new IllegalArgumentException("Cannot infer format from object name without extension: " + objectName);
         }
 
         String extension = objectName.substring(lastDot).toLowerCase(Locale.ROOT);
-        Supplier<FormatReader> supplier = byExtension.get(extension);
-        if (supplier == null) {
-            throw new IllegalArgumentException("No format reader registered for extension: " + extension);
+
+        // Check for compound extension (e.g. .csv.gz)
+        if (codecRegistry != null) {
+            String stripped = codecRegistry.stripCompressionSuffix(objectName);
+            if (stripped != null) {
+                FormatReader inner = byExtension(stripped);
+                DecompressionCodec codec = codecRegistry.byExtension(extension);
+                if (codec != null) {
+                    return new CompressionDelegatingFormatReader(inner, codec);
+                }
+            }
         }
+
+        Supplier<FormatReader> supplier = byExtension.get(extension);
+        Check.notNull(supplier, "No format reader registered for extension: {}. Supported: {}", extension, byExtension.keySet());
         return supplier.get();
     }
 
+    /**
+     * Returns true if the object name has a compound extension (e.g. .csv.gz) that is supported:
+     * the last extension is a known compression extension and the stripped path has a format.
+     */
+    public boolean hasCompressedExtension(String objectName) {
+        if (Strings.isNullOrEmpty(objectName) || codecRegistry == null) {
+            return false;
+        }
+        String stripped = codecRegistry.stripCompressionSuffix(objectName);
+        if (stripped == null) {
+            return false;
+        }
+        int innerDot = stripped.lastIndexOf('.');
+        if (innerDot < 0 || innerDot == stripped.length() - 1) {
+            return false;
+        }
+        String innerExt = stripped.substring(innerDot).toLowerCase(Locale.ROOT);
+        return byExtension.containsKey(innerExt);
+    }
+
     public boolean hasFormat(String formatName) {
-        if (formatName == null || formatName.isEmpty()) {
+        if (Strings.isNullOrEmpty(formatName)) {
             return false;
         }
         return byName.containsKey(formatName.toLowerCase(Locale.ROOT));
     }
 
     public boolean hasExtension(String extension) {
-        if (extension == null || extension.isEmpty()) {
+        if (Strings.isNullOrEmpty(extension)) {
             return false;
         }
         String normalizedExt = extension.toLowerCase(Locale.ROOT);

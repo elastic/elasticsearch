@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
@@ -73,6 +75,7 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
         assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T01:00:00Z").toEpochMilli()));
         assertThat(promql.step().value(), equalTo(Duration.ofMinutes(1)));
+        assertThat(promql.scrapeInterval().value(), equalTo(Duration.ofMinutes(1)));
         assertThat(promql.isRangeQuery(), equalTo(true));
         assertThat(promql.isInstantQuery(), equalTo(false));
     }
@@ -94,6 +97,7 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
         assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T01:00:00Z").toEpochMilli()));
         assertThat(promql.step().value(), equalTo(Duration.ofMinutes(1)));
+        assertThat(promql.scrapeInterval().value(), equalTo(Duration.ofMinutes(1)));
         assertThat(promql.isRangeQuery(), equalTo(true));
         assertThat(promql.isInstantQuery(), equalTo(false));
     }
@@ -103,6 +107,7 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(promql.start().value(), nullValue());
         assertThat(promql.end().value(), nullValue());
         assertThat(promql.step().value(), equalTo(Duration.ofSeconds(1)));
+        assertThat(promql.scrapeInterval().value(), equalTo(Duration.ofMinutes(1)));
         assertThat(promql.isRangeQuery(), equalTo(true));
         assertThat(promql.isInstantQuery(), equalTo(false));
     }
@@ -112,8 +117,15 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
         assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
         assertThat(promql.step().value(), nullValue());
+        assertThat(promql.scrapeInterval().value(), equalTo(Duration.ofMinutes(1)));
         assertThat(promql.isInstantQuery(), equalTo(true));
         assertThat(promql.isRangeQuery(), equalTo(false));
+    }
+
+    public void testValidRangeQueryWithScrapeInterval() {
+        PromqlCommand promql = parse("PROMQL index=test step=10s scrape_interval=45s (avg(foo))");
+        assertThat(promql.step().value(), equalTo(Duration.ofSeconds(10)));
+        assertThat(promql.scrapeInterval().value(), equalTo(Duration.ofSeconds(45)));
     }
 
     public void testValidRangeQueryInvalidQuotedIdentifierValue() {
@@ -144,6 +156,19 @@ public class PromqlParserTests extends ESTestCase {
     public void testNegativeStep() {
         ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=\"-1\" (avg(foo))"));
         assertThat(e.getMessage(), containsString("Invalid value [-1] for parameter [step], expected a positive duration"));
+    }
+
+    public void testZeroScrapeInterval() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=1m scrape_interval=0 (avg(foo))"));
+        assertThat(e.getMessage(), containsString("Invalid value [0] for parameter [scrape_interval], expected a positive duration"));
+    }
+
+    public void testNegativeScrapeInterval() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> parse("PROMQL index=test step=1m scrape_interval=\"-1\" (avg(foo))")
+        );
+        assertThat(e.getMessage(), containsString("Invalid value [-1] for parameter [scrape_interval], expected a positive duration"));
     }
 
     public void testEndBeforeStart() {
@@ -377,8 +402,15 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("expected type instant_vector in call to function [avg], got range_vector"));
     }
 
-    public void testRangeVectorExpected() {
-        ParsingException e = assertThrows(ParsingException.class, () -> parser.parseQuery("PROMQL index=test step=5m rate(foo)"));
+    public void testRangeVectorExpectedSupportsInstantSelector() {
+        PromqlCommand promql = parse("PROMQL index=test step=5m rate(foo)");
+        WithinSeriesAggregate rate = as(promql.promqlPlan(), WithinSeriesAggregate.class);
+        RangeSelector range = as(rate.child(), RangeSelector.class);
+        assertThat(range.range().fold(FoldContext.small()), equalTo(Duration.ofMillis(-1)));
+    }
+
+    public void testRangeVectorExpectedStillRejectsNonSelectorInstantVectors() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parser.parseQuery("PROMQL index=test step=5m rate(avg(foo))"));
         assertThat(e.getMessage(), containsString("expected type range_vector in call to function [rate], got instant_vector"));
     }
 

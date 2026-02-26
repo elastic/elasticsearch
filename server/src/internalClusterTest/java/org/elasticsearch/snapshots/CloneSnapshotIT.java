@@ -14,11 +14,17 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStat
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
@@ -29,6 +35,7 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -37,6 +44,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -46,6 +55,53 @@ import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
+
+    public void testDeleteRunningCloneWithQueuedSnapshot() throws Exception {
+        final String masterName = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+
+        final String repoName = randomRepoName();
+        createRepository(repoName, "mock");
+
+        final String indexName = randomIndexName();
+        createIndexWithRandomDocs(indexName, randomIntBetween(5, 10));
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+
+        indexRandomDocs(indexName, randomIntBetween(20, 100));
+
+        final IndexId index1Id = getRepositoryData(repoName).resolveIndexId(indexName);
+        blockMasterOnShardLevelSnapshotFile(repoName, index1Id.getId());
+
+        final String targetSnapshot = "target-snapshot";
+        final ActionFuture<AcknowledgedResponse> cloneFuture = startClone(repoName, sourceSnapshot, targetSnapshot, indexName);
+        waitForBlock(masterName, repoName);
+        assertFalse(cloneFuture.isDone());
+
+        final String anotherSnapshot = "another-snapshot";
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, anotherSnapshot)
+            .setWaitForCompletion(false)
+            .setPartial(false)
+            .execute()
+            .get();
+
+        safeGet(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, targetSnapshot).setWaitForCompletion(false).execute());
+
+        final var stateListener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).getEntries().isEmpty()
+        );
+        unblockNode(repoName, masterName);
+
+        assertBusy(() -> {
+            final var snapshotInfo = getSnapshot(repoName, anotherSnapshot);
+            assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+            expectThrows(SnapshotMissingException.class, () -> getSnapshot(repoName, targetSnapshot));
+        });
+
+        safeAwait(stateListener);
+    }
 
     public void testShardClone() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -78,6 +134,53 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         } else {
             currentShardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
         }
+
+        final var cloneEntryAddedLatch = new CountDownLatch(1);
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        // Manually add a clone entry so that repository.cloneShardSnapshot does not fail on checking aborted status
+        // The manually added entry is a placeholder and does not run by itself
+        clusterService.submitUnbatchedStateUpdateTask("add clone entry", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return ClusterState.builder(currentState)
+                    .putCustom(
+                        SnapshotsInProgress.TYPE,
+                        SnapshotsInProgress.get(currentState)
+                            .withAddedEntry(
+                                SnapshotsInProgress.startClone(
+                                    new Snapshot(ProjectId.DEFAULT, repoName, targetSnapshotId),
+                                    sourceSnapshotInfo.snapshotId(),
+                                    Map.of(indexName, indexId),
+                                    System.nanoTime(),
+                                    repositoryData.getGenId(),
+                                    IndexVersion.current()
+                                )
+                                    .withClones(
+                                        Map.of(
+                                            repositoryShardId,
+                                            new SnapshotsInProgress.ShardSnapshotStatus(
+                                                currentState.nodes().getMasterNodeId(),
+                                                currentShardGen
+                                            )
+                                        )
+                                    )
+                            )
+                    )
+                    .build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                cloneEntryAddedLatch.countDown();
+            }
+        });
+        safeAwait(cloneEntryAddedLatch);
+
         final ShardSnapshotResult shardSnapshotResult = safeAwait(
             listener -> repository.cloneShardSnapshot(
                 sourceSnapshotInfo.snapshotId(),
@@ -125,6 +228,26 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(newShardGeneration, shardSnapshotResult2.getGeneration());
         assertEquals(shardSnapshotResult.getSegmentCount(), shardSnapshotResult2.getSegmentCount());
         assertEquals(shardSnapshotResult.getSize(), shardSnapshotResult2.getSize());
+
+        // Clear the manually added clone entry so that it does not trip cleanup
+        final var cloneRemovedLatch = new CountDownLatch(1);
+        clusterService.submitUnbatchedStateUpdateTask("remove clone entry", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                cloneRemovedLatch.countDown();
+            }
+        });
+        safeAwait(cloneRemovedLatch);
     }
 
     public void testCloneSnapshotIndex() throws Exception {

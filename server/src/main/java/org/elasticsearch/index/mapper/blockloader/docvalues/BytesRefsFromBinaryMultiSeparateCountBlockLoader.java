@@ -9,21 +9,20 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 /**
  * Block loader for multi-value binary fields which store count in a separate parallel numeric doc value column.
  */
 public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-
     private final String fieldName;
 
     public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName) {
@@ -36,28 +35,22 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-        if (values == null) {
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
+        if (bc == null) {
             return ConstantNull.READER;
         }
-
-        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-        assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-        if (countsSkipper.minValue() == 1 && countsSkipper.maxValue() == 1) {
-            return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(values);
+        if (bc.counts() == null) {
+            return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-
-        NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-        return new BytesRefsFromBinarySeparateCount(values, counts);
+        return new BytesRefsFromBinarySeparateCount(bc.binary(), bc.counts());
     }
 
     static class BytesRefsFromBinarySeparateCount extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
         private final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
-        private final NumericDocValues counts;
+        private final TrackingNumericDocValues counts;
 
-        BytesRefsFromBinarySeparateCount(BinaryDocValues docValues, NumericDocValues counts) {
+        BytesRefsFromBinarySeparateCount(TrackingBinaryDocValues docValues, TrackingNumericDocValues counts) {
             super(docValues);
             this.counts = counts;
         }
@@ -69,20 +62,25 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
         @Override
         public void read(int doc, BytesRefBuilder builder) throws IOException {
-            if (false == docValues.advanceExact(doc)) {
+            if (false == docValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
 
-            boolean advanced = counts.advanceExact(doc);
+            boolean advanced = counts.docValues().advanceExact(doc);
             assert advanced;
 
-            reader.read(docValues.binaryValue(), counts.longValue(), builder);
+            reader.read(docValues.docValues().binaryValue(), counts.docValues().longValue(), builder);
         }
 
         @Override
         public String toString() {
             return "BytesRefsFromBinarySeparateCount";
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(super::close, counts);
         }
     }
 }

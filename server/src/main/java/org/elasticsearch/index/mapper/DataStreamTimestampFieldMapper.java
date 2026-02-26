@@ -87,9 +87,18 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             super(NAME);
         }
 
+        public boolean isEnabled() {
+            return enabled.getValue();
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { enabled };
+        }
+
+        @Override
+        public String contentType() {
+            return NAME;
         }
 
         @Override
@@ -98,7 +107,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> DISABLED_INSTANCE, c -> new Builder());
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder());
 
     private final boolean enabled;
 

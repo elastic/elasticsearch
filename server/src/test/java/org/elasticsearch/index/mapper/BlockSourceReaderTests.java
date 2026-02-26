@@ -12,7 +12,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
@@ -75,33 +77,35 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
             : BlockSourceReader.lookupMatchingAll();
         BlockLoader loader = new BlockSourceReader.BytesRefsBlockLoader(valueFetcher, lookup);
         assertThat(loader.columnAtATimeReader(ctx), nullValue());
-        BlockLoader.RowStrideReader reader = loader.rowStrideReader(ctx);
-        assertThat(
-            loader.rowStrideStoredFieldSpec(),
-            equalTo(
-                StoredFieldsSpec.withSourcePaths(
-                    syntheticSource ? IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE : IgnoredSourceFormat.NO_IGNORED_SOURCE,
-                    Set.of("field")
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, ctx)) {
+            assertThat(
+                loader.rowStrideStoredFieldSpec(),
+                equalTo(
+                    StoredFieldsSpec.withSourcePaths(
+                        syntheticSource ? IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE : IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                        Set.of("field")
+                    )
                 )
-            )
-        );
-        var sourceLoader = mapperService.mappingLookup()
-            .newSourceLoader(new SourceFilter(new String[] { "field" }, null), SourceFieldMetrics.NOOP);
-        var sourceLoaderLeaf = sourceLoader.leaf(ctx.reader(), null);
+            );
+            var sourceLoader = mapperService.mappingLookup()
+                .newSourceLoader(new SourceFilter(new String[] { "field" }, null), SourceFieldMetrics.NOOP);
+            var sourceLoaderLeaf = sourceLoader.leaf(ctx.reader(), null);
 
-        assertThat(loader.rowStrideStoredFieldSpec().requiresSource(), equalTo(true));
-        var storedFieldSpec = loader.rowStrideStoredFieldSpec()
-            .merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
-        var storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-            StoredFieldLoader.fromSpec(storedFieldSpec).getLoader(ctx, null),
-            sourceLoaderLeaf
-        );
-        BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
-        storedFields.advanceTo(0);
-        reader.read(0, storedFields, builder);
-        TestBlock block = (TestBlock) builder.build();
-        assertThat(block.size(), equalTo(1));
-        test.accept(block);
+            assertThat(loader.rowStrideStoredFieldSpec().requiresSource(), equalTo(true));
+            var storedFieldSpec = loader.rowStrideStoredFieldSpec()
+                .merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
+            var storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                StoredFieldLoader.fromSpec(storedFieldSpec).getLoader(ctx, null),
+                sourceLoaderLeaf
+            );
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+            storedFields.advanceTo(0);
+            reader.read(0, storedFields, builder);
+            TestBlock block = (TestBlock) builder.build();
+            assertThat(block.size(), equalTo(1));
+            test.accept(block);
+        }
     }
 
     private void withIndex(

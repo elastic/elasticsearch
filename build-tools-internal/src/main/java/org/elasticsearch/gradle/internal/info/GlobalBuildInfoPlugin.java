@@ -214,9 +214,24 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private List<DevelopmentBranch> getDevelopmentBranches() {
-        String branchesFileLocation = project.getProviders()
-            .gradleProperty(BRANCHES_FILE_LOCATION_PROPERTY)
-            .getOrElse(DEFAULT_BRANCHES_FILE_URL);
+        Provider<String> branchesFileLocationProperty = project.getProviders().gradleProperty(BRANCHES_FILE_LOCATION_PROPERTY);
+        boolean hasExplicitBranchesFileLocation = branchesFileLocationProperty.isPresent();
+        String branchesFileLocation = hasExplicitBranchesFileLocation ? branchesFileLocationProperty.get() : DEFAULT_BRANCHES_FILE_URL;
+        if (hasExplicitBranchesFileLocation == false
+            && project.getGradle().getStartParameter().isOffline()
+            && branchesFileLocation.startsWith("http")) {
+            File localBranchesFile = new File(Util.locateElasticsearchWorkspace(project.getGradle()), "branches.json");
+            if (localBranchesFile.isFile()) {
+                LOGGER.warn(
+                    "Gradle is running in offline mode; falling back to local branches.json at [{}] instead of downloading from [{}]. "
+                        + "To override, set Gradle property [{}].",
+                    localBranchesFile.getAbsolutePath(),
+                    branchesFileLocation,
+                    BRANCHES_FILE_LOCATION_PROPERTY
+                );
+                branchesFileLocation = localBranchesFile.getAbsolutePath();
+            }
+        }
         LOGGER.info("Reading branches.json from {}", branchesFileLocation);
         byte[] branchesBytes;
         if (branchesFileLocation.startsWith("http")) {

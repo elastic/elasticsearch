@@ -9,12 +9,14 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.SortedDvSingletonOrSet;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedSetDocValues;
 
 import java.io.IOException;
 
@@ -23,9 +25,11 @@ import java.io.IOException;
  */
 public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     protected final String fieldName;
+    private final ByteSizeValue size;
 
-    public AbstractBytesRefsFromOrdsBlockLoader(String fieldName) {
+    public AbstractBytesRefsFromOrdsBlockLoader(String fieldName, ByteSizeValue size) {
         this.fieldName = fieldName;
+        this.size = size;
     }
 
     @Override
@@ -34,36 +38,32 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
     }
 
     @Override
-    public final AllReader reader(LeafReaderContext context) throws IOException {
-        SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
-        if (docValues != null) {
-            SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
-            if (singleton != null) {
-                return singletonReader(singleton);
-            }
-            return sortedSetReader(docValues);
+    public final AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        SortedDvSingletonOrSet dv = SortedDvSingletonOrSet.get(breaker, size, context, fieldName);
+        if (dv == null) {
+            return ConstantNull.READER;
         }
-        SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
-        if (singleton != null) {
-            return singletonReader(singleton);
+        if (dv.singleton() != null) {
+            return singletonReader(dv.singleton());
         }
-        return ConstantNull.READER;
+        return sortedSetReader(dv.set());
     }
 
-    protected abstract AllReader singletonReader(SortedDocValues docValues);
+    protected abstract AllReader singletonReader(TrackingSortedDocValues docValues);
 
-    protected abstract AllReader sortedSetReader(SortedSetDocValues docValues);
+    protected abstract AllReader sortedSetReader(TrackingSortedSetDocValues docValues);
 
-    protected static class Singleton extends BlockDocValuesReader {
-        private final SortedDocValues ordinals;
+    protected class Singleton extends BlockDocValuesReader {
+        private final TrackingSortedDocValues ordinals;
 
-        public Singleton(SortedDocValues ordinals) {
+        public Singleton(TrackingSortedDocValues ordinals) {
+            super(null); // TODO remove this entirely
             this.ordinals = ordinals;
         }
 
         private Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
-            if (ordinals.advanceExact(docId)) {
-                BytesRef v = ordinals.lookupOrd(ordinals.ordValue());
+            if (ordinals.docValues().advanceExact(docId)) {
+                BytesRef v = ordinals.docValues().lookupOrd(ordinals.docValues().ordValue());
                 // the returned BytesRef can be reused
                 return factory.constantBytes(BytesRef.deepCopyOf(v), 1);
             } else {
@@ -76,17 +76,17 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
             if (docs.count() - offset == 1) {
                 return readSingleDoc(factory, docs.get(offset));
             }
-            if (ordinals instanceof OptionalColumnAtATimeReader direct) {
+            if (ordinals.docValues() instanceof OptionalColumnAtATimeReader direct) {
                 Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
                 if (block != null) {
                     return block;
                 }
             }
-            try (var builder = factory.singletonOrdinalsBuilder(ordinals, docs.count() - offset, false)) {
+            try (var builder = factory.singletonOrdinalsBuilder(ordinals.docValues(), docs.count() - offset, false)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
-                    if (ordinals.advanceExact(doc)) {
-                        builder.appendOrd(ordinals.ordValue());
+                    if (ordinals.docValues().advanceExact(doc)) {
+                        builder.appendOrd(ordinals.docValues().ordValue());
                     } else {
                         builder.appendNull();
                     }
@@ -97,8 +97,8 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            if (ordinals.advanceExact(docId)) {
-                ((BytesRefBuilder) builder).appendBytesRef(ordinals.lookupOrd(ordinals.ordValue()));
+            if (ordinals.docValues().advanceExact(docId)) {
+                ((BytesRefBuilder) builder).appendBytesRef(ordinals.docValues().lookupOrd(ordinals.docValues().ordValue()));
             } else {
                 builder.appendNull();
             }
@@ -106,19 +106,25 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
 
         @Override
         public int docId() {
-            return ordinals.docID();
+            return ordinals.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "BytesRefsFromOrds.Singleton";
         }
+
+        @Override
+        public void close() {
+            ordinals.close();
+        }
     }
 
-    protected static class SortedSet extends BlockDocValuesReader {
-        private final SortedSetDocValues ordinals;
+    protected class SortedSet extends BlockDocValuesReader {
+        private final TrackingSortedSetDocValues ordinals;
 
-        SortedSet(SortedSetDocValues ordinals) {
+        SortedSet(TrackingSortedSetDocValues ordinals) {
+            super(null);
             this.ordinals = ordinals;
         }
 
@@ -127,23 +133,23 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
             if (docs.count() - offset == 1) {
                 return readSingleDoc(factory, docs.get(offset));
             }
-            try (var builder = factory.sortedSetOrdinalsBuilder(ordinals, docs.count() - offset)) {
+            try (var builder = factory.sortedSetOrdinalsBuilder(ordinals.docValues(), docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
-                    if (doc < ordinals.docID()) {
+                    if (doc < ordinals.docValues().docID()) {
                         throw new IllegalStateException("docs within same block must be in order");
                     }
-                    if (ordinals.advanceExact(doc) == false) {
+                    if (ordinals.docValues().advanceExact(doc) == false) {
                         builder.appendNull();
                         continue;
                     }
-                    int count = ordinals.docValueCount();
+                    int count = ordinals.docValues().docValueCount();
                     if (count == 1) {
-                        builder.appendOrd(Math.toIntExact(ordinals.nextOrd()));
+                        builder.appendOrd(Math.toIntExact(ordinals.docValues().nextOrd()));
                     } else {
                         builder.beginPositionEntry();
                         for (int c = 0; c < count; c++) {
-                            builder.appendOrd(Math.toIntExact(ordinals.nextOrd()));
+                            builder.appendOrd(Math.toIntExact(ordinals.docValues().nextOrd()));
                         }
                         builder.endPositionEntry();
                     }
@@ -158,18 +164,18 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
         }
 
         private Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
-            if (ordinals.advanceExact(docId) == false) {
+            if (ordinals.docValues().advanceExact(docId) == false) {
                 return factory.constantNulls(1);
             }
-            int count = ordinals.docValueCount();
+            int count = ordinals.docValues().docValueCount();
             if (count == 1) {
-                BytesRef v = ordinals.lookupOrd(ordinals.nextOrd());
+                BytesRef v = ordinals.docValues().lookupOrd(ordinals.docValues().nextOrd());
                 return factory.constantBytes(BytesRef.deepCopyOf(v), 1);
             }
             try (var builder = factory.bytesRefsFromDocValues(count)) {
                 builder.beginPositionEntry();
                 for (int c = 0; c < count; c++) {
-                    BytesRef v = ordinals.lookupOrd(ordinals.nextOrd());
+                    BytesRef v = ordinals.docValues().lookupOrd(ordinals.docValues().nextOrd());
                     builder.appendBytesRef(v);
                 }
                 builder.endPositionEntry();
@@ -178,30 +184,35 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
         }
 
         private void read(int docId, BytesRefBuilder builder) throws IOException {
-            if (false == ordinals.advanceExact(docId)) {
+            if (false == ordinals.docValues().advanceExact(docId)) {
                 builder.appendNull();
                 return;
             }
-            int count = ordinals.docValueCount();
+            int count = ordinals.docValues().docValueCount();
             if (count == 1) {
-                builder.appendBytesRef(ordinals.lookupOrd(ordinals.nextOrd()));
+                builder.appendBytesRef(ordinals.docValues().lookupOrd(ordinals.docValues().nextOrd()));
                 return;
             }
             builder.beginPositionEntry();
             for (int v = 0; v < count; v++) {
-                builder.appendBytesRef(ordinals.lookupOrd(ordinals.nextOrd()));
+                builder.appendBytesRef(ordinals.docValues().lookupOrd(ordinals.docValues().nextOrd()));
             }
             builder.endPositionEntry();
         }
 
         @Override
         public int docId() {
-            return ordinals.docID();
+            return ordinals.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "BytesRefsFromOrds.SortedSet";
+        }
+
+        @Override
+        public void close() {
+            ordinals.close();
         }
     }
 }

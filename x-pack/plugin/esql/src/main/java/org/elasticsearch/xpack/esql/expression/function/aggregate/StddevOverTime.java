@@ -7,17 +7,20 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
 import java.util.Objects;
@@ -27,7 +30,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link StdDev}, but it is used to calculate the standard deviation over a time series of values from the given field.
  */
-public class StddevOverTime extends TimeSeriesAggregateFunction {
+public class StddevOverTime extends TimeSeriesAggregateFunction implements SurrogateExpression, ToAggregator {
     @FunctionInfo(
         returnType = "double",
         description = "Calculates the population standard deviation over time of a numeric field.",
@@ -85,6 +88,16 @@ public class StddevOverTime extends TimeSeriesAggregateFunction {
     @Override
     public StddevOverTime withFilter(Expression filter) {
         return new StddevOverTime(source(), field(), filter, window());
+    }
+
+    @Override
+    public Expression surrogate() {
+        return perTimeSeriesAggregation();
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier() {
+        return ((ToAggregator) perTimeSeriesAggregation()).supplier();
     }
 
     @Override

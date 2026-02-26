@@ -22,12 +22,14 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
@@ -248,7 +250,6 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
             e.getMessage(),
             equalTo("Geometry fields do not support exact searching, use dedicated geometry queries instead: [test]")
         );
-
     }
 
     public void testBlockLoaderSourceOnlyRuntimeFieldWithSyntheticSource() throws IOException {
@@ -329,18 +330,19 @@ public class GeoPointScriptFieldTypeTests extends AbstractNonTextScriptFieldType
                 // assert loader is of expected instance type
                 assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
 
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
-                assertThat(columnAtATimeLoader, nullValue());
+                assertThat(loader.columnAtATimeReader(reader.leaves().getFirst()), nullValue());
 
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(
-                    rowStrideReader.getClass().getName(),
-                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
-                );
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(
+                        rowStrideReader.getClass().getName(),
+                        equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                    );
+                }
 
                 // assert values
-                assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, settings, reader, fieldType, true), equalTo(expected));
             }
         }
     }

@@ -22,12 +22,14 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.util.Map;
 
 public class AzureRetryingInputStream extends RetryingInputStream<String> {
 
     protected AzureRetryingInputStream(AzureBlobStore azureBlobStore, OperationPurpose purpose, String blob, long position, Long length)
         throws IOException {
         super(
+            azureBlobStore.getRepositoriesMetrics(),
             new AzureBlobStoreServices(azureBlobStore, purpose, blob),
             purpose,
             position,
@@ -60,16 +62,6 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
         }
 
         @Override
-        public void onRetryStarted(StreamAction action) {
-            // No metrics for Azure
-        }
-
-        @Override
-        public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
-            // No metrics for Azure
-        }
-
-        @Override
         public long getMeaningfulProgressSize() {
             return Math.max(1L, blobStore.getReadChunkSize() / 100L);
         }
@@ -94,6 +86,22 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
             return e instanceof AlreadyClosedException == false;
+        }
+
+        @Override
+        public Map<String, Object> getMetricsAttributes(StreamAction action) {
+            return Map.of(
+                "repo_type",
+                AzureRepository.TYPE,
+                "repo_name",
+                blobStore.getRepositoryMetadata().name(),
+                "operation",
+                AzureBlobStore.Operation.GET_BLOB.getKey(),
+                "purpose",
+                purpose.getKey(),
+                "es_retry_action",
+                action.getPastTense()
+            );
         }
     }
 }

@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.String.format;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_PRECONDITIONING_BLOCK_DIMS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
@@ -74,30 +75,52 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
             ESNextDiskBBQVectorsFormat.QuantEncoding.values().length
         )];
+        boolean disableFlatOnFlush = random().nextBoolean();
         if (rarely()) {
+            int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
+            int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
-                random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
-                random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER)
+                vectorPerCluster,
+                random().nextInt(8, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                flatVectorThreshold
             );
         } else if (rarely()) {
+            int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
+            int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
-                random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER),
+                vectorPerCluster,
                 random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
                 DenseVectorFieldMapper.ElementType.FLOAT,
                 false,
                 null,
                 1,
                 true,
-                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS)
+                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
+                flatVectorThreshold
             );
         } else {
             // run with low numbers to force many clusters with parents
+            int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
+            int flatVectorThreshold = disableFlatOnFlush ? 0 : ESNextDiskBBQVectorsFormat.defaultFlatThreshold(vectorPerCluster);
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
-                random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER),
-                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8)
+                vectorPerCluster,
+                random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, 8),
+                DenseVectorFieldMapper.ElementType.FLOAT,
+                false,
+                null,
+                1,
+                false,
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                flatVectorThreshold
             );
         }
         super.setUp();

@@ -31,7 +31,6 @@ public class OTelYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("x-pack-analytics")
         .module("x-pack-otel-data")
         .module("x-pack-aggregate-metric")
-        .module("exponential-histogram")
         .module("x-pack-ilm")
         .module("x-pack-stack")
         .module("mapper-version")

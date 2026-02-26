@@ -126,7 +126,7 @@ public class QueryPlanningBenchmark {
                 minimumVersion,
                 UNMAPPED_FIELDS.defaultValue()
             ),
-            new Verifier(new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
+            new Verifier(new Metrics(functionRegistry, true, true), new XPackLicenseState(() -> 0L))
         );
         defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), minimumVersion));
     }

@@ -9,19 +9,19 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 /**
  * Loads the MIN {@code keyword} in each doc from high-cardinality binary doc values.
@@ -39,21 +39,15 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-        if (values == null) {
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
+        if (bc == null) {
             return ConstantNull.READER;
         }
-
-        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-        assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-        if (countsSkipper.maxValue() == 1) {
-            return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(values);
+        if (bc.counts() == null) {
+            return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-
-        NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-        return new MinFromBinarySeparateCount(values, counts);
+        return new MinFromBinarySeparateCount(bc.binary(), bc.counts());
     }
 
     @Override
@@ -62,26 +56,31 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
     }
 
     private static class MinFromBinarySeparateCount extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
-        private final NumericDocValues counts;
+        private final TrackingNumericDocValues counts;
         private final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
-        MinFromBinarySeparateCount(BinaryDocValues docValues, NumericDocValues counts) {
+        MinFromBinarySeparateCount(TrackingBinaryDocValues docValues, TrackingNumericDocValues counts) {
             super(docValues);
             this.counts = counts;
         }
 
         @Override
         public void read(int doc, BytesRefBuilder builder) throws IOException {
-            if (false == counts.advanceExact(doc)) {
+            if (false == counts.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
 
-            boolean advanced = docValues.advanceExact(doc);
+            boolean advanced = docValues.docValues().advanceExact(doc);
             assert advanced;
 
-            int count = (int) counts.longValue();
-            reader.readMin(docValues.binaryValue(), count, builder);
+            int count = (int) counts.docValues().longValue();
+            reader.readMin(docValues.docValues().binaryValue(), count, builder);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(super::close, counts);
         }
 
         @Override

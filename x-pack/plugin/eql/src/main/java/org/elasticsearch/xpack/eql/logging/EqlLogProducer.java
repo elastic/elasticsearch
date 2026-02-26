@@ -15,19 +15,12 @@ import java.util.Optional;
 
 public class EqlLogProducer implements ActivityLogProducer<EqlLogContext> {
 
-    public static final String LOGGER_NAME = "eql.activitylog";
-
     @Override
     public Optional<ESLogMessage> produce(EqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
-        msg.field(ES_FIELDS_PREFIX + "query", context.getQuery());
-        msg.field(ES_FIELDS_PREFIX + "indices", context.getIndices());
-        msg.field(ES_FIELDS_PREFIX + "hits", context.getHits());
+        msg.field(ES_QUERY_FIELDS_PREFIX + "query", context.getQuery());
+        msg.field(ES_QUERY_FIELDS_PREFIX + "indices", context.getIndices());
+        msg.field(ES_QUERY_FIELDS_PREFIX + "hits", context.getHits());
         return Optional.of(msg);
-    }
-
-    @Override
-    public String loggerName() {
-        return LOGGER_NAME;
     }
 }

@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -55,6 +54,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.areTypesCompatible;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.formatIncompatibleTypesMessage;
 
 /**
  * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
@@ -244,16 +245,15 @@ public class Verifier {
         return planCheckers;
     }
 
+    /**
+     * This validates only the negation operator, the rest of the validation is performed in
+     * {@link Verifier#validateBinaryComparison(BinaryComparison)}
+     * and
+     * {@link EsqlBinaryComparison#areTypesCompatible(DataType, DataType)}
+     */
     private static void checkOperationsOnUnsignedLong(LogicalPlan p, Failures failures) {
-        p.forEachExpression(e -> {
-            Failure f = null;
-
-            if (e instanceof BinaryOperator<?, ?, ?, ?> bo) {
-                f = validateUnsignedLongOperator(bo);
-            } else if (e instanceof Neg neg) {
-                f = validateUnsignedLongNegation(neg);
-            }
-
+        p.forEachExpression(Neg.class, neg -> {
+            Failure f = validateUnsignedLongNegation(neg);
             if (f != null) {
                 failures.add(f);
             }
@@ -366,18 +366,25 @@ public class Verifier {
      *         otherwise a failure message suitable to return to the user.
      */
     public static Failure validateBinaryComparison(BinaryComparison bc) {
-        if (bc.left().dataType().isNumeric()) {
-            if (false == bc.right().dataType().isNumeric()) {
-                return fail(
-                    bc,
-                    "first argument of [{}] is [numeric] so second argument must also be [numeric] but was [{}]",
-                    bc.sourceText(),
-                    bc.right().dataType().typeName()
-                );
-            }
+        if (areTypesCompatible(bc.left().dataType(), bc.right().dataType())) {
             return null;
         }
 
+        Failure typeCheckFailure = checkBinaryComparisonLeftOperandType(bc);
+        if (typeCheckFailure != null) {
+            return typeCheckFailure;
+        }
+
+        return fail(bc, formatIncompatibleTypesMessage(bc.left().dataType(), bc.right().dataType(), bc.sourceText()));
+    }
+
+    /**
+     * Check that the left operand of a binary comparison is of an allowed type.
+     * This validates that the comparison operation is supported for the given data types.
+     *
+     * @return a Failure if the left operand type is not allowed, null otherwise
+     */
+    private static Failure checkBinaryComparisonLeftOperandType(BinaryComparison bc) {
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataType.KEYWORD);
         allowed.add(DataType.TEXT);
@@ -404,50 +411,6 @@ public class Verifier {
         );
         if (false == r.resolved()) {
             return fail(bc, r.message());
-        }
-        if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
-            return null;
-        }
-
-        // Allow mixed millisecond and nanosecond binary comparisons
-        if (bc.left().dataType().isDate() && bc.right().dataType().isDate()) {
-            return null;
-        }
-
-        if (bc.left().dataType() != bc.right().dataType()) {
-            return fail(
-                bc,
-                "first argument of [{}] is [{}] so second argument must also be [{}] but was [{}]",
-                bc.sourceText(),
-                bc.left().dataType().typeName(),
-                bc.left().dataType().typeName(),
-                bc.right().dataType().typeName()
-            );
-        }
-        return null;
-    }
-
-    /** Ensure that UNSIGNED_LONG types are not implicitly converted when used in arithmetic binary operator, as this cannot be done since:
-     *  - unsigned longs are passed through the engine as longs, so/and
-     *  - negative values cannot be represented (i.e. range [Long.MIN_VALUE, "abs"(Long.MIN_VALUE) + Long.MAX_VALUE] won't fit on 64 bits);
-     *  - a conversion to double isn't possible, since upper range UL values can no longer be distinguished
-     *  ex: (double) 18446744073709551615 == (double) 18446744073709551614
-     *  - the implicit ESQL's Cast doesn't currently catch Exception and nullify the result.
-     *  Let the user handle the operation explicitly.
-     */
-    public static Failure validateUnsignedLongOperator(BinaryOperator<?, ?, ?, ?> bo) {
-        DataType leftType = bo.left().dataType();
-        DataType rightType = bo.right().dataType();
-        if ((leftType == DataType.UNSIGNED_LONG || rightType == DataType.UNSIGNED_LONG) && leftType != rightType) {
-            return fail(
-                bo,
-                "first argument of [{}] is [{}] and second is [{}]. [{}] can only be operated on together with another [{}]",
-                bo.sourceText(),
-                leftType.typeName(),
-                rightType.typeName(),
-                DataType.UNSIGNED_LONG.typeName(),
-                DataType.UNSIGNED_LONG.typeName()
-            );
         }
         return null;
     }

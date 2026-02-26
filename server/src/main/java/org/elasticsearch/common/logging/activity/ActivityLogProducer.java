@@ -28,13 +28,18 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
     String X_OPAQUE_ID_FIELD = "http.request.headers.x_opaque_id";
     String EVENT_OUTCOME_FIELD = "event.outcome";
     String EVENT_DURATION_FIELD = "event.duration";
+    // Fields specific to querying logs - search, esql, etc. Common fields are in ES_FIELDS_PREFIX.
+    String ES_QUERY_FIELDS_PREFIX = "elasticsearch.activitylog.querying.";
+    String LOGGER_NAME = "elasticsearch.activitylog";
 
     /**
      * Produces a {@link ESLogMessage} if the producer decides to log, or nothing otherwise.
      */
     Optional<ESLogMessage> produce(Context context, ActionLoggingFields additionalFields);
 
-    String loggerName();
+    default String loggerName() {
+        return LOGGER_NAME;
+    }
 
     /**
      * Produces a {@link ESLogMessage} with common fields.
@@ -52,6 +57,9 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
         if (context.isSuccess() == false) {
             fields.field("error.type", context.getErrorType());
             fields.field("error.message", context.getErrorMessage());
+        }
+        if (context.isTimedOut()) {
+            fields.field(ES_FIELDS_PREFIX + "timed_out", true);
         }
         return fields;
     }

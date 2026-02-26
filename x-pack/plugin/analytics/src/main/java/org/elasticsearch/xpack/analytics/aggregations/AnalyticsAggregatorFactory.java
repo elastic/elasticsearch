@@ -19,8 +19,16 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xpack.analytics.aggregations.bucket.histogram.ExponentialHistogramBackedHistogramAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.bucket.histogram.HistoBackedHistogramAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.bucket.range.HistoBackedRangeAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.ExponentialHistogramAvgAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.ExponentialHistogramMaxAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.ExponentialHistogramMinAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.ExponentialHistogramPercentileRanksAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.ExponentialHistogramPercentilesAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.ExponentialHistogramSumAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.ExponentialHistogramValueCountAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedAvgAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedHDRPercentileRanksAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedHDRPercentilesAggregator;
@@ -165,4 +173,121 @@ public class AnalyticsAggregatorFactory {
         );
     }
 
+    public static void registerExponentialHistogramValueCountAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            ValueCountAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            ExponentialHistogramValueCountAggregator::new,
+            true
+        );
+    }
+
+    public static void registerExponentialHistogramSumAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            SumAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            ExponentialHistogramSumAggregator::new,
+            true
+        );
+    }
+
+    public static void registerExponentialHistogramAvgAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            AvgAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            ExponentialHistogramAvgAggregator::new,
+            true
+        );
+    }
+
+    public static void registerExponentialHistogramHistogramAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            HistogramAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            ExponentialHistogramBackedHistogramAggregator::new,
+            true
+        );
+    }
+
+    public static void registerExponentialHistogramMinAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            MinAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            ExponentialHistogramMinAggregator::new,
+            true
+        );
+    }
+
+    public static void registerExponentialHistogramMaxAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            MaxAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            ExponentialHistogramMaxAggregator::new,
+            true
+        );
+    }
+
+    public static void registerExponentialHistogramPercentilesAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            PercentilesAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
+                if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
+                    // We make sure to preserve the t-digest settings, as we might be querying mixed T-Digest / exponential histogram data
+                    double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
+                    TDigestExecutionHint executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint(context);
+                    return new ExponentialHistogramPercentilesAggregator(
+                        name,
+                        config,
+                        context,
+                        parent,
+                        percents,
+                        compression,
+                        executionHint,
+                        keyed,
+                        formatter,
+                        metadata
+                    );
+                }
+                throw new IllegalArgumentException(
+                    "Percentiles algorithm "
+                        + percentilesConfig.getMethod().toString()
+                        + " must not be used with exponential_histogram field"
+                );
+            },
+            true
+        );
+    }
+
+    public static void registerExponentialHistogramPercentileRanksAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            PercentileRanksAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            (name, config, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
+                if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
+                    double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
+                    TDigestExecutionHint executionHint = ((PercentilesConfig.TDigest) percentilesConfig).getExecutionHint(context);
+                    return new ExponentialHistogramPercentileRanksAggregator(
+                        name,
+                        config,
+                        context,
+                        parent,
+                        percents,
+                        compression,
+                        executionHint,
+                        keyed,
+                        formatter,
+                        metadata
+                    );
+
+                }
+                throw new IllegalArgumentException(
+                    "Percentiles algorithm "
+                        + percentilesConfig.getMethod().toString()
+                        + " must not be used with exponential_histogram field"
+                );
+            },
+            true
+        );
+    }
 }

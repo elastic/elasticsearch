@@ -96,7 +96,8 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
             return new VectorData(getRandomFloatQueryVector());
         }
 
-        byte[] queryVector = new byte[randomIntBetween(5, 256)];
+        // Use float[] with byte-range value so XContent round-trip is type-stable
+        float[] queryVector = new float[randomIntBetween(5, 256)];
         for (int i = 0; i < queryVector.length; i++) {
             queryVector[i] = randomByte();
         }

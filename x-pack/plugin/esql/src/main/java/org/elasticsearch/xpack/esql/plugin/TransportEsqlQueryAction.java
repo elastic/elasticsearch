@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
+import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -141,6 +143,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
         AbstractLookupService.LookupShardContextFactory lookupLookupShardContextFactory = AbstractLookupService.LookupShardContextFactory
             .fromSearchService(searchService);
+        PlannerSettings.Holder plannerSettings = new PlannerSettings.Holder(clusterService);
         this.enrichLookupService = new EnrichLookupService(
             clusterService,
             searchService.getIndicesService(),
@@ -149,7 +152,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory(),
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
@@ -159,7 +163,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory(),
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
@@ -263,13 +268,23 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActionListener.run(listener, l -> innerExecute(task, request, l));
     }
 
+    @Override
+    public void onResponseAfterTimeout(EsqlQueryResponse response) {
+        EsqlResponseListener.logPartialFailures("/_query/async", Map.of(), response.getExecutionInfo());
+    }
+
+    @Override
+    public void onFailureAfterTimeout(Exception exception) {
+        EsqlResponseListener.logOnFailure(exception);
+    }
+
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
         TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         EsqlFlags flags = computeService.createFlags();
-        String sessionId = sessionID(task);
+        String sessionId = getOrCreateSessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
@@ -463,12 +478,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     /**
-     * Returns the ID for this compute session. The ID is unique within the cluster, and is used
-     * to identify the compute-session across nodes. The ID is just the TaskID of the task that
-     * initiated the session.
+     * Returns the session ID from the task if it is an {@link EsqlQueryTask}, otherwise generates a new one.
      */
-    final String sessionID(Task task) {
-        return new TaskId(clusterService.localNode().getId(), task.getId()).toString();
+    static String getOrCreateSessionID(Task task) {
+        return task instanceof EsqlQueryTask eqt ? eqt.sessionId() : newSessionID();
+    }
+
+    /**
+     * Returns the ID for this compute session. The ID is unique within the cluster, and is used
+     * to identify the compute-session across nodes. The ID is a cryptographically secure random
+     * value so that exchange sinks cannot be accessed by guessing a session key.
+     */
+    static String newSessionID() {
+        return UUIDs.randomBase64UUID();
     }
 
     public ExchangeService exchangeService() {
@@ -491,6 +513,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         AsyncExecutionId asyncExecutionId
     ) {
         return new EsqlQueryTask(
+            newSessionID(),
             id,
             type,
             action,

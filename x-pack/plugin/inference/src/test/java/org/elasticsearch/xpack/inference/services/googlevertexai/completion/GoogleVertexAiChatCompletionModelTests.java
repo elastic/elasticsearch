@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
@@ -50,7 +52,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             null
         );
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
+            List.of(new Message(new ContentString("hello"), "user", null, null)),
             "gemini-flash",
             null,
             null,
@@ -85,7 +87,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             123
         );
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
+            List.of(new Message(new ContentString("hello"), "user", null, null)),
             null,
             null,
             null,
@@ -223,7 +225,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             123
         );
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
+            List.of(new Message(new ContentString("hello"), "user", null, null)),
             null,
             null,
             null,

@@ -35,7 +35,9 @@ public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.Stored
 
     private void advanceIfNeeded() throws IOException {
         if (loaderDocId != docId) {
-            loader.advanceTo(docId);
+            if (loader != null) {
+                loader.advanceTo(docId);
+            }
             loaderDocId = docId;
         }
     }

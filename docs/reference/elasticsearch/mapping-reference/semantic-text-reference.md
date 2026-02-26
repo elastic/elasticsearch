@@ -218,7 +218,7 @@ POST /_query
 }
 ```
 % TEST[skip:Requires {{infer}} endpoint]
-1. The {{esql}} [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) automatically performs a kNN search on `semantic_text` fields with dense vector embeddings.
+1. The {{esql}} [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions/match.md) automatically performs a kNN search on `semantic_text` fields with dense vector embeddings.
 
 ## Limitations [limitations]
 

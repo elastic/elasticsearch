@@ -14,12 +14,18 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Data source plugin providing S3 storage support for ESQL.
  * Supports s3://, s3a://, and s3n:// URI schemes.
  */
 public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
+
+    @Override
+    public Set<String> supportedSchemes() {
+        return Set.of("s3", "s3a", "s3n");
+    }
 
     @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings) {

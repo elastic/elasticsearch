@@ -17,6 +17,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -59,7 +60,7 @@ import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareD
  * Benchmark that compares bulk scoring of various scalar quantized vector similarity function
  * implementations (scalar, lucene's panama-ized, and Elasticsearch's native) against sequential
  * and random access target vectors.
- * Run with ./gradlew -p benchmarks run --args 'VectorScorerInt7uBulkScorerBenchmark'
+ * Run with ./gradlew -p benchmarks run --args 'VectorScorerInt7uBulkBenchmark'
  */
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @Warmup(iterations = 3, time = 3)
@@ -70,6 +71,8 @@ import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareD
 public class VectorScorerInt7uBulkBenchmark {
 
     static {
+        NodeNamePatternConverter.setGlobalNodeName("benchmark");
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
         if (supportsHeapSegments() == false) {
             final Logger LOG = LogManager.getLogger(VectorScorerInt7uBulkBenchmark.class);
@@ -80,14 +83,22 @@ public class VectorScorerInt7uBulkBenchmark {
     @Param({ "1024" })
     public int dims;
 
-    // 128k is typically enough to not fit in L1 (core) cache for most processors;
-    // 1.5M is typically enough to not fit in L2 (core) cache;
-    // 130M is enough to not fit in L3 cache
+    // 128kb is typically enough to not fit in L1 (core) cache for most processors;
+    // 1.5Mb is typically enough to not fit in L2 (core) cache;
+    // 130Mb is enough to not fit in L3 cache
     @Param({ "128", "1500", "130000" })
     public int numVectors;
     public int numVectorsToScore;
 
-    @Param
+    // Bulk sizes to test.
+    // DiskBBQ has two bulk sizes, 16 and 32
+    // HNSW params will have the distributed ordinal bulk sizes depending on the number of connections in the graph
+    // The default is 16, maximum is 512, and the bottom layer is 2x that the configured setting, so 1024 is a maximum
+    // the MOST common case here is 32
+    @Param({ "16", "32", "64", "256", "1024" })
+    public int bulkSize;
+
+    @Param({ "SCALAR", "LUCENE", "NATIVE" })
     public VectorImplementation implementation;
 
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
@@ -163,6 +174,7 @@ public class VectorScorerInt7uBulkBenchmark {
     private float[] scores;
     private int[] ordinals;
     private int[] ids;
+    private int[] toScore; // scratch array for bulk scoring
 
     private UpdateableRandomVectorScorer scorer;
     private RandomVectorScorer queryScorer;
@@ -213,7 +225,8 @@ public class VectorScorerInt7uBulkBenchmark {
         writeInt7VectorData(dir, vectorData.vectorData, vectorData.offsets);
 
         numVectorsToScore = vectorData.numVectorsToScore;
-        scores = new float[numVectorsToScore];
+        scores = new float[bulkSize];
+        toScore = new int[bulkSize]; // scratch array for ordinal slices
         ids = IntStream.range(0, numVectors).toArray();
         ordinals = vectorData.ordinals;
 
@@ -255,43 +268,67 @@ public class VectorScorerInt7uBulkBenchmark {
 
     @Benchmark
     public float[] scoreMultipleSequential() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = scorer.score(v);
+        int v = 0;
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                scores[i] = scorer.score(v);
+            }
         }
         return scores;
     }
 
     @Benchmark
     public float[] scoreMultipleRandom() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = scorer.score(ordinals[v]);
+        int v = 0;
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                scores[i] = scorer.score(ordinals[v]);
+            }
         }
         return scores;
     }
 
     @Benchmark
     public float[] scoreQueryMultipleRandom() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = queryScorer.score(ordinals[v]);
+        int v = 0;
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                scores[i] = queryScorer.score(ordinals[v]);
+            }
         }
         return scores;
     }
 
     @Benchmark
     public float[] scoreMultipleSequentialBulk() throws IOException {
-        scorer.bulkScore(ids, scores, ordinals.length);
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
+            // Copy the slice of sequential IDs to the scratch array
+            System.arraycopy(ids, i, toScore, 0, toScoreInThisBatch);
+            scorer.bulkScore(toScore, scores, toScoreInThisBatch);
+        }
         return scores;
     }
 
     @Benchmark
     public float[] scoreMultipleRandomBulk() throws IOException {
-        scorer.bulkScore(ordinals, scores, ordinals.length);
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
+            // Copy the slice of random ordinals to the scratch array
+            System.arraycopy(ordinals, i, toScore, 0, toScoreInThisBatch);
+            scorer.bulkScore(toScore, scores, toScoreInThisBatch);
+        }
         return scores;
     }
 
     @Benchmark
     public float[] scoreQueryMultipleRandomBulk() throws IOException {
-        queryScorer.bulkScore(ordinals, scores, ordinals.length);
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
+            // Copy the slice of random ordinals to the scratch array
+            System.arraycopy(ordinals, i, toScore, 0, toScoreInThisBatch);
+            queryScorer.bulkScore(toScore, scores, toScoreInThisBatch);
+        }
         return scores;
     }
 }

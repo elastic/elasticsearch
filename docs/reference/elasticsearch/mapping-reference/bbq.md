@@ -244,7 +244,7 @@ A lower `visit_percentage` can further reduce memory use and speed up queries, w
 stack: ga 9.4
 ```
 By default, BBQ performs asymmetric quantization: it performs 1-bit quantization for the indexed vectors and 4-bit quantization for query vectors.
-For fields of type `bbq_disk` it is possible to change the level of quantization for indexed vectors by setting the `bits` parameter in `index_options` to `1` (deafault), `2` or `4`.
+For fields of type `bbq_disk` it is possible to change the level of quantization for indexed vectors by setting the `bits` parameter in `index_options` to `1` (default), `2` or `4`.
 
 If no `oversampling_factor` is specified, setting `bits` will automatically adjust that as follows:
 * `bits = 1` --> `oversampling_factor = 3.0`

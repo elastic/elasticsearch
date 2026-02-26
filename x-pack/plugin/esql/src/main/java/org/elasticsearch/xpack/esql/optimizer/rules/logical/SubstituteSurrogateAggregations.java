@@ -76,7 +76,7 @@ public final class SubstituteSurrogateAggregations extends OptimizerRules.Optimi
                         var attr = aggFuncToAttr.get(af);
                         // the agg doesn't exist in the Aggregate, create an alias for it and save its attribute
                         if (attr == null) {
-                            var temporaryName = TemporaryNameUtils.temporaryName(af, agg, counter[0]++);
+                            var temporaryName = TemporaryNameGenerator.temporaryName(af, agg, counter[0]++);
                             // create a synthetic alias (so it doesn't clash with a user defined name)
                             var newAlias = new Alias(agg.source(), temporaryName, af, null, true);
                             attr = newAlias.toAttribute();

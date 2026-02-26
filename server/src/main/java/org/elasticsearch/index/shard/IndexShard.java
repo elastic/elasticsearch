@@ -1953,6 +1953,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 recoveryState.setStage(RecoveryState.Stage.DONE);
             }
 
+            checkAndCallWaitForEngineOrClosedShardListeners();
             SubscribableListener.newForked(
                 (CheckedConsumer<ActionListener<Void>, Exception>) l -> indexEventListener.afterIndexShardRecovery(IndexShard.this, l)
             ).andThenAccept(v -> {
@@ -1966,8 +1967,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     changeState(IndexShardState.POST_RECOVERY, reason);
                 }
             }).addListener(finalListener);
-
-            checkAndCallWaitForEngineOrClosedShardListeners();
         } catch (Exception e) {
             finalListener.onFailure(e);
         }

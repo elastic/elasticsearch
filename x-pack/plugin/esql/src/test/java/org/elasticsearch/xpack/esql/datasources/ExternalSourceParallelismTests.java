@@ -38,7 +38,6 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -78,47 +77,53 @@ public class ExternalSourceParallelismTests extends ESTestCase {
             perDriverPages.add(new ArrayList<>());
         }
 
-        ExecutorService threadPool = Executors.newFixedThreadPool(driverCount);
+        // Separate executor for async reads to avoid deadlock between producer/consumer on the same thread
+        ExecutorService asyncReadPool = Executors.newCachedThreadPool();
+        ExecutorService driverPool = Executors.newFixedThreadPool(driverCount);
         CountDownLatch done = new CountDownLatch(driverCount);
-        CyclicBarrier barrier = new CyclicBarrier(driverCount);
 
-        for (int d = 0; d < driverCount; d++) {
-            final int driverIdx = d;
-            threadPool.submit(() -> {
-                try {
-                    barrier.await();
-                    AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
-                        storageProvider,
-                        formatReader,
-                        StoragePath.of("s3://bucket/f0.parquet"),
-                        testAttributes(),
-                        100,
-                        10,
-                        Runnable::run,
-                        null,
-                        null,
-                        null,
-                        sliceQueue
-                    );
-                    DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
-                    SourceOperator operator = factory.get(driverContext);
-                    while (operator.isFinished() == false) {
-                        Page page = operator.getOutput();
-                        if (page != null) {
-                            perDriverPages.get(driverIdx).add(page);
+        try {
+            for (int d = 0; d < driverCount; d++) {
+                final int driverIdx = d;
+                driverPool.submit(() -> {
+                    try {
+                        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                            storageProvider,
+                            formatReader,
+                            StoragePath.of("s3://bucket/f0.parquet"),
+                            testAttributes(),
+                            100,
+                            10,
+                            asyncReadPool,
+                            null,
+                            null,
+                            null,
+                            sliceQueue
+                        );
+                        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+                        SourceOperator operator = factory.get(driverContext);
+                        while (operator.isFinished() == false) {
+                            Page page = operator.getOutput();
+                            if (page != null) {
+                                perDriverPages.get(driverIdx).add(page);
+                            }
                         }
+                        operator.close();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        done.countDown();
                     }
-                    operator.close();
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    done.countDown();
-                }
-            });
-        }
+                });
+            }
 
-        assertTrue(done.await(30, TimeUnit.SECONDS));
-        threadPool.shutdown();
+            assertTrue("Timed out waiting for drivers to complete", done.await(30, TimeUnit.SECONDS));
+        } finally {
+            driverPool.shutdownNow();
+            asyncReadPool.shutdownNow();
+            driverPool.awaitTermination(5, TimeUnit.SECONDS);
+            asyncReadPool.awaitTermination(5, TimeUnit.SECONDS);
+        }
 
         assertEquals(fileCount, totalReadCount.get());
         assertEquals(fileCount, filesRead.size());
@@ -192,44 +197,51 @@ public class ExternalSourceParallelismTests extends ESTestCase {
 
         int driverCount = 4;
         List<Page> allPages = java.util.Collections.synchronizedList(new ArrayList<>());
-        ExecutorService threadPool = Executors.newFixedThreadPool(driverCount);
+        ExecutorService asyncReadPool = Executors.newCachedThreadPool();
+        ExecutorService driverPool = Executors.newFixedThreadPool(driverCount);
         CountDownLatch done = new CountDownLatch(driverCount);
 
-        for (int d = 0; d < driverCount; d++) {
-            threadPool.submit(() -> {
-                try {
-                    AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
-                        storageProvider,
-                        formatReader,
-                        StoragePath.of("s3://bucket/f0.parquet"),
-                        testAttributes(),
-                        100,
-                        10,
-                        Runnable::run,
-                        null,
-                        null,
-                        null,
-                        sliceQueue
-                    );
-                    DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
-                    SourceOperator operator = factory.get(driverContext);
-                    while (operator.isFinished() == false) {
-                        Page page = operator.getOutput();
-                        if (page != null) {
-                            allPages.add(page);
+        try {
+            for (int d = 0; d < driverCount; d++) {
+                driverPool.submit(() -> {
+                    try {
+                        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                            storageProvider,
+                            formatReader,
+                            StoragePath.of("s3://bucket/f0.parquet"),
+                            testAttributes(),
+                            100,
+                            10,
+                            asyncReadPool,
+                            null,
+                            null,
+                            null,
+                            sliceQueue
+                        );
+                        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+                        SourceOperator operator = factory.get(driverContext);
+                        while (operator.isFinished() == false) {
+                            Page page = operator.getOutput();
+                            if (page != null) {
+                                allPages.add(page);
+                            }
                         }
+                        operator.close();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    } finally {
+                        done.countDown();
                     }
-                    operator.close();
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    done.countDown();
-                }
-            });
-        }
+                });
+            }
 
-        assertTrue(done.await(30, TimeUnit.SECONDS));
-        threadPool.shutdown();
+            assertTrue("Timed out waiting for drivers to complete", done.await(30, TimeUnit.SECONDS));
+        } finally {
+            driverPool.shutdownNow();
+            asyncReadPool.shutdownNow();
+            driverPool.awaitTermination(5, TimeUnit.SECONDS);
+            asyncReadPool.awaitTermination(5, TimeUnit.SECONDS);
+        }
 
         assertEquals(fileCount, allPages.size());
         assertEquals(fileCount, filesRead.size());

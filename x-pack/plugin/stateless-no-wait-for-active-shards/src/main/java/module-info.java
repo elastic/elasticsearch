@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-module org.elasticsearch.serverless.nowaitforactiveshards {
+module org.elasticsearch.stateless.nowaitforactiveshards {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;

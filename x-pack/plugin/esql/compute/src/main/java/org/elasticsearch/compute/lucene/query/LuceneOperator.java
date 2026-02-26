@@ -417,9 +417,19 @@ public abstract class LuceneOperator extends SourceOperator {
         private final long rowsEmitted;
         private final Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies;
 
+        private static final int QUERY_STRING_TRUNCATION = 200;
+
+        private static String queryString(Query query) {
+            String queryString = query.toString();
+            if (queryString.length() > QUERY_STRING_TRUNCATION) {
+                return queryString.substring(0, QUERY_STRING_TRUNCATION) + "...(" + (queryString.length() - QUERY_STRING_TRUNCATION) + ")";
+            }
+            return query.toString();
+        }
+
         protected Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
-            processedQueries = operator.processedQueries.stream().map(Query::toString).collect(Collectors.toCollection(TreeSet::new));
+            processedQueries = operator.processedQueries.stream().map(Status::queryString).collect(Collectors.toCollection(TreeSet::new));
             processNanos = operator.processingNanos;
             processedShards = new TreeSet<>(operator.processedShards);
             sliceIndex = operator.sliceIndex;

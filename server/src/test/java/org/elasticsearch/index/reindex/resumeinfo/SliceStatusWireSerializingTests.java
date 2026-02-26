@@ -43,9 +43,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(org.elasticsearch.cluster.ClusterModule.getNamedWriteables());
-        entries.add(
-            new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new)
-        );
+        entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new));
         entries.add(
             new NamedWriteableRegistry.Entry(
                 ResumeInfo.WorkerResumeInfo.class,

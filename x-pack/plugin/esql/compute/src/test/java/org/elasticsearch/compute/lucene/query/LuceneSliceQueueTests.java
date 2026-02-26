@@ -422,8 +422,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
 
     public void testComputeSegmentGroupsEmptyLeaves() {
         List<List<PartialLeafReaderContext>> groups = LuceneSliceQueue.computeSegmentGroups(List.of(), 5, 50_000);
-        assertThat(groups, hasSize(1));
-        assertThat(groups.getFirst(), hasSize(0));
+        assertThat(groups, hasSize(0));
     }
 
     public void testComputeSegmentGroupsInvalidMaxSliceNum() {

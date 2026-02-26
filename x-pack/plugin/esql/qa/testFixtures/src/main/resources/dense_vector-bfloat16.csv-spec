@@ -77,7 +77,7 @@ coalesceBfloat16VectorTwoColumns
 required_capability: coalesce_dense_vector
 
 FROM dense_vector_coalesce
-| EVAL v = COALESCE(bfloat16_vector, bfloat16_vector)
+| EVAL v = COALESCE(bfloat16_vector, bfloat16_vector_2)
 | KEEP id, v
 | SORT id
 ;
@@ -87,7 +87,7 @@ id:l | v:dense_vector
 1    | [4.0, 5.0, 6.0]
 2    | [9.0, 8.0, 7.0]
 3    | [0.5390625, 0.3203125, 0.01202392578125]
-4    | null
+4    | [1.0, 2.0, 3.0]
 ;
 
 denseVectorAggregationFunctions

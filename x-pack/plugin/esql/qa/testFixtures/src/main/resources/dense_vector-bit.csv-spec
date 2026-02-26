@@ -70,7 +70,6 @@ id:l | v:dense_vector
 ;
 
 coalesceBitVectorTwoColumns
-
 required_capability: coalesce_dense_vector
 
 FROM dense_vector_coalesce

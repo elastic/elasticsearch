@@ -13,16 +13,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefHashTable;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -34,7 +37,9 @@ public class GroupedLimitOperator implements Operator {
 
     private final int limit;
     private final PositionKeyEncoder keyEncoder;
-    private final Map<BytesRef, Integer> groupCounts = new HashMap<>();
+    private final BigArrays bigArrays;
+    private final BytesRefHashTable seenKeys;
+    private IntArray counts;
 
     private int pagesProcessed;
     private long rowsReceived;
@@ -43,9 +48,12 @@ public class GroupedLimitOperator implements Operator {
     private Page lastOutput;
     private boolean finished;
 
-    public GroupedLimitOperator(int limit, PositionKeyEncoder keyEncoder) {
+    public GroupedLimitOperator(int limit, PositionKeyEncoder keyEncoder, BlockFactory blockFactory) {
         this.limit = limit;
         this.keyEncoder = keyEncoder;
+        this.bigArrays = blockFactory.bigArrays();
+        this.seenKeys = HashImplFactory.newBytesRefHash(blockFactory);
+        this.counts = bigArrays.newIntArray(16, false);
     }
 
     public static final class Factory implements Operator.OperatorFactory {
@@ -61,7 +69,7 @@ public class GroupedLimitOperator implements Operator {
 
         @Override
         public GroupedLimitOperator get(DriverContext driverContext) {
-            return new GroupedLimitOperator(limit, new PositionKeyEncoder(groupChannels, elementTypes));
+            return new GroupedLimitOperator(limit, new PositionKeyEncoder(groupChannels, elementTypes), driverContext.blockFactory());
         }
 
         @Override
@@ -86,9 +94,18 @@ public class GroupedLimitOperator implements Operator {
 
         for (int pos = 0; pos < positionCount; pos++) {
             BytesRef key = keyEncoder.encode(page, pos);
-            int count = groupCounts.getOrDefault(key, 0);
+            long hashOrd = seenKeys.add(key);
+            int count = 0;
+            long ord;
+            if (hashOrd >= 0) {
+                ord = hashOrd;
+                counts = bigArrays.grow(counts, ord + 1);
+            } else {
+                ord = -(hashOrd + 1);
+                count = counts.get(ord);
+            }
             if (count < limit) {
-                groupCounts.put(BytesRef.deepCopyOf(key), count + 1);
+                counts.set(ord, count + 1);
                 accepted[acceptedCount++] = pos;
             }
         }
@@ -154,19 +171,17 @@ public class GroupedLimitOperator implements Operator {
 
     @Override
     public Status status() {
-        return new Status(limit, groupCounts.size(), pagesProcessed, rowsReceived, rowsEmitted);
+        return new Status(limit, (int) seenKeys.size(), pagesProcessed, rowsReceived, rowsEmitted);
     }
 
     @Override
     public void close() {
-        if (lastOutput != null) {
-            lastOutput.releaseBlocks();
-        }
+        Releasables.closeExpectNoException(lastOutput == null ? () -> {} : lastOutput::releaseBlocks, seenKeys, counts);
     }
 
     @Override
     public String toString() {
-        return "GroupedLimitOperator[limit = " + limit + ", groups = " + groupCounts.size() + "]";
+        return "GroupedLimitOperator[limit = " + limit + ", groups = " + seenKeys.size() + "]";
     }
 
     public static class Status implements Operator.Status {

@@ -122,8 +122,9 @@ develocity {
         // where we deal with build metadata within the gradle build.
         def jobId = System.getenv('BUILDKITE_JOB_ID')
         if (jobId) {
+          // Explicitly convert to String to avoid Groovy/Java array type mismatch
           runBuildkiteAgent(
-            ['meta-data', 'set', "tests-seed-${jobId}", testSeed],
+            ['meta-data', 'set', "tests-seed-${jobId}".toString(), testSeed.toString()],
             "storing test seed in Buildkite metadata"
           )
         }

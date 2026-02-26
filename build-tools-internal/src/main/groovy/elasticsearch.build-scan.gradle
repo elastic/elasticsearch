@@ -12,11 +12,34 @@ import org.elasticsearch.gradle.OS
 
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
+import java.util.concurrent.TimeUnit
 
 import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
 // Resolving this early to avoid issues with the build scan plugin in combination with the configuration cache usage
 def taskNames = gradle.startParameter.taskNames.join(' ')
+
+/**
+ * Executes a buildkite-agent command with timeout and exit code checking.
+ * Failures are logged as warnings but do not fail the build.
+ */
+def runBuildkiteAgent(List<String> args, String description, Closure stdinWriter = null) {
+  try {
+    def process = new ProcessBuilder(['buildkite-agent'] + args).start()
+    if (stdinWriter != null) {
+      process.withWriter { stdinWriter(it) }
+    }
+    def completed = process.waitFor(30, TimeUnit.SECONDS)
+    if (completed == false) {
+      logger.warn("Timeout ${description}")
+      process.destroyForcibly()
+    } else if (process.exitValue() != 0) {
+      logger.warn("Failed ${description}: exit code ${process.exitValue()}")
+    }
+  } catch (Exception e) {
+    logger.warn("Failed ${description}: ${e.message}")
+  }
+}
 
 develocity {
 
@@ -119,20 +142,10 @@ develocity {
         // where we deal with build metadata within the gradle build.
         def jobId = System.getenv('BUILDKITE_JOB_ID')
         if (jobId) {
-          try {
-            def process = new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "tests-seed-${jobId}", testSeed)
-              .start()
-            def completed = process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)
-            if (completed == false) {
-              logger.warn("Timeout storing test seed in Buildkite metadata")
-              process.destroyForcibly()
-            } else if (process.exitValue() != 0) {
-              logger.warn("Failed to store test seed in Buildkite metadata: exit code ${process.exitValue()}")
-            }
-          } catch (Exception e) {
-            // Ignore failures - this is best-effort
-            logger.warn("Failed to store test seed in Buildkite metadata: ${e.message}")
-          }
+          runBuildkiteAgent(
+            ['meta-data', 'set', "tests-seed-${jobId}", testSeed],
+            "storing test seed in Buildkite metadata"
+          )
         }
 
         buildFinished { result ->
@@ -141,32 +154,28 @@ develocity {
             ->
             // Attach build scan link as build metadata
             // See: https://buildkite.com/docs/pipelines/build-meta-data
-            new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}")
-              .start()
-              .waitFor()
+            runBuildkiteAgent(
+              ['meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}"],
+              "storing build scan link in Buildkite metadata"
+            )
 
             // Attach build scan ID as build metadata
-            new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanId}")
-              .start()
-              .waitFor()
+            runBuildkiteAgent(
+              ['meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanId}"],
+              "storing build scan ID in Buildkite metadata"
+            )
 
             // Add a build annotation
             // See: https://buildkite.com/docs/agent/v3/cli-annotate
             def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
               0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
             def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
-            def process = [
-              'buildkite-agent',
-              'annotate',
-              '--context',
-              result.failures ? 'gradle-build-scans-failed' : 'gradle-build-scans',
-              '--append',
-              '--style',
-              result.failures ? 'error' : 'info'
-            ].execute()
-            process.withWriter { it.write(body) }
             // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
-            process.waitFor()
+            runBuildkiteAgent(
+              ['annotate', '--context', result.failures ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', result.failures ? 'error' : 'info'],
+              "adding build annotation",
+              { it.write(body) }
+            )
           }
         }
       } else {

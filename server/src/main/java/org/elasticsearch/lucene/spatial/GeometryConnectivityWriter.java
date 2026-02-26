@@ -61,18 +61,22 @@ public class GeometryConnectivityWriter {
     private GeometryConnectivityWriter() {}
 
     /**
-     * Writes connectivity for a list of normalized geometries using vertex ordinals
-     * from the given lookup table builder.
+     * Writes connectivity for a list of geometries using vertex ordinals from the given
+     * lookup table builder. The original (pre-normalization) geometries are used so that
+     * reconstruction produces output as close to the source as possible. This should only differ
+     * from normalized geometries when crossing the dateline, in which case the normalization
+     * splits the geometry before we create and store the triangle tree. For these cases,
+     * the vertex table will contain some additional elements not in the triangle tree.
      */
     public static void writeTo(
         StreamOutput out,
-        List<Geometry> normalizedGeometries,
+        List<Geometry> geometries,
         CoordinateEncoder encoder,
         VertexLookupTable.Builder vertexTableBuilder
     ) throws IOException {
-        out.writeVInt(normalizedGeometries.size());
+        out.writeVInt(geometries.size());
         ConnectivityVisitor visitor = new ConnectivityVisitor(out, encoder, vertexTableBuilder);
-        for (Geometry geometry : normalizedGeometries) {
+        for (Geometry geometry : geometries) {
             geometry.visit(visitor);
         }
     }
@@ -88,14 +92,20 @@ public class GeometryConnectivityWriter {
             this.vertexTableBuilder = vertexTableBuilder;
         }
 
-        /** Maps a geometry coordinate to its vertex ordinal, adding to the table if needed. */
+        /**
+         * Maps a geometry coordinate to its vertex ordinal, adding to the table if needed.
+         * Coordinates are normalized before encoding, so original geometry coordinates
+         * (e.g. longitude &gt; 180 for dateline-crossing shapes) map correctly.
+         */
         private int resolveOrdinal(double x, double y) {
             int encodedX = encoder.encodeX(encoder.normalizeX(x));
             int encodedY = encoder.encodeY(encoder.normalizeY(y));
             int ordinal = vertexTableBuilder.getOrdinal(encodedX, encodedY);
             if (ordinal == -1) {
-                // Vertex from the original geometry that wasn't in any tessellated triangle
-                // (rare, but possible for degenerate geometries). Add it to the table.
+                // Vertex from the original geometry that wasn't in any tessellated triangle.
+                // This happens for degenerate geometries (co-linear tessellation) and for
+                // dateline-crossing shapes where the original has different vertices than
+                // the normalized/tessellated form.
                 ordinal = vertexTableBuilder.addVertex(encodedX, encodedY);
             }
             return ordinal;

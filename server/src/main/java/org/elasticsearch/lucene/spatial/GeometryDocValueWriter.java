@@ -86,36 +86,36 @@ public class GeometryDocValueWriter {
      * is irrelevant and the legacy format is more compact. All other geometries use V2 format
      * with vertex table and connectivity for geometry reconstruction.
      *
-     * @param fields               the tessellated triangle fields from the indexer
-     * @param coordinateEncoder    encoder for quantizing coordinates to the integer grid
-     * @param centroidCalculator   calculator with accumulated centroid data
-     * @param normalizedGeometries the normalized geometries whose connectivity to preserve (unused for points)
+     * @param fields             the tessellated triangle fields from the indexer
+     * @param coordinateEncoder  encoder for quantizing coordinates to the integer grid
+     * @param centroidCalculator calculator with accumulated centroid data
+     * @param geometries         the original geometries whose connectivity to preserve (unused for points)
      */
     public static BytesRef write(
         List<IndexableField> fields,
         CoordinateEncoder coordinateEncoder,
         CentroidCalculator centroidCalculator,
-        List<Geometry> normalizedGeometries
+        List<Geometry> geometries
     ) throws IOException {
         if (centroidCalculator.getDimensionalShapeType() == DimensionalShapeType.POINT) {
             return writeLegacy(fields, coordinateEncoder, centroidCalculator);
         }
-        return writeV2(fields, coordinateEncoder, centroidCalculator, normalizedGeometries);
+        return writeV2(fields, coordinateEncoder, centroidCalculator, geometries);
     }
 
     /**
      * Serialize the geometry into a BytesRef in V2 format with vertex table and connectivity.
      *
-     * @param fields               the tessellated triangle fields from the indexer
-     * @param coordinateEncoder    encoder for quantizing coordinates to the integer grid
-     * @param centroidCalculator   calculator with accumulated centroid data
-     * @param normalizedGeometries the normalized geometries whose connectivity to preserve
+     * @param fields             the tessellated triangle fields from the indexer
+     * @param coordinateEncoder  encoder for quantizing coordinates to the integer grid
+     * @param centroidCalculator calculator with accumulated centroid data
+     * @param geometries         the original geometries whose connectivity to preserve
      */
     public static BytesRef writeV2(
         List<IndexableField> fields,
         CoordinateEncoder coordinateEncoder,
         CentroidCalculator centroidCalculator,
-        List<Geometry> normalizedGeometries
+        List<Geometry> geometries
     ) throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
 
@@ -129,11 +129,11 @@ public class GeometryDocValueWriter {
         final VertexLookupTable.Builder vertexTableBuilder = VertexLookupTable.builder();
         V2TriangleTreeWriter.writeTo(out, fields, vertexTableBuilder);
 
-        // 3. Write connectivity (may add vertices to the builder for coordinates in the normalized geometry
+        // 3. Write connectivity (may add vertices to the builder for coordinates in the original geometry
         // that don't appear in any tessellated triangle). We write a dummy length before the data, which we fill in later.
         long connectivityPosition = out.position();
         out.writeInt(0); // placeholder for connectivity length
-        GeometryConnectivityWriter.writeTo(out, normalizedGeometries, coordinateEncoder, vertexTableBuilder);
+        GeometryConnectivityWriter.writeTo(out, geometries, coordinateEncoder, vertexTableBuilder);
         long vertexTablePosition = out.position();
         out.seek(connectivityPosition);
         out.writeInt((int) (vertexTablePosition - connectivityPosition) - 4);

@@ -26,7 +26,6 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.lucene.spatial.Extent;
@@ -226,7 +225,6 @@ public class GeometryDocValueTests extends ESTestCase {
     }
 
     public void testRandomGeometryReconstruction() throws IOException {
-        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
         for (int i = 0; i < 100; i++) {
             Geometry geometry = switch (i % 7) {
                 case 0 -> randomPoint(false);
@@ -243,11 +241,10 @@ public class GeometryDocValueTests extends ESTestCase {
                 );
                 default -> throw new AssertionError();
             };
-            Geometry normalized = indexer.normalize(geometry);
             GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(geometry, CoordinateEncoder.GEO);
             Geometry extracted = reader.getGeometry(CoordinateEncoder.GEO);
             assertNotNull("Iteration " + i + ": expected non-null geometry for " + geometry.type(), extracted);
-            assertThat("Iteration " + i + ": equivalent geometry for " + normalized.type(), extracted, equivalentTo(normalized));
+            assertThat("Iteration " + i + ": equivalent geometry for " + geometry.type(), extracted, equivalentTo(geometry));
         }
     }
 

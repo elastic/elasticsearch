@@ -276,7 +276,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN);
                 context.doc().addWithKey(name, docValuesField);
             }
-            docValuesField.add(fields, geometry, geometry);
+            docValuesField.add(fields, geometry);
         } else if (indexed) {
             context.addToFieldNames(fieldType().name());
         }

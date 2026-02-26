@@ -122,7 +122,7 @@ public class TriangleTreeTests extends ESTestCase {
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(polygon);
 
-        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(normalized));
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(polygon));
 
         GeometryDocValueReader reader = new GeometryDocValueReader();
         reader.reset(bytesRef);
@@ -150,7 +150,7 @@ public class TriangleTreeTests extends ESTestCase {
         centroidCalculator.add(point);
 
         // write() should auto-select legacy format for points
-        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(normalized));
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(point));
 
         GeometryDocValueReader reader = new GeometryDocValueReader();
         reader.reset(bytesRef);
@@ -174,7 +174,7 @@ public class TriangleTreeTests extends ESTestCase {
         centroidCalculator.add(multiPoint);
 
         // write() should auto-select legacy format for multipoints
-        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(normalized));
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(multiPoint));
 
         GeometryDocValueReader reader = new GeometryDocValueReader();
         reader.reset(bytesRef);
@@ -198,7 +198,7 @@ public class TriangleTreeTests extends ESTestCase {
         centroidCalculator.add(polygon);
 
         // Write V2 format explicitly (write() also selects V2 for polygons, but be explicit)
-        BytesRef bytesRef = GeometryDocValueWriter.writeV2(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(normalized));
+        BytesRef bytesRef = GeometryDocValueWriter.writeV2(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(polygon));
 
         // Read and verify
         GeometryDocValueReader reader = new GeometryDocValueReader();
@@ -247,7 +247,7 @@ public class TriangleTreeTests extends ESTestCase {
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
 
-        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(normalized));
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(geometry));
 
         GeometryDocValueReader reader = new GeometryDocValueReader();
         reader.reset(bytesRef);
@@ -256,7 +256,7 @@ public class TriangleTreeTests extends ESTestCase {
         assertNotNull(reconstructed);
 
         // Verify the reconstructed geometry has the same type
-        assertThat(reconstructed.type(), equalTo(normalized.type()));
+        assertThat(reconstructed.type(), equalTo(geometry.type()));
     }
 
     // ---- Legacy format backward compatibility tests ----
@@ -346,7 +346,7 @@ public class TriangleTreeTests extends ESTestCase {
 
         // Write both formats
         BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
-        BytesRef v2Bytes = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(normalized));
+        BytesRef v2Bytes = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(polygon));
 
         GeometryDocValueReader legacyReader = new GeometryDocValueReader();
         legacyReader.reset(legacyBytes);

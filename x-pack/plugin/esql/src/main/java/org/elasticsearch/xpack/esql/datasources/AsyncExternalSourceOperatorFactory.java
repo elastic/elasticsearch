@@ -124,8 +124,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues
     ) {
-        this(storageProvider, formatReader, path, attributes, batchSize, maxBufferSize, executor, fileSet, partitionColumnNames,
-            partitionValues, null);
+        this(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            executor,
+            fileSet,
+            partitionColumnNames,
+            partitionValues,
+            null
+        );
     }
 
     public AsyncExternalSourceOperatorFactory(

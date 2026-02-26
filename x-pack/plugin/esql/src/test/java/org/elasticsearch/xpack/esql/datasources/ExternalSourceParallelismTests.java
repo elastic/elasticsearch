@@ -100,11 +100,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
                         null,
                         sliceQueue
                     );
-                    DriverContext driverContext = new DriverContext(
-                        BigArrays.NON_RECYCLING_INSTANCE,
-                        TEST_BLOCK_FACTORY,
-                        null
-                    );
+                    DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
                     SourceOperator operator = factory.get(driverContext);
                     while (operator.isFinished() == false) {
                         Page page = operator.getOutput();
@@ -215,11 +211,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
                         null,
                         sliceQueue
                     );
-                    DriverContext driverContext = new DriverContext(
-                        BigArrays.NON_RECYCLING_INSTANCE,
-                        TEST_BLOCK_FACTORY,
-                        null
-                    );
+                    DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
                     SourceOperator operator = factory.get(driverContext);
                     while (operator.isFinished() == false) {
                         Page page = operator.getOutput();
@@ -256,10 +248,8 @@ public class ExternalSourceParallelismTests extends ESTestCase {
 
     public void testSliceQueueWithPartitionValues() throws Exception {
         List<ExternalSplit> splits = List.of(
-            new FileSplit("test", StoragePath.of("s3://bucket/year=2023/f1.parquet"), 0, 100, "parquet", Map.of(),
-                Map.of("year", 2023)),
-            new FileSplit("test", StoragePath.of("s3://bucket/year=2024/f2.parquet"), 0, 200, "parquet", Map.of(),
-                Map.of("year", 2024))
+            new FileSplit("test", StoragePath.of("s3://bucket/year=2023/f1.parquet"), 0, 100, "parquet", Map.of(), Map.of("year", 2023)),
+            new FileSplit("test", StoragePath.of("s3://bucket/year=2024/f2.parquet"), 0, 200, "parquet", Map.of(), Map.of("year", 2024))
         );
         ExternalSliceQueue sliceQueue = new ExternalSliceQueue(new ArrayList<>(splits));
 
@@ -269,10 +259,16 @@ public class ExternalSourceParallelismTests extends ESTestCase {
         TrackingStorageProvider storageProvider = new TrackingStorageProvider();
 
         List<Attribute> attributes = List.of(
-            new FieldAttribute(Source.EMPTY, "value",
-                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
-            new FieldAttribute(Source.EMPTY, "year",
-                new EsField("year", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            ),
+            new FieldAttribute(
+                Source.EMPTY,
+                "year",
+                new EsField("year", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
         );
 
         AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(

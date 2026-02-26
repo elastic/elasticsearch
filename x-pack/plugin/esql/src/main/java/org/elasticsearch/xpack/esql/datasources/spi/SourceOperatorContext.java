@@ -90,8 +90,22 @@ public record SourceOperatorContext(
         FileSet fileSet,
         @Nullable ExternalSplit split
     ) {
-        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, sourceMetadata, pushedFilter,
-            fileSet, split, null, null);
+        this(
+            sourceType,
+            path,
+            projectedColumns,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            executor,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            fileSet,
+            split,
+            null,
+            null
+        );
     }
 
     public SourceOperatorContext(
@@ -107,8 +121,22 @@ public record SourceOperatorContext(
         Object pushedFilter,
         FileSet fileSet
     ) {
-        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, sourceMetadata, pushedFilter,
-            fileSet, null, null, null);
+        this(
+            sourceType,
+            path,
+            projectedColumns,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            executor,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            fileSet,
+            null,
+            null,
+            null
+        );
     }
 
     public SourceOperatorContext(
@@ -123,8 +151,22 @@ public record SourceOperatorContext(
         Map<String, Object> sourceMetadata,
         Object pushedFilter
     ) {
-        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, sourceMetadata, pushedFilter,
-            null, null, null, null);
+        this(
+            sourceType,
+            path,
+            projectedColumns,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            executor,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     public SourceOperatorContext(
@@ -137,8 +179,22 @@ public record SourceOperatorContext(
         Executor executor,
         Map<String, Object> config
     ) {
-        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, Map.of(), null, null, null,
-            null, null);
+        this(
+            sourceType,
+            path,
+            projectedColumns,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            executor,
+            config,
+            Map.of(),
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     public static Builder builder() {

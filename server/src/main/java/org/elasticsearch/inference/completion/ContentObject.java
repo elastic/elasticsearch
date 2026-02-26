@@ -156,11 +156,14 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
         }
 
         /**
-         * Represents the fields of a file content object in a unified completion request. It includes the file data, file ID, and filename.
-         * The file_id field is not currently supported, but it's part of the OpenAI schema, so it's treated as an optional field for serialization.
-         * file_id not being supported means that file_data and filename are effectively required despite being optional in the OpenAI schema,
-         * but they are also treated as optional for serialization, in order to make it possible to add support for file_id in future
-         * without needing to introduce a new transport version or worry about backward compatibility.
+         * Represents the fields of a file content object in a unified completion request.
+         * Includes the file data, file ID, and filename.
+         * The file_id field is not currently supported, but is part of the OpenAI schema,
+         * so it is treated as optional for serialization.
+         * Since file_id is not supported, file_data and filename are effectively required,
+         * even though they are optional in the OpenAI schema.
+         * They are also treated as optional for serialization, to allow future support for file_id
+         * without needing a new transport version or worrying about backward compatibility.
          * @param fileData the data of the file
          * @param fileId the ID of the file
          * @param filename the name of the file

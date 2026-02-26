@@ -61,6 +61,7 @@ setup:
             - promql_command_v0
             - uri_parts_command
             - registered_domain_command
+            - fn_json_extract
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -375,6 +376,7 @@ setup:
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - not_exists: esql.functions.delay
+  - not_exists: esql.functions.json_extract
   - exists: esql.functions.idelta
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod

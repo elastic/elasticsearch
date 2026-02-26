@@ -2204,6 +2204,11 @@ public class EsqlCapabilities {
         INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
 
         /**
+         * Support for function {@code JSON_EXTRACT}.
+         */
+        FN_JSON_EXTRACT,
+
+        /**
          * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
          */
         TS_INFO_COMMAND,

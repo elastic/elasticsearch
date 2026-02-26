@@ -458,6 +458,7 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat,
             org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat,
+            org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat,
             org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
@@ -519,4 +520,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.readiness to org.elasticsearch.internal.sigterm;
     exports org.elasticsearch.inference.metadata;
     exports org.elasticsearch.search.diversification.mmr;
+    exports org.elasticsearch.inference.completion;
 }

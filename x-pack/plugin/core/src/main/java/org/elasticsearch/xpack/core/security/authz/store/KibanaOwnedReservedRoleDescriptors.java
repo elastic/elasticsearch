@@ -102,6 +102,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 "cluster:admin/analyze",
                 "cluster:admin/script/put",
                 "cluster:admin/script/get",
+                // To allow Kibana to delete project routing expressions.
+                "cluster:admin/project_routing/delete",
                 // To facilitate using the file uploader functionality
                 "monitor_text_structure",
                 // To cancel tasks and delete async searches

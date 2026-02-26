@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
@@ -291,9 +292,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (maxSliceNum < 1) {
             throw new IllegalArgumentException("maxSliceNum must be >= 1 (got " + maxSliceNum + ")");
         }
-        if (maxSliceNum == 1 || leaves.isEmpty()) {
-            return List.of(new ArrayList<>(leaves));
+        if (maxSliceNum == 1) {
+            return List.of(leaves);
         }
+
         // total number of documents to be searched
         final int numDocs = leaves.stream().mapToInt(l -> l.reader().maxDoc()).sum();
         // percentage of documents per slice, minimum 10%
@@ -306,7 +308,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         sortedLeaves.sort((c1, c2) -> Integer.compare(c2.reader().maxDoc(), c1.reader().maxDoc()));
         // we add the groups on a priority queue, so we can add orphan leafs to the smallest group
         final PriorityQueue<List<LeafReaderContext>> queue = new PriorityQueue<>(
-            (c1, c2) -> Integer.compare(sumMaxDocValues(c1), sumMaxDocValues(c2))
+            Comparator.comparingInt(ContextIndexSearcher::sumMaxDocValues)
         );
         long docSum = 0;
         List<LeafReaderContext> group = new ArrayList<>();
@@ -320,8 +322,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             }
         }
 
-        if (group.size() > 0) {
-            if (queue.size() == 0) {
+        if (group.isEmpty() == false) {
+            if (queue.isEmpty()) {
                 queue.add(group);
             } else {
                 for (LeafReaderContext context : group) {

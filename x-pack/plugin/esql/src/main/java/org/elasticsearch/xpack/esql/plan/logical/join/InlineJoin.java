@@ -187,6 +187,10 @@ public class InlineJoin extends Join implements SortPreserving {
                         // TODO: INLINE STATS this is essentially an optimization similar to the one in PruneInlineJoinOnEmptyRightSide
                         // this further supports the idea of running the optimization step again after the substitutions (see EsqlSession
                         // executeSubPlan() method where we could run the optimizer after the results are replaced in place).
+                    } else {
+                        // Support right-hand-side subplans that don't use a StubRelation.
+                        // In this case the right side can be executed independently and replaced with a LocalRelation.
+                        stubReplacedSubPlanHolder.set(ij.right());
                     }
                 originalSubPlanHolder.set(ij.right());
             }

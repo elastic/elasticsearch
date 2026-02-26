@@ -12,10 +12,12 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
@@ -54,6 +56,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
@@ -62,6 +67,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
@@ -74,8 +80,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
@@ -407,8 +415,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         // In both cases aggregate expressions participate in the Eval node that wraps the result.
         LogicalPlan resultPlan;
         if (leftAgg && rightAgg) {
-            // filters already attached to each side's aggregate functions in foldBinaryOperatorAggregate
-            resultPlan = foldBinaryOperatorAggregate(leftResult, rightResult);
+            resultPlan = foldBinaryOperatorAggregate(leftResult, rightResult, binaryOp, ctx);
 
         } else if (leftAgg) {
             resultPlan = leftResult.plan();
@@ -431,31 +438,51 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     }
 
     /**
-     * Fold left and right aggregates into a single plan.
+     * Fold left and right aggregates into a single plan, or build an InlineJoin for incompatible groupings.
      */
-    private static LogicalPlan foldBinaryOperatorAggregate(TranslationResult left, TranslationResult right) {
-        var names = new TemporaryNameGenerator.Monotonic();
+    private LogicalPlan foldBinaryOperatorAggregate(
+        TranslationResult left,
+        TranslationResult right,
+        VectorBinaryOperator binaryOp,
+        TranslationContext ctx
+    ) {
         var rightAgg = right.plan().collect(Aggregate.class).getFirst();
+        var leftAgg = left.plan().collect(Aggregate.class).getFirst();
 
-        var result = left.plan().transformDown(Aggregate.class, leftAgg -> {
-            // Different groupings require vector matching semantics (on/ignoring/group_left/group_right)
-            // which is tracked in TODO: https://github.com/elastic/elasticsearch/issues/142596
-            // Compare by name rather than identity to handle _timeseries attributes with different NameIds
-            // (each AcrossSeriesAggregate creates its own _timeseries attribute instance).
-            // When both sides use _timeseries grouping, also verify the TsdimWithout exclusion sets match
-            // to prevent merging aggregates that group by different dimension sets.
-            boolean areGroupingsCompatible = leftAgg.groupings().size() == rightAgg.groupings().size()
-                && groupingNames(leftAgg.groupings()).equals(groupingNames(rightAgg.groupings()))
-                && tsdimWithoutSetsMatch(leftAgg, rightAgg);
+        // Compare by name rather than identity to handle _timeseries attributes with different NameIds
+        // (each AcrossSeriesAggregate creates its own _timeseries attribute instance).
+        // When both sides use _timeseries grouping, also verify the TsdimWithout exclusion sets match
+        // to prevent merging aggregates that group by different dimension sets.
+        boolean areGroupingsCompatible = leftAgg.groupings().size() == rightAgg.groupings().size()
+            && groupingNames(leftAgg.groupings()).equals(groupingNames(rightAgg.groupings()))
+            && tsdimWithoutSetsMatch(leftAgg, rightAgg);
 
-            if (areGroupingsCompatible == false) {
-                throw new QlIllegalArgumentException("binary expressions with different grouping keys not supported yet");
-            }
+        if (areGroupingsCompatible) {
+            return foldCompatibleAggregates(left, right, leftAgg, rightAgg);
+        }
 
-            // Unique aggregates from both sides
-            // Each side's selector uses its own selector condition
+        VectorMatch match = binaryOp.match();
+        if (match.grouping() == VectorMatch.Joining.NONE) {
+            throw new QlIllegalArgumentException("binary expressions with different grouping keys not supported yet");
+        }
+
+        return buildInlineJoinPlan(left, right, leftAgg, rightAgg, match, ctx);
+    }
+
+    /**
+     * Fold compatible groupings into a single aggregate (both sides group by the same keys).
+     */
+    private static LogicalPlan foldCompatibleAggregates(
+        TranslationResult left,
+        TranslationResult right,
+        Aggregate leftAgg,
+        Aggregate rightAgg
+    ) {
+        var names = new TemporaryNameGenerator.Monotonic();
+
+        var result = left.plan().transformDown(Aggregate.class, agg -> {
             var uniqueAggregates = new LinkedHashSet<Expression>();
-            uniqueAggregates.addAll(withFilter(leftAgg.aggregates(), left.selectorFilter()));
+            uniqueAggregates.addAll(withFilter(agg.aggregates(), left.selectorFilter()));
             uniqueAggregates.addAll(withFilter(rightAgg.aggregates(), right.selectorFilter()));
 
             var newAggregates = uniqueAggregates.stream().map(e -> (NamedExpression) e).map(e -> {
@@ -463,15 +490,12 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
                 if (e instanceof Alias a) {
                     inner = a.child();
                 }
-                // Rename it to avoid conflicting output names
                 return new Alias(e.source(), names.next(e.name()), inner, e.id());
             }).toList();
 
-            return leftAgg.with(leftAgg.child(), leftAgg.groupings(), newAggregates);
+            return agg.with(agg.child(), agg.groupings(), newAggregates);
         });
 
-        // If right had Eval nodes wrapping its Aggregate layer them on top of the merged plan
-        // E.g. sum(a) / ceil(max(b)) becomes Eval[ceil(max(b))] -> Aggregate[sum(a), max(b)]
         var rightEvals = right.plan().collect(Eval.class);
         for (Eval eval : rightEvals.reversed()) {
             result = new Eval(eval.source(), result, eval.fields());
@@ -508,6 +532,228 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     }
 
     /**
+     * Builds an InlineJoin plan for binary operations with incompatible groupings (group_left/group_right).
+     * <p>
+     * group_left: left drives (many), right is inline (one).
+     * group_right: swap — right drives, left is inline.
+     * <p>
+     * Resulting plan (before subplan materialization):
+     * <pre>
+     * Filter[inlineValue IS NOT NULL]
+     *   InlineJoin[LEFT, keys=matchingKeys]
+     *     ├─ drivingPlan  (translated independently)
+     *     └─ inlinePlan   (translated independently)
+     * </pre>
+     */
+    private LogicalPlan buildInlineJoinPlan(
+        TranslationResult left,
+        TranslationResult right,
+        Aggregate leftAgg,
+        Aggregate rightAgg,
+        VectorMatch match,
+        TranslationContext ctx
+    ) {
+        boolean isGroupLeft = match.grouping() == VectorMatch.Joining.LEFT;
+
+        TranslationResult drivingSide = isGroupLeft ? left : right;
+        TranslationResult inlineSide = isGroupLeft ? right : left;
+        Aggregate drivingAgg = isGroupLeft ? leftAgg : rightAgg;
+        Aggregate inlineAgg = isGroupLeft ? rightAgg : leftAgg;
+
+        Source source = ctx.promqlCommand().source();
+
+        Set<String> matchingKeyNames = computeMatchingKeyNames(match, leftAgg, rightAgg);
+
+        LogicalPlan drivingPlan = replaceAggregate(
+            drivingSide.plan(),
+            drivingAgg,
+            withFilteredAggregates(drivingAgg, drivingSide.selectorFilter())
+        );
+        LogicalPlan inlinePlan = replaceAggregate(
+            inlineSide.plan(),
+            inlineAgg,
+            withFilteredAggregates(inlineAgg, inlineSide.selectorFilter())
+        );
+
+        // Give the inline side a fresh EsRelation copy so its FieldAttributes have distinct
+        // NameIds and don't collide with the driving side when TranslateTimeSeriesAggregate
+        // adds _tsid to both independently.
+        inlinePlan = copyEsRelation(inlinePlan);
+
+        // Rename the inline value column to avoid shadowing the driving value in
+        // mergeOutputExpressions (which drops left-side attributes with same name as right-side).
+        Attribute inlineValue = Expressions.attribute(inlineSide.expression());
+        if (inlineValue != null && containsOutputName(drivingPlan, inlineValue.name())) {
+            String uniqueName = uniqueOutputName(drivingPlan, "inline_" + inlineValue.name());
+            inlinePlan = renameOutputAttribute(inlinePlan, inlineValue, uniqueName);
+        }
+
+        // Build JoinConfig: match keys by name between left and right outputs
+        List<Attribute> leftJoinFields = new ArrayList<>();
+        List<Attribute> rightJoinFields = new ArrayList<>();
+        List<Attribute> rhsOutput = Join.makeReference(inlinePlan.output());
+        for (Attribute lhs : drivingPlan.output()) {
+            if (matchingKeyNames.contains(lhs.name())) {
+                for (Attribute rhs : rhsOutput) {
+                    if (lhs.name().equals(rhs.name())) {
+                        leftJoinFields.add(lhs);
+                        rightJoinFields.add(rhs);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (leftJoinFields.size() != matchingKeyNames.size()) {
+            throw new QlIllegalArgumentException(
+                "could not resolve matching keys [{}] in both sides of group modifier join",
+                matchingKeyNames
+            );
+        }
+
+        InlineJoin inlineJoin = new InlineJoin(source, drivingPlan, inlinePlan, JoinTypes.LEFT, leftJoinFields, rightJoinFields);
+
+        // Find inline value attribute in InlineJoin output
+        Attribute inlineValueAttr = findOutputAttribute(inlineJoin, inlineSide.expression());
+
+        // NOT NULL filter enforces INNER JOIN semantics (Prometheus drops unmatched rows)
+        return new Filter(source, inlineJoin, new IsNotNull(source, inlineValueAttr));
+    }
+
+    /**
+     * Creates a copy of the plan where the EsRelation's field attributes have fresh NameIds.
+     * Updates all attribute references throughout the plan tree to use the new NameIds.
+     * This prevents NameId collisions when both sides of an InlineJoin share the same source.
+     */
+    private static LogicalPlan copyEsRelation(LogicalPlan plan) {
+        Map<NameId, Attribute> mapping = new LinkedHashMap<>();
+        plan.forEachDown(EsRelation.class, esRelation -> {
+            for (Attribute attr : esRelation.output()) {
+                mapping.putIfAbsent(attr.id(), attr.withId(new NameId()));
+            }
+        });
+        if (mapping.isEmpty()) {
+            return plan;
+        }
+        return plan.transformUp(LogicalPlan.class, p -> {
+            if (p instanceof EsRelation esRelation) {
+                List<Attribute> newAttrs = new ArrayList<>(esRelation.output().size());
+                for (Attribute attr : esRelation.output()) {
+                    Attribute newAttr = mapping.get(attr.id());
+                    newAttrs.add(newAttr != null ? newAttr : attr);
+                }
+                return esRelation.withAttributes(newAttrs);
+            }
+            return p.transformExpressionsOnly(Attribute.class, attr -> {
+                Attribute replacement = mapping.get(attr.id());
+                return replacement != null ? replacement : attr;
+            });
+        });
+    }
+
+    private static Aggregate withFilteredAggregates(Aggregate aggregate, Expression selectorFilter) {
+        var filteredAggs = withFilter(aggregate.aggregates(), selectorFilter);
+        return aggregate.with(aggregate.child(), aggregate.groupings(), filteredAggs.stream().map(e -> (NamedExpression) e).toList());
+    }
+
+    private static LogicalPlan replaceAggregate(LogicalPlan plan, Aggregate target, Aggregate replacement) {
+        return plan.transformDown(Aggregate.class, agg -> agg == target ? replacement : agg);
+    }
+
+    private static boolean containsOutputName(LogicalPlan plan, String name) {
+        for (Attribute attr : plan.output()) {
+            if (attr.name().equals(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String uniqueOutputName(LogicalPlan plan, String baseName) {
+        String candidate = baseName;
+        int suffix = 1;
+        while (containsOutputName(plan, candidate)) {
+            candidate = baseName + "_" + suffix++;
+        }
+        return candidate;
+    }
+
+    private static LogicalPlan renameOutputAttribute(LogicalPlan plan, Attribute targetAttr, String newName) {
+        List<NamedExpression> projections = new ArrayList<>(plan.output().size());
+        boolean found = false;
+        for (Attribute output : plan.output()) {
+            if (output.id().equals(targetAttr.id())) {
+                projections.add(new Alias(output.source(), newName, output, output.id()));
+                found = true;
+            } else {
+                projections.add(output);
+            }
+        }
+        if (found == false) {
+            throw new QlIllegalArgumentException("could not rename output attribute [{}] in plan [{}]", targetAttr, plan.nodeName());
+        }
+        return new Project(plan.source(), plan, projections);
+    }
+
+    /**
+     * Finds an attribute in the plan's output matching the given expression by NameId, falling back to name.
+     */
+    private static Attribute findOutputAttribute(LogicalPlan plan, Expression expr) {
+        if (expr instanceof NamedExpression ne) {
+            for (Attribute attr : plan.output()) {
+                if (attr.id().equals(ne.id())) {
+                    return attr;
+                }
+            }
+            for (Attribute attr : plan.output()) {
+                if (attr.name().equals(ne.name())) {
+                    return attr;
+                }
+            }
+        }
+        throw new QlIllegalArgumentException("could not resolve inline value in join output: {}", expr);
+    }
+
+    /**
+     * Computes the set of matching key names from on/ignoring clause and both sides' groupings.
+     */
+    private static Set<String> computeMatchingKeyNames(VectorMatch match, Aggregate leftAgg, Aggregate rightAgg) {
+        Set<String> leftNames = groupingNames(leftAgg);
+        Set<String> rightNames = groupingNames(rightAgg);
+
+        Set<String> keys;
+        if (match.filter() == VectorMatch.Filter.ON) {
+            keys = new LinkedHashSet<>(match.filterLabels());
+            keys.add(STEP_COLUMN_NAME);
+            for (String label : match.filterLabels()) {
+                if (leftNames.contains(label) == false || rightNames.contains(label) == false) {
+                    throw new QlIllegalArgumentException("label [{}] in on() clause must be present in both sides' groupings", label);
+                }
+            }
+        } else if (match.filter() == VectorMatch.Filter.IGNORING) {
+            keys = new LinkedHashSet<>(leftNames);
+            keys.retainAll(rightNames);
+            keys.removeAll(match.filterLabels());
+        } else {
+            keys = new LinkedHashSet<>(leftNames);
+            keys.retainAll(rightNames);
+        }
+
+        return keys;
+    }
+
+    private static Set<String> groupingNames(Aggregate agg) {
+        Set<String> names = new LinkedHashSet<>();
+        for (Expression g : agg.groupings()) {
+            Attribute attr = Expressions.attribute(g);
+            if (attr != null) {
+                names.add(attr.name());
+            }
+        }
+        return names;
+    }
+
+    /**
      * Translates a selector (instant, range, or literal).
      * Adds label filter conditions to the context.
      */
@@ -530,14 +776,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * Checks if the plan already contains an aggregation stage.
      */
     private static boolean containsAggregation(LogicalPlan plan) {
-        if (plan instanceof Aggregate) {
-            return true;
-        }
-        if (plan instanceof Eval eval) {
-            // Eval may be on top of an aggregate
-            return containsAggregation(eval.child());
-        }
-        return false;
+        return plan.anyMatch(p -> p instanceof Aggregate);
     }
 
     /**

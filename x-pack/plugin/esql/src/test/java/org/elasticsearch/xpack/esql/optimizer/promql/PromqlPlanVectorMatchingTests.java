@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -132,37 +131,43 @@ public class PromqlPlanVectorMatchingTests extends AbstractPromqlPlanOptimizerTe
 
     // --- group_left / group_right (blocked until Phase 2) ---
 
-    public void testBlocked_groupLeftBasic() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1m r=(sum by (cluster, pod)(network.bytes_in)"
-                    + " / ignoring(pod) group_left sum by (cluster)(network.bytes_in))"
-            )
-        );
-        assertThat(e.getMessage(), containsString("group modifiers are not supported at this time"));
+    public void testGroupLeftBasic() {
+        var query = "PROMQL index=k8s step=1m r=(sum by (cluster, pod)(network.bytes_in)"
+            + " / ignoring(pod) group_left sum by (cluster)(network.bytes_in))";
+        var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
+        logger.info("analyzed plan:\n{}", analyzed);
+        try {
+            var optimized = logicalOptimizer.optimize(analyzed);
+            logger.info("optimized plan:\n{}", optimized);
+            assertThat(outputColumns(optimized), equalTo(List.of("r", "step", "cluster", "pod")));
+        } catch (Exception e) {
+            logger.info("optimization failed", e);
+            throw e;
+        }
     }
 
-    public void testBlocked_groupRightBasic() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1m r=(sum by (cluster)(network.bytes_in)"
-                    + " / on(cluster) group_right sum by (cluster, pod)(network.bytes_in))"
-            )
-        );
-        assertThat(e.getMessage(), containsString("group modifiers are not supported at this time"));
+    public void testGroupRightBasic() {
+        var query = "PROMQL index=k8s step=1m r=(sum by (cluster)(network.bytes_in)"
+            + " / on(cluster) group_right sum by (cluster, pod)(network.bytes_in))";
+        var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
+        logger.info("analyzed plan:\n{}", analyzed);
+        try {
+            var optimized = logicalOptimizer.optimize(analyzed);
+            logger.info("optimized plan:\n{}", optimized);
+            assertThat(outputColumns(optimized), equalTo(List.of("r", "step", "cluster", "pod")));
+        } catch (Exception e) {
+            logger.info("optimization failed", e);
+            throw e;
+        }
     }
 
-    public void testBlocked_groupLeftWithExtraLabels() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1m r=(sum by (cluster, pod)(network.bytes_in)"
-                    + " / ignoring(pod) group_left(region) sum by (cluster)(network.bytes_in))"
-            )
-        );
-        assertThat(e.getMessage(), containsString("group modifiers are not supported at this time"));
+    // TODO: Phase 3 — extra labels from group_left(region) should project 'region' from the inline side
+    public void testGroupLeftWithExtraLabels() {
+        var query = "PROMQL index=k8s step=1m r=(sum by (cluster, pod)(network.bytes_in)"
+            + " / ignoring(pod) group_left(region) sum by (cluster)(network.bytes_in))";
+        var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
+        var optimized = logicalOptimizer.optimize(analyzed);
+        assertThat(outputColumns(optimized), equalTo(List.of("r", "step", "cluster", "pod")));
     }
 
     // --- parser validations ---

@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -17,9 +19,11 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.replaceStub;
 import static org.elasticsearch.xpack.esql.plan.logical.join.StubRelation.computeOutput;
@@ -40,10 +44,20 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
         LogicalPlan left = plan.left();
         LogicalPlan right = plan.right();
 
+        if (right.anyMatch(p -> p instanceof StubRelation) == false) {
+            return plan;
+        }
+
+        Set<NameId> leftOutputIds = new HashSet<>();
+        for (Attribute attr : left.output()) {
+            leftOutputIds.add(attr.id());
+        }
+
         // grouping references
         List<Alias> groupingAlias = new ArrayList<>();
         // TODO: replace this with AttributeSet
         Map<String, ReferenceAttribute> groupingRefs = new LinkedHashMap<>();
+        Set<String> resolvedNames = new HashSet<>();
 
         // perform only one iteration that does two things
         // first checks any aggregate that declares expressions inside the grouping
@@ -52,7 +66,7 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
             if (p instanceof Aggregate aggregate) {
                 // collect references
                 for (Expression g : aggregate.groupings()) {
-                    if (g instanceof ReferenceAttribute ref) {
+                    if (g instanceof ReferenceAttribute ref && resolvedNames.contains(ref.name()) == false) {
                         groupingRefs.put(ref.name(), ref);
                     }
                 }
@@ -68,8 +82,10 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
                 List<Alias> remainingEvals = new ArrayList<>(fields.size());
                 for (Alias f : fields) {
                     // TODO: look into identifying refs by their NameIds instead
-                    if (groupingRefs.remove(f.name()) != null) {
+                    if (groupingRefs.containsKey(f.name()) && canCopyToLeftSide(f, leftOutputIds)) {
+                        groupingRefs.remove(f.name());
                         groupingAlias.add(f);
+                        resolvedNames.add(f.name());
                     } else {
                         remainingEvals.add(f);
                     }
@@ -98,5 +114,15 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
 
         // replace the old stub with the new out to capture the new output
         return plan.replaceChildren(left, replaceStub(new StubRelation(right.source(), computeOutput(right, left)), right));
+    }
+
+    private static boolean canCopyToLeftSide(Alias alias, Set<NameId> leftOutputIds) {
+        List<Attribute> refs = alias.child().collect(Attribute.class);
+        for (Attribute ref : refs) {
+            if (leftOutputIds.contains(ref.id()) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 }

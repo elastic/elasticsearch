@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
@@ -384,16 +383,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                             );
                         }
                     });
-                    if (binaryOperator.match().grouping() != VectorMatch.Joining.NONE) {
-                        failures.add(
-                            fail(
-                                lp,
-                                "{} queries with group modifiers are not supported at this time [{}]",
-                                lp.getClass().getSimpleName(),
-                                lp.sourceText()
-                            )
-                        );
-                    }
+                    // group_left/group_right are now supported via InlineJoin
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
                         if (root.get() == false) {
                             failures.add(

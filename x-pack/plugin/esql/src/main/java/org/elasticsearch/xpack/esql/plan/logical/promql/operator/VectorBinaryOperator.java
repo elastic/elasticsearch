@@ -113,6 +113,13 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             return List.of();
         }
 
+        // group_left preserves all left-side labels; group_right preserves all right-side labels
+        if (match != null && match.grouping() == VectorMatch.Joining.LEFT) {
+            outputLabels.addAll(leftLabels);
+        } else if (match != null && match.grouping() == VectorMatch.Joining.RIGHT) {
+            outputLabels.addAll(rightLabels);
+        }
+
         if (dropMetricName) {
             outputLabels.remove(LabelMatcher.NAME);
         }

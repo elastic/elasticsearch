@@ -22,6 +22,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Loads values from a many leaves. Much less efficient than {@link ValuesFromSingleReader}.
@@ -31,7 +33,6 @@ class ValuesFromManyReader extends ValuesReader {
 
     private final int[] forwards;
     private final int[] backwards;
-    private final BlockLoader.RowStrideReader[] rowStride;
 
     private BlockLoaderStoredFieldsFromLeafLoader storedFields;
 
@@ -39,7 +40,6 @@ class ValuesFromManyReader extends ValuesReader {
         super(operator, docs);
         forwards = docs.shardSegmentDocMapForwards();
         backwards = docs.shardSegmentDocMapBackwards();
-        rowStride = new BlockLoader.RowStrideReader[operator.fields.length];
         log.debug("initializing {} positions", docs.getPositionCount());
     }
 
@@ -71,12 +71,17 @@ class ValuesFromManyReader extends ValuesReader {
          * </p>
          */
         private final CurrentWork[] current;
+
+        private final List<CurrentWork> columnAtATime;
+        private final List<CurrentWork> rowStride;
         private int currentShard = -1;
 
         Run(Block[] target) {
             this.target = target;
             finalBuilders = new Block.Builder[target.length];
             current = new CurrentWork[target.length];
+            columnAtATime = new ArrayList<>(target.length);
+            rowStride = new ArrayList<>(target.length);
         }
 
         void run(int offset) throws IOException {
@@ -98,8 +103,9 @@ class ValuesFromManyReader extends ValuesReader {
             operator.positionFieldWork(shard, segment, firstDoc);
             LeafReaderContext ctx = operator.ctx(shard, segment);
             fieldsMoved(ctx, shard);
-            read(firstDoc);
+            readRowStride(firstDoc);
 
+            int segmentStart = offset;
             int i = offset + 1;
             long estimated = estimatedRamBytesUsed();
             long dangerZoneBytes = Long.MAX_VALUE; // TODO danger_zone if ascending
@@ -109,14 +115,17 @@ class ValuesFromManyReader extends ValuesReader {
                 segment = docs.segments().getInt(p);
                 boolean changedSegment = operator.positionFieldWorkDocGuaranteedAscending(shard, segment);
                 if (changedSegment) {
+                    readColumnAtATime(segmentStart, i);
+                    segmentStart = i;
                     ctx = operator.ctx(shard, segment);
                     fieldsMoved(ctx, shard);
                 }
-                read(docs.docs().getInt(p));
+                readRowStride(docs.docs().getInt(p));
                 i++;
                 estimated = estimatedRamBytesUsed();
                 log.trace("{}: bytes loaded {}/{}", p, estimated, dangerZoneBytes);
             }
+            readColumnAtATime(segmentStart, i);
             buildBlocks();
             if (log.isDebugEnabled()) {
                 long actual = 0;
@@ -131,19 +140,36 @@ class ValuesFromManyReader extends ValuesReader {
             convertAndAccumulate();
             for (int f = 0; f < target.length; f++) {
                 try (Block targetBlock = finalBuilders[f].build()) {
-                    target[f] = targetBlock.filter(backwards);
+                    assert targetBlock.getPositionCount() == backwards.length
+                        : targetBlock.getPositionCount() + " == " + backwards.length + " " + targetBlock;
+                    target[f] = targetBlock.filter(false, backwards);
                 }
-                operator.sanityCheckBlock(rowStride[f], backwards.length, target[f], f);
+                operator.sanityCheckBlock(current[f].rowStride, backwards.length, target[f], f);
             }
             if (target[0].getPositionCount() != docs.getPositionCount()) {
                 throw new IllegalStateException("partial pages not yet supported");
             }
         }
 
-        private void read(int doc) throws IOException {
+        private void readRowStride(int doc) throws IOException {
             storedFields.advanceTo(doc);
-            for (int f = 0; f < current.length; f++) {
-                rowStride[f].read(doc, storedFields, current[f].builder);
+            for (CurrentWork r : rowStride) {
+                assert r.columnAtATime == null;
+                r.rowStride.read(doc, storedFields, r.builder);
+            }
+        }
+
+        private void readColumnAtATime(int segmentStart, int segmentEnd) throws IOException {
+            ValuesReaderDocs readerDocs = new ValuesReaderDocs(docs).mapped(forwards, segmentStart, segmentEnd);
+            readerDocs.setCount(segmentEnd);
+            for (CurrentWork c : columnAtATime) {
+                assert c.rowStride == null;
+                try (Block read = (Block) c.columnAtATime.read(blockFactory, readerDocs, segmentStart, c.field.info.nullsFiltered())) {
+                    // TODO add a `read(builder, docs, offset, nullsFiltered)` override
+                    assert read.getPositionCount() == segmentEnd - segmentStart
+                        : read.getPositionCount() + " == " + segmentEnd + " - " + segmentStart + " " + read;
+                    c.builder.copyFrom(read, 0, read.getPositionCount());
+                }
             }
         }
 
@@ -162,11 +188,25 @@ class ValuesFromManyReader extends ValuesReader {
         }
 
         private void fieldsMoved(LeafReaderContext ctx, int shard) throws IOException {
+            if (currentShard != shard) {
+                if (currentShard >= 0) {
+                    convertAndAccumulate();
+                }
+                moveBuildersAndLoadersToShard();
+                currentShard = shard;
+            }
             StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
-            for (int f = 0; f < operator.fields.length; f++) {
-                ValuesSourceReaderOperator.FieldWork field = operator.fields[f];
-                rowStride[f] = field.rowStride(ctx);
-                storedFieldsSpec = storedFieldsSpec.merge(field.loader.rowStrideStoredFieldSpec());
+            columnAtATime.clear();
+            rowStride.clear();
+            for (CurrentWork field : current) {
+                field.columnAtATime = field.field.columnAtATime(ctx);
+                if (field.columnAtATime != null) {
+                    columnAtATime.add(field);
+                } else {
+                    field.rowStride = field.field.rowStride(ctx);
+                    storedFieldsSpec = storedFieldsSpec.merge(field.field.loader.rowStrideStoredFieldSpec());
+                    rowStride.add(field);
+                }
             }
             SourceLoader sourceLoader = null;
             if (storedFieldsSpec.requiresSource()) {
@@ -179,14 +219,6 @@ class ValuesFromManyReader extends ValuesReader {
             );
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                 operator.trackStoredFields(storedFieldsSpec, false);
-            }
-
-            if (currentShard != shard) {
-                if (currentShard >= 0) {
-                    convertAndAccumulate();
-                }
-                moveBuildersAndLoadersToShard();
-                currentShard = shard;
             }
         }
 
@@ -228,10 +260,20 @@ class ValuesFromManyReader extends ValuesReader {
      * the {@link #finalBuilder} immediately.
      */
     private static class CurrentWork implements Releasable {
-        private final Block.Builder builder;
+        private final ValuesSourceReaderOperator.FieldWork field;
+        /**
+         * Converter for the field at the current segment. It's a copy of
+         * {@code field.converter} at the time of construction. By the time we actually
+         * go to use the converter, the field has moved onto another shard, changing
+         * the value of {@code field.converter}.
+         */
         @Nullable
         private final ValuesSourceReaderOperator.ConverterEvaluator converter;
+        private final Block.Builder builder;
         private final Block.Builder finalBuilder;
+
+        private BlockLoader.ColumnAtATimeReader columnAtATime;
+        private BlockLoader.RowStrideReader rowStride;
 
         CurrentWork(
             ComputeBlockLoaderFactory blockFactory,
@@ -239,6 +281,7 @@ class ValuesFromManyReader extends ValuesReader {
             ValuesSourceReaderOperator.FieldWork field,
             Block.Builder finalBuilder
         ) {
+            this.field = field;
             this.converter = field.converter;
             this.builder = converter == null ? finalBuilder : (Block.Builder) field.loader.builder(blockFactory, docs.getPositionCount());
             this.finalBuilder = finalBuilder;

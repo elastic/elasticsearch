@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -154,18 +153,5 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
     @Override
     public String toString() {
         return "TEXT_EMBEDDING(" + inputText + ", " + inferenceId + ")";
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        TextEmbedding textEmbedding = (TextEmbedding) o;
-        return Objects.equals(inferenceId, textEmbedding.inferenceId) && Objects.equals(inputText, textEmbedding.inputText);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), inferenceId, inputText);
     }
 }

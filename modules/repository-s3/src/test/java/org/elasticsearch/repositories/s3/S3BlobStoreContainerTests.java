@@ -247,10 +247,12 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(1, 128));
         final long bufferSize = ByteSizeUnit.MB.toBytes(randomIntBetween(5, 1024));
+        final long maxCopySizeBeforeMultipart = ByteSizeUnit.MB.toBytes(randomIntBetween(5, 1024));
 
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
+        when(blobStore.maxCopySizeBeforeMultipart()).thenReturn(maxCopySizeBeforeMultipart);
         when(blobStore.supportsConditionalWrites()).thenReturn(true);
 
         final S3BlobStore sourceBlobStore = mock(S3BlobStore.class);
@@ -284,7 +286,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final ArgumentCaptor<RequestBody> uploadPartBodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
 
         final List<String> expectedEtags = new ArrayList<>();
-        final long partSize = Math.min(doCopy ? ByteSizeUnit.GB.toBytes(5) : bufferSize, blobSize);
+        final long partSize = Math.min(doCopy ? maxCopySizeBeforeMultipart : bufferSize, blobSize);
         long totalBytes = 0;
         do {
             expectedEtags.add(randomAlphaOfLength(50));

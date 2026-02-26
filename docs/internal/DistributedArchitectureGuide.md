@@ -263,53 +263,895 @@ to communicate with Elasticsearch.
 
 # Cluster Coordination
 
-(Sketch of important classes? Might inform more sections to add for details.)
-
-(A node can coordinate a search across several other nodes, when the node itself does not have the data, and then return a result to the caller. Explain this coordinating role)
-
 ### Node Roles
 
-### Master Nodes
+[DiscoveryNodeRole]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodeRole.java
 
-### Master Elections
+[DiscoveryNode]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNode.java
 
-(Quorum, terms, any eligibility limitations)
+Every Elasticsearch node in a cluster is assigned a set
+of [roles](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles) that
+define the kind of responsibilities it can own. Roles are represented internally by the [DiscoveryNodeRole] class.
+Possible values are `master`, `data`, `data_content`, `data_hot`, `data_warm`, `data_cold`, `data_frozen`, `ingest`,
+`voting_only`, `remote_cluster_client`, `ml`, `transform`, `index` and `search`.
 
-### Cluster Formation / Membership
+Roles are configured via the `node.roles` config field in `elasticsearch.yml`. If `node.roles` is not explicitly set,
+the node starts with
+all [default-enabled](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodeRole.java#L72)
+roles. If `node.roles` is explicitly set, only the listed roles are enabled.
 
-(Explain joining, and how it happens every time a new master is elected)
+A node with the `master` role is master-eligible: it can participate in master elections and can be elected as the
+cluster's master node.
 
-#### Discovery
+A node with the `data` role (relevant for stateful ES only) can host shards and perform data related operations such as
+CRUD, search, and aggregations.
 
-### Master Transport Actions
+[Data-tier](https://www.elastic.co/docs/manage-data/lifecycle/data-tiers) roles (relevant for stateful ES only) allow
+users to move indices to specific hardware specs as data grows older. This is managed
+by [index lifecycle management policies](https://www.elastic.co/docs/manage-data/lifecycle/index-lifecycle-management).
+The available data tier roles are:
+
+- `data_content` for long-lived indices that can be queried and updated frequently, no matter how old they are.
+- `data_hot`, which holds the most recent, and frequently queried, time-series data.
+- `data_warm`, which typically holds less recent time-series data, that will not be read as often as the hot
+  tier and rarely needs to be updated.
+- `data_cold`, for infrequently accessed time-series data, sometimes in the form of searchable snapshots.
+- `data_frozen`, which holds rarely accessed data stored entirely as searchable snapshots.
+
+A node with the `ingest` role can
+execute [ingest pipelines](https://www.elastic.co/docs/manage-data/ingest/transform-enrich/ingest-pipelines).
+
+A node with the `ml` role can run machine learning jobs and trained model inference. Typically, those are memory and
+CPU-intensive workloads so having dedicated nodes with this role avoids contention with indexing and searching.
+
+A node with the `remote_cluster_client` role can establish outbound connections to remote clusters
+for [cross-cluster search](https://www.elastic.co/docs/explore-analyze/cross-cluster-search) (CCS)
+and [cross-cluster replication](https://www.elastic.co/docs/deploy-manage/tools/cross-cluster-replication) (CCR).
+
+A node with the `transform` role can execute [transform](https://www.elastic.co/docs/explore-analyze/transforms) jobs.
+
+A node with the `voting_only` role participates in master elections and cluster state publication quorum, but can never
+be elected as master itself. The `voting_only`
+role [must always be combined](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodeRole.java#L229)
+with the `master` role. Voting-only nodes are useful for providing an additional vote for quorum without requiring the
+node to handle the full master
+workload ([tiebreaker](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles#voting-only-node)
+nodes).
+
+A node configured with an empty role list (`node.roles: []`) has no specific role and acts as
+a [coordinating-only](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNode.java#L61)
+node. Such nodes can receive client requests, route them to the appropriate data or master nodes, and aggregate results.
+They do not hold data, run ingest pipelines, or participate in master elections.
+
+#### Stateless Roles
+
+In [stateless](https://www.elastic.co/blog/elastic-serverless-architecture) deployments, data is persisted in a shared
+object storage and nodes' disk is only used as a cache layer. The `data` (and data tier) roles are disabled in favor of
+two new roles:
+
+- `index`: indexing nodes, which host primary shards and handle all write operations.
+- `search`: search nodes, which host search-only replica shards and handle read operations.
+
+#### Master Node Role
+
+Master-eligible (`master` role) nodes form the cluster's [voting configuration](#quorum) and participate
+in [master elections](#master-elections).
+
+The elected master node is responsible for cluster-wide coordination: it processes all [cluster state](#cluster-state)
+updates and publishes them to the rest of the cluster. The cluster maintains (conceptually, see [term](#term)
+section) at most a single master at all times; if the master fails, a new one is elected from the remaining
+master-eligible nodes (excluding `voting_only` nodes, which can vote but cannot be elected).
+
+The next few sections explore the cluster state and the master election process in more detail.
 
 ### Cluster State
 
-[ClusterState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
-[Metadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
-[ProjectMetadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/ProjectMetadata.java
+[ClusterState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+
+[Metadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
+
+[PersistedClusterStateService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java
+
+[IndexMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java
+
+The [ClusterState] is the portion of the cluster state which is held in-memory by every node. To ensure
+correctness, updates to the `ClusterState` require strong
+consistency ([linearizability](https://en.wikipedia.org/wiki/Linearizability)). Without strong consistency, nodes could
+observe conflicting cluster states (eg two nodes could believe they both hold the primary for the same shard, or apply
+different mappings to the same index) leading to data loss or corruption.
+
+The `ClusterState` is (conceptually) immutable: every update produces a new instance of the `ClusterState` class. The
+elected master is responsible for coordinating all cluster state updates and publishing the latest to the other nodes in
+the cluster. Note that `ClusterState` updates are expensive, often taking hundreds of milliseconds or more, so they
+should only be executed when absolutely necessary.
+
+The [Metadata] part of the `ClusterState` is persisted to disk via the [PersistedClusterStateService] and will survive
+restarts. The rest of the `ClusterState` components are in-memory only, and need to be rebuilt every time there is a
+full cluster restart.
+
+#### Persisted State
+
+[ClusterState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+
+[Metadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
+
+[ProjectMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/ProjectMetadata.java
 
 The [Metadata] of a [ClusterState] is persisted on disk and comprises information from two categories:
-1. Cluster scope information such as `clusterUUID`, `CoordinationMetadata`
-2. Project scope information ([ProjectMetadata]) such as indices and templates belong to each project.
 
-Some concepts are applicable to both cluster and project scopes, e.g. [persistent tasks](#persistent-tasks). The state of a persistent task is therefore stored accordingly depending on the task's scope.
+1. Cluster-scoped information
+
+A few standouts are:
+
+- `clusterUUID`: the cluster unique id.
+- `coordinationMetadata`: the current term, voting configurations ... etc. (see [Master Elections](#master-elections)
+  section).
+- `persistentSettings`: cluster-level settings applied
+  via [the cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings).
+- `customs`: cluster-level custom metadata: `NodesShutdownMetadata`, `RepositoriesMetadata` .. etc.
+
+2. Project-scoped information (located in the [ProjectMetadata])
+
+Notable components of the `ProjectMetadata` include:
+
+- `id`: the project unique id.
+- `indices`: map of index name to [IndexMetadata] (settings, mappings, aliases, number of shards/replicas, etc.).
+  Contains all indices in this project.
+- `aliasedIndices` and `templates`. See [aliases](https://www.elastic.co/docs/manage-data/data-store/aliases)
+  and [templates](https://www.elastic.co/docs/manage-data/data-store/templates) for more details.
+- `customs`: project-level custom metadata. Includes data stream definitions (via `DataStreamMetadata` project custom),
+  index lifecycle metadata (`IndexLifecycleMetadata`) and others.
+
+Note that some concepts are applicable to both cluster and project scopes, e.g. [persistent tasks](#persistent-tasks).
+
+#### Ephemeral State
+
+[DiscoveryNodes]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java
+
+[GlobalRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/GlobalRoutingTable.java
+
+[RoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/RoutingTable.java
+
+[IndexRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexRoutingTable.java
+
+[IndexShardRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexShardRoutingTable.java
+
+[ShardRouting]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/ShardRouting.java
+
+[ClusterBlocks]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/block/ClusterBlocks.java
+
+[SnapshotsInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/SnapshotsInProgress.java
+
+[RestoreInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/RestoreInProgress.java
+
+[SnapshotDeletionsInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/SnapshotDeletionsInProgress.java
+
+[HealthMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadata.java
+
+[CompatibilityVersions]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/version/CompatibilityVersions.java
+
+[TransportVersion]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/TransportVersion.java
+
+[ClusterFeatures]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterFeatures.java
+
+The rest of the [ClusterState] is ephemeral, it is not persisted to disk and is rebuilt from scratch if the cluster
+restarts. Some key components are:
+
+- `nodes` ([DiscoveryNodes])
+
+The set of all nodes currently in the cluster. Tracks the `masterNodeId`, the `localNodeId` and categorizes nodes by
+role (master-eligible, data and ingest). Also records the minimum and maximum node versions and supported index versions
+across the cluster.
+
+- `routingTable` ([GlobalRoutingTable])
+
+Maps each project to its [RoutingTable], which itself maps each index to an [IndexRoutingTable] containing
+an [IndexShardRoutingTable] per shard. Each `IndexShardRoutingTable` lists the [ShardRouting] entries for a shard,
+detailing which node owns its, its state (`UNASSIGNED`,`INITIALIZING`, `STARTED` or `RELOCATING`), and whether
+it is a primary or replica.
+
+- `blocks` ([ClusterBlocks])
+
+Cluster-level, project-level and index-level blocks that restrict certain operations for the relevant scope. For
+example, an index can be blocked for writes during a close operation, or the entire cluster can be set to read-only.
+Blocks operate at
+five [levels](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/block/ClusterBlockLevel.java):
+`READ`, `WRITE`, `METADATA_READ`, `METADATA_WRITE`, and `REFRESH`.
+
+- `customs`
+
+Additional custom ephemeral state. Examples
+include [SnapshotsInProgress], [RestoreInProgress], [SnapshotDeletionsInProgress], and [HealthMetadata].
+
+- `compatibilityVersions` and `minVersions` ([CompatibilityVersions])
+
+Per-node and cluster-wide min [TransportVersion] and system index mappings versions used to figure out serialization
+compatibility across the cluster.
+
+- `clusterFeatures` ([ClusterFeatures])
+
+Info on what features are present throughout the cluster.
+
+- Cluster state version fields
+
+The `version` field is
+a [monotonically increasing](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java#L162)
+`long` that uniquely identifies committed states. It is technically persisted to disk by [PersistedClusterStateService],
+which stores it as `last_accepted_version` in the Lucene commit user data alongside the cluster metadata. On node
+startup, this version is loaded back and used to initialize the in-memory cluster state, so the monotonically-increasing
+property is preserved across restarts.
+The `stateUUID` field uniquely identifies every state, including uncommitted ones. It is not persisted.
 
 #### Master Service
 
+[MasterService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java
+
+[Priority]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/Priority.java
+
+[SnapshotsService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/SnapshotsService.java
+
+[ClusterStateTaskExecutor]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateTaskExecutor.java
+
+The [MasterService] is the single-threaded coordinator for all cluster state updates on the master node. It organizes
+pending cluster state update tasks into [Priority]-based queues: `IMMEDIATE`, `URGENT`, `HIGH`, `NORMAL`, `LOW`, and
+`LANGUID`. It processes them in that order, highest priority first.
+
+The `MasterService` uses a batching framework that groups multiple cluster state update tasks together, processing them
+as a single batch and publishing only one resulting `ClusterState` update. This avoids triggering a distinct publication
+for each individual task, which would be very costly.
+
+Producers of cluster state update tasks, such as [SnapshotsService], can
+then [define](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1516)
+their own task queues, priority and batch executors ([ClusterStateTaskExecutor]), which the `MasterService` uses to
+group and process related tasks together.
+
+A [queue processor](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1313),
+backed by a single-threaded `java.util.concurrent.ExecutorService`, processes batches one at a time.
+The [executeAndPublishBatch](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L336)
+method takes the next batch, invokes the batch's `ClusterStateTaskExecutor` to compute a new [ClusterState], and
+publishes the result.
+
+If the new state is identical to the previous one (by reference), no publication takes place. Otherwise, the master
+assigns a new `version` and `stateUUID` to the state and proceeds to publication.
+
 #### Cluster State Publication
 
-(Majority concensus to apply, what happens if a master-eligible node falls behind / is incommunicado.)
+```mermaid
+sequenceDiagram
+    participant M as Master Node
+    participant F as Follower Node
+
+    rect rgb(255, 248, 240)
+    Note over M,F: Phase 1 — Publish
+    M->>F: PublishRequest (diff or full state)
+    M->>M: Local PublishRequest/Response
+    Note right of F: PublicationTransportHandler<br/>::handleIncomingPublishRequest<br/>Deserializes state
+    Note right of F: CoordinationState<br/>::handlePublishRequest<br/>Validates term/version,<br/>persists as lastAcceptedState
+    F->>M: PublishResponse (term, version)
+    Note left of M: CoordinationState<br/>::handlePublishResponse<br/>Collects responses until quorum
+    end
+
+    rect rgb(255, 220, 220)
+    alt Quorum not reached
+        Note over M: FailedToCommitClusterStateException<br/>Master steps down, new election begins
+    end
+    end
+
+    rect rgb(255, 248, 240)
+    Note over M,F: Phase 2 — Commit
+    M->>F: ApplyCommitRequest
+    M->>M: Local ApplyCommitRequest/Response
+    Note right of F: Coordinator::handleApplyCommit<br/>Marks last accepted state as committed
+    Note right of F: ClusterApplierService<br/>::onNewClusterState<br/>Applies new ClusterState
+    F->>M: ACK (after application completes)
+    Note left of M: ClusterApplierService<br/>::onNewClusterState<br/>Master applies its own state
+    end
+```
+
+[Coordinator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java
+
+[Publication]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java
+
+[PublicationTransportHandler]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java
+
+[CoordinationState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java
+
+[ClusterStatePublisher]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterStatePublisher.java
+
+[ApplyCommitRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ApplyCommitRequest.java
+
+[ClusterStateDiff]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+
+[PublishRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublishRequest.java#L19
+
+[CoordinatorPublication]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1944
+
+[PublishResponse]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublishResponse.java#L21
+
+Once the [MasterService] has computed a new [ClusterState], it passes it to the [Coordinator], which is responsible for
+then sharing with it with all nodes in the cluster.
+This [publication](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1620)
+process follows a two-step commit protocol.
+The progress of the publication for each follower node is tracked via
+a [PublicationTarget](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L235)
+object which maintains a
+[PublicationTargetState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L226)
+state.
+
+The `Coordinator` creates
+a [PublicationContext](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L261)
+via the [PublicationTransportHandler], which pre-serializes the cluster state into shared, reference-counted byte
+buffers. A [ClusterStateDiff] against the previous state is prepared. A full serialization is also prepared when
+the previous state's `blocks` had its disable state persistence flag set, or when a node present in the new state was
+absent from the previous one (since that node will not have a previous state to apply a diff against).
+It then builds a [PublishRequest] and creates a [CoordinatorPublication]
+to [coordinate](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1711)
+the protocol.
+
+1. **Publish**
+
+The master
+then [sends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L374)
+the serialized cluster state to every node in the cluster. As an optimization, the diff is sent to nodes that were
+already part of the cluster, while new nodes receive the full state directly. If a node
+responds
+with [IncompatibleClusterStateVersionException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/IncompatibleClusterStateVersionException.java#L20)
+the `PublicationTransportHandler`
+then [retries](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L484)
+with the full state.
+
+The recipient
+nodes [verify](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L125)
+the received state is valid, compare it against their local state
+via [CoordinationState.handlePublishRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L377)
+and send back a [PublishResponse] containing the new cluster state term and version. At that point, the recipient nodes
+have [persisted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L405)
+the new state but have not yet applied it.
+
+2. **Commit**
+
+Once the master has collected enough `PublishResponse`s from master-eligible nodes to satisfy quorum (
+see [Quorum](#quorum) section), it creates an [ApplyCommitRequest]. The master then sends this commit message to all
+nodes that responded to the `PublishRequest`.
+
+When receiving this request, each
+node [marks this last accepted state as committed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517)
+and proceeds to apply the new state (see [Cluster State Application](#cluster-state-application) section). The node
+only ACKs the `ApplyCommitRequest` back to the master after application completes (i.e. after
+`ClusterApplierService.onNewClusterState` finishes).
+
+If the master cannot achieve a [PublishResponse] quorum (e.g. too many nodes are faulty), the [Publication] will fail
+the entire publication with
+a [FailedToCommitClusterStateException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FailedToCommitClusterStateException.java).
+The master will then step down (it can no longer be master if it is not able to publish cluster states) and a new
+election begins.
+
+Once the `ApplyCommitRequest`s have been sent, the master will
+try [waiting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L103)
+for all nodes to apply the new state
+before [applying its own state](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L2056)
+and moving on. No quorum of responses is needed at that point. If follower nodes time out, the master will still
+move on to applying the new cluster state locally.
 
 #### Cluster State Application
 
-(Go over the two kinds of listeners -- ClusterStateApplier and ClusterStateListener?)
+[ClusterApplierService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java
+
+[ClusterStateApplier]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateApplier.java
+
+[ClusterStateListener]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateListener.java
+
+[ClusterChangedEvent]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterChangedEvent.java
+
+When a new [ClusterState] is committed, the follower nodes need to apply the committed state locally.
+This is the responsibility of the [ClusterApplierService] class, which runs on
+a [single dedicated thread](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L159).
+
+When [receiving](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L412)
+an [ApplyCommitRequest] from the master, the [Coordinator] will hand over the committed state to
+the `ClusterApplierService`, which
+will [submit](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L374)
+an [UpdateTask](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L399)
+to the executor. If the new state differs from the currently applied state (by reference), the
+service [applies](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L538)
+the changes through the following sequence of steps:
+
+1. A [ClusterChangedEvent] is created, holding the new state, the previous state, and their deltas.
+
+2. The
+   node [opens](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L551)
+   network connections to newly added nodes (blocking call).
+
+3. If needed, the updated cluster settings
+   are [applied](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L559).
+
+4. [ClusterStateApplier]s (which update the node's internal state) are
+   invoked [in priority order](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L590).
+   Example high-priority appliers are [IndicesClusterStateService], which creates, deletes and updates local shard
+   copies, and [RepositoriesService], which manages snapshot repository lifecycle.
+
+5. Transport connections to nodes that are no longer in the cluster are closed (non-blocking call).
+
+6. `ClusterApplierService::state`
+   is [updated](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L569)
+   to the new state, making it visible to the rest of the classes on the node.
+
+7. [ClusterStateListener]s
+   are [notified](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L571).
+   Unlike appliers, listeners run _after_ the state is visible. Examples include the [PersistentTasksNodeService] which
+   reacts to changes in persistent tasks, and the [SnapshotShardsService] which watches for snapshot-related shard
+   assignments.
+
+Once application completes, the `Coordinator`'s
+callback [onClusterStateApplied](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L463)
+closes the election scheduler (if active) and stops peer finding, since the node is now part of a cluster with a
+functioning master.
 
 #### Persistence
 
-(Sketch ephemeral vs persisted cluster state.)
+[LucenePersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/GatewayMetaState.java#L533
 
-(what's the format for persisted metadata)
+[AsyncPersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/GatewayMetaState.java#L391
+
+[PersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L540
+
+As mentioned in previous sections, only the [Metadata] portion of the [ClusterState] is persisted to disk (
+see [Persisted State](#persisted-state)). The rest of the `ClusterState` (routing table, node membership, in-progress
+snapshots ... etc.) is ephemeral and rebuilt from scratch after each full cluster restart.
+
+The [PersistedClusterStateService] is responsible for storing the cluster metadata in a simple Lucene index in each of
+the node's data paths, under the
+`_state` [directory](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L172).
+The metadata is split across several documents and is written incrementally where possible.
+
+The `PersistedClusterStateService` uses 3 types of documents, each identified by a `type` string field: `global`,
+`index` and `mapping`. Each document type stores its content in the `data` field as compressed SMILE-encoded XContent.
+All documents are paged (default 1MB per page).
+
+The `global` document serializes almost all the Metadata object: coordination metadata, persistent settings, customs,
+all project-scoped data, except individual index metadata and mappings. The `index` documents (one document per index,
+keyed by `index_uuid`) store all the [IndexMetadata]: settings, aliases, number of shards, etc., except for
+the index mapping. The `mapping` documents (one document per mapping, keyed by `mapping_hash`) store index mappings.
+Storing mappings separately is a deduplication optimization: multiple indices that share the same mapping (common
+occurrence, eg in data streams) all reference the same mapping hash, so only one copy is stored.
+
+During [incremental writes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1011),
+the `PersistedClusterStateService` will first add new mappings and delete obsolete ones. It will then compare the index
+metadata for each index UUID between the old and new state. If the version changed, the old document is deleted and a
+fresh one is written. Unchanged indices are skipped entirely. The `global` document update is not incremental. If the
+new state's `global` fields differ from the old ones, the `global` document
+is [deleted and rewritten entirely](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1080).
+
+Each Lucene commit
+also [records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L884)
+the current term, the last accepted cluster state version, the node ID, the node version, the oldest index version (used
+for compatibility checks on node startup) and the cluster UUID in
+the [commit user data](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/index/IndexWriter.html#setLiveCommitData(java.lang.Iterable)).
+
+The coordination layer interacts with the recorded state on disk through the [PersistedState] interface, which
+the [CoordinationState] calls at three key points during the publication protocol:
+
+- [setCurrentTerm](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L195):
+  when the node joins a new term (via `handleStartJoin`).
+- [setLastAcceptedState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L405):
+  after the node receives a [PublishRequest] from the master. The new state is persisted before
+  the node sends its [PublishResponse].
+- [markLastAcceptedStateAsCommitted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517):
+  when the node processes an [ApplyCommitRequest] from the master.
+
+On master-eligible nodes, the `PersistedState` implementation is [LucenePersistedState], which writes synchronously on
+the cluster coordination thread. On non-master-eligible nodes, the [AsyncPersistedState] wrapper is used instead. It
+applies updates to an in-memory state immediately and queues the disk write to a background thread. This avoids blocking
+the coordination thread on disk I/O for nodes that do not participate in master elections.
+
+On startup, the
+node [reads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L432)
+the Lucene index, selects the persisted state with the highest accepted term, and reconstructs the
+`Metadata` from the stored documents and commit user data. This metadata is then used to build the initial
+`ClusterState` that the node starts with.
+
+### Master Elections
+
+[Coordinator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java
+
+[CoordinationState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java
+
+[Join]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Join.java
+
+[JoinRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinRequest.java
+
+[CoordinationMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationMetadata.java
+
+[VotingConfiguration]: https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationMetadata.java#L326
+
+[Reconfigurator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Reconfigurator.java
+
+The master's core responsibility is updating the [ClusterState] and propagating the changes to other nodes.
+
+The cluster maintains (conceptually at least, see [term](#terms) section) at most a single master at all times. If no
+master is
+present, [master-eligible](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles#master-node-role)
+nodes will attempt to become the master by starting an election. The cluster will not be able to commit
+any [ClusterState] changes until a new master is elected.
+
+To elect a master, Elasticsearch uses a consensus algorithm derived
+from [Paxos](https://lamport.azurewebsites.net/pubs/lamport-paxos.pdf) (see
+also [Paxos Made Simple](https://lamport.azurewebsites.net/pubs/paxos-simple.pdf)
+and [Raft](https://raft.github.io/) for more approachable resources). This algorithm is formally defined in a TLA+
+specification referenced from the [CoordinationState] class. The [CoordinationState] class is responsible for
+maintaining the [safety](https://en.wikipedia.org/wiki/Safety_and_liveness_properties#Safety) property of the algorithm,
+whereas the [Coordinator] ensures [liveness](https://en.wikipedia.org/wiki/Safety_and_liveness_properties#Liveness),
+by guaranteeing progress in cases of timeouts, failures and/or conflicts. The [Coordinator] also manages a node's
+transition between `CANDIDATE`,`LEADER`, and
+`FOLLOWER` [modes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1794),
+and constructs the main data structures used for cluster state publication.
+
+The [CoordinationMetadata] instance stored in [ClusterState]::[Metadata], tracks the coordination-related state needed
+for subsequent master elections.
+
+#### Quorum
+
+A quorum is defined as a strict majority (`votedNodesCount * 2 > nodeIds.size()`) of the nodes listed in
+a [VotingConfiguration]. [CoordinationMetadata] maintains two such configurations: `lastCommittedConfiguration` and
+`lastAcceptedConfiguration`. Most of the time, these two configurations are equal. They only diverge during
+[voting configuration changes](https://www.elastic.co/docs/deploy-manage/distributed-architecture/discovery-cluster-formation/modules-discovery-voting#_voting_configuration_updates).
+The [Reconfigurator] handles the logic for computing the voting configuration changes during the transition.
+
+To guarantee safety during voting configuration updates, an election will only succeed if quorum is achieved
+for [both](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ElectionStrategy.java#L61)
+configurations.
+
+#### Terms
+
+Every election takes place in a
+numbered [term](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationMetadata.java#L36).
+Terms are monotonically increasing `long`s that act as logical clocks for the coordination layer, allowing the cluster
+to distinguish between master mandates coming from distinct elections. They are persisted
+via [CoordinationState.PersistedState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L42).
+A term can have at most one master. A node will never vote in the same term twice.
+
+Note that nodes may not necessarily be aware of the same latest term at the same physical time. The practical
+consequence of this is that two nodes may temporarily both *believe* they are the master at the same physical time. But
+because there is only ever a single master per term, terms are always monotonically increasing and cluster
+state updates require a quorum of votes, at most one of them will be able to update the cluster state.
+
+#### Election Flow
+
+Below is an overview of the election process, including the main code components for each step. Subsequent sections
+provide more detailed explanations of the mechanics and rationale behind each step.
+
+1. Leader failure detected.
+
+A follower detects current master failure.
+
+``` 
+LeaderChecker
+Coordinator.onLeaderFailure()
+```
+
+2. Node becomes `CANDIDATE`.
+
+The node transitions to `CANDIDATE` mode and triggers the discovery process.
+
+```
+Coordinator.becomeCandidate()
+Mode.CANDIDATE
+PeerFinder.activate(...)
+```
+
+3. Peer discovery
+
+The candidate probes master-eligible nodes from the last accepted state and the configured hosts resolver. It asks if
+there is a current master and what other master-eligible nodes are in the cluster.
+
+```
+PeerFinder.handleWakeUp()
+ConfiguredHostsResolver 
+PeerFinder.startProbe(...) 
+PeersRequest
+PeersResponse
+```
+
+4. Candidate schedules election.
+
+If no current master is discovered and the node has enough master-eligible peers to form a quorum, the
+candidate schedules an election (with randomized backoff to minimize conflicts with other potential
+candidates).
+
+```
+CoordinatorPeerFinder.onFoundPeersUpdated()
+Coordinator.startElectionScheduler()
+ElectionScheduler.scheduleNextElection()
+```
+
+5. Pre-vote round.
+
+The election starts. The candidate double checks it is healthy and eligible to be master. The candidate
+sends pre-vote requests to master-eligible peers.
+
+```
+NodeEligibility
+PreVoteCollector.start(...)
+PreVoteRequest
+PreVoteResponse
+```
+
+6. Pre-vote quorum reached
+
+If enough `PreVoteResponse`s are received to satisfy quorum, the candidate proceeds to the real election.
+
+```
+ElectionStrategy.isElectionQuorum(...)
+Coordinator.startElection()
+```
+
+7. Candidate bumps term and broadcasts `StartJoinRequest`.
+
+The candidate computes the new term: `max(current, seen) + 1` and sends `StartJoinRequest` with the new term to all
+nodes discovered in previous step.
+
+```
+Coordinator.getTermForNewElection()
+Coordinator.broadcastStartJoinRequest(...)
+StartJoinRequest
+```
+
+8. Other nodes start the join process
+
+Master-eligible nodes ack the `StartJoinRequest`, persist the latest term, verifies they are healthy enough to cast a
+vote, and send a `JoinRequest` to the candidate.
+
+```
+CoordinationState.handleStartJoin(...)
+CoordinationState.setCurrentTerm(...)
+JoinHelper.sendJoinRequest(...)
+```
+
+9. Candidate becomes `LEADER`
+
+If enough `JoinRequest`s are received to satisfy quorum, the candidate becomes `LEADER`.
+
+```
+Coordinator.processJoinRequest(...)
+CoordinationState.handleJoin(...)
+ElectionStrategy.isElectionQuorum(...)
+Coordinator.becomeLeader()
+Mode.LEADER
+```
+
+10. Leader completes election
+
+The leader publishes the cluster state, cleans up discovery connections, and starts heartbeating.
+
+```
+CandidateJoinAccumulator.close(...)
+JoinTask
+LeaderHeartbeatService.start(...)
+```
+
+#### Failure Detection
+
+[LeaderChecker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java
+
+[FollowersChecker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java
+
+[FollowerChecker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L274
+
+[FollowerCheckRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L437
+
+[LeaderCheckRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L399
+
+The cluster uses two complementary checks to detect node failures:
+the [LeaderChecker] (run by followers) and the [FollowersChecker] (run by the leader).
+
+Peer-to-peer communication in Elasticsearch typically involves two distinct TCP connections, so having both checks is
+necessary to ensure full connectivity. They also serve distinct conceptual purposes: when the leader becomes
+unreachable, followers must detect it and start an election, whereas when a follower becomes unreachable, the leader
+will remove it from the cluster so its shards can be reallocated.
+
+Each follower runs a [LeaderChecker]
+that [periodically sends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L233)
+a [LeaderCheckRequest] to the current master (every 1 second by default). Upon receiving the request, the
+master [will verify](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L174)
+that its local node is healthy, that it is still the elected master, and that the requesting
+node is part of the current cluster state. If all conditions are met, it will
+then [ack](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L120)
+the request.
+
+If the check fails more times than the configured limit (3 by default), if the master reported itself as unhealthy or if
+the master disconnected, the follower will conclude that the
+master [has failed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L340).
+The follower will stop the periodic check and notify the [Coordinator],
+which will transition the node to `CANDIDATE` mode and start the election process.
+
+On the master side, the [FollowersChecker] class maintains a map of nodes in the current cluster state
+to [FollowerChecker] objects.
+
+Each [FollowerChecker] periodically (by default every 1s) sends
+a [FollowerCheckRequest] containing the current term and the identity of the master node. When receiving this request,
+each follower will
+first [verify](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L185)
+that its local node is healthy (and throw if not), and then check whether the request term matches its current term.
+If it does, then the follower
+will [ack](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L199)
+the request right away. Otherwise, if the request term is higher than the node current term, the request
+is [handed off](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L382)
+to the [Coordinator] so that the node can update its local state and become follower of the master in the new term.
+
+If the follower disconnects or the check fails too many times (3 by default), the master will conclude that the node has
+[failed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L365)
+and add it to
+its [set](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L102)
+of `faultyNodes` and untrack its corresponding [FollowerChecker] object. The [Coordinator] will get notified and
+eventually remove the node from the set of discovered nodes in the [ClusterState] (which will cause its shards to be
+reallocated to other healthy nodes).
+
+#### Discovery
+
+[PeerFinder]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/PeerFinder.java
+
+[PeersRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/PeersRequest.java
+
+[PeersResponse]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PeersResponse.java
+
+[SeedHostsProvider]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/SeedHostsProvider.java
+
+[SeedHostsResolver]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/SeedHostsResolver.java
+
+[SettingsBasedSeedHostsProvider]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/SettingsBasedSeedHostsProvider.java
+
+[FileBasedSeedHostsProvider]: https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/FileBasedSeedHostsProvider.java
+
+[AwsEc2SeedHostsProvider]: https://github.com/elastic/elasticsearch/blob/v9.3.0/plugins/discovery-ec2/src/main/java/org/elasticsearch/discovery/ec2/AwsEc2SeedHostsProvider.java
+
+[DiscoveryPlugin]: https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/plugins/DiscoveryPlugin.java
+
+Discovery is a fast "gossip-like" protocol by which a node in `CANDIDATE` mode locates master-eligible nodes in the
+cluster and/or the master itself.
+A node enters `CANDIDATE` mode either on startup or after detecting a master failure. The [PeerFinder] class contains
+the core logic for the discovery process.
+
+Discovery starts with both the nodes from
+the [last accepted cluster state](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L963)
+and a set of resolved seed addresses, that are obtained from the different [SeedHostsProvider] implementations:
+
+- [SettingsBasedSeedHostsProvider]: reads addresses from the `discovery.seed_hosts` config. This config is read on
+  startup and non-refreshable.
+- [FileBasedSeedHostsProvider]: reads addresses from the runtime-refreshable `unicast_hosts.txt` file in the config
+  directory. Note that because it's dynamic, using this file is usually preferred to the `discovery.seed_hosts` config.
+- Additional seed providers registered by users via the [DiscoveryPlugin]. One example of such plugin is
+  the [AwsEc2SeedHostsProvider], which uses the AWS EC2 client to find the relevant instances that could host
+  elasticsearch nodes.
+
+[SeedHostsResolver] is in charge of converting the seed hosts strings to transport addresses using DNS resolution.
+
+When discovery
+is [active](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/PeerFinder.java#L94), [PeerFinder]
+will
+run [handleWakeUp](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/PeerFinder.java#L296)
+every 1s (by default). Each iteration will clean up disconnected peers, send a [PeersRequest] to known master-eligible
+nodes (from the last accepted state and the resolved seed addresses)
+and [schedule](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/PeerFinder.java#L319)
+the next `handleWakeUp` iteration
+
+When [receiving](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/PeerFinder.java#L534)
+a [PeersResponse], [PeerFinder] will reach out to all peers specified in the response, including a potential master. If
+the peer node reports itself as the master and its term is greater or equal to the local one, then the node will update
+its local term
+and [try to join](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1817)
+the master.
+
+Because the node will eagerly reach out to every peer it learns about (both via the content of a [PeersResponse] or even
+when receiving a new [PeersRequest]), the discovery protocol will find every other master-eligible node in at most
+roughly `⌈log₂(D)+1⌉` steps, where D is the diameter of the graph of seed host configurations.
+
+Note that discovery connections are managed separately from the regular cluster transport connections:
+they are held by the [PeerFinder] and used only during discovery. Once a master is
+found or elected, all discovery connections
+are [released](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/PeerFinder.java#L166).
+
+#### Pre-Vote
+
+[PreVoteRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PreVoteRequest.java
+
+[PreVoteResponse]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PreVoteResponse.java
+
+[ElectionSchedulerFactory]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ElectionSchedulerFactory.java
+
+The pre-vote phase takes place before a candidate bumps the term. It is meant to prevent a partitioned node from
+disrupting a healthy term by forcing a re-election when it rejoins the cluster. It ensures that a candidate can only
+proceed to broadcast a higher term once a quorum of peers agrees that there is no active leader.
+
+When receiving a [PreVoteRequest] from a candidate node, the receiver
+will [check](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/StatefulPreVoteCollector.java#L89)
+whether it currently knows of an active leader. If not, and if the receiver is healthy, it will reply with
+a [PreVoteResponse] containing its `currentTerm`, `lastAcceptedTerm`, and `lastAcceptedVersion`. If it still considers a
+different node to be the leader, it will reject the request.
+
+Pre-vote rounds are triggered by the [ElectionSchedulerFactory],
+which schedules each attempt after a random delay that grows linearly with the number of failed attempts (up to a
+configured [maximum](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ElectionSchedulerFactory.java#L45)).
+This randomized backoff reduces the chances that two candidates will run pre-vote rounds simultaneously, avoiding
+conflicts and giving each attempt enough time to complete before the next one begins.
+
+For additional details on the theory behind the pre-voting phase, see
+the [Pre-voting in distributed consensus](https://davecturner.github.io/2017/08/17/paxos-pre-voting.html) article. This
+[blog post](https://blog.cloudflare.com/a-byzantine-failure-in-the-real-world/) also describes a real-world example of a
+liveness failure caused by this check being omitted.
+
+#### Join
+
+[JoinHelper]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinHelper.java
+
+[JoinTask]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinTask.java
+
+The Join process is the mechanism by which a node is added to the [ClusterState] by the master.
+Most of the join-related logic is located in the [Coordinator] class, which still delegates specific components to
+its [JoinHelper] [instance](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L153).
+
+Within a master term, a node that starts up
+will [send](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1820)
+a [JoinRequest] to the discovered master (see [Discovery](#discovery) section for more details) so it can get added
+(back) to the cluster. The master
+will [handle](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L651)
+the incoming join request by
+first [validating](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L678)
+that it can connect back to the joining node, that the joining node is able to deserialize the
+current [ClusterState], and that the request's term and
+version [match](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L253)
+its local ones. Then, the master
+will [trigger](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1516)
+voting reconfiguration if needed,
+and [submit](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinHelper.java#L479)
+a [JoinTask] to the master queue
+to [add](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/NodeJoinExecutor.java)
+the new node to the [ClusterState].
+
+During a master election, [JoinRequest]s from peer nodes also act as votes (via the
+optional [Join](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinRequest.java#L52)
+field) for the candidate that started the election. The join requests are then processed slightly differently by the
+candidate node. Rather than being submitted immediately to the master queue, incoming joins are buffered by
+the [joinAccumulator](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinHelper.java#L523).
+Each [Join] vote is recorded in [CoordinationState]. Once quorum is reached, the candidate
+will [become leader](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L889),
+and [flush](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinHelper.java#L545)
+all accumulated joins into a single [JoinTask] for the master queue to process.
+
+#### Serverless Elections
+
+[AtomicRegisterPreVoteCollector]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/AtomicRegisterPreVoteCollector.java
+
+[StoreHeartbeatService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/StoreHeartbeatService.java
+
+[HeartbeatStore]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/HeartbeatStore.java
+
+[Heartbeat]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/Heartbeat.java
+
+[SingleNodeReconfigurator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/SingleNodeReconfigurator.java
+
+Stateful and Serverless ES share the same [Coordinator] core logic, but they differ in how they check leader liveness,
+and define quorum.
+
+In Serverless, the elected master
+periodically [writes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/StoreHeartbeatService.java#L153)
+a [Heartbeat] (containing the current term and timestamp) to an external blob store, the [HeartbeatStore], via
+the [StoreHeartbeatService]. Other nodes check whether the leader is alive by reading the latest heartbeat from the
+store.
+
+In Serverless, the master uses a single node voting configuration with only itself (defined by
+the [SingleNodeReconfigurator]). Committing and publishing a new cluster state therefore only requires the master's own
+acknowledgment. Similarly, during elections, the pre-vote phase does not contact any peers. Instead,
+the [AtomicRegisterPreVoteCollector]
+solely [checks](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/AtomicRegisterPreVoteCollector.java#L35)
+the latest heartbeat from the blob store and starts the election if it's older than the configured threshold (default 30
+seconds). To become master, the candidate node will atomically override the current term in the blob store via a CAS
+operation.
+
+### New Cluster Formation
+
+(What happens when a cluster starts from scratch)
+
+### Master Transport Actions
 
 # Replication
 
@@ -403,7 +1245,7 @@ Flushes may also be automatically initiated by Elasticsearch, e.g., if the trans
 A bulk request will repeateadly call ultimately the Engine methods such as [`index()` or `delete()`] which adds operations to the Translog.
 Finally, the AfterWrite action of the [`TransportWriteAction`] will call [`indexShard.syncAfterWrite()`] which will put the last written translog [`Location`] of the bulk request into a [`AsyncIOProcessor`] that is responsible for gradually fsync'ing the Translog and notifying any waiters.
 Ultimately the bulk request is notified that the translog has fsync'ed past the requested location, and can continue to acknowledge the bulk request.
-This process involes multiple writes to the translog before the next fsync(), and this is done so that we amortize the cost of the translog's fsync() operations across all writes.
+This process involves multiple writes to the translog before the next fsync(), and this is done so that we amortize the cost of the translog's fsync() operations across all writes.
 
 #### Translog internals
 
@@ -476,11 +1318,51 @@ works in parallel with the storage engine.)
 
 # Recovery
 
-(All shards go through a 'recovery' process. Describe high level. createShard goes through this code.)
+When a shard is created on a node, it starts out empty. *Recovery* is the process of loading the shard's data from
+some data source into the newly created `IndexShard` in order to make it available for index or search requests.
+When the shard allocation process has chosen a node for a shard, it records its choice by writing an updated [ShardRouting][]
+record into the cluster state's [IndexRoutingTable][]. The [ShardRouting][] entry includes [RecoverySource][] metadata that
+describes where the shard's data can be found based on the shard's previous allocation. For example, a shard for a newly created
+index will have its `recoverySource` set to `EMPTY_STORE` to indicate that recovery should bring up the shard without loading
+any existing data, while a `recoverySource` of `EXISTING_STORE` would tell recovery to load the shard from files already
+present on disk, likely because the node was restarted and had hosted the shard until it shut down.
 
-(How is the translog involved in recovery?)
+The `IndicesClusterStateService` on each node listens for updates to the `IndexRoutingTable` and when it finds that a
+shard in state `INITIALIZING` has been assigned to its node, it creates a fresh `IndexShard` for the assigned shard and kicks off a recovery process
+for that node, using the [RecoverySource][] in the [ShardRouting][] entry to determine the parameters of the recovery process.
+The full list of recovery types is defined in [RecoverySource.Type][]. The various modes are discussed below, roughly in
+order of complexity. Some modes build on others; for example, snapshot recovery sets up a local data store by copying
+files from a snapshot source and then uses `EXISTING_STORE` recovery. Similarly, if there is any local data, then
+peer recovery starts by using  `EXISTING_STORE` recovery to bring the local shard as close to up to date as it can, and then
+finishes synchronizing the shard through RPCs (Remote Procedure Calls) to an active source shard.
 
-### Create a Shard
+At the end of the recovery process, recovery finalization marks the shard as `STARTED` in cluster state, which makes it
+available to handle index and search requests.
+
+### Create a New Shard
+
+The simplest form of recovery is `EMPTY_STORE`, which is just what it sounds like. This recovery type causes the recovery
+process to invoke [StoreRecovery] for the recovery. `StoreRecovery` will create an empty shard directory on disk (deleting
+any existing files that may be present) and bootstrap an empty translog and then tell the Engine to use that directory.
+That's pretty much the whole process.
+
+### Restore from an Existing Directory
+
+Only slightly more complex is `EXISTING_STORE` recovery, which is used when the node is expected to have an up-to-date
+copy of the shard's data already present on disk. Once again `StoreRecovery` manages the recovery process, but in this
+case it expects to find Lucene files and a translog already present. It validates the Lucene files, potentially dropping
+any incomplete commits that may not have been fsynced to disk before shutdown, tells the engine to open the directory
+as its backing store, and then replays the transaction log to replay any operations that may have been acknowledged to
+the client but not written into a durable Lucene commit. At that point the shard is ready to serve requests.
+
+### Snapshot Recovery
+
+In snapshot recovery, the data source is a snapshot of the index shard stored on a remote repository. Snapshot recovery,
+also managed in `StoreRecovery` but invoked through the `recoverFromRepository` method, downloads and unpacks the snapshot
+from the remote repository into the local shard directory and then invokes the same logic as `EXISTING_STORE` to bring
+the shard on line, with some small differences. The key one is that the snapshot is taken from a Lucene commit, and
+so it does not need to store the shard translog when the snapshot is taken, or restore it during recovery. Instead
+it creates a new empty translog before bringing the shard on line.
 
 ### Local Shards Recovery
 Local shards recovery is a type of recovery that reuses existing data from other shard(s) allocated on the current node (hence local shards). It is used exclusively to implement index [Shrink/Split/Clone APIs](#shrinksplitclone-index-apis).
@@ -489,13 +1371,50 @@ This recovery type uses `HardlinkCopyDirectoryWrapper` to hard link or copy data
 
 ### Peer Recovery
 
-### Snapshot Recovery
+Whereas the other recovery modes are used to bring up a *primary* shard, peer recovery is used to add replicas of an
+already active primary shard. Peer recovery is also used for primary shard relocation, but relocation goes through
+the standard peer recovery process to bring a replica in sync, before handing off the primary role to the recovered
+replica during finalization.
 
-### Recovery Across Server Restart
+Unlike `StoreRecovery`, peer recovery is managed through a separate service on the node recovering the shard, the
+[PeerRecoveryTargetService][]. When the IndexShard sees that its recovery source is of type `PEER`, it hands over the
+recovery process to `PeerRecoveryTargetService` by invoking its `startRecovery` method. This service begins by creating
+an in-memory record of the recovery process to track its progress, and then runs `EXISTING_STORE` recovery in case the
+recovering replica held a copy of the shard before that has gone out of sync (e.g., because the node holding the
+replica restarted). Because the shard is a replica, it only recovers up to the latest known global checkpoint for the shard
+and discards any operations in the local store that are ahead of that point (see [Translog][#Translog] for details).
+Once the local shard has been brought close to current, the service then sends a request to a corresponding service on the source node, `PeerRecoverySourceService`,
+to complete synchronization.
 
-(partial shard recoveries survive server restart? `reestablishRecovery`? How does that work.)
+Synchronization begins by discovering any differences between the source and target shards and transmitting any missing files
+to the target shard. The source for the files can be the source shard itself, but if a snapshot of the shard is available
+that has some subset of the files to be transmitted, then recovery will fetch them from the snapshot in order to reduce
+load on the source shard.
 
-### How a Recovery Method is Chosen
+The next step is to transfer any operations from the source translog. Since the source shard is active,
+it may be receiving index operations while recovery is in process. So, to ensure that the target shard doesn't miss any
+new operations, the source shard adds the target to the shard's replication group (see the [replication][#Replication] docs)
+*before* completing the operation transfer phase. Because of this ordering, any operations accepted on the shard between the
+time it reads and sends the latest operation in the translog and the time the replica completes recovery are sent through the
+request replication process and will not be lost. Once the target has been added to the recovery group, the source reads the
+latest sequence number from its transaction log knowing that any updates past that will be handled by recovery, and replays
+the translog to the target up to that point.
+
+At this point the target is ready to be started as an in sync replica. However, peer recovery is also used to perform
+primary relocation. If the target shard is being recovered in order to take over as primary, then the finalization
+stage will call `IndexShard.relocate` to complete the handoff of primary responsibilities. This method blocks operations
+on the source shard and sends an RPC to the target shard with the [ReplicationTracker.PrimaryContext][] needed
+to promote the target to primary. Once the target acknowledges the handoff, the source shard moves itself into
+replica mode.
+
+[ShardRouting]:https://github.com/elastic/elasticsearch/blob/1d4a20ae194ce71fd5819786ba6dfb154ceb123f/server/src/main/java/org/elasticsearch/cluster/routing/ShardRouting.java
+[IndexRoutingTable]:https://github.com/elastic/elasticsearch/blob/473c4da497681c889728c05cebb27030ae97fc13/server/src/main/java/org/elasticsearch/cluster/routing/IndexRoutingTable.java
+[RecoverySource]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/cluster/routing/RecoverySource.java
+[RecoverySource.Type]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/cluster/routing/RecoverySource.java#L79
+[IndicesClusterStateService]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java
+[StoreRecovery]:https://github.com/elastic/elasticsearch/blob/d70878f488dfa2e2ba4d02e335c15be7cd4d5af2/server/src/main/java/org/elasticsearch/index/shard/StoreRecovery.java
+[PeerRecoveryTargetService]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/indices/recovery/PeerRecoveryTargetService.java
+[ReplicationTracker.PrimaryContext]:https://github.com/elastic/elasticsearch/blob/1352df3f0b5157ca1d730428ea5aba2a7644e79b/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L1573
 
 # Data Tiers
 
@@ -555,7 +1474,7 @@ of shards, and an incentive to distribute shards within the same index across di
 `NodeAllocationStatsAndWeightsCalculator` classes for more details on the weight calculations that support the `DesiredBalanceComputer`
 decisions.
 
-### Inter-Node Communicaton
+### Inter-Node Communication
 
 The elected master node creates a shard allocation plan with the `DesiredBalanceShardsAllocator` and then selects incremental shard
 movements towards the target allocation plan with the `DesiredBalanceReconciler`. The results of the `DesiredBalanceReconciler` is an
@@ -671,25 +1590,325 @@ There are several more Decider Services, implementing the `AutoscalingDeciderSer
 
 # Snapshot / Restore
 
-(We've got some good package level documentation that should be linked here in the intro)
+Snapshot copies index data files from node local storage to a remote repository. These files can later be restored
+from the repository back to local storage to re-create the index. In addition to indices, it can also backup and
+restore the cluster state [Metadata][] so that settings, templates, pipelines and other configurations can be preserved.
 
-(copy a sketch of the file system here, with explanation -- good reference)
+Snapshots are deduplicated in that it does not copy a data file if it has already been copied in a previous snapshot.
+Instead, it adds a reference to the existing file in the metadata stored in the repository, effectively a ref-tracking
+system for the data files. This also means we can freely delete any snapshot without worrying about affecting other
+snapshots.
+
+This [snapshots Java package documentation][] provides a good explanation on how snapshot operations work.
+
+Restoring a snapshot is a process which largely relies on [index recoveries](#Recovery). The restore service initializes
+the process by preparing shards of restore indices as unassigned with snapshot as their recovery source ([SnapshotRecoverySource][])
+in the cluster state. These shards go through the regular allocation process to be allocated. They then recover on the target nodes
+by copying data files from the snapshot repository to local storage.
+
+Both snapshot and restore are coordinated by the master node, while index data transfer is done by the data nodes.
+The communications from the master node to data nodes are always cluster state updates. Data nodes send transport
+requests to the master node to update the status. These requests, at the end, also triggers cluster state updates
+which can be further reacted upon by the data nodes until the processes are complete.
+
+[Metadata]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
+[snapshots Java package documentation]: https://github.com/elastic/elasticsearch/blob/8ccbdd553b096465a282297332d2389328ed665a/server/src/main/java/org/elasticsearch/snapshots/package-info.java#L11
+[SnapshotRecoverySource]: https://github.com/elastic/elasticsearch/blob/31db11b3b067baf97e305bfefefea9e11cb85371/server/src/main/java/org/elasticsearch/cluster/routing/RecoverySource.java#L207
 
 ### Snapshot Repository
 
+A [Repository][] must be created before any snapshot operation can take place. There are different types of
+repositories. The most common ones are file system based (FS) and cloud storage based (S3, GCS, Azure) which
+all extend the [BlobStoreRepository][] class. A repository must be registered as writeable with a single
+cluster while registered as readable with multiple clusters. NOTE registering a repository as writeable
+with multiple clusters can lead to data corruption. We try our best to detect such situation, but it's not
+completely foolproof.
+
+The content structure of a repository is similar to the local index storage structure, with `indices` folder
+holding indices data separate by their UUID and shard ID. Here is a simple example of a repository structure:
+
+```
+my-repository/
+├── index-2       <-- The root blob file of the repository, also called repository generation file
+├── index.latest
+├── indices
+│   └── 8K9JNuqjTnygrjKY8qmsiA   <-- UUID of the snapshotted index. Not the same index UUID in the cluster
+│       ├── 0                    <-- shard 0
+│       │   ├── __I0e0reaMQzuXv8fY1GYD2w           <-- data file
+│       │   ├── __XqE3EVhOREWBnCHASLALtw           <-- another data file
+│       │   ├── index-pPXvvdFWSmajXZcfrIwggA       <-- shard level generation file
+│       │   └── snap-3kXOuTRmTFm6VMcEqPkKNQ.dat    <-- shard level snapshot info
+│       └── meta-tdTzfI8BkmhGlJ2SvOok.dat          <-- index metadata
+├── meta-3kXOuTRmTFm6VMcEqPkKNQ.dat    <-- cluster metadata
+└── snap-3kXOuTRmTFm6VMcEqPkKNQ.dat    <-- snapshot information
+```
+See also the [blobstore Java package documentation][] for more details on the repository structure.
+
+The most important file in the repository is the `index-N` file, where `N` is a numeric generation number starting
+from `9`. Its corresponding Java class is [RepositoryData][].
+This file holds the global state of the repository, including all valid snapshots and their corresponding
+indices, shards and index metadata. Every mutable operation on the repository, such as creating or deleting a snapshot,
+results in a new `index-N` file being created with an incremented generation number. The `index.latest` file stores
+the latest repository generation and is effectively a pointer to the latest `index-N` file.
+
+The repository is not rescuable if the repository generation file is corrupted. This is the reason that we are
+very careful when updating this file by leveraging cluster consensus to ensure only the latest master node update
+it to a generation that is accepted by the rest of the cluster members. The updating process also attempts to
+detect concurrent writes to avoid multiple clusters writing to the same repository. This is done by comparing
+the expected repository generation to the actual generation files in the repository. If this file is corrupted,
+as reported occasionally on SDHs, it is almost certain that some other external process has modified it.
+
+If other files in the repository are corrupted, we can usually delete the broken snapshots and retain the good ones.
+The broken snapshots usually lead to exception being thrown when accessed by APIs like the [GetSnapshot API][].
+Since v8.16.0, there is also [VerifyRepositoryIntegrity API][] that can be used to actively scan the repository
+and identify any corrupted snapshots.
+
+The state of a repository must always transition through fully valid states in that there are no dangling references
+to non-existent blobs. This is an important property that guarantees the repository integrity as long as there is
+no external interference. We add new blobs before they become reachable from the root, then update the root blob,
+and only if the root-blob update succeeds do we delete any now-unreachable blobs. See also
+[Creation of a Snapshot](#creation-of-a-snapshot) and [Deletion of a Snapshot](#deletion-of-a-snapshot) for more details.
+
+It is worth note that repository's compatibility guarantee is more permissive than Elasticsearch's general version
+compatibility policy. A repository may contain snapshots from a version as old as 5.0.0 and, if it does, the repository
+layout must remain compatible (for reads and writes) with the oldest version in the repository so that these snapshots
+remain restorable in the corresponding versions. With older snapshots deleted, the repository will start using
+new format when possible (see also the static `IndexVersion` constants in `SnapshotsService`).
+
+[Repository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/Repository.java#L53
+[BlobStoreRepository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/blobstore/BlobStoreRepository.java#L200
+[blobstore Java package documentation]: https://github.com/elastic/elasticsearch/blob/24fad8fac774983bb231da34321108abef102745/server/src/main/java/org/elasticsearch/repositories/blobstore/package-info.java#L11
+[RepositoryData]: https://github.com/elastic/elasticsearch/blob/31db11b3b067baf97e305bfefefea9e11cb85371/server/src/main/java/org/elasticsearch/repositories/RepositoryData.java#L58
+[GetSnapshot API]: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-get
+[VerifyRepositoryIntegrity API]: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-repository-verify-integrity
+
+#### Repository Management
+
+A snapshot repository has two components: (1) a `RepositoryMetadata` containing the configuration stored
+as a `Metadata.ProjectCustom` in the cluster state; (2) the actual repository object created on the master
+node and each data node. A series of APIs are available to create, update, get and delete repositories.
+Each of these APIs is backed by a `TransportMasterNodeAction` which publishes a cluster state for the
+`RepositoryMetadata` change so that relevant nodes can update their local repository objects accordingly.
+The API call will only return after the repository object has been updated on all relevant nodes.
+For creating a repository, it also performs extra verification steps which (1) attempts to create a temporary
+repository directly on the master node as well as write and read a test file before proceeding with the
+cluster state update and (2) performs another write and read test after repository objects are created on all
+relevant nodes. This verification steps are enabled by default and can be disabled per request.
+
+The core service class is [RepositoriesService][] which all APIs eventually delegate to. It also implements
+`ClusterStateApplier` which performs the actual repository object creation, update and deletion.
+
+Besides the APIs, reserved repositories are managed via file based settings. These repositories are managed
+by Elasticsearch service providers, such as the Elastic Cloud. File based settings is effectively a way
+to publish cluster state based on file contents. Hence, they also go through the same code path as the APIs
+under the hood. Reserved repositories cannot be modified via APIs.
+
+While new repository can be created at any time, deleting a repository has some restrictions. In general,
+a repository cannot be deleted if it is in use by either ongoing snapshots or restores or hosting mounted
+searchable snapshots. Since v9.4.0, the default snapshot repository cannot be deleted either. A default
+repository is meant to be the repository used by ILM and SLM when no repository is explicitly specified.
+Updating a repository usually involves closing the existing repository first and creating a new one.
+Therefore, they often subject to the same restrictions as deletion.
+
+Cloud storage backed (S3, GCS, Azure) repositories requires network access to the storage services. Hence,
+they have concept of clients which manages the network requests. At least the `default` client must be
+configured for a cluster which is used by a repository if no client is explicitly specified. Multiple
+clients can be added, via `elasticsecrh.yml` to the same cluster and used by different repositories to
+spread snapshots to different locations if so desired.
+
+We allow different implementations of the same cloud storage type to be used as long as they are compatible
+in both APIs and performance characteristics. For example, many storage service claims S3 compatibility.
+But they may fall short under load or even just return outright incorrect responses in some corner cases.
+The [RepositoryAnalyze API][] can be used to proactively test the
+compatibility which we suggest on SDHs from time to time.
+
+[RepositoriesService]: https://github.com/elastic/elasticsearch/blob/f55a90c941f5ca80fff4978be7b15e97614ce55f/server/src/main/java/org/elasticsearch/repositories/RepositoriesService.java#L98
+[PutRepository API]: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-create-repository
+[RepositoryAnalyze API]: https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-repository-analyze
+
 ### Creation of a Snapshot
 
-(Include an overview of the coordination between data and master nodes, which writes what and when)
+Creating a snapshot is the most involved snapshot operation because it requires work to be done on
+both master and data nodes. In contrast, cloning snapshot, deleting snapshot and cleaning repository
+all happen entirely on the master node.
 
-(Concurrency control: generation numbers, pending generation number, etc.)
+The following Java classes are mostly responsible for the snapshot creation process:
+1. [SnapshotsService][] - runs on the master node and coordinates the overall snapshot process.
+2. [SnapshotsServiceUtils][] - utility class separated from `SnapshotsService` to reduce file length.
+3. [SnapshotShardsService][] - runs on data node and manages the actual snapshot of individual shards.
+4. [BlobStoreRepository][] - used by both master and data nodes to read and write snapshot data and metadata.
 
-(partial snapshots)
+As discussed earlier, a snapshot operation always starts with a cluster state triggered by a transport request.
+Such is the case for snapshot creation. When `SnapshotsService` receives the request, it computes all indices
+and their shards required for the snapshot and creates an object representing this snapshot and stores it in the
+cluster state. The overarching object representing snapshot creation in the cluster state is[SnapshotsInProgress][]
+which is essentially a map keyed by repository name with values being a list of ongoing snapshots(`SnapshotsInProgress.Entry`)
+for that repository. It's a list because the order is important: Snapshots within each repository operate as a queue,
+such that each shard's snapshots run in order. Different snapshots may complete in different orders if they target different shards.
+Each ongoing snapshot further tracks its overall state (`SnapshotsInProgress#State`)
+as well states (`SnapshotsInProgress#ShardState`) of each shard required for the snapshot.
+
+When the snapshot creation entry (`SnapshotsInProgress.Entry`) is first added to the cluster state, its shard states
+can be in different `ShardState` depending on the shard's status and snapshot activities:
+* If the shard is started and has no other active snapshot activity, its state is set to `INIT` indicating
+  it is ready to be snapshotted by the data node hosting it. Shards in this state cannot relocate due to
+  `SnapshotInProgressAllocationDecider`.
+* If the shard is started but is still running another snapshot, its state is set to `QUEUED` indicating it
+  will be snapshotted later when the ongoing snapshots and any other snapshots queued before it are finished.
+* If the shard is relocating or initializing, its state is set to `WAITING` which will be changed to a new state
+  once the shard finishes relocation or initialization.
+* If the index no longer exists or the shard is unassigned, the shard state is set to `MISSING`. This state
+  is final. A snapshot creation fails on shard with this state if it is issued with `partial=false`. Note
+  snapshot creation is always issued with `partial=true` in Elastic Cloud so that snapshot does not fail
+  entirely for temporary shard unavailability.
+* If the node hosting the shard is being shutdown, the shard state is set to `PAUSED_FOR_NODE_REMOVAL`.
+  This state will be updated when the node finishes the shutdown process or the shard state changes.
+
+When a data node (`SnapshotShardsService`) receives the updated cluster state with a new snapshot entry,
+it takes the shards with the `INIT` state and hosted on itself to create a shard snapshot task for each
+of them. The shard state is computed for all shards involved in the snapshot at once when the snapshot entry
+is created. A large snapshot can easily have thousands of shards with `INIT` state indicating ready to be snapshotted.
+To avoid overwhelming the data nodes, a dedicated snapshot thread pool as well as `ThrottledTaskRunner` are
+used to keep concurrent running shard snapshots under control. Priority is given for snapshots which started
+earlier. We also order by shard to limit the number of incomplete shard snapshots (see also [ShardSnapshotTaskRunner][]
+and `ShardSnapshotTaskRunner#COMPARATOR`).
+
+The lifecycle of each shard snapshot is also tracked in-memory on the data node with `IndexShardSnapshotStatus`.
+The status is indicated by `IndexShardSnapshotStatus#Stage` which is updated at various points during the process.
+When a shard snapshot task runs, it first acquires an index commit of the shard so that the files to be copied remain
+available throughout the shard snapshot process without being deleted by ongoing indexing activities. It then
+writes a new shard level generation file (`index-<UUID>.data`, Java class [BlobStoreIndexShardSnapshots][]).
+This is basically a shard level catalog file pointing to all the valid shard snapshots. Each snapshot creates a new one.
+The UUID is used to avoid name collision.
+Previous shard generation files are not deleted because they may still be needed if the current shard snapshot fails.
+Following that, shard level data files are copied to the repository with `BlobStoreRepository#doSnapshotShard`,
+`BlobStoreRepository#snapshotFile` etc.
+After all data files are uploaded, it writes a shard level snapshot file (`snap-<UUID>.dat`, Java class
+[BlobStoreIndexShardSnapshot][]) indicating what data files
+should be included in this shard snapshot. Note the data file's physical name is replaced with double underscore (`__`)
+followed by an UUID to avoid name collision. The actual name is mapped and stored in the shard level snapshot file.
+
+It is worth note that the shard level generation file (`index-<UUID>.data`) can be reconstructed from all shard
+level snapshot files (`snap-<UUID>.dat`) so that it is technically redundant. However, listing and reading
+all shard snapshot files can be rather inefficient since there could be hundreds or thousands of these files.
+Hence, having the shard level generation file helps with performance for deletion operations which
+needs to read only a single file to decide what can be deleted at the shard level.
+
+Once the shard snapshot is completed successfully, the data node releases the previously acquired index commit and
+sends a transport request(`UpdateIndexShardSnapshotStatusRequest`) with the new shard generation (`ShardGeneration`)
+to the master node to update its shard status (`SnapshotsInProgress#ShardState`) in the cluster state. If there is any
+`QUEUED` shard snapshot for the same shard, the master node (`SnapshotsService`) updates the next one's
+status to `INIT` so that it can run. The master responds to the data node only after the cluster state is published.
+
+When all shards in a snapshot are completed, the master node performs a finalization step
+(`SnapshotsService#SnapshotFinalization` and `BlobStoreRepository#finalizeSnapshot`) which does the following:
+1. Create a `SnapshotInfo` object representing the completed snapshot for serialization.
+2. Collect and write the latest `Metadata` and `IndexMetadata` relevant to this snapshot.
+3. Write the snapshot metadata file `snap-<UUID>.dat` (Java class [SnapshotInfo][]).
+4. Create a new root blob (repository generation file, `index-N`) with incremented generation number
+   and updated content including the new snapshot and publish a cluster state to accept this new
+   generation as the current/safe (`BlobStoreRepository#writeIndexGen`).
+
+Step 4 is the most critical one. The root blob is intentionally written at the very last so that
+any prior failure only leaves some redundant files in the repository which will be cleaned up in due time.
+A snapshot is not completed until the root blob is successfully updated. To ensure consistency,
+updating the root blob is a 3-steps process leveraging cluster consensus:
+1. Picks a new pending repository generation number which is greater than the current pending generation
+   and publishes a cluster state update for it. Both repository generation number and pending generation
+   numbers are part of [RepositoryMetadata][].
+2. If previous step is successful, writes the new root blob with the pending generation number.
+3. Publishes another cluster state to set the current/safe repository generation to the new pending generation.
+
+When master fails over during snapshot creation, the above steps ensures that only the new master can
+successfully update the root blob to avoid data corruption.
+
+Multiple snapshots can run concurrently in the same repository. But the process is sequential at shard level,
+i.e. only one shard snapshot for the same shard can be in the `INIT` state at any time.
+Snapshot deletions and creations are mutually exclusive. See also [Deletion of a Snapshot](#Deletion-of-a-Snapshot).
+
+[SnapshotsService]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotsService.java#L133
+[SnapshotsServiceUtils]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotsServiceUtils.java#L83
+[SnapshotShardsService]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/snapshots/SnapshotShardsService.java#L81
+[BlobStoreRepository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/blobstore/BlobStoreRepository.java#L200
+[SnapshotsInProgress]: https://github.com/elastic/elasticsearch/blob/5c3270085a72ec6b97d2cd34e2a18e664ebd28ba/server/src/main/java/org/elasticsearch/cluster/SnapshotsInProgress.java#L78
+[ShardSnapshotTaskRunner]: https://github.com/elastic/elasticsearch/blob/01ace3927df065f1caf090653404f29688e8103a/server/src/main/java/org/elasticsearch/repositories/blobstore/ShardSnapshotTaskRunner.java#L36
+[BlobStoreIndexShardSnapshots]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/index/snapshots/blobstore/BlobStoreIndexShardSnapshots.java#L40
+[BlobStoreIndexShardSnapshot]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/index/snapshots/blobstore/BlobStoreIndexShardSnapshot.java#L38
+[SnapshotInfo]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/snapshots/SnapshotInfo.java#L50
+[RepositoryMetadata]: https://github.com/elastic/elasticsearch/blob/495c7c2f4ec5817001aa767f6d45a9f1c8c31082/server/src/main/java/org/elasticsearch/cluster/metadata/RepositoryMetadata.java#L24
+
+#### Shard snapshot pausing
+
+When a node is shutting down, it must vacate all shards via relocation. Since shards being snapshotted
+(shard snapshot status `INIT`) cannot relocate, we need a way to transit these shards out of the
+`INIT` state to avoid stall the shutdown process. This is where the shard snapshot pausing mechanism
+comes into play.
+
+When a node shutdown is initiated, `SnapshotsService` reacts to the new shutdown metadata by updating
+`SnapshotsInProgress#nodesIdsForRemoval` which tracks the node IDs for the shutting down node. When
+this change is published and observed by the shutting down data node (`SnapshotShardsService`), it pauses
+its shard snapshots by first setting the shard snapshot status `PAUSING`, which is checked regularly
+by the file uploading process (`BlobStoreRepository#snapshotFile`) and leads to a `PausedSnapshotException`
+to be thrown to abort the shard snapshot. The data node then notifies the master node about the status
+change with the same status update request (`UpdateIndexShardSnapshotStatusRequest`) in the happy path.
+The master node updates the shard state to `PAUSED_FOR_NODE_REMOVAL` upon receiving the notification.
+From this point on, the shard can relocate as normal. When the shard is started on the target node,
+`SnapshotsService` will observe the shard state changes and transition the shard snapshot status back to
+`INIT`.
+
+If a node is already being shutdown when a new snapshot creation request arrives, the relevant
+shard snapshot will be created with `PAUSED_FOR_NODE_REMOVAL` as its initial state. This assumes there
+is no ongoing shard snapshot that is already `PAUSED_FOR_NODE_REMOVAL`, in which case the new shard
+snapshot will start out as `QUEUED`.
+
+When the node shutdown completes and its associated shutdown metadata is removed from the cluster state,
+`SnapshotsService` will also remove the node ID from `SnapshotsInProgress#nodesIdsForRemoval`.
 
 ### Deletion of a Snapshot
 
+Both completed snapshots and ongoing snapshots can be deleted. Unless the snapshot being deleted has not
+started yet, e.g. all its shards are in `QUEUED` state, which means it can be deleted right away from the
+cluster state without touch the repository content, deletion must run exclusively in a repository.
+
+If the deletion requires any file removal in the repository, `SnapshotsService` creates/updates the
+`SnapshotDeletionsInProgress` in the cluster state to track the new deletion. If the snapshot is
+currently running, it also updates any incomplete shard snapshots to `ShardState.ABORTED` for the
+data node (`SnapshotShardsService`) to react once the cluster state is published. The data node goes through
+a similar process to the shard snapshot pausing but with a different exception (`AbortedSnapshotException`)
+to interrupt the shard snapshot process and sends a request back to the master node to update the
+corresponding status (`ShardState.FAILED`) tracked in the cluster state. Once all shard snapshots
+stop, deletion will proceed to remove relevant files from the repository as well as create a new
+root blob (`index-N`) with the same mechanism described in the snapshot creation section.
+File deletions (`BlobStoreRepository#SnapshotsDeletion`) happen entirely on the master node.
+
+### Clone of a Snapshot
+
+TODO: Clone is not used in Elastic Cloud Serverless.
+
+### Cleaning a Repository
+Repository clean up is cluster wide exclusive and must run by itself. It does not actually clean up anything
+more than a regular snapshot deletion. It was useful in the early days when we had some long-since-fixed
+leaks that needed cleaning up in ECH. It is not used in Elastic Cloud Serverless.
+
 ### Restoring a Snapshot
 
+[RestoreService][] is responsible for handling the initial restore request and prepare the unassigned shards
+with snapshot as their recovery source in the cluster state. Once the shard is allocated on a data node, the
+recovery process kicks in and eventually calls into `IndexShard#restoreFromSnapshot` which delegates to
+`BlobStoreRepository#restoreShard` to copy data files from the repository to local storage.
+
+[RestoreService]: https://github.com/elastic/elasticsearch/blob/1b7e99ee7a4ec92d20846be639fa4c3d15f20abc/server/src/main/java/org/elasticsearch/snapshots/RestoreService.java#L149
+
 ### Detecting Multiple Writers to a Single Repository
+
+This is a best effort attempt to prevent repository corruption due to concurrent writes from multiple clusters.
+When writing the root blob (`index-N`), we cross compare the cached and expected repository generation
+(see `BlobStoreRepository#latestKnownRepoGen` and `BlobStoreRepository#latestKnownRepositoryData`)
+to the generation physically found in the repository. The writing also fails if the blob already exists
+since this indicates that some other cluster attempted to write to the repository. We do that in all repositories
+that support such a check, which includes FS/GCS/Azure since forever and S3 since 9.2 (but not HDFS).
+A `RepositoryException` is thrown on any mismatch or conflicts. The repository is marked as corrupted
+by setting its generation number to `RepositoryData.CORRUPTED_REPO_GEN` to block further write operations.
 
 # Task Management / Tracking
 
@@ -944,3 +2163,84 @@ Relevant classes:
 [StableMasterHealthIndicatorService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/StableMasterHealthIndicatorService.java
 [HealthMetadata]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadata.java
 [HealthMetadataService]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadataService.java
+
+# Watcher
+
+[Watcher]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/Watcher.java
+[WatcherLifeCycleService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/WatcherLifeCycleService.java
+[ExecutionService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/execution/ExecutionService.java
+[WatcherService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/WatcherService.java
+[TickerScheduleTriggerEngine]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/trigger/schedule/engine/TickerScheduleTriggerEngine.java
+[EmailAction]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/actions/email/EmailAction.java
+[EmailService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/notification/email/EmailService.java
+[WebhookAction]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/actions/webhook/WebhookAction.java
+[WebhookService]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/notification/WebhookService.java
+[Actions Package]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/actions
+[ReportingAttachment]: https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/notification/email/attachment/ReportingAttachment.java
+
+Watcher lets you set a schedule to run a query, and if a condition is met it executes an action.
+As an example, the following performs a search every 10 minutes. If the number of hits found is greater than 0 then it logs an error message.
+```console
+PUT _watcher/watch/log_error_watch
+{
+  "trigger" : { "schedule" : { "interval" : "10m" }},
+  "input" : {
+    "search" : {
+      "request" : {
+        "indices" : [ "logs" ],
+        "body" : {
+          "query" : {
+            "match" : { "message": "error" }
+          }
+        }
+      }
+    }
+  },
+  "condition" : {
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+  },
+  "actions" : {
+    "log_error" : {
+      "logging" : {
+        "text" : "Found {{ctx.payload.hits.total}} errors in the logs"
+      }
+    }
+  }
+}
+
+```
+
+## How Watcher Works
+
+- We have an API to define a “watch”, which includes the schedule, the query, the condition, and the action
+- Watch definitions are kept in the `.watches` index
+- Information about currently running watches is in the `.triggered_watches` index
+- History is written to the `.watcher_history` index
+- Watcher ([WatcherLifeCycleService]) runs on all nodes, but only executes watches on a node that has a copy of the `.watches` shard that the particular watch is in (see [WatcherService])
+  -  Uses a hash to choose the node if there is more than one shard
+- Example common use cases:
+  - Periodically send data to a 3rd party system
+  - Email users with alerts if certain conditions appear in log files
+  - Periodically generate a report using Kibana, and email that report as an attachment. This is supported by declaring a [ReportingAttachment] [ReportingAttachment] to the [EmailAction] [EmailAction] in the watch definition.
+
+## Relevant classes:
+
+- [Watcher] [Watcher] – the plugin class
+- [WatcherLifeCycleService] [WatcherLifeCycleService]  – created by the Watch plugin on each node
+- [WatcherService] [WatcherService] – decides which watches this node ought to run
+- [ExecutionService] [ExecutionService] – executes watches
+- [TickerScheduleTriggerEngine] [TickerScheduleTriggerEngine] – handles the periodic (non-cron) schedules that we see the most
+- [EmailAction] [EmailAction] / [EmailService] [EmailService] – emails to third-party email server
+- [WebhookAction] [WebhookAction] / [WebhookService] [WebhookService] – sends requests to external endpoints
+- [Various other actions] [Actions Package] (for example posting to Slack, Jira, etc.)
+
+## Debugging
+
+- The most useful debugging information is in the Elasticsearch logs and the `.watcher_history` index
+- It is often useful to get the contents of the `.watches` index
+- Frequent sources of problems:
+  - There is no guarantee that an interval schedule watch will run at exactly the requested interval after the last run
+  - In older versions (before 8.17), the counter for the interval schedule restarts if the shard moves. For example, if the interval is once every 12 hours, and the shard moves 10 hours into that interval, it will be at least 12 more hours until it runs.
+  - Calls to remote systems ([EmailAction] and [WebhookAction]) are a frequent source of failures. Watcher sends the request but doesn't know what happens after that. If you see that the call was successful in `.watcher_history`, the best way to continue the investigation is in the logs of the remote system.
+  - Even if watcher fails during a call to a remote system, the error is likely to be outside of watcher (e.g. network problems). Check the error message in `.watcher_history`.
+

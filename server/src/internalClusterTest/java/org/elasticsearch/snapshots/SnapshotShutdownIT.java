@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -58,6 +59,7 @@ import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownForRemova
 import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownMetadata;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -404,13 +406,14 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var snapshotName = randomIdentifier();
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(snapshotName, repoName, primaryNode);
 
-        final var updateSnapshotStatusBarrier = new CyclicBarrier(2);
+        final var updateSnapshotStatusRequestArrived = new CountDownLatch(1);
+        final var releaseUpdateSnapshotStatusRequests = new CountDownLatch(1);
         final var masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         masterTransportService.addRequestHandlingBehavior(
             TransportUpdateSnapshotStatusAction.NAME,
             (handler, request, channel, task) -> masterTransportService.getThreadPool().generic().execute(() -> {
-                safeAwait(updateSnapshotStatusBarrier);
-                safeAwait(updateSnapshotStatusBarrier);
+                updateSnapshotStatusRequestArrived.countDown();
+                safeAwait(releaseUpdateSnapshotStatusRequests);
                 try {
                     handler.messageReceived(request, channel, task);
                 } catch (Exception e) {
@@ -423,7 +426,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         addUnassignedShardsWatcher(clusterService, indexName);
         putShutdownForRemovalMetadata(primaryNode, clusterService);
         unblockAllDataNodes(repoName); // lets the shard snapshot pause, but allocation filtering stops it from moving
-        safeAwait(updateSnapshotStatusBarrier); // wait for data node to notify master that the shard snapshot is paused
+        safeAwait(updateSnapshotStatusRequestArrived); // wait for data node to notify master that the shard snapshot is paused (and any
+                                                       // other updates to arrive)
 
         // abort snapshot (and wait for the abort to land in the cluster state)
         final var deleteStartedListener = ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
@@ -438,7 +442,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         final var deleteSnapshotFuture = startDeleteSnapshot(repoName, snapshotName); // abort the snapshot
         safeAwait(deleteStartedListener);
 
-        safeAwait(updateSnapshotStatusBarrier); // process pause notification now that the snapshot is ABORTED
+        releaseUpdateSnapshotStatusRequests.countDown(); // release all blocked update_snapshot_status requests so they can complete
+        masterTransportService.clearAllRules(); // allow any further requests to use the real handler
 
         assertEquals(SnapshotState.FAILED, snapshotFuture.get(10, TimeUnit.SECONDS).getSnapshotInfo().state());
         assertTrue(deleteSnapshotFuture.get(10, TimeUnit.SECONDS).isAcknowledged());
@@ -470,6 +475,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             SnapshotState.SUCCESS,
             startFullSnapshot(repoName, randomIdentifier()).get(10, TimeUnit.SECONDS).getSnapshotInfo().state()
         );
+        masterTransportService.clearAllRules();
         clearShutdownMetadata(clusterService);
     }
 
@@ -611,6 +617,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         // Release the master node to respond
         snapshotStatusUpdateLatch.countDown();
+        masterTransportService.clearAllRules();
 
         // Wait for the snapshot to fully pause.
         safeAwait(snapshotPausedListener);
@@ -821,6 +828,57 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         // Wait for log expectation to be matched
         snapshotShutdownProgressTrackerToNotRunExpectation.awaitMatched(1000);
         mockLog.assertAllExpectationsMatched();
+
+        clearShutdownMetadata(clusterService);
+    }
+
+    public void testDeleteSnapshotWithPausedShardSnapshots() throws Exception {
+        final var originalNode = internalCluster().startDataOnlyNode();
+        final var indexName = randomIndexName();
+        createIndexWithContent(indexName, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, originalNode).build());
+
+        final var repoName = randomRepoName();
+        createRepository(repoName, "mock");
+
+        // Start the snapshot and block it on the data node
+        final String snapshotName = randomSnapshotName();
+        final var snapshotFuture = startFullSnapshotBlockedOnDataNode(snapshotName, repoName, originalNode);
+
+        // Mark data node for shutdown and ensure shard snapshot is paused
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var shardSnapshotsPausedListener = ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
+            final var snapshotEntry = SnapshotsInProgress.get(state)
+                .forRepo(ProjectId.DEFAULT, repoName)
+                .stream()
+                .filter(entry -> entry.snapshot().getSnapshotId().getName().equals(snapshotName))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Snapshot [" + snapshotName + "] not found"));
+
+            return snapshotEntry.shards()
+                .values()
+                .stream()
+                .allMatch(shardSnapshotStatus -> shardSnapshotStatus.state() == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL);
+        });
+        putShutdownForRemovalMetadata(originalNode, clusterService);
+        unblockAllDataNodes(repoName);
+        safeAwait(shardSnapshotsPausedListener);
+
+        // Delete the snapshot and ensure it is successfully and clears all snapshot operations from cluster state
+        final var snapshotClearedListener = ClusterServiceUtils.addTemporaryStateListener(
+            clusterService,
+            state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).getEntries().isEmpty()
+        );
+        assertTrue(safeGet(startDeleteSnapshot(repoName, snapshotName)).isAcknowledged());
+        safeAwait(snapshotClearedListener);
+
+        // Snapshot creation has failed snapshot response
+        final var createSnapshotResponse = safeGet(snapshotFuture);
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
+        assertThat(createSnapshotResponse.getSnapshotInfo().reason(), containsString("Snapshot was aborted by deletion"));
+
+        // No snapshot is in the repository
+        final List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get().getSnapshots();
+        assertThat(snapshotInfos, empty());
 
         clearShutdownMetadata(clusterService);
     }

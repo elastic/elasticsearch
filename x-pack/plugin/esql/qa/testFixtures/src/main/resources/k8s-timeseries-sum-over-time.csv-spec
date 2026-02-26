@@ -375,13 +375,12 @@ null        | two         | 2024-05-10T00:13:00.000Z
 
 sum_over_time_null_values_promql
 required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" events=(sum by (pod) (sum_over_time(events_received[1m])))
 | SORT events desc, step, pod | LIMIT 10;
 
 events:double | step:datetime            | pod:keyword
-null          | 2024-05-10T00:12:00.000Z | one
-null          | 2024-05-10T00:13:00.000Z | two
 25.0          | 2024-05-10T00:12:00.000Z | two
 23.0          | 2024-05-10T00:13:00.000Z | one
 21.0          | 2024-05-10T00:13:00.000Z | three
@@ -390,6 +389,8 @@ null          | 2024-05-10T00:13:00.000Z | two
 11.0          | 2024-05-10T00:10:00.000Z | one
 9.0           | 2024-05-10T00:11:00.000Z | one
 7.0           | 2024-05-10T00:10:00.000Z | two
+7.0           | 2024-05-10T00:12:00.000Z | three
+5.0           | 2024-05-10T00:11:00.000Z | two
 ;
 
 sum_over_time_all_value_types

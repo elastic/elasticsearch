@@ -10,8 +10,13 @@
 package org.elasticsearch.test.fixtures.minio;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.junit.rules.TemporaryFolder;
+import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.images.RemoteDockerImage;
+
+import java.io.File;
+import java.io.IOException;
 
 public final class MinioTestContainer extends DockerEnvironmentAwareTestContainer {
 
@@ -26,6 +31,9 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
 
     private static final int servicePort = 9000;
     private final boolean enabled;
+    private final String bucketName;
+
+    private final TemporaryFolder dataFolder = TemporaryFolder.builder().assureDeletion().build();
 
     /**
      * for packer caching only
@@ -36,16 +44,20 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
     }
 
     public MinioTestContainer(boolean enabled, String accessKey, String secretKey, String bucketName) {
-        super(
-            new ImageFromDockerfile("localhost/es-minio-testfixture").withDockerfileFromBuilder(
-                builder -> builder.from(DOCKER_BASE_IMAGE)
-                    .env("MINIO_ACCESS_KEY", accessKey)
-                    .env("MINIO_SECRET_KEY", secretKey)
-                    .run("mkdir -p /minio/data/" + bucketName)
-                    .cmd("server", "/minio/data")
-                    .build()
-            )
-        );
+        super(new RemoteDockerImage(DOCKER_BASE_IMAGE));
+        this.bucketName = bucketName;
+        withEnv("MINIO_ROOT_USER", accessKey);
+        withEnv("MINIO_ROOT_PASSWORD", secretKey);
+        withCommand("server", "/minio/data");
+        File bucketFolder = null;
+        try {
+            dataFolder.create();
+            bucketFolder = dataFolder.newFolder("minio", "data", bucketName);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        withFileSystemBind(bucketFolder.getParentFile().getAbsolutePath(), "/minio/data/", BindMode.READ_WRITE);
+
         if (enabled) {
             addExposedPort(servicePort);
             // The following waits for a specific log message as the readiness signal. When the minio docker image
@@ -60,6 +72,26 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
     public void start() {
         if (enabled) {
             super.start();
+        }
+    }
+
+    @Override
+    public void stop() {
+        if (enabled) {
+            super.stop();
+        }
+        // Always cleanup dataFolder since it's always created in constructor
+        // Use try-catch to prevent cleanup failures from failing tests on CI where /dev/shm may have permission issues
+        // or container still holds references to files as not fully stopped yet.
+        try {
+            dataFolder.delete();
+        } catch (AssertionError e) {
+            LOGGER.warn(
+                "Failed to clean up temporary folder at {}. This is typically harmless and cleanup will happen via CI agent cleanup.",
+                dataFolder.getRoot(),
+                e
+            );
+            // Don't propagate - cleanup failures shouldn't fail tests
         }
     }
 

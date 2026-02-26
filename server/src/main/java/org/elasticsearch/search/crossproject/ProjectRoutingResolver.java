@@ -22,6 +22,15 @@ public interface ProjectRoutingResolver {
     String ORIGIN = "_origin";
 
     /**
+     * Validates the provided project routing string.
+     * This method is expected to throw an exception if the project routing is invalid.
+     *
+     * @param projectRouting the project_routing specified in the request object
+     * @param projectMetadata project metadata for the origin project
+     */
+    void validate(String projectRouting, ProjectMetadata projectMetadata);
+
+    /**
      * Filters the specified TargetProjects based on the provided project routing string
      *
      * @param projectRouting  the project_routing specified in the request object
@@ -32,5 +41,13 @@ public interface ProjectRoutingResolver {
     TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects targetProjects);
 
     /** No-op router - just returns the provided target projects. */
-    ProjectRoutingResolver NOOP = (projectRouting, projectMetadata, targetProjects) -> targetProjects;
+    ProjectRoutingResolver NOOP = new ProjectRoutingResolver() {
+        @Override
+        public void validate(String projectRouting, ProjectMetadata projectMetadata) {}
+
+        @Override
+        public TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects targetProjects) {
+            return targetProjects;
+        }
+    };
 }

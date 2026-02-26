@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
+import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -51,6 +52,7 @@ import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -62,6 +64,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardWriteLoadDistributionMetrics;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -72,6 +75,8 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.DynamicContextDataProvider;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.Log4jWriter;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -106,6 +111,7 @@ import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.health.node.tracker.DiskHealthTracker;
+import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
@@ -192,16 +198,17 @@ import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
 import org.elasticsearch.readiness.ReadinessService;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
 import org.elasticsearch.reservedstate.service.FileSettingsServiceProvider;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptModule;
@@ -710,6 +717,8 @@ class NodeConstruction {
 
         modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
+        TemplateDecoratorProvider.initOnce(pluginsService.loadServiceProviders(TemplateDecoratorProvider.class));
+
         RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
             RootObjectMapperNamespaceValidator.class,
             () -> new DefaultRootObjectMapperNamespaceValidator()
@@ -782,9 +791,13 @@ class NodeConstruction {
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
         final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
+        final WriteLoadConstraintSettings writeLoadConstraintSettings = new WriteLoadConstraintSettings(
+            clusterService.getClusterSettings()
+        );
         final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
             pluginsService,
             settings,
+            writeLoadConstraintSettings,
             clusterService,
             threadPool,
             client
@@ -826,7 +839,7 @@ class NodeConstruction {
 
         clusterInfoService.addListener(
             new WriteLoadConstraintMonitor(
-                clusterService.getClusterSettings(),
+                writeLoadConstraintSettings,
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,
                 rerouteService,
@@ -873,7 +886,7 @@ class NodeConstruction {
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
 
-        List<? extends ActionLoggingFieldsProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(
+        List<? extends ActionLoggingFieldsProvider> loggingFieldsProviders = pluginsService.loadServiceProviders(
             ActionLoggingFieldsProvider.class
         );
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
@@ -881,7 +894,7 @@ class NodeConstruction {
         ActionLoggingFieldsProvider loggingFieldsProvider = new ActionLoggingFieldsProvider() {
             public ActionLoggingFields create(ActionLoggingFieldsContext context) {
                 final List<ActionLoggingFields> fields = new ArrayList<>();
-                for (var provider : slowLogFieldProviders) {
+                for (var provider : loggingFieldsProviders) {
                     fields.add(provider.create(context));
                 }
                 return new ActionLoggingFields(context) {
@@ -1174,12 +1187,17 @@ class NodeConstruction {
             projectResolver.supportsMultipleProjects(),
             snapshotMetrics
         );
+
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,
             clusterService,
             repositoriesService,
             transportService,
-            indicesService
+            indicesService,
+            pluginsService.loadSingletonServiceProvider(
+                SnapshotShardContextFactory.class,
+                () -> new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService)
+            )
         );
         final CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService =
             new CachingSnapshotAndShardByStateMetricsService(clusterService);
@@ -1189,8 +1207,7 @@ class NodeConstruction {
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installProjectStateHandler(new ReservedPipelineAction());
 
-        var fileSettingsHealthIndicatorPublisher = new FileSettingsService.FileSettingsHealthIndicatorPublisherImpl(clusterService, client);
-        var fileSettingsHealthTracker = new FileSettingsHealthTracker(settings, fileSettingsHealthIndicatorPublisher);
+        var fileSettingsHealthTracker = new FileSettingsHealthTracker(settings);
         FileSettingsService fileSettingsService = pluginsService.loadSingletonServiceProvider(
             FileSettingsServiceProvider.class,
             () -> FileSettingsService::new
@@ -1267,6 +1284,12 @@ class NodeConstruction {
             onlinePrewarmingService
         );
 
+        final SearchTaskWatchdog searchTaskWatchdog = new SearchTaskWatchdog(
+            settingsModule.getClusterSettings(),
+            transportService.getTaskManager(),
+            threadPool
+        );
+
         final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
 
         modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
@@ -1280,7 +1303,8 @@ class NodeConstruction {
                 transportService,
                 threadPool,
                 telemetryProvider,
-                repositoriesService
+                repositoriesService,
+                fileSettingsHealthTracker
             )
         );
 
@@ -1319,6 +1343,11 @@ class NodeConstruction {
         );
         dataStreamAutoShardingService.init();
 
+        ActivityLogWriterProvider logWriterProvider = pluginsService.loadSingletonServiceProvider(
+            ActivityLogWriterProvider.class,
+            () -> Log4jWriter.PROVIDER
+        );
+
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);
             b.bind(BigArrays.class).toInstance(bigArrays);
@@ -1333,6 +1362,7 @@ class NodeConstruction {
             b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
             b.bind(MetadataIndexTemplateService.class).toInstance(metadataIndexTemplateService);
             b.bind(SearchService.class).toInstance(searchService);
+            b.bind(SearchTaskWatchdog.class).toInstance(searchTaskWatchdog);
             b.bind(SearchResponseMetrics.class).toInstance(searchResponseMetrics);
             b.bind(SearchTransportService.class).toInstance(searchTransportService);
             b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
@@ -1361,6 +1391,8 @@ class NodeConstruction {
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
+            b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
+            b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
         });
 
         if (ReadinessService.enabled(environment)) {
@@ -1461,7 +1493,8 @@ class NodeConstruction {
         TransportService transportService,
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
-        RepositoriesService repositoriesService
+        RepositoriesService repositoriesService,
+        FileSettingsHealthTracker fileSettingsHealthTracker
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1497,7 +1530,8 @@ class NodeConstruction {
 
         List<HealthTracker<?>> healthTrackers = List.of(
             new DiskHealthTracker(nodeService, clusterService),
-            new RepositoriesHealthTracker(repositoriesService)
+            new RepositoriesHealthTracker(repositoriesService),
+            fileSettingsHealthTracker
         );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, threadPool, client, healthTrackers);
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
@@ -1557,8 +1591,9 @@ class NodeConstruction {
         // Due to Java's type erasure with generics, the injector can't give us exactly what we need, and we have
         // to resort to some evil casting.
         @SuppressWarnings("rawtypes")
-        Map<ActionType<?>, TransportAction<?, ?>> actions = forciblyCast(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-        }));
+        Map<ActionType<?>, TransportAction<?, ?>> actions = forciblyCast(
+            injector.getInstance(new Key<Map<ActionType, TransportAction>>() {})
+        );
 
         client.initialize(
             actions,

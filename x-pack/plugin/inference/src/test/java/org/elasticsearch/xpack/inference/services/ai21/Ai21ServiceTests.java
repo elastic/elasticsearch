@@ -24,8 +24,12 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -40,11 +44,14 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -86,12 +93,8 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
     }
 
     public static AbstractInferenceServiceTests.TestConfiguration createTestConfiguration() {
-        return new AbstractInferenceServiceTests.TestConfiguration.Builder(
-            new AbstractInferenceServiceTests.CommonConfig(
-                TaskType.COMPLETION,
-                TaskType.TEXT_EMBEDDING,
-                EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
-            ) {
+        return new TestConfiguration.Builder(
+            new CommonConfig(TaskType.COMPLETION, TaskType.TEXT_EMBEDDING, EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)) {
 
                 @Override
                 protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
@@ -101,6 +104,40 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
                 @Override
                 protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
                     return Ai21ServiceTests.createServiceSettingsMap();
+                }
+
+                @Override
+                protected ModelSecrets createModelSecrets() {
+                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
+                }
+
+                @Override
+                protected ModelConfigurations createModelConfigurations(TaskType taskType) {
+                    switch (taskType) {
+                        case COMPLETION, CHAT_COMPLETION -> {
+                            return new ModelConfigurations(
+                                "some_inference_id",
+                                taskType,
+                                Ai21Service.NAME,
+                                Ai21ChatCompletionServiceSettings.fromMap(
+                                    createServiceSettingsMap(taskType),
+                                    ConfigurationParseContext.PERSISTENT
+                                ),
+                                EmptyTaskSettings.INSTANCE
+                            );
+                        }
+                        // Text embedding is not supported, but in order to test unsupported task types it is included here
+                        case TEXT_EMBEDDING -> {
+                            return new ModelConfigurations(
+                                "some_inference_id",
+                                taskType,
+                                Ai21Service.NAME,
+                                mock(ServiceSettings.class),
+                                EmptyTaskSettings.INSTANCE
+                            );
+                        }
+                        default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
+                    }
                 }
 
                 @Override
@@ -206,7 +243,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(model), getSecretSettingsMap(secret)),
+                getRequestConfigMap(getServiceSettingsMap(model, null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }
@@ -237,7 +274,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(null), getSecretSettingsMap(secret)),
+                getRequestConfigMap(getServiceSettingsMap(null, null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }
@@ -269,9 +306,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -309,9 +344,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -389,9 +422,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

@@ -15,7 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.ScriptService;
@@ -48,7 +48,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
     @SuppressWarnings("unchecked")
     protected <T extends ActionRequest> T applyScript(Consumer<Map<String, Object>> scriptBody) {
         IndexRequest index = new IndexRequest("index").id("1").source(singletonMap("foo", "bar"));
-        ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "id", 0);
+        PaginatedHitSource.Hit doc = new PaginatedHitSource.BasicHit("test", "id", 0);
         when(scriptService.compile(any(), eq(UpdateScript.CONTEXT))).thenReturn(
             (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
                 @Override

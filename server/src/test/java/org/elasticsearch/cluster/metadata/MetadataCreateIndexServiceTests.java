@@ -13,12 +13,14 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -47,6 +49,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
@@ -62,6 +65,7 @@ import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexCreationException;
+import org.elasticsearch.indices.IndexLimitExceededException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -106,6 +110,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_B
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_SETTING;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.buildIndexMetadata;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.clusterStateCreateIndex;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
@@ -292,6 +298,75 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             targetShards = randomIntBetween(1, numShards / 2);
         } while (isShrinkable(numShards, targetShards) == false);
         validateShrinkIndex(clusterState, "source", "target", Settings.builder().put("index.number_of_shards", targetShards).build());
+    }
+
+    public void testUserIndicesLimit() {
+        var indexLimit = randomIntBetween(10, 30);
+        Settings nodeSettings = Settings.builder()
+            .put(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey(), indexLimit)
+            .put(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.getKey(), true)
+            .build();
+
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            var totalUserIndices = indexLimit + randomIntBetween(0, 10);
+            String[] indices = new String[totalUserIndices + randomIntBetween(1, 10)];
+            for (int i = 0; i < totalUserIndices; i++) {
+                indices[i] = "index-" + i;
+            }
+            for (int i = totalUserIndices; i < indices.length; i++) {
+                indices[i] = randomFrom(".synonyms-000000", ".tasks-000000") + i;
+            }
+            DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+            final Tuple<ProjectMetadata.Builder, RoutingTable.Builder> tuple = ClusterStateCreationUtils
+                .projectWithAssignedPrimariesAndReplicas(projectId, indices, between(1, 5), 0, discoveryNodes);
+
+            ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+                .nodes(discoveryNodes)
+                .routingTable(GlobalRoutingTable.builder().put(projectId, tuple.v2()).build())
+                .metadata(Metadata.builder().put(tuple.v1()))
+                .build();
+
+            IndicesService indicesService = mock(IndicesService.class);
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                false,
+                new IndexSettingProviders(Set.of())
+            );
+
+            CreateIndexClusterStateUpdateRequest userIndexCreateRequest = new CreateIndexClusterStateUpdateRequest(
+                "test",
+                projectId,
+                "just-another-user-index",
+                "just-another-user-index"
+            );
+
+            IndexLimitExceededException e = expectThrows(
+                IndexLimitExceededException.class,
+                () -> checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId), userIndexCreateRequest)
+            );
+            assertThat(e.getMessage(), startsWith("This action would add an index, but this project currently has ["));
+
+            CreateIndexClusterStateUpdateRequest systemIndexCreateRequest = new CreateIndexClusterStateUpdateRequest(
+                "test",
+                projectId,
+                ".synonyms-001",
+                ".synonyms-001"
+            );
+            try {
+                checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId), systemIndexCreateRequest);
+            } catch (Exception ex) {
+                fail(ex, "System indices creation should not be limited by indices total.");
+            }
+        }, nodeSettings, Set.of(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING));
     }
 
     public void testValidateSplitIndex() {
@@ -1404,7 +1479,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             4,
             sourceIndexMetadata,
             false,
-            Map.of()
+            Map.of(),
+            TransportVersion.current()
         );
 
         assertThat(indexMetadata.getAliases().size(), is(1));
@@ -1412,6 +1488,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTransportVersion(), equalTo(TransportVersion.current()));
     }
 
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {
@@ -1873,6 +1950,21 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     private void withTemporaryClusterService(BiConsumer<ClusterService, ThreadPool> consumer) {
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, projectId);
+        try {
+            consumer.accept(clusterService, threadPool);
+        } finally {
+            clusterService.stop();
+            threadPool.shutdown();
+        }
+    }
+
+    private void withTemporaryClusterService(
+        BiConsumer<ClusterService, ThreadPool> consumer,
+        Settings nodeSettings,
+        Set<Setting<?>> settingSet
+    ) {
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, projectId, nodeSettings, settingSet);
         try {
             consumer.accept(clusterService, threadPool);
         } finally {

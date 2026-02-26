@@ -22,25 +22,25 @@ endpoint will only be used at index time. Learn more about [configuring this par
 
 **Updating the `inference_id` parameter**
 
-::::{applies-switch}
+:::::{applies-switch}
 
-:::{applies-item} stack: ga 9.3+
+::::{applies-item} stack: ga 9.3+
 
 You can update this parameter by using
 the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
 You can update the {{infer}} endpoint if no values have been indexed or if the new endpoint is compatible with the current one.
 
-::::{important}
+:::{important}
 When updating an `inference_id` it is important to ensure the new {{infer}} endpoint produces embeddings compatible with those already indexed. This typically means using the same underlying model.
-::::
-
 :::
 
-:::{applies-item} stack: ga 9.0-9.2
+::::
+
+::::{applies-item} stack: ga 9.0-9.2
 This parameter cannot be updated.
-:::
-
 ::::
+
+:::::
 
 `search_inference_id`
 :   (Optional, string) The {{infer}} endpoint that will be used to generate
@@ -218,7 +218,7 @@ POST /_query
 }
 ```
 % TEST[skip:Requires {{infer}} endpoint]
-1. The {{esql}} [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) automatically performs a kNN search on `semantic_text` fields with dense vector embeddings.
+1. The {{esql}} [`MATCH` function](/reference/query-languages/esql/functions-operators/search-functions/match.md) automatically performs a kNN search on `semantic_text` fields with dense vector embeddings.
 
 ## Limitations [limitations]
 

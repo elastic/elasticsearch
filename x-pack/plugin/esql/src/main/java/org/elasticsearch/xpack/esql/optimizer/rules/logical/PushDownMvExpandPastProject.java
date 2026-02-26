@@ -91,7 +91,7 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
                             ReferenceAttribute tempAttribute = new ReferenceAttribute(
                                 alias.source(),
                                 null,
-                                TemporaryNameUtils.locallyUniqueTemporaryName(alias.name()),
+                                TemporaryNameGenerator.locallyUniqueTemporaryName(alias.name()),
                                 alias.dataType(),
                                 Nullability.FALSE,
                                 null,
@@ -118,7 +118,7 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
                         // for query like: row a = 2 | eval b = a | keep * | mv_expand b
                         Alias aliasAlias = new Alias(
                             alias.source(),
-                            TemporaryNameUtils.temporaryName(alias.child(), alias.toAttribute(), 0),
+                            TemporaryNameGenerator.temporaryName(alias.child(), alias.toAttribute(), 0),
                             alias.child()
                         );
                         if (replaced == false) {
@@ -131,7 +131,7 @@ public final class PushDownMvExpandPastProject extends OptimizerRules.OptimizerR
                         // for query like: row a = 2 | eval b = a | keep * | mv_expand a
                         Alias aliasAlias = new Alias(
                             alias.source(),
-                            TemporaryNameUtils.temporaryName(alias.child(), alias.toAttribute(), 0),
+                            TemporaryNameGenerator.temporaryName(alias.child(), alias.toAttribute(), 0),
                             alias.child()
                         );
                         projections.set(i, alias.replaceChild(aliasAlias.toAttribute()));

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingWritables;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Md5;
@@ -78,6 +80,7 @@ public class ScalarFunctionWritables {
         entries.add(Coalesce.ENTRY);
         entries.add(Chicken.ENTRY);
         entries.add(Concat.ENTRY);
+        entries.add(ConfidenceInterval.ENTRY);
         entries.add(Contains.ENTRY);
         entries.add(E.ENTRY);
         entries.add(EndsWith.ENTRY);
@@ -85,6 +88,7 @@ public class ScalarFunctionWritables {
         entries.add(Greatest.ENTRY);
         entries.add(CopySign.ENTRY);
         entries.add(Hash.ENTRY);
+        entries.add(JsonExtract.ENTRY);
         entries.add(Hypot.ENTRY);
         entries.add(In.ENTRY);
         entries.add(InsensitiveEquals.ENTRY);

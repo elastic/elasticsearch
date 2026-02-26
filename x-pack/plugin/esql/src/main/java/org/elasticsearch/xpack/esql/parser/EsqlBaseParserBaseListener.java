@@ -157,30 +157,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterRerankFields(EsqlBaseParser.RerankFieldsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitRerankFields(EsqlBaseParser.RerankFieldsContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterRerankField(EsqlBaseParser.RerankFieldContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitRerankField(EsqlBaseParser.RerankFieldContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterFromCommand(EsqlBaseParser.FromCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -200,6 +176,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterExternalCommand(EsqlBaseParser.ExternalCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -913,6 +901,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterLookupCommand(EsqlBaseParser.LookupCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -932,6 +932,30 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterUriPartsCommand(EsqlBaseParser.UriPartsCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitUriPartsCommand(EsqlBaseParser.UriPartsCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterRegisteredDomainCommand(EsqlBaseParser.RegisteredDomainCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitRegisteredDomainCommand(EsqlBaseParser.RegisteredDomainCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -992,18 +1016,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -9,7 +9,9 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -95,8 +97,16 @@ public final class ShardBulkSplitHelper {
         Map<ShardId, BulkShardRequest> splitRequests,
         Map<ShardId, Tuple<BulkShardResponse, Exception>> responses
     ) {
+        int failedShards = 0;
+        int successfulShards = 0;
+        int totalShards = 0;
+        List<ReplicationResponse.ShardInfo.Failure> shardFailures = new ArrayList<>();
+
         Map<Integer, BulkItemResponse> itemResponsesById = new HashMap<>();
-        responses.forEach((shardId, responseTuple) -> {
+
+        for (Map.Entry<ShardId, Tuple<BulkShardResponse, Exception>> entry : responses.entrySet()) {
+            Tuple<BulkShardResponse, Exception> responseTuple = entry.getValue();
+            ShardId shardId = entry.getKey();
             Exception exception = responseTuple.v2();
             if (exception != null) {
                 BulkShardRequest bulkShardRequest = splitRequests.get(shardId);
@@ -105,12 +115,19 @@ public final class ShardBulkSplitHelper {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(item.index(), request.id(), exception);
                     itemResponsesById.put(item.id(), BulkItemResponse.failure(item.id(), request.opType(), failure));
                 }
+                failedShards += 1;
+                totalShards += 1;
+                shardFailures.add(
+                    new ReplicationResponse.ShardInfo.Failure(shardId, null, exception, ExceptionsHelper.status(exception), true)
+                );
             } else {
                 for (BulkItemResponse bulkItemResponse : responseTuple.v1().getResponses()) {
                     itemResponsesById.put(bulkItemResponse.getItemId(), bulkItemResponse);
                 }
+                successfulShards += 1;
+                totalShards += 1;
             }
-        });
+        }
         BulkItemRequest[] originalItemRequests = originalRequest.items();
         BulkItemResponse[] bulkItemResponses = new BulkItemResponse[originalItemRequests.length];
         // Item responses should match the order of the original item requests
@@ -118,8 +135,10 @@ public final class ShardBulkSplitHelper {
             bulkItemResponses[i] = itemResponsesById.get(originalItemRequests[i].id());
         }
         BulkShardResponse bulkShardResponse = new BulkShardResponse(originalRequest.shardId(), bulkItemResponses);
-        // TODO: Decide how to handle
-        bulkShardResponse.setShardInfo(responses.get(originalRequest.shardId()).v1().getShardInfo());
+        ReplicationResponse.ShardInfo.Failure[] failureArray = shardFailures.toArray(new ReplicationResponse.ShardInfo.Failure[0]);
+        assert failureArray.length == failedShards;
+        ReplicationResponse.ShardInfo shardInfo = ReplicationResponse.ShardInfo.of(totalShards, successfulShards, failureArray);
+        bulkShardResponse.setShardInfo(shardInfo);
         return new Tuple<>(bulkShardResponse, null);
     }
 }

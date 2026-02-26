@@ -43,7 +43,7 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
     private long nativeInt7DotProduct(byte[] q) throws IOException {
         final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions);
         final MemorySegment querySegment = MemorySegment.ofArray(q);
-        final long res = Similarities.dotProduct7u(segment, querySegment, dimensions);
+        final long res = Similarities.dotProductI7u(segment, querySegment, dimensions);
         in.skipBytes(dimensions);
         return res;
     }
@@ -52,7 +52,7 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
         final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions * count);
         final MemorySegment querySegment = MemorySegment.ofArray(q);
-        Similarities.dotProduct7uBulk(segment, querySegment, dimensions, count, scoresSegment);
+        Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
         in.skipBytes(dimensions * count);
     }
 

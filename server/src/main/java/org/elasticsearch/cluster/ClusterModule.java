@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetr
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardRelocationOrder;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -166,6 +167,7 @@ public class ClusterModule extends AbstractModule {
             balancerSettings,
             clusterService.getClusterSettings()
         );
+        final var shardRelocationOrder = getShardRelocationOrder(clusterPlugins, clusterService.getClusterSettings());
         var nodeAllocationStatsAndWeightsCalculator = new NodeAllocationStatsAndWeightsCalculator(
             writeLoadForecaster,
             balancingWeightsFactory
@@ -185,7 +187,8 @@ public class ClusterModule extends AbstractModule {
             nodeAllocationStatsAndWeightsCalculator,
             this::explainShardAllocation,
             desiredBalanceMetrics,
-            balancingRoundMetrics
+            balancingRoundMetrics,
+            shardRelocationOrder
         );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadPool.getThreadContext(), systemIndices, projectResolver);
@@ -244,6 +247,18 @@ public class ClusterModule extends AbstractModule {
             case 0 -> new GlobalBalancingWeightsFactory(balancerSettings);
             case 1 -> strategies.getFirst();
             default -> throw new IllegalArgumentException("multiple plugins define balancing weights factories, which is not permitted");
+        };
+    }
+
+    static ShardRelocationOrder getShardRelocationOrder(List<ClusterPlugin> clusterPlugins, ClusterSettings clusterSettings) {
+        final var strategies = clusterPlugins.stream()
+            .map(pl -> pl.getShardRelocationOrder(clusterSettings))
+            .filter(Objects::nonNull)
+            .toList();
+        return switch (strategies.size()) {
+            case 0 -> new ShardRelocationOrder.DefaultOrder();
+            case 1 -> strategies.get(0);
+            default -> throw new IllegalArgumentException("multiple plugins define a shard relocation order, which is not permitted");
         };
     }
 
@@ -528,7 +543,8 @@ public class ClusterModule extends AbstractModule {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
         ShardAllocationExplainer shardAllocationExplainer,
         DesiredBalanceMetrics desiredBalanceMetrics,
-        AllocationBalancingRoundMetrics balancingRoundMetrics
+        AllocationBalancingRoundMetrics balancingRoundMetrics,
+        ShardRelocationOrder shardRelocationOrder
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
         allocators.put(
@@ -546,7 +562,8 @@ public class ClusterModule extends AbstractModule {
                 nodeAllocationStatsAndWeightsCalculator,
                 shardAllocationExplainer,
                 desiredBalanceMetrics,
-                balancingRoundMetrics
+                balancingRoundMetrics,
+                shardRelocationOrder
             )
         );
 

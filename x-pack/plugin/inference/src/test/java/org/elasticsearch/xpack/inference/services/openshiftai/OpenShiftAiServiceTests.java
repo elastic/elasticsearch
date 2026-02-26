@@ -30,10 +30,15 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -52,14 +57,18 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.openshiftai.completion.OpenShiftAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.openshiftai.embeddings.OpenShiftAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.Matchers;
@@ -116,6 +125,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
     private static final int MAX_INPUT_TOKENS_VALUE = 512;
     private static final String FIRST_PART_OF_INPUT_VALUE = "abc";
     private static final String SECOND_PART_OF_INPUT_VALUE = "def";
+    private static final boolean DIMENSIONS_SET_BY_USER_VALUE = true;
 
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -127,11 +137,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
 
     public static TestConfiguration createTestConfiguration() {
         return new TestConfiguration.Builder(
-            new CommonConfig(
-                TaskType.TEXT_EMBEDDING,
-                TaskType.SPARSE_EMBEDDING,
-                EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK)
-            ) {
+            new CommonConfig(TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK)) {
 
                 @Override
                 protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
@@ -140,7 +146,62 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
 
                 @Override
                 protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                    return OpenShiftAiServiceTests.createServiceSettingsMap(taskType);
+                    return createServiceSettingsMap(taskType, ConfigurationParseContext.REQUEST);
+                }
+
+                @Override
+                protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
+                    return OpenShiftAiServiceTests.createServiceSettingsMap(taskType, parseContext);
+                }
+
+                @Override
+                protected ModelConfigurations createModelConfigurations(TaskType taskType) {
+                    return switch (taskType) {
+                        case TEXT_EMBEDDING -> new ModelConfigurations(
+                            "some_inference_id",
+                            taskType,
+                            OpenShiftAiService.NAME,
+                            OpenShiftAiEmbeddingsServiceSettings.fromMap(
+                                createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+                                ConfigurationParseContext.PERSISTENT
+                            ),
+                            EmptyTaskSettings.INSTANCE
+                        );
+                        case COMPLETION, CHAT_COMPLETION -> new ModelConfigurations(
+                            "some_inference_id",
+                            taskType,
+                            OpenShiftAiService.NAME,
+                            OpenShiftAiChatCompletionServiceSettings.fromMap(
+                                createServiceSettingsMap(taskType),
+                                ConfigurationParseContext.PERSISTENT
+                            ),
+                            EmptyTaskSettings.INSTANCE
+                        );
+                        case RERANK -> new ModelConfigurations(
+                            "some_inference_id",
+                            taskType,
+                            OpenShiftAiService.NAME,
+                            OpenShiftAiRerankServiceSettings.fromMap(
+                                createServiceSettingsMap(taskType),
+                                ConfigurationParseContext.PERSISTENT
+                            ),
+                            OpenShiftAiRerankTaskSettings.fromMap(createTaskSettingsMap())
+                        );
+                        // Sparse embedding is not supported, but in order to test unsupported task types it is included here
+                        case SPARSE_EMBEDDING -> new ModelConfigurations(
+                            "some_inference_id",
+                            taskType,
+                            OpenShiftAiService.NAME,
+                            mock(ServiceSettings.class),
+                            mock(TaskSettings.class)
+                        );
+                        default -> throw new IllegalStateException("Unexpected value: " + taskType);
+                    };
+                }
+
+                @Override
+                protected ModelSecrets createModelSecrets() {
+                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
                 }
 
                 @Override
@@ -160,7 +221,12 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
 
                 @Override
                 protected EnumSet<TaskType> supportedStreamingTasks() {
-                    return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
+                    return EnumSet.of(CHAT_COMPLETION, COMPLETION);
+                }
+
+                @Override
+                protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+                    assertThat(rerankingInferenceService.rerankerWindowSize(MODEL_VALUE), is(2800));
                 }
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
@@ -176,6 +242,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             case TEXT_EMBEDDING -> assertTextEmbeddingModel(model, modelIncludesSecrets);
             case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
             case CHAT_COMPLETION -> assertChatCompletionModel(model, modelIncludesSecrets);
+            case RERANK -> assertRerankModel(model, modelIncludesSecrets);
             default -> fail(Strings.format("unexpected task type [%s]", taskType));
         }
     }
@@ -189,6 +256,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
         assertThat(embeddingsModel.getServiceSettings().dimensions(), is(DIMENSIONS_VALUE));
         assertThat(embeddingsModel.getServiceSettings().similarity(), is(SimilarityMeasure.COSINE));
         assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(MAX_INPUT_TOKENS_VALUE));
+        assertThat(openShiftAiModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
     }
 
     private static OpenShiftAiModel assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
@@ -197,7 +265,6 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
         var openShiftAiModel = (OpenShiftAiModel) model;
         assertThat(openShiftAiModel.getServiceSettings().modelId(), is(MODEL_VALUE));
         assertThat(openShiftAiModel.getServiceSettings().uri.toString(), is(URL_VALUE));
-        assertThat(openShiftAiModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
 
         if (modelIncludesSecrets) {
             assertThat(openShiftAiModel.getSecretSettings().apiKey(), is(new SecureString(API_KEY_VALUE.toCharArray())));
@@ -208,11 +275,19 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
 
     private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
         var openShiftAiModel = assertCommonModelFields(model, modelIncludesSecrets);
+        assertThat(openShiftAiModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
         assertThat(openShiftAiModel.getTaskType(), is(TaskType.COMPLETION));
+    }
+
+    private static void assertRerankModel(Model model, boolean modelIncludesSecrets) {
+        var openShiftAiModel = assertCommonModelFields(model, modelIncludesSecrets);
+        assertThat(openShiftAiModel.getTaskSettings(), is(new OpenShiftAiRerankTaskSettings(null, null)));
+        assertThat(openShiftAiModel.getTaskType(), is(TaskType.RERANK));
     }
 
     private static void assertChatCompletionModel(Model model, boolean modelIncludesSecrets) {
         var openShiftAiModel = assertCommonModelFields(model, modelIncludesSecrets);
+        assertThat(openShiftAiModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
         assertThat(openShiftAiModel.getTaskType(), is(TaskType.CHAT_COMPLETION));
     }
 
@@ -221,7 +296,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
         return new OpenShiftAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
-    private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+    private static Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
         Map<String, Object> settingsMap = new HashMap<>(Map.of(ServiceFields.URL, URL_VALUE, ServiceFields.MODEL_ID, MODEL_VALUE));
 
         if (taskType == TaskType.TEXT_EMBEDDING) {
@@ -235,6 +310,9 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
                     MAX_INPUT_TOKENS_VALUE
                 )
             );
+            if (parseContext.equals(ConfigurationParseContext.PERSISTENT)) {
+                settingsMap.put(ServiceFields.DIMENSIONS_SET_BY_USER, DIMENSIONS_SET_BY_USER_VALUE);
+            }
         }
 
         return settingsMap;
@@ -402,11 +480,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(
-                        new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), ROLE_VALUE, null, null)
-                    )
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), ROLE_VALUE, null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -444,11 +518,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(
-                        new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), ROLE_VALUE, null, null)
-                    )
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), ROLE_VALUE, null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
@@ -530,11 +600,7 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(
-                        new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), ROLE_VALUE, null, null)
-                    )
-                ),
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), ROLE_VALUE, null, null))),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -903,11 +969,6 @@ public class OpenShiftAiServiceTests extends AbstractInferenceServiceTests {
     @Override
     public InferenceService createInferenceService() {
         return createService();
-    }
-
-    @Override
-    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize(MODEL_VALUE), is(2800));
     }
 
 }

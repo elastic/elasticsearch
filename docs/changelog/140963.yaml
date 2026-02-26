@@ -1,6 +1,0 @@
-pr: 140963
-summary: "Quantize ST_X, ST_Y and related functions"
-area: "ES|QL"
-type: bug
-issues:
- - 139943

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.FunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -49,21 +50,28 @@ public class EvalGenerator implements CommandGenerator {
                     name = EsqlQueryGenerator.randomIdentifier();
                 }
             }
-            String expression = EsqlQueryGenerator.expression(usablePrevious.values().stream().toList(), true);
+            // Occasionally generate a null field (EVAL field = null) to test NULL data type handling
+            String expression;
+            if (randomIntBetween(0, 100) < 10) {
+                expression = "null";
+            } else {
+                expression = EsqlQueryGenerator.expression(usablePrevious.values().stream().toList(), true, previousCommands);
+            }
             if (i > 0) {
                 cmd.append(",");
             }
             cmd.append(" ");
             cmd.append(name);
-            newColumns.remove(unquote(name));
-            newColumns.add(unquote(name));
+            String rawName = unquote(name);
+            newColumns.remove(rawName);
+            newColumns.add(rawName);
             cmd.append(" = ");
             cmd.append(expression);
 
             // there could be collisions in many ways, remove all of them
             usablePrevious.remove(name);
             usablePrevious.remove("`" + name + "`");
-            usablePrevious.remove(unquote(name));
+            usablePrevious.remove(rawName);
         }
         String cmdString = cmd.toString();
         return new CommandDescription(EVAL, this, cmdString, Map.ofEntries(Map.entry(NEW_COLUMNS, newColumns)));
@@ -82,9 +90,8 @@ public class EvalGenerator implements CommandGenerator {
         List<String> expectedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
         List<String> resultColNames = columns.stream().map(Column::name).toList();
         List<String> lastColumns = resultColNames.subList(resultColNames.size() - expectedColumns.size(), resultColNames.size());
-        lastColumns = lastColumns.stream().map(EsqlQueryGenerator::unquote).toList();
-        // expected column names are unquoted already
-        if (columns.size() < expectedColumns.size() || lastColumns.equals(expectedColumns) == false) {
+        if (FunctionGenerator.isUnmappedFieldsEnabled(previousCommands) == false
+            && (columns.size() < expectedColumns.size() || lastColumns.equals(expectedColumns) == false)) {
             return new ValidationResult(
                 false,
                 "Expecting the following as last columns ["

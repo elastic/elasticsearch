@@ -2,8 +2,10 @@ setup:
   - requires:
       cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      test_runner_features: allowed_warnings_regex
+      test_runner_features: [allowed_warnings_regex, allowed_warnings]
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: test
         body:

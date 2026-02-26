@@ -731,7 +731,7 @@ public final class DataStreamTestHelper {
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
-            mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of());
+            mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), randomFrom(IndexMode.values()));
         }
         IndicesService indicesService = mockIndicesServices(mappingLookup);
 
@@ -811,8 +811,7 @@ public final class DataStreamTestHelper {
             when(mapperService.documentMapper()).thenReturn(documentMapper);
             when(indexService.mapperService()).thenReturn(mapperService);
             when(mapperService.mappingLookup()).thenReturn(mappingLookup);
-            when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {
-            });
+            when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
             when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
             return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
         });

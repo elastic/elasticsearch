@@ -43,11 +43,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -70,6 +72,7 @@ public class S3HttpHandler implements HttpHandler {
     private final String basePath;
     private final String bucketAndBasePath;
     private final S3ConsistencyModel consistencyModel;
+    private final Supplier<String> uuidGenerator;
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
@@ -84,6 +87,11 @@ public class S3HttpHandler implements HttpHandler {
         this.basePath = Objects.requireNonNullElse(basePath, "");
         this.bucketAndBasePath = bucket + (Strings.hasText(basePath) ? "/" + basePath : "");
         this.consistencyModel = consistencyModel;
+        // Per-thread random is based on the same seed so that they generate the same sequence of results across threads.
+        // To ensure unique UUIDs across threads, we store and share a single random across threads so that each invocation
+        // generates different UUIDs.
+        final var random = new Random(ESTestCase.randomLong());
+        this.uuidGenerator = () -> UUIDs.randomBase64UUID(random);
     }
 
     /**
@@ -110,6 +118,9 @@ public class S3HttpHandler implements HttpHandler {
                 if (blob == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
+                    // HEAD response must include Content-Length header for S3 clients (AWS SDK) that read file size
+                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.length()));
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
             } else if (request.isListMultipartUploadsRequest()) {
@@ -173,10 +184,13 @@ public class S3HttpHandler implements HttpHandler {
                             exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                         } else {
                             var range = parsePartRange(exchange);
+                            if (range.end() == null) {
+                                throw new AssertionError("Copy-part range must specify an end: " + range);
+                            }
                             int start = Math.toIntExact(range.start());
                             int len = Math.toIntExact(range.end() - range.start() + 1);
                             var part = sourceBlob.slice(start, len);
-                            var etag = UUIDs.randomBase64UUID();
+                            var etag = getEtagFromContents(part);
                             upload.addPart(etag, part);
                             byte[] response = ("""
                                 <?xml version="1.0" encoding="UTF-8"?>
@@ -371,16 +385,15 @@ public class S3HttpHandler implements HttpHandler {
                     return;
                 }
 
-                // S3 supports https://www.rfc-editor.org/rfc/rfc9110.html#name-range. The AWS SDK v1.x seems to always generate range
-                // requests with a header value like "Range: bytes=start-end" where both {@code start} and {@code end} are always defined
-                // (sometimes to very high value for {@code end}). It would be too tedious to fully support the RFC so S3HttpHandler only
-                // supports when both {@code start} and {@code end} are defined to match the SDK behavior.
+                // S3 supports https://www.rfc-editor.org/rfc/rfc9110.html#name-range
+                // This handler supports both bounded ranges (bytes=0-100) and open-ended ranges (bytes=100-)
                 final HttpHeaderParser.Range range = parseRangeHeader(rangeHeader);
                 if (range == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
                 long start = range.start();
-                long end = range.end();
+                // For open-ended ranges (bytes=N-), end is null, meaning "to end of file"
+                long end = range.end() != null ? range.end() : blob.length() - 1;
                 if (end < start) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
@@ -697,7 +710,7 @@ public class S3HttpHandler implements HttpHandler {
     }
 
     MultipartUpload putUpload(String path) {
-        final var upload = new MultipartUpload(UUIDs.randomBase64UUID(), path);
+        final var upload = new MultipartUpload(uuidGenerator.get(), path);
         synchronized (uploads) {
             assertNull("upload " + upload.getUploadId() + " should not exist", uploads.put(upload.getUploadId(), upload));
             return upload;

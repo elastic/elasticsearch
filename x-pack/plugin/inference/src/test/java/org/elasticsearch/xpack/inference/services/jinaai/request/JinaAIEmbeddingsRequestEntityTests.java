@@ -26,6 +26,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.inference.InferenceString.DataFormat.BASE64;
 import static org.elasticsearch.inference.InferenceString.DataType.IMAGE;
+import static org.elasticsearch.inference.InputType.INGEST;
 import static org.elasticsearch.xpack.inference.TaskTypeTests.randomEmbeddingTaskType;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModelTests.createModel;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModelTests.getEmbeddingServiceSettings;
@@ -44,7 +45,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
                 null,
                 modelName,
                 embeddingType,
-                new JinaAIEmbeddingsTaskSettings(InputType.INGEST, lateChunking),
+                new JinaAIEmbeddingsTaskSettings(INGEST, lateChunking),
                 "apiKey",
                 dimensions,
                 randomEmbeddingTaskType(),
@@ -255,7 +256,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
                 null,
                 modelName,
                 embeddingType,
-                new JinaAIEmbeddingsTaskSettings(InputType.INGEST, lateChunking),
+                new JinaAIEmbeddingsTaskSettings(INGEST, lateChunking),
                 "apiKey",
                 dimensions,
                 TaskType.EMBEDDING,
@@ -340,5 +341,39 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
 
         assertThat(xContentResult, is(Strings.format("""
             {"input":[{"text":"%s"},{"image":"%s"}],"model":"%s","embedding_type":"float"}""", textInput, imageInput, modelName)));
+    }
+
+    public void testXContent_DoesNotWriteTaskField_WhenModelDoesNotSupportSpecifiedInputType() throws IOException {
+        String textInput = "text input";
+        String modelName = "jina-clip-v2";
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of(new InferenceStringGroup(textInput)),
+            INGEST,
+            createModel(null, modelName, null, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "apiKey", null, TaskType.EMBEDDING, true)
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is(Strings.format("""
+            {"input":[{"text":"%s"}],"model":"%s","embedding_type":"float"}""", textInput, modelName)));
+    }
+
+    public void testXContent_DoesNotWriteTaskField_WhenModelDoesNotSupportSpecifiedInputType_InputTypeInTaskSettings() throws IOException {
+        String textInput = "text input";
+        String modelName = "jina-clip-v2";
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of(new InferenceStringGroup(textInput)),
+            null,
+            createModel(null, modelName, null, new JinaAIEmbeddingsTaskSettings(INGEST), "apiKey", null, TaskType.EMBEDDING, true)
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is(Strings.format("""
+            {"input":[{"text":"%s"}],"model":"%s","embedding_type":"float"}""", textInput, modelName)));
     }
 }

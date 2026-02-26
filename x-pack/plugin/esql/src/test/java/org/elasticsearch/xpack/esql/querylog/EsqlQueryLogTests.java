@@ -92,8 +92,7 @@ public class EsqlQueryLogTests extends ESTestCase {
     }
 
     public static ActionLoggingFieldsProvider mockLogFieldProvider() {
-        return context -> new ActionLoggingFields(context) {
-        };
+        return context -> new ActionLoggingFields(context) {};
     }
 
     public void testPrioritiesOnSuccess() {
@@ -212,4 +211,5 @@ public class EsqlQueryLogTests extends ESTestCase {
         long stopNanos = startNanos + randomLongBetween(1, 100_000);
         return new TimeSpan(startNanos / 1_000_000, startNanos, stopNanos / 1_000_000, stopNanos);
     }
+
 }

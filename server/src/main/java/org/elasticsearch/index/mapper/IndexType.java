@@ -110,7 +110,7 @@ public final class IndexType {
      * @return {@code true} if this IndexType has index structures that support sort-based early termination
      */
     public boolean supportsSortShortcuts() {
-        return hasTerms || hasPoints;
+        return hasTerms || hasPoints || hasDocValuesSkipper;
     }
 
     /**

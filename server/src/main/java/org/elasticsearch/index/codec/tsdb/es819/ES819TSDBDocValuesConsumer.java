@@ -46,6 +46,8 @@ import org.elasticsearch.common.compress.fsst.ReservoirSampler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -63,6 +65,8 @@ import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SORTED_SET;
 
 final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
+
+    private static final Logger logger = LogManager.getLogger(ES819TSDBDocValuesConsumer.class);
 
     final Directory dir;
     final IOContext context;
@@ -766,6 +770,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         int[] batchOutOffsets = new int[batchInOffsets.length];
         long suffixCompressedPos = 0;
         long suffixBatchBase = 0;
+        long totalUncompressedSuffixBytes = 0;
 
         // Prefix accumulator
         byte[] prefixAccumBuf = new byte[FSST_BULK_BUFFER_SIZE];
@@ -846,6 +851,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             // Add suffix to batch
             int suffixLen = cur.length - prefixLen;
             if (batchCount > 0 && batchPos + suffixLen > FSST_BULK_BUFFER_SIZE) {
+                totalUncompressedSuffixBytes += batchPos;
                 suffixCompressedPos = flushSuffixBatch(
                     symbolTable,
                     batchBytes,
@@ -879,6 +885,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         // Flush remaining suffix batch
         if (batchCount > 0) {
+            totalUncompressedSuffixBytes += batchPos;
             suffixCompressedPos = flushSuffixBatch(
                 symbolTable,
                 batchBytes,
@@ -995,7 +1002,55 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         meta.writeLong(prefixOffsetsDataStart);
         meta.writeLong(prefixOffsetsDataEnd - prefixOffsetsDataStart);
 
+        long termsIndexStart = data.getFilePointer();
         writeTermsIndex(values);
+        long termsIndexEnd = data.getFilePointer();
+
+        long suffixOffsetsMetaSize = suffixOffsetsMetaBuffer.size();
+        long prefixIdsMetaSize = prefixIdsMetaBuffer.size();
+
+        if (logger.isInfoEnabled()) {
+            long symbolTableSize = symbolTableEnd - symbolTableStart;
+            long suffixDataSize = suffixDataEnd - suffixDataStart;
+            long prefixDataSize = prefixDataEnd - prefixDataStart;
+            long suffixOffsetsDataSize = suffixOffsetsDataEnd - suffixOffsetsDataStart;
+            long prefixIdsDataSize = prefixIdsDataEnd - prefixIdsDataStart;
+            long prefixOffsetsDataSize = prefixOffsetsDataEnd - prefixOffsetsDataStart;
+            long termsIndexSize = termsIndexEnd - termsIndexStart;
+            long totalTermsDict = symbolTableSize + suffixDataSize + prefixDataSize + suffixOffsetsDataSize + prefixIdsDataSize
+                + prefixOffsetsDataSize + termsIndexSize;
+
+            logger.info(
+                "TermsDict space breakdown for field [{}]: "
+                    + "numTerms=[{}], numPrefixes=[{}], totalSize=[{}] bytes\n"
+                    + "  Symbol table:           [{}] bytes\n"
+                    + "  Suffix data (FSST):     [{}] bytes (uncompressed: [{}] bytes, ratio: [{}]x)\n"
+                    + "  Suffix offsets (DMW):    [{}] bytes data + [{}] bytes meta\n"
+                    + "  Prefix data (FSST):     [{}] bytes (uncompressed: [{}] bytes, ratio: [{}]x)\n"
+                    + "  Prefix offsets (DMW):    [{}] bytes data\n"
+                    + "  Prefix IDs (DMW):        [{}] bytes data + [{}] bytes meta\n"
+                    + "  Terms index:            [{}] bytes\n",
+                "sorted/sortedset",
+                size,
+                numPrefixes,
+                totalTermsDict,
+                symbolTableSize,
+                suffixDataSize,
+                totalUncompressedSuffixBytes,
+                totalUncompressedSuffixBytes > 0
+                    ? String.format(java.util.Locale.ROOT, "%.2f", (double) totalUncompressedSuffixBytes / suffixDataSize)
+                    : "N/A",
+                suffixOffsetsDataSize,
+                suffixOffsetsMetaSize,
+                prefixDataSize,
+                prefixAccumPos,
+                prefixAccumPos > 0 ? String.format(java.util.Locale.ROOT, "%.2f", (double) prefixAccumPos / prefixDataSize) : "N/A",
+                prefixOffsetsDataSize,
+                prefixIdsDataSize,
+                prefixIdsMetaSize,
+                termsIndexSize
+            );
+        }
     }
 
     private long flushSuffixBatch(

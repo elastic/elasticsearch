@@ -291,27 +291,29 @@ public class SearchApplicationIndexService {
     }
 
     private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
-        try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(bigArrays.withCircuitBreaking())) {
-            try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
-                source.startObject()
-                    .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
-                    .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
-                    .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
-                    .directFieldAsBase64(
-                        SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
-                        os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().getMinTransportVersion())
-                    )
-                    .endObject();
-            }
+        final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(bigArrays.withCircuitBreaking());
+        final ActionListener<DocWriteResponse> wrappedListener = ActionListener.runAfter(listener, buffer::close);
+        try {
+            XContentBuilder source = XContentFactory.jsonBuilder(buffer);
+            source.startObject()
+                .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
+                .field(SearchApplication.ANALYTICS_COLLECTION_NAME_FIELD.getPreferredName(), app.analyticsCollectionName())
+                .field(SearchApplication.UPDATED_AT_MILLIS_FIELD.getPreferredName(), app.updatedAtMillis())
+                .directFieldAsBase64(
+                    SearchApplication.BINARY_CONTENT_FIELD.getPreferredName(),
+                    os -> writeSearchApplicationBinaryWithVersion(app, os, clusterService.state().getMinTransportVersion())
+                )
+                .endObject();
+            source.flush(); // flush since close would close the underlying buffer which we need to keep open until the listener is done
             DocWriteRequest.OpType opType = (create ? DocWriteRequest.OpType.CREATE : DocWriteRequest.OpType.INDEX);
             final IndexRequest indexRequest = new IndexRequest(SEARCH_APPLICATION_ALIAS_NAME).opType(DocWriteRequest.OpType.INDEX)
                 .id(app.name())
                 .opType(opType)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(buffer.bytes(), XContentType.JSON);
-            clientWithOrigin.index(indexRequest, listener);
+            clientWithOrigin.index(indexRequest, wrappedListener);
         } catch (Exception e) {
-            listener.onFailure(e);
+            wrappedListener.onFailure(e);
         }
     }
 

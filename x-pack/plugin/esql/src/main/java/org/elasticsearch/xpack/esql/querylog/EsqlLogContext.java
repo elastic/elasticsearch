@@ -37,6 +37,13 @@ public class EsqlLogContext extends ActivityLoggerContext {
         return request.query();
     }
 
+    long getHits() {
+        if (response == null) {
+            return 0;
+        }
+        return response.getRowCount();
+    }
+
     Optional<EsqlQueryProfile> getQueryProfile() {
         return response == null ? Optional.empty() : Optional.of(response.getExecutionInfo().queryProfile());
     }

@@ -20,10 +20,12 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     static AccumulatingMockAppender appender;
@@ -61,17 +63,18 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         int numDocs1 = randomIntBetween(1, 15);
         assertAcked(client().admin().indices().prepareCreate("index-1").setMapping("host", "type=keyword"));
         for (int i = 0; i < numDocs1; i++) {
-            client().prepareIndex("index-1").setSource("host", "192." + i).get();
+            client().prepareIndex("index-1").setSource("host", "192.168.0.1", "value", i).get();
         }
         int numDocs2 = randomIntBetween(1, 15);
         assertAcked(client().admin().indices().prepareCreate("index-2").setMapping("host", "type=keyword"));
         for (int i = 0; i < numDocs2; i++) {
-            client().prepareIndex("index-2").setSource("host", "10." + i).get();
+            client().prepareIndex("index-2").setSource("host", "10.0.0.1", "value", i).get();
         }
 
         client().admin().indices().prepareRefresh("index-1", "index-2").get();
 
-        assertQuery("FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100");
+        assertQuery("FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100", 2);
+        assertQuery("FROM index-* | LIMIT 100", numDocs1 + numDocs2);
         assertFailedQuery(
             "FROM index-* | EVAL a = count(*) | LIMIT 100",
             "aggregate function [count(*)] not allowed outside STATS command",
@@ -79,7 +82,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    private void assertQuery(String query) {
+    private void assertQuery(String query, long hits) {
         try (var resp = run(query)) {
             var message = getMessageData(appender.getLastEventAndReset());
             assertMessageSuccess(message, "esql", query);
@@ -91,6 +94,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
                 String tookKey = EsqlLogProducer.PROFILE_PREFIX + marker.name() + ".took";
                 assertTrue("Expected profile field present: " + tookKey, message.containsKey(tookKey));
             }
+            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo(Long.toString(hits)));
         }
     }
 

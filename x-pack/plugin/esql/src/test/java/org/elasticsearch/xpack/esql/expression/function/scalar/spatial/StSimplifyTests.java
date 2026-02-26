@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.GeometryDocSvg;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.hamcrest.Matchers;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.simplify.DouglasPeuckerSimplifier;
 
@@ -32,6 +34,8 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.zip.GZIPInputStream;
 
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
+
 @FunctionName("st_simplify")
 public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
     public StSimplifyTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -40,7 +44,26 @@ public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return buildParameters("StSimplify", "tolerance", DouglasPeuckerSimplifier::simplify, (spatial, param) -> spatial, 0, 100);
+        return buildParameters("StSimplify", "tolerance", DouglasPeuckerSimplifier::simplify, (spatial, param) -> spatial, 0, 100, true);
+    }
+
+    @Override
+    public void testFold() {
+        // The evaluator quantizes coordinates for indexed fields, but fold() handles literals
+        // where quantization doesn't apply. Recompute without quantization for the fold test.
+        var data = testCase.getData();
+        if (testCase.getExpectedTypeError() == null
+            && data.size() == 2
+            && data.get(0).data() instanceof BytesRef wkb
+            && data.get(1).data() instanceof Number tolerance) {
+            testCase = new TestCaseSupplier.TestCase(
+                data,
+                testCase.evaluatorToString().toString(),
+                testCase.expectedType(),
+                Matchers.equalTo(valueOf(wkb, tolerance.doubleValue(), DouglasPeuckerSimplifier::simplify, UNSPECIFIED))
+            );
+        }
+        super.testFold();
     }
 
     @Override

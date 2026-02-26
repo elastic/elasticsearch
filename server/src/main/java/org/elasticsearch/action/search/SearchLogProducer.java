@@ -28,8 +28,8 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
     public static final String QUERY_FIELD_HAS_AGGREGATIONS = ES_QUERY_FIELDS_PREFIX + "has_aggregations";
     public static final String QUERY_FIELD_IS_SYSTEM = ES_QUERY_FIELDS_PREFIX + "is_system";
-    public static final String QUERY_FIELD_SEARCH_HITS = ES_QUERY_FIELDS_PREFIX + "search.total_hits";
-    public static final String QUERY_FIELD_SEARCH_HITS_GTE = ES_QUERY_FIELDS_PREFIX + "search.total_hits_gte";
+    public static final String QUERY_FIELD_SEARCH_HITS = ES_QUERY_FIELDS_PREFIX + "search.total_count";
+    public static final String QUERY_FIELD_SEARCH_HITS_GTE = ES_QUERY_FIELDS_PREFIX + "search.total_count_partial";
 
     private boolean logSystemSearches = false;
     private final Predicate<String> systemChecker;
@@ -61,7 +61,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
         ESLogMessage msg = produceCommon(context, additionalFields);
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
-        msg.field(QueryLogging.QUERY_FIELD_HITS, context.getHits());
+        msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());
         if (isSystemSearch) {
             msg.field(QUERY_FIELD_IS_SYSTEM, true);
         }

@@ -21,7 +21,7 @@ public class EqlLogProducer implements ActivityLogProducer<EqlLogContext> {
         ESLogMessage msg = produceCommon(context, additionalFields);
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
-        msg.field(QueryLogging.QUERY_FIELD_HITS, context.getHits());
+        msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());
         return Optional.of(msg);
     }
 }

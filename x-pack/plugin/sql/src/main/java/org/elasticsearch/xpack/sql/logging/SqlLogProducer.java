@@ -20,7 +20,7 @@ public class SqlLogProducer implements ActivityLogProducer<SqlLogContext> {
     public Optional<ESLogMessage> produce(SqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
         return Optional.of(
-            msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery()).field(QueryLogging.QUERY_FIELD_HITS, context.getRows())
+            msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery()).field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getRows())
         );
     }
 }

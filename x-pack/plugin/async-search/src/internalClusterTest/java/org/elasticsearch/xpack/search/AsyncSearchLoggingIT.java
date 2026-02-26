@@ -31,8 +31,8 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
-import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_HITS;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
@@ -102,7 +102,7 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
         assertThat(events, hasSize(1));
         Map<String, String> message = getMessageData(events.getFirst());
         assertMessageSuccess(message, "search", "quick");
-        assertThat(message.get(QUERY_FIELD_HITS), equalTo("3"));
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("3"));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
     }
 
@@ -125,7 +125,7 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
         assertThat(events, hasSize(1));
         Map<String, String> message = getMessageData(events.getFirst());
         assertMessageFailure(message, "search", "throw", SearchPhaseExecutionException.class, "all shards failed");
-        assertThat(message.get(QUERY_FIELD_HITS), equalTo("0"));
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
     }
 

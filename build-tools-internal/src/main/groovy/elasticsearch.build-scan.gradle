@@ -120,9 +120,15 @@ develocity {
         def jobId = System.getenv('BUILDKITE_JOB_ID')
         if (jobId) {
           try {
-            new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "tests-seed-${jobId}", testSeed)
+            def process = new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "tests-seed-${jobId}", testSeed)
               .start()
-              .waitFor()
+            def completed = process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)
+            if (completed == false) {
+              logger.warn("Timeout storing test seed in Buildkite metadata")
+              process.destroyForcibly()
+            } else if (process.exitValue() != 0) {
+              logger.warn("Failed to store test seed in Buildkite metadata: exit code ${process.exitValue()}")
+            }
           } catch (Exception e) {
             // Ignore failures - this is best-effort
             logger.warn("Failed to store test seed in Buildkite metadata: ${e.message}")

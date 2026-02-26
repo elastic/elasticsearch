@@ -141,8 +141,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -3244,19 +3244,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       \_UnionAll[[_meta_field{r}#42, emp_no{r}#43, first_name{r}#44, gender{r}#45, hire_date{r}#46, job{r}#47, job.raw{r}#48, l
      * anguages{r}#49, last_name{r}#50, long_noidx{r}#51, salary{r}#52, $$salary$converted_to$keyword{r$}#56]]
      *         |_Project[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19, l
-     * anguages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15, $$salary$converted_to$keyword{r}#54]]
+     * anguages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15, $$salary$converted_to$keyword{r$}#54]]
      *         | \_Eval[[TOSTRING(salary{f}#15) AS $$salary$converted_to$keyword#54]]
-     *         |   \_Limit[1000[INTEGER],false,false]
-     *         |     \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *         |   \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
      *         \_Project[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38, l
-     * anguages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{f}#26, $$salary$converted_to$keyword{r}#55]]
+     * anguages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{f}#26, $$salary$converted_to$keyword{r$}#55]]
      *           \_Eval[[null[KEYWORD] AS _meta_field#32, null[INTEGER] AS emp_no#33, null[KEYWORD] AS first_name#34, null[TEXT] AS ge
      * nder#35, null[DATETIME] AS hire_date#36, null[TEXT] AS job#37, null[KEYWORD] AS job.raw#38, null[INTEGER] AS languages#39,
      * null[KEYWORD] AS last_name#40, null[LONG] AS long_noidx#41, TOSTRING(salary{f}#26) AS $$salary$converted_to$keyword#55]]
      *             \_Subquery[]
      *               \_Project[[salary{f}#26]]
-     *                 \_Limit[1000[INTEGER],false,false]
-     *                   \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *                 \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
      * }</pre>
      */
     public void testPushDownMvExpandPastProject5() {
@@ -3276,15 +3274,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var branch1 = as(union.children().getFirst(), Project.class);
         var eval1 = as(branch1.child(), Eval.class);
-        var limit1 = asLimit(eval1.child(), 1000, false);
-        as(limit1.child(), EsRelation.class);
+        as(eval1.child(), EsRelation.class);
 
         var branch2 = as(union.children().get(1), Project.class);
         var eval2 = as(branch2.child(), Eval.class);
         var subquery = as(eval2.child(), Subquery.class);
         var subProject = as(subquery.child(), Project.class);
-        var subLimit = asLimit(subProject.child(), 1000, false);
-        as(subLimit.child(), EsRelation.class);
+        as(subProject.child(), EsRelation.class);
     }
 
     /**
@@ -3297,19 +3293,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *         \_UnionAll[[_meta_field{r}#46, emp_no{r}#47, first_name{r}#48, gender{r}#49, hire_date{r}#50, job{r}#51, job.raw{r}#52, l
      * anguages{r}#53, last_name{r}#54, long_noidx{r}#55, salary{r}#56, $$salary$converted_to$keyword{r$}#60]]
      *           |_Project[[_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, gender{f}#16, hire_date{f}#21, job{f}#22, job.raw{f}#23, l
-     * anguages{f}#17, last_name{f}#18, long_noidx{f}#24, salary{f}#19, $$salary$converted_to$keyword{r}#58]]
+     * anguages{f}#17, last_name{f}#18, long_noidx{f}#24, salary{f}#19, $$salary$converted_to$keyword{r$}#58]]
      *           | \_Eval[[TOSTRING(salary{f}#19) AS $$salary$converted_to$keyword#58]]
-     *           |   \_Limit[1000[INTEGER],false,false]
-     *           |     \_EsRelation[employees][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     *           |   \_EsRelation[employees][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *           \_Project[[_meta_field{r}#36, emp_no{r}#37, first_name{r}#38, gender{r}#39, hire_date{r}#40, job{r}#41, job.raw{r}#42, l
-     * anguages{r}#43, last_name{r}#44, long_noidx{r}#45, salary{f}#30, $$salary$converted_to$keyword{r}#59]]
+     * anguages{r}#43, last_name{r}#44, long_noidx{r}#45, salary{f}#30, $$salary$converted_to$keyword{r$}#59]]
      *             \_Eval[[null[KEYWORD] AS _meta_field#36, null[INTEGER] AS emp_no#37, null[KEYWORD] AS first_name#38, null[TEXT] AS ge
      * nder#39, null[DATETIME] AS hire_date#40, null[TEXT] AS job#41, null[KEYWORD] AS job.raw#42, null[INTEGER] AS languages#43,
      * null[KEYWORD] AS last_name#44, null[LONG] AS long_noidx#45, TOSTRING(salary{f}#30) AS $$salary$converted_to$keyword#59]]
      *               \_Subquery[]
      *                 \_Project[[salary{f}#30]]
-     *                   \_Limit[1000[INTEGER],false,false]
-     *                     \_EsRelation[employees][_meta_field{f}#31, emp_no{f}#25, first_name{f}#26, ..]
+     *                   \_EsRelation[employees][_meta_field{f}#31, emp_no{f}#25, first_name{f}#26, ..]
      * }</pre>
      */
     public void testPushDownMvExpandPastProject6() {
@@ -3331,15 +3325,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var branch1 = as(union.children().getFirst(), Project.class);
         var eval1 = as(branch1.child(), Eval.class);
-        var limit1 = asLimit(eval1.child(), 1000, false);
-        as(limit1.child(), EsRelation.class);
+        as(eval1.child(), EsRelation.class);
 
         var branch2 = as(union.children().get(1), Project.class);
         var eval2 = as(branch2.child(), Eval.class);
         var subquery = as(eval2.child(), Subquery.class);
         var subProject = as(subquery.child(), Project.class);
-        var subLimit = asLimit(subProject.child(), 1000, false);
-        as(subLimit.child(), EsRelation.class);
+        as(subProject.child(), EsRelation.class);
     }
 
     /**
@@ -3352,19 +3344,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *         \_UnionAll[[_meta_field{r}#46, emp_no{r}#47, first_name{r}#48, gender{r}#49, hire_date{r}#50, job{r}#51, job.raw{r}#52, l
      * anguages{r}#53, last_name{r}#54, long_noidx{r}#55, salary{r}#56, $$salary$converted_to$keyword{r$}#60]]
      *           |_Project[[_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, gender{f}#16, hire_date{f}#21, job{f}#22, job.raw{f}#23, l
-     * anguages{f}#17, last_name{f}#18, long_noidx{f}#24, salary{f}#19, $$salary$converted_to$keyword{r}#58]]
+     * anguages{f}#17, last_name{f}#18, long_noidx{f}#24, salary{f}#19, $$salary$converted_to$keyword{r$}#58]]
      *           | \_Eval[[TOSTRING(salary{f}#19) AS $$salary$converted_to$keyword#58]]
-     *           |   \_Limit[1000[INTEGER],false,false]
-     *           |     \_EsRelation[employees][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     *           |   \_EsRelation[employees][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *           \_Project[[_meta_field{r}#36, emp_no{r}#37, first_name{r}#38, gender{r}#39, hire_date{r}#40, job{r}#41, job.raw{r}#42, l
-     * anguages{r}#43, last_name{r}#44, long_noidx{r}#45, salary{f}#30, $$salary$converted_to$keyword{r}#59]]
+     * anguages{r}#43, last_name{r}#44, long_noidx{r}#45, salary{f}#30, $$salary$converted_to$keyword{r$}#59]]
      *             \_Eval[[null[KEYWORD] AS _meta_field#36, null[INTEGER] AS emp_no#37, null[KEYWORD] AS first_name#38, null[TEXT] AS ge
      * nder#39, null[DATETIME] AS hire_date#40, null[TEXT] AS job#41, null[KEYWORD] AS job.raw#42, null[INTEGER] AS languages#43,
      * null[KEYWORD] AS last_name#44, null[LONG] AS long_noidx#45, TOSTRING(salary{f}#30) AS $$salary$converted_to$keyword#59]]
      *               \_Subquery[]
      *                 \_Project[[salary{f}#30]]
-     *                   \_Limit[1000[INTEGER],false,false]
-     *                     \_EsRelation[employees][_meta_field{f}#31, emp_no{f}#25, first_name{f}#26, ..]
+     *                   \_EsRelation[employees][_meta_field{f}#31, emp_no{f}#25, first_name{f}#26, ..]
      * }</pre>
      */
     public void testPushDownMvExpandPastProject7() {
@@ -3386,15 +3376,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var branch1 = as(union.children().getFirst(), Project.class);
         var eval1 = as(branch1.child(), Eval.class);
-        var limit1 = asLimit(eval1.child(), 1000, false);
-        as(limit1.child(), EsRelation.class);
+        as(eval1.child(), EsRelation.class);
 
         var branch2 = as(union.children().get(1), Project.class);
         var eval2 = as(branch2.child(), Eval.class);
         var subquery = as(eval2.child(), Subquery.class);
         var subProject = as(subquery.child(), Project.class);
-        var subLimit = asLimit(subProject.child(), 1000, false);
-        as(subLimit.child(), EsRelation.class);
+        as(subProject.child(), EsRelation.class);
     }
 
     public void testTopNEnrich() {
@@ -9632,12 +9620,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * <pre>{@code
      * Project[[id{r}#15, $$languages$converted_to$keyword{f$}#16 AS languages#9]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[id{f}#14,id{r}#15]
-     *     \_Project[[id{f}#14, $$languages$converted_to$keyword{f$}#16]]
-     *       \_Limit[1000[INTEGER],false,false]
-     *         \_EsRelation[union_types_index*][!first_name, id{f}#14, !languages, !last_name, !sal..]
+     *   \_MvExpand[id{f}#12,id{r}#15]
+     *     \_Limit[1000[INTEGER],false,false]
+     *       \_EsRelation[union_types_index*][!first_name, id{f}#12, !languages, !last_name, !sal..]
+     * }</pre>
      */
     public void testUnionTypesResolvePastProjections() {
         LogicalPlan plan = planUnionIndex("""
@@ -9661,12 +9650,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Limit limit1 = asLimit(topProject.child(), 1000, true);
         MvExpand mvExpand = as(limit1.child(), MvExpand.class);
 
-        Project innerProject = as(mvExpand.child(), Project.class);
-        var innerOutput = innerProject.output();
-        assertThat(innerOutput, hasSize(2));
-        assertThat(Expressions.names(innerOutput), containsInAnyOrder("id", "$$languages$converted_to$keyword"));
-
-        Limit limit2 = asLimit(innerProject.child(), 1000, false);
+        Limit limit2 = asLimit(mvExpand.child(), 1000, false);
         EsRelation relation = as(limit2.child(), EsRelation.class);
         assertEquals("union_types_index*", relation.indexPattern());
 

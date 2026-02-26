@@ -154,6 +154,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessPluginIntegTestCase {
         startSearchNode(settings);
 
         var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
 
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put("index.routing.allocation.exclude._name", indexNodeB).build());
@@ -187,6 +188,24 @@ public class AutoscalingReplicaIT extends AbstractStatelessPluginIntegTestCase {
             now
         );
         refresh(indexName2);
+        // Wait for shard size metrics to be propagated for indexName2 so it's considered interactive
+        waitUntil(() -> {
+            var indices = searchMetricsService.getIndices();
+            for (Index i : indices.keySet()) {
+                if (i.getName().equals(indexName2)) {
+                    // index2 has 5 primary shards and we index 1 document (check all shards until we find one that reports interactive data
+                    // size > 0 as we don't know where the doc landed)
+                    for (int shardId = 0; shardId < 5; shardId++) {
+                        var shardMetric = searchMetricsService.getShardMetrics().get(new ShardId(i, shardId));
+                        if (shardMetric != null && shardMetric.shardSize.interactiveSizeInBytes() > 0) {
+                            return true;
+                        }
+                    }
+                    break;
+                }
+            }
+            return false;
+        }, 5, TimeUnit.SECONDS);
         waitUntil(() -> getNumberOfReplicas(indexName2) == 2, 5, TimeUnit.SECONDS);
         assertEquals(2, getNumberOfReplicas(indexName2));
 

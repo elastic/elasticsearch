@@ -100,7 +100,8 @@ public class ReindexMetricsTests extends ESTestCase {
         // second metric
         metrics.recordFailure(
             true,
-            ReindexMetrics.SlicingMode.AUTO_AUTO, new ElasticsearchStatusException("another failure", RestStatus.BAD_REQUEST)
+            ReindexMetrics.SlicingMode.AUTO_AUTO,
+            new ElasticsearchStatusException("another failure", RestStatus.BAD_REQUEST)
         );
 
         measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_COMPLETION_COUNTER);

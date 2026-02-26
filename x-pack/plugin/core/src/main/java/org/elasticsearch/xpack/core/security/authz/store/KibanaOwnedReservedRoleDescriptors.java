@@ -538,7 +538,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera and IRONSCALES specific actions.
+                // For ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES, Axonius
+                // and JupiterOne specific actions.
                 // Kibana reads, writes and manages this index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -563,7 +564,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-axonius.network-*",
                         "logs-axonius.storage-*",
                         "logs-axonius.ticket-*",
-                        "logs-axonius.user-*"
+                        "logs-axonius.user-*",
+                        "logs-jupiter_one.risks_and_alerts-*"
                     )
                     .privileges(
                         "manage",

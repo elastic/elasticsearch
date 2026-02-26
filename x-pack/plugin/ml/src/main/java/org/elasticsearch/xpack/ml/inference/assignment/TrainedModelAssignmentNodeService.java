@@ -617,7 +617,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                stopDeploymentFunc.accept(task, listener);
+                stopDeploymentFunc.accept(task);
                 listener.onResponse(null);
             } catch (Exception e) {
                 listener.onFailure(e);

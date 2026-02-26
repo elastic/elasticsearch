@@ -21,22 +21,19 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.aggregation.FirstLastAggregatorTestingUtils.processPages;
 
-public class AllLastBytesRefByLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
+public class AllLastIntByIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen tsgen = randomFrom(
-            FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen.values()
-        );
         return new ListRowsBlockSourceOperator(
             blockFactory,
-            List.of(ElementType.BYTES_REF, ElementType.LONG),
-            IntStream.range(0, size).mapToObj(l -> List.of(randomAlphanumericOfLength(randomInt(20)), tsgen.gen())).toList()
+            List.of(ElementType.INT, ElementType.INT),
+            IntStream.range(0, size).mapToObj(l -> List.of(randomInt(), randomInt())).toList()
         );
     }
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new AllLastBytesRefByLongAggregatorFunctionSupplier();
+        return new AllLastIntByIntAggregatorFunctionSupplier();
     }
 
     @Override
@@ -46,7 +43,7 @@ public class AllLastBytesRefByLongAggregatorFunctionTests extends AggregatorFunc
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "all_last_bytesref_by_long";
+        return "all_last_int_by_int";
     }
 
     @Override

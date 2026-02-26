@@ -1164,7 +1164,7 @@ public final class DateFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
                         // Save a copy of the field so synthetic source can load it
-                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
                     }
                     return;
                 } else {
@@ -1243,7 +1243,12 @@ public final class DateFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
             return new SyntheticSourceSupport.Native(
-                () -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed) {
+                () -> new SortedNumericDocValuesSyntheticFieldLoader(
+                    fullPath(),
+                    leafName(),
+                    ignoreMalformed,
+                    indexSettings.getIndexVersionCreated()
+                ) {
                     @Override
                     protected void writeValue(XContentBuilder b, long value) throws IOException {
                         b.value(fieldType().format(value, fieldType().dateTimeFormatter()));

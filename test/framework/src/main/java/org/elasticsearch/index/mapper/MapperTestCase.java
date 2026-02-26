@@ -1238,6 +1238,33 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
+    /**
+     * Tests that synthetic source with ignore_malformed works correctly using stored fields, which is the storage format used by indices
+     * created before {@link IndexVersions#STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES}.
+     */
+    public void testSyntheticSourceIgnoreMalformedExamplesUsingStoredFields() throws IOException {
+        assumeTrue("type doesn't support ignore_malformed", supportsIgnoreMalformed());
+        syntheticSourceSupport(true);
+
+        IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
+            IndexVersions.STORE_IGNORED_MALFORMED_IN_BINARY_DOC_VALUES
+        );
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        for (ExampleMalformedValue v : exampleMalformedValues()) {
+            CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
+                v.mapping.accept(b);
+                b.field("ignore_malformed", true);
+            };
+            SyntheticSourceExample example = new SyntheticSourceExample(v.value, v.value, mapping);
+            DocumentMapper mapper = createMapperService(oldVersion, settings, () -> true, mapping(b -> {
+                b.startObject("field");
+                example.mapping().accept(b);
+                b.endObject();
+            })).documentMapper();
+            assertThat(syntheticSource(mapper, example::buildInput), equalTo(example.expected()));
+        }
+    }
+
     private void assertSyntheticSource(SyntheticSourceExample example) throws IOException {
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");

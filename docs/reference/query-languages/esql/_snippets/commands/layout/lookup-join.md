@@ -82,7 +82,7 @@ Show logs alongside the owning team or escalation information for faster triage:
 
 ### Filter before LOOKUP JOIN
 
-`LOOKUP JOIN` is generally faster when there are fewer rows to join with. {{esql}} will try to perform any `WHERE` clause before the `LOOKUP JOIN` where possible. The following two queries produce the same results — one filters before the join, the other after — but the optimizer will push the filter before the lookup when possible:
+`LOOKUP JOIN` is generally faster when there are fewer rows to join with. {{esql}} will try to perform any `WHERE` clause before the `LOOKUP JOIN` where possible. The following two queries produce the same results. One filters before the join, the other after. The optimizer will push the filter before the lookup when possible:
 
 :::{include} ../examples/lookup-join.csv-spec/filterOnLeftSide.md
 :::

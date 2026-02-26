@@ -33,7 +33,7 @@ or [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggr
 These functions are implicitly evaluated per time series, then aggregated by group using a secondary aggregation
 function. For an example, refer to [Calculate the rate of search requests per host](#calculate-the-rate-of-search-requests-per-host).
 
-This paradigm—a pair of aggregation functions—is standard for time series
+This paradigm (a pair of aggregation functions) is standard for time series
 querying. For supported inner (time series) functions per
 [metric type](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric), refer to
 [](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md). These functions also

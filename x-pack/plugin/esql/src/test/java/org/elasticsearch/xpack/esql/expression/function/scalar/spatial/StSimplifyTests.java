@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -30,6 +31,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 @FunctionName("st_simplify")
@@ -98,6 +101,7 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.TypedDataSupplier geometrySupplier
     ) {
         String testName = spatialType.typeName() + " with tolerance.";
+        String evaluatorPrefix = evaluatorPrefix(spatialType);
 
         suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, DOUBLE), () -> {
             TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
@@ -105,10 +109,8 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
             double tolerance = randomDoubleBetween(0, 100, true);
             TestCaseSupplier.TypedData toleranceData = new TestCaseSupplier.TypedData(tolerance, DOUBLE, "tolerance");
             toleranceData = toleranceData.forceLiteral();
-            String evaluatorName = "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[geometry=Attribute[channel=0], tolerance="
-                + tolerance
-                + "]";
-            var expectedResult = valueOf(geometry, tolerance);
+            String evaluatorName = evaluatorPrefix + "[geometry=Attribute[channel=0], tolerance=" + tolerance + "]";
+            var expectedResult = valueOf(geometry, tolerance, spatialType);
 
             return new TestCaseSupplier.TestCase(
                 List.of(geoTypedData, toleranceData),
@@ -119,16 +121,64 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
         }));
     }
 
-    private static BytesRef valueOf(BytesRef wkb, double tolerance) {
+    private static String evaluatorPrefix(DataType spatialType) {
+        return DataType.isSpatialGeo(spatialType)
+            ? "StSimplifyNonFoldableGeoShapeAndFoldableToleranceEvaluator"
+            : "StSimplifyNonFoldableCartesianShapeAndFoldableToleranceEvaluator";
+    }
+
+    private static BytesRef valueOf(BytesRef wkb, double tolerance, DataType spatialType) {
         if (wkb == null) {
             return null;
         }
         try {
             org.locationtech.jts.geom.Geometry jtsGeometry = UNSPECIFIED.wkbToJtsGeometry(wkb);
+            SpatialCoordinateTypes coordType = DataType.isSpatialGeo(spatialType) ? GEO : CARTESIAN;
+            jtsGeometry.apply((org.locationtech.jts.geom.CoordinateFilter) coord -> {
+                long encoded = coordType.pointAsLong(coord.x, coord.y);
+                coord.x = coordType.decodeX(encoded);
+                coord.y = coordType.decodeY(encoded);
+            });
+            jtsGeometry.geometryChanged();
             org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, tolerance);
             return UNSPECIFIED.jtsGeometryToWkb(simplifiedGeometry);
         } catch (Exception e) {
             throw new AssumptionViolatedException("Skipping invalid test case");
+        }
+    }
+
+    @Override
+    public void testFold() {
+        // The evaluator quantizes coordinates for indexed fields, but fold() handles literals
+        // where quantization doesn't apply. Recompute without quantization for the fold test.
+        var data = testCase.getData();
+        if (testCase.getExpectedTypeError() != null || data.size() < 2) {
+            super.testFold();
+            return;
+        }
+        Object geomData = data.get(0).data();
+        Object tolData = data.get(1).data();
+        if (geomData instanceof BytesRef wkb && tolData instanceof Number tol) {
+            BytesRef nonQuantized = valueOfNoQuantize(wkb, tol.doubleValue());
+            if (nonQuantized != null) {
+                testCase = new TestCaseSupplier.TestCase(
+                    data,
+                    testCase.evaluatorToString().toString(),
+                    testCase.expectedType(),
+                    Matchers.equalTo(nonQuantized)
+                );
+            }
+        }
+        super.testFold();
+    }
+
+    private static BytesRef valueOfNoQuantize(BytesRef wkb, double tolerance) {
+        try {
+            org.locationtech.jts.geom.Geometry jtsGeometry = UNSPECIFIED.wkbToJtsGeometry(wkb);
+            org.locationtech.jts.geom.Geometry simplifiedGeometry = DouglasPeuckerSimplifier.simplify(jtsGeometry, tolerance);
+            return UNSPECIFIED.jtsGeometryToWkb(simplifiedGeometry);
+        } catch (Exception e) {
+            return null;
         }
     }
 

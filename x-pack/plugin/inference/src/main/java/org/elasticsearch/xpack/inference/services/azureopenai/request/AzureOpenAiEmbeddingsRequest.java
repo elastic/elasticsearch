@@ -15,12 +15,11 @@ import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOp
 
 import java.util.Objects;
 
-public class AzureOpenAiEmbeddingsRequest extends AzureOpenAiRequest {
+public class AzureOpenAiEmbeddingsRequest extends AzureOpenAiRequest<AzureOpenAiEmbeddingsModel> {
 
     private final Truncator truncator;
     private final Truncator.TruncationResult truncationResult;
     private final InputType inputType;
-    private final AzureOpenAiEmbeddingsModel model;
 
     public AzureOpenAiEmbeddingsRequest(
         Truncator truncator,
@@ -32,7 +31,6 @@ public class AzureOpenAiEmbeddingsRequest extends AzureOpenAiRequest {
         this.truncator = Objects.requireNonNull(truncator);
         this.truncationResult = Objects.requireNonNull(input);
         this.inputType = inputType;
-        this.model = model;
     }
 
     private static String createRequestEntity(Truncator.TruncationResult input, InputType inputType, AzureOpenAiEmbeddingsModel model) {

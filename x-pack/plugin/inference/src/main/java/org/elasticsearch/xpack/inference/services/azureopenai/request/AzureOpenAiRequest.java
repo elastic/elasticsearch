@@ -29,16 +29,16 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.ENTRA_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
 
-public abstract class AzureOpenAiRequest implements Request {
+public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements Request {
 
     public static final String MISSING_AUTHENTICATION_ERROR_MESSAGE =
         "The request does not have any authentication methods set. One of [%s] or [%s] is required.";
 
-    private final AzureOpenAiModel model;
+    protected final M model;
     private final AzureOpenAiTaskSettings<?> taskSettings;
     private final String requestEntity;
 
-    protected AzureOpenAiRequest(AzureOpenAiModel model, AzureOpenAiTaskSettings<?> taskSettings, String requestEntity) {
+    protected AzureOpenAiRequest(M model, AzureOpenAiTaskSettings<?> taskSettings, String requestEntity) {
         this.model = Objects.requireNonNull(model);
         this.taskSettings = Objects.requireNonNull(taskSettings);
         this.requestEntity = Objects.requireNonNull(requestEntity);

@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOp
 
 import java.util.Objects;
 
-public class AzureOpenAiChatCompletionRequest extends AzureOpenAiRequest {
+public class AzureOpenAiChatCompletionRequest extends AzureOpenAiRequest<AzureOpenAiCompletionModel> {
 
     private final UnifiedChatInput chatInput;
 

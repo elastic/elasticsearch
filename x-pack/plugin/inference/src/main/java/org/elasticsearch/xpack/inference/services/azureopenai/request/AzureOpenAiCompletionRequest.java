@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOp
 import java.util.List;
 import java.util.Objects;
 
-public class AzureOpenAiCompletionRequest extends AzureOpenAiRequest {
+public class AzureOpenAiCompletionRequest extends AzureOpenAiRequest<AzureOpenAiCompletionModel> {
 
     private final boolean stream;
 

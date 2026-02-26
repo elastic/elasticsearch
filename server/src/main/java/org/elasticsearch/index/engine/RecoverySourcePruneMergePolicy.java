@@ -230,16 +230,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             public void document(int docID, StoredFieldVisitor visitor) throws IOException {
                 if (recoverySourceToKeep != null && recoverySourceToKeep.get(docID)) {
                     if (useSyntheticId) {
-                        // Makes sure the synthetic _id field is not materialized again during merges
-                        super.document(docID, new FilterStoredFieldVisitor(visitor) {
-                            @Override
-                            public Status needsField(FieldInfo fieldInfo) throws IOException {
-                                if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
-                                    return Status.NO;
-                                }
-                                return super.needsField(fieldInfo);
-                            }
-                        });
+                        super.document(docID, new SkipIdFieldVisitor(visitor));
                     } else {
                         super.document(docID, visitor);
                     }
@@ -357,15 +348,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
         @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            super.document(docID, new FilterStoredFieldVisitor(visitor) {
-                @Override
-                public Status needsField(FieldInfo fieldInfo) throws IOException {
-                    if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
-                        return Status.NO;
-                    }
-                    return super.needsField(fieldInfo);
-                }
-            });
+            super.document(docID, new SkipIdFieldVisitor(visitor));
         }
 
         @Override
@@ -379,4 +362,22 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         }
     }
 
+    /**
+     * A {@link FilterStoredFieldVisitor} that skips the synthetic {@code _id} field, preventing it from being
+     * visited during merges.
+     */
+    private static class SkipIdFieldVisitor extends FilterStoredFieldVisitor {
+
+        SkipIdFieldVisitor(StoredFieldVisitor visitor) {
+            super(visitor);
+        }
+
+        @Override
+        public Status needsField(FieldInfo fieldInfo) throws IOException {
+            if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
+                return Status.NO;
+            }
+            return super.needsField(fieldInfo);
+        }
+    }
 }

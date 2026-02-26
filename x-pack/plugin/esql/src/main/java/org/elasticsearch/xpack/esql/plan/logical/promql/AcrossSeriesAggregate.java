@@ -52,7 +52,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     private final Grouping grouping;
     private final List<Attribute> groupings;
-    private final List<Attribute> outputGroupings;
+    private final Attribute timeseriesAttribute;
 
     public AcrossSeriesAggregate(
         Source source,
@@ -65,7 +65,7 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         super(source, child, functionName, parameters);
         this.grouping = grouping;
         this.groupings = groupings;
-        this.outputGroupings = grouping == Grouping.WITHOUT ? List.of(FieldAttribute.timeSeriesAttribute(source)) : groupings;
+        this.timeseriesAttribute = FieldAttribute.timeSeriesAttribute(source);
     }
 
     public Grouping grouping() {
@@ -107,7 +107,10 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     @Override
     public List<Attribute> output() {
-        return outputGroupings.stream().filter(not(a -> a.dataType() == DataType.NULL)).toList();
+        if (grouping == Grouping.WITHOUT) {
+            return List.of(timeseriesAttribute);
+        }
+        return groupings.stream().filter(not(a -> a.dataType() == DataType.NULL)).toList();
     }
 
     @Override

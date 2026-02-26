@@ -209,7 +209,7 @@ public class MapperUtils {
                 intermediateAttributes,
                 null,
                 ts.timeBucket(),
-                ts.excludedDimensions()
+                ts.tsdimWithout()
             );
         } else {
             return new AggregateExec(

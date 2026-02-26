@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TsdimWithout;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
@@ -45,13 +46,13 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         TimeSeriesAggregate::new
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
-    public static final TransportVersion TIME_SERIES_AGGREGATE_EXCLUDED_DIMENSIONS = TransportVersion.fromName(
-        "time_series_aggregate_excluded_dimensions"
+    public static final TransportVersion TIME_SERIES_AGGREGATE_TSDIM_WITHOUT = TransportVersion.fromName(
+        "time_series_aggregate_tsdim_without"
     );
 
     private final Bucket timeBucket;
     private final Expression timestamp;
-    private final Set<String> excludedDimensions;
+    private final TsdimWithout tsdimWithout;
 
     public TimeSeriesAggregate(
         Source source,
@@ -61,7 +62,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         Bucket timeBucket,
         Expression timestamp
     ) {
-        this(source, child, groupings, aggregates, timeBucket, timestamp, Set.of());
+        this(source, child, groupings, aggregates, timeBucket, timestamp, null);
     }
 
     public TimeSeriesAggregate(
@@ -71,12 +72,12 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket,
         Expression timestamp,
-        Set<String> excludedDimensions
+        TsdimWithout tsdimWithout
     ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
         this.timestamp = timestamp;
-        this.excludedDimensions = excludedDimensions.isEmpty() ? Set.of() : Set.copyOf(excludedDimensions);
+        this.tsdimWithout = tsdimWithout;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
@@ -89,10 +90,10 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             // Using null (when deserialized from an old node) in this case should be okay.
             this.timestamp = null;
         }
-        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXCLUDED_DIMENSIONS)) {
-            this.excludedDimensions = in.readCollectionAsImmutableSet(StreamInput::readString);
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TSDIM_WITHOUT)) {
+            this.tsdimWithout = in.readOptionalWriteable(inp -> (TsdimWithout) TsdimWithout.ENTRY.reader.read(inp));
         } else {
-            this.excludedDimensions = Set.of();
+            this.tsdimWithout = null;
         }
     }
 
@@ -103,8 +104,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
             out.writeOptionalNamedWriteable(timestamp);
         }
-        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_EXCLUDED_DIMENSIONS)) {
-            out.writeStringCollection(excludedDimensions);
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TSDIM_WITHOUT)) {
+            out.writeOptionalWriteable(tsdimWithout);
         }
     }
 
@@ -115,29 +116,32 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp, excludedDimensions);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp, tsdimWithout);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp, excludedDimensions);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp, tsdimWithout);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp, excludedDimensions);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp, tsdimWithout);
     }
 
     public LogicalPlan withTimestamp(Expression newTimestamp) {
         if (newTimestamp.equals(timestamp)) {
             return this;
         }
-        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp, excludedDimensions);
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp, tsdimWithout);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved()) && (timestamp == null || timestamp.resolved());
+        return super.expressionsResolved()
+            && (timeBucket == null || timeBucket.resolved())
+            && (timestamp == null || timestamp.resolved())
+            && (tsdimWithout == null || tsdimWithout.resolved());
     }
 
     @Nullable
@@ -150,17 +154,23 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         return timestamp;
     }
 
+    @Nullable
+    public TsdimWithout tsdimWithout() {
+        return tsdimWithout;
+    }
+
     /**
      * Dimension names to exclude when loading the {@code _timeseries} blob.
      * Non-empty only for PromQL {@code without} grouping.
      */
+    // TODO: Remove and verify plan directly
     public Set<String> excludedDimensions() {
-        return excludedDimensions;
+        return tsdimWithout != null ? tsdimWithout.excludedFieldNames() : Set.of();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp, excludedDimensions);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp, tsdimWithout);
     }
 
     @Override
@@ -179,7 +189,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(child(), other.child())
             && Objects.equals(timeBucket, other.timeBucket)
             && Objects.equals(timestamp, other.timestamp)
-            && Objects.equals(excludedDimensions, other.excludedDimensions);
+            && Objects.equals(tsdimWithout, other.tsdimWithout);
     }
 
     @Override

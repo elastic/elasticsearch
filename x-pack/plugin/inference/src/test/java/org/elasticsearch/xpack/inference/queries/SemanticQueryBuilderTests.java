@@ -221,11 +221,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         );
         if (sourceToParse != null) {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
-            mapperService.merge(
-                "_doc",
-                parsedDocument.dynamicMappingsUpdate().toCompressedXContent(),
-                MapperService.MergeReason.MAPPING_UPDATE
-            );
+            mapperService.merge("_doc", parsedDocument.dynamicMappingsUpdate(), MapperService.MergeReason.MAPPING_UPDATE);
         }
     }
 

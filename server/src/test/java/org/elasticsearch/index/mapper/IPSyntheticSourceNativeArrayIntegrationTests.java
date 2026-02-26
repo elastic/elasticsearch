@@ -62,7 +62,7 @@ public class IPSyntheticSourceNativeArrayIntegrationTests extends NativeArrayInt
             new Object[] { "192.168.1.1", "192.168.1.1", "malformed" },
             new Object[] { null, null, null, "malformed" },
             new Object[] { "192.168.1.3", "192.168.1.3", "192.168.1.1", "malformed" } };
-        verifySyntheticArray(arrayValues, mapping, "_id", "field._ignore_malformed");
+        verifySyntheticArray(arrayValues, mapping, "_id");
     }
 
     public void testSynthesizeObjectArray() throws Exception {

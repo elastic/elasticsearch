@@ -1851,7 +1851,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             ViewMetadata viewMetadata,
             ImmutableOpenMap<String, IndexMetadata> indices
         ) {
-            if (indices.isEmpty()) {
+            if (indices.isEmpty() && viewMetadata.views().isEmpty()) {
                 return Collections.emptySortedMap();
             }
             Map<String, IndexAbstraction> indicesLookup = new HashMap<>();

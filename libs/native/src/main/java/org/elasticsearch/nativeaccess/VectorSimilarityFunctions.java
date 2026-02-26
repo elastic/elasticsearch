@@ -22,6 +22,10 @@ public interface VectorSimilarityFunctions {
 
     enum Function {
         /**
+         * Cosine distance (byte vectors only)
+         */
+        COSINE,
+        /**
          * Dot product distance
          */
         DOT_PRODUCT,

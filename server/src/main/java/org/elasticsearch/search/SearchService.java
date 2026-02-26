@@ -892,7 +892,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchContextId contextId = request.readerId();
         if (contextId != null && sessionId.equals(contextId.getSessionId())) {
             final ReaderContext readerContext = activeReaders.get(contextId);
-            if (readerContext != null && readerContext.isForcedExpired() == false) {
+            if (readerContext != null && readerContext.isRelocating() == false) {
                 return readerContext.indexShard();
             }
         }

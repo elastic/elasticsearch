@@ -24,7 +24,7 @@ public class AllocateUnassignedIT extends AbstractAllocationDecisionTestCase {
         createSingleShardAndAssertItIsAssignedToNodes(nodes.yesNodes());
     }
 
-    public void testNewShardsAreAllocatedToThrottleNodesWhenNoYesNodesArePresent() {
+    public void testNewShardAllocationWillWaitForThrottleNodesWhenNoYesNodesArePresent() {
         final var nodes = createNodes(randomIntBetween(1, 3), randomIntBetween(1, 3), randomIntBetween(1, 3), 0);
         final var indexName = randomIdentifier();
 

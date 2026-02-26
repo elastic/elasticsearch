@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public class FileSetTests extends ESTestCase {
 
@@ -64,5 +66,38 @@ public class FileSetTests extends ESTestCase {
         assertNotEquals(FileSet.UNRESOLVED, FileSet.EMPTY);
         assertNotEquals(FileSet.EMPTY, FileSet.UNRESOLVED);
         assertNotEquals(FileSet.UNRESOLVED.hashCode(), FileSet.EMPTY.hashCode());
+    }
+
+    public void testPartitionMetadataNullByDefault() {
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://bucket/file.parquet"), 100, Instant.EPOCH);
+        FileSet fileSet = new FileSet(List.of(entry), "s3://bucket/*.parquet");
+        assertNull(fileSet.partitionMetadata());
+    }
+
+    public void testPartitionMetadataAttached() {
+        StoragePath path = StoragePath.of("s3://bucket/year=2024/file.parquet");
+        StorageEntry entry = new StorageEntry(path, 100, Instant.EPOCH);
+        PartitionMetadata pm = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        FileSet fileSet = new FileSet(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
+        assertNotNull(fileSet.partitionMetadata());
+        assertFalse(fileSet.partitionMetadata().isEmpty());
+        assertEquals(DataType.INTEGER, fileSet.partitionMetadata().partitionColumns().get("year"));
+    }
+
+    public void testSentinelsHaveNullPartitionMetadata() {
+        assertNull(FileSet.UNRESOLVED.partitionMetadata());
+        assertNull(FileSet.EMPTY.partitionMetadata());
+    }
+
+    public void testEqualityWithPartitionMetadata() {
+        StoragePath path = StoragePath.of("s3://bucket/year=2024/file.parquet");
+        StorageEntry entry = new StorageEntry(path, 100, Instant.EPOCH);
+        PartitionMetadata pm = new PartitionMetadata(Map.of("year", DataType.INTEGER), Map.of(path, Map.of("year", 2024)));
+        FileSet a = new FileSet(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
+        FileSet b = new FileSet(List.of(entry), "s3://bucket/year=*/*.parquet", pm);
+        FileSet c = new FileSet(List.of(entry), "s3://bucket/year=*/*.parquet", null);
+
+        assertEquals(a, b);
+        assertNotEquals(a, c);
     }
 }

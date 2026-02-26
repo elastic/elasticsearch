@@ -70,6 +70,15 @@ public class ExternalSourceResolver {
         Map<String, Map<String, Expression>> pathParams,
         ActionListener<ExternalSourceResolution> listener
     ) {
+        resolve(paths, pathParams, null, listener);
+    }
+
+    public void resolve(
+        List<String> paths,
+        Map<String, Map<String, Expression>> pathParams,
+        @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        ActionListener<ExternalSourceResolution> listener
+    ) {
         if (paths == null || paths.isEmpty()) {
             listener.onResponse(ExternalSourceResolution.EMPTY);
             return;
@@ -82,9 +91,11 @@ public class ExternalSourceResolver {
                 for (String path : paths) {
                     Map<String, Expression> params = pathParams.get(path);
                     Map<String, Object> config = paramsToConfigMap(params);
+                    List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
+                    boolean hivePartitioning = isHivePartitioningEnabled(config);
 
                     try {
-                        ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config);
+                        ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
                         resolved.put(path, resolvedSource);
                         LOGGER.info("Successfully resolved external source: {}", path);
                     } catch (Exception e) {
@@ -104,11 +115,16 @@ public class ExternalSourceResolver {
         });
     }
 
-    private ExternalSourceResolution.ResolvedSource resolveSource(String path, Map<String, Object> config) throws Exception {
+    private ExternalSourceResolution.ResolvedSource resolveSource(
+        String path,
+        Map<String, Object> config,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        boolean hivePartitioning
+    ) throws Exception {
         LOGGER.info("Resolving external source: path=[{}]", path);
 
         if (GlobExpander.isMultiFile(path)) {
-            return resolveMultiFileSource(path, config);
+            return resolveMultiFileSource(path, config, hints, hivePartitioning);
         }
 
         SourceMetadata metadata = resolveSingleSource(path, config);
@@ -116,7 +132,12 @@ public class ExternalSourceResolver {
         return new ExternalSourceResolution.ResolvedSource(extMetadata, FileSet.UNRESOLVED);
     }
 
-    private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(String path, Map<String, Object> config) throws Exception {
+    private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
+        String path,
+        Map<String, Object> config,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        boolean hivePartitioning
+    ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
         StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
 
@@ -129,9 +150,9 @@ public class ExternalSourceResolver {
 
         FileSet fileSet;
         if (path.indexOf(',') >= 0) {
-            fileSet = GlobExpander.expandCommaSeparated(path, provider);
+            fileSet = GlobExpander.expandCommaSeparated(path, provider, hints, hivePartitioning);
         } else {
-            fileSet = GlobExpander.expandGlob(path, provider);
+            fileSet = GlobExpander.expandGlob(path, provider, hints, hivePartitioning);
         }
 
         if (fileSet.isEmpty()) {
@@ -143,6 +164,17 @@ public class ExternalSourceResolver {
 
         ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, fileSet);
+    }
+
+    private static boolean isHivePartitioningEnabled(Map<String, Object> config) {
+        if (config == null) {
+            return true;
+        }
+        Object value = config.get("hive_partitioning");
+        if (value == null) {
+            return true;
+        }
+        return "false".equalsIgnoreCase(value.toString()) == false;
     }
 
     private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {

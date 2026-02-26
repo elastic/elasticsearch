@@ -59,7 +59,7 @@ id:l | new_vector:dense_vector
 coalesceBfloat16VectorWithFallback
 required_capability: coalesce_dense_vector
 
-FROM dense_vector_bfloat16
+FROM dense_vector_coalesce
 | EVAL v = COALESCE(bfloat16_vector, to_dense_vector([0, 0, 0]))
 | KEEP id, v
 | SORT id

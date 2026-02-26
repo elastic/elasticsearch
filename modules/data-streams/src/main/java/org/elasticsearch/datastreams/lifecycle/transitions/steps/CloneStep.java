@@ -265,16 +265,11 @@ public class CloneStep implements DlmStep {
             TransportResizeAction.TYPE.name(),
             cloneIndexRequest,
             Strings.format("DLM service encountered an error when trying to clone index [%s]", originalIndex),
-            (req, unused) -> maybeCloneIndex(stepContext.projectId(), cloneIndexRequest, listener, stepContext)
+            (req, unused) -> cloneIndex(stepContext.projectId(), cloneIndexRequest, listener, stepContext)
         );
     }
 
-    private void maybeCloneIndex(
-        ProjectId projectId,
-        ResizeRequest cloneRequest,
-        ActionListener<Void> listener,
-        DlmStepContext stepContext
-    ) {
+    private void cloneIndex(ProjectId projectId, ResizeRequest cloneRequest, ActionListener<Void> listener, DlmStepContext stepContext) {
         assert cloneRequest.indices() != null && cloneRequest.indices().length == 1 : "DLM should clone one index at a time";
         String originalIndex = cloneRequest.getSourceIndex();
         String cloneIndex = cloneRequest.getTargetIndexRequest().index();
@@ -310,11 +305,11 @@ public class CloneStep implements DlmStep {
                 indexToBeForceMerged,
                 originalIndex
             ),
-            (req, unused) -> maybeMarkIndexToBeForceMerged(markIndexForForceMergeRequest, stepContext, listener)
+            (req, unused) -> markIndexToBeForceMerged(markIndexForForceMergeRequest, stepContext, listener)
         );
     }
 
-    private static void maybeMarkIndexToBeForceMerged(
+    private static void markIndexToBeForceMerged(
         MarkIndexForDLMForceMergeAction.Request request,
         DlmStepContext stepContext,
         ActionListener<Void> listener

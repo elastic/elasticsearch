@@ -561,7 +561,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         createRepository(repositoryName, "mock");
 
         // First snapshot establishes an index-N blob that the second snapshot's cleanup will delete
-        createSnapshot(repositoryName, randomSnapshotName(), List.of(indexName));
+        createSnapshot(repositoryName, "first-snapshot", List.of(indexName));
 
         final String masterNode = internalCluster().getMasterName();
         blockMasterFromDeletingIndexNFile(repositoryName);

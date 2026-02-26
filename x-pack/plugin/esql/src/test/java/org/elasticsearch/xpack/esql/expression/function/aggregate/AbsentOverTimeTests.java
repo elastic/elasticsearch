@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -38,6 +39,7 @@ public class AbsentOverTimeTests extends AbstractAggregationTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO Use AbsentTests.parameters() once absent over time allows for dense_vectors
         ArrayList<TestCaseSupplier> suppliers = new ArrayList<>();
+        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.nullCases(1, 1000),
@@ -59,9 +61,9 @@ public class AbsentOverTimeTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.geohexCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100),
-            MultiRowTestCaseSupplier.histogramCases(1, 100)
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.histogramCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList()
         ).flatMap(List::stream).map(AbsentTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
@@ -87,16 +89,14 @@ public class AbsentOverTimeTests extends AbstractAggregationTestCase {
             DataType.TDIGEST
         );
         for (var dataType : types) {
+            var field = dataType == DataType.EXPONENTIAL_HISTOGRAM || dataType == DataType.TDIGEST
+                ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field").withAppliesTo(histogramAppliesTo)
+                : TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field");
             suppliers.add(
                 new TestCaseSupplier(
                     "No rows (" + dataType + ")",
                     List.of(dataType),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")),
-                        "Present",
-                        DataType.BOOLEAN,
-                        equalTo(true)
-                    )
+                    () -> new TestCaseSupplier.TestCase(List.of(field), "Present", DataType.BOOLEAN, equalTo(true))
                 )
             );
         }

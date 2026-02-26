@@ -30,6 +30,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
@@ -59,7 +60,11 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
 
 public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTopHits> {
@@ -278,6 +283,59 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         hits = SearchHits.unpooled(new SearchHit[] { hit, hit }, null, 0);
         InternalTopHits internalTopHits3 = new InternalTopHits("test", 0, 0, null, hits, null);
         expectThrows(IllegalArgumentException.class, () -> internalTopHits3.getProperty(List.of("foo")));
+    }
+
+    public void testReduceWithMixedSortFieldTypes() {
+        AggregationBuilder builder = mock(AggregationBuilder.class);
+        AggregationReduceContext reduceContext = InternalAggregationTestCase.mockReduceContext(builder).forFinalReduction();
+
+        // Test FLOAT/LONG mixing - should convert to DOUBLE and merge successfully without ClassCastException
+        // Before the fix, this would throw ClassCastException when merging TopDocs.
+        InternalTopHits floatShard = createTopHitsWithSortType("test", SortField.Type.FLOAT, 1.5f, 0);
+        InternalTopHits longShard = createTopHitsWithSortType("test", SortField.Type.LONG, 2L, 1);
+        // This should not throw ClassCastException - the fix converts incompatible types
+        InternalTopHits reduced = (InternalTopHits) InternalAggregationTestCase.reduce(List.of(floatShard, longShard), reduceContext);
+        assertNotNull("Reduced result should not be null", reduced);
+        // Each shard has size=1, so merged result should have at least 1 hit (the top one)
+        assertThat("Should have at least one merged result", reduced.getHits().getHits().length, greaterThanOrEqualTo(1));
+
+        // Test INT/LONG mixing - should convert to LONG (not DOUBLE) and merge successfully
+        InternalTopHits intShard = createTopHitsWithSortType("test", SortField.Type.INT, 1, 0);
+        InternalTopHits longShard2 = createTopHitsWithSortType("test", SortField.Type.LONG, 2L, 1);
+        InternalTopHits reduced2 = (InternalTopHits) InternalAggregationTestCase.reduce(List.of(intShard, longShard2), reduceContext);
+        assertNotNull("Reduced result should not be null", reduced2);
+        assertThat("Should have at least one merged result", reduced2.getHits().getHits().length, greaterThanOrEqualTo(1));
+        // Ensure INT/LONG mix was rewritten to LONG, not DOUBLE
+        Object sortValue = reduced2.getHits().getHits()[0].getSortValues()[0];
+        assertThat("Sort value after INT/LONG reduce should be Long, not Double", sortValue, instanceOf(Long.class));
+
+        // Test incompatible types - should throw IllegalArgumentException with clear error message
+        InternalTopHits stringShard = createTopHitsWithSortType("test", SortField.Type.STRING, new BytesRef("a"), 0);
+        InternalTopHits longShard3 = createTopHitsWithSortType("test", SortField.Type.LONG, 1L, 1);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> InternalAggregationTestCase.reduce(List.of(stringShard, longShard3), reduceContext)
+        );
+        assertThat(e.getMessage(), containsString("incompatible sort types"));
+    }
+
+    private InternalTopHits createTopHitsWithSortType(String name, SortField.Type type, Object sortValue, int shardIndex) {
+        SortField sortField = new SortField("field", type);
+        FieldDoc fieldDoc = new FieldDoc(0, 1.0f, new Object[] { sortValue });
+        TopFieldDocs topFieldDocs = new TopFieldDocs(
+            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+            new FieldDoc[] { fieldDoc },
+            new SortField[] { sortField }
+        );
+        fieldDoc.shardIndex = shardIndex;
+
+        SearchHit hit = SearchHit.unpooled(0, "doc" + shardIndex);
+        hit.score(1.0f);
+        hit.sortValues(new Object[] { sortValue }, new DocValueFormat[] { DocValueFormat.RAW });
+        SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+
+        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topFieldDocs, 1.0f);
+        return new InternalTopHits(name, 0, 1, topDocsAndMaxScore, searchHits, null);
     }
 
     @Override

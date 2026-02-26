@@ -68,6 +68,7 @@ record TestConfiguration(
     int numMergeWorkers,
     boolean doPrecondition,
     int preconditioningBlockDims,
+    int flatVectorThreshold,
     int secondaryClusterSize,
     String directoryType
 ) {
@@ -109,6 +110,7 @@ record TestConfiguration(
     static final ParseField PRECONDITIONING_BLOCK_DIMS = new ParseField("preconditioning_block_dims");
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
+    static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
     static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
@@ -172,6 +174,7 @@ record TestConfiguration(
         PARSER.declareFieldArray(Builder::setFilterCached, (p, c) -> p.booleanValue(), FILTER_CACHED, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
+        PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
         PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
     }
@@ -306,6 +309,7 @@ record TestConfiguration(
         private List<Boolean> filterCached = List.of(Boolean.TRUE);
         private List<SearchParameters.Builder> searchParams = null;
         private int numMergeWorkers = 1;
+        private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
         private String directoryType = "default";
 
@@ -336,6 +340,11 @@ record TestConfiguration(
 
         public Builder setMergeWorkers(int numMergeWorkers) {
             this.numMergeWorkers = numMergeWorkers;
+            return this;
+        }
+
+        public Builder setFlatVectorThreshold(int flatVectorThreshold) {
+            this.flatVectorThreshold = flatVectorThreshold;
             return this;
         }
 
@@ -725,6 +734,7 @@ record TestConfiguration(
                 numMergeWorkers,
                 doPrecondition,
                 preconditioningBlockDims,
+                flatVectorThreshold,
                 secondaryClusterSize,
                 directoryType
             );
@@ -783,6 +793,7 @@ record TestConfiguration(
             if (searchParams != null) {
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
+            builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
             builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
             return builder.endObject();
         }

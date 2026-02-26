@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -887,12 +888,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         String deploymentId = "deployment-1";
         var taskParams = newParams(deploymentId, modelId);
 
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return null;
-        }).when(deploymentManager).stopAfterCompletingPendingWork(any(), any());
+        doNothing().when(deploymentManager).stopAfterCompletingPendingWork(any());
 
         givenAssignmentsInClusterStateForModels(List.of(deploymentId), List.of(modelId));
         service.prepareModelToLoad(taskParams);

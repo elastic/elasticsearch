@@ -17,11 +17,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -277,22 +275,32 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     /**
      * Prunes RegexExtract operations (Dissect and Grok) when none of their extracted fields are used.
+     * <p>
+     * Partial field pruning is <b>not</b> supported due to a layout–operator mismatch in
+     * {@code LocalExecutionPlanner}:
+     * <ul>
+     *   <li>The <b>layout</b> is built from {@code extractedFields} (size N, after pruning), which
+     *       determines channel indices for all downstream operators.</li>
+     *   <li>The <b>operator</b> ({@code StringExtractOperator} / {@code ColumnExtractOperator}) is
+     *       initialized from the full parser pattern (size M, unpruned), so it always appends M blocks
+     *       to the page at runtime.</li>
+     * </ul>
+     * When N &lt; M, downstream operators (e.g. {@code Aggregator}) read from wrong channel indices
+     * (off by M − N), corrupting the page structure.
+     * <p>
+     * We also cannot simply reconcile the two sides by matching on {@code extractedFields} names,
+     * because {@code PushDownRegexExtract} may rename attributes to avoid variable shadowing
+     * (see PR #108360), while the parser still returns results keyed by the original pattern names.
+     * </p>
      */
     private static LogicalPlan pruneUnusedRegexExtract(RegexExtract re, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = re;
 
         var remaining = pruneUnusedAndAddReferences(re.extractedFields(), used);
-        if (remaining != null) {
-            // If none of the extracted fields are used, remove the entire RegexExtract node
-            if (remaining.isEmpty()) {
-                p = re.child();
-                recheck.set(true);
-            } else {
-                p = switch (re) {
-                    case Dissect dissect -> new Dissect(dissect.source(), dissect.child(), dissect.input(), dissect.parser(), remaining);
-                    case Grok grok -> new Grok(grok.source(), grok.child(), grok.input(), grok.parser(), remaining);
-                };
-            }
+        // If none of the extracted fields are used, remove the entire RegexExtract node
+        if (remaining != null && remaining.isEmpty()) {
+            p = re.child();
+            recheck.set(true);
         }
 
         return p;

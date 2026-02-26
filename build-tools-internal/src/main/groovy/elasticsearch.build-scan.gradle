@@ -122,9 +122,8 @@ develocity {
         // where we deal with build metadata within the gradle build.
         def jobId = System.getenv('BUILDKITE_JOB_ID')
         if (jobId) {
-          // testSeed is a Provider<String>, so we need to call .get() to unwrap the value for the List<String> args
           runBuildkiteAgent(
-            ['meta-data', 'set', "tests-seed-${jobId}", testSeed.get()],
+            ['meta-data', 'set', "tests-seed-${jobId}", testSeed],
             "storing test seed in Buildkite metadata"
           )
         }

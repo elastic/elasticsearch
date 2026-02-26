@@ -6,7 +6,7 @@ dependencies {
   javaRestTestImplementation testArtifact(project(":x-pack:plugin:security:qa:saml-rest-tests"), "javaRestTest")
   clusterPlugins project(':x-pack:extras:plugins:microsoft-graph-authz')
   clusterModules project(":modules:analysis-common")
-  clusterModules project(":modules:analysis-codecs")
+  clusterModules project(":modules:codecs-common")
 }
 
 boolean useFixture = false

@@ -23,7 +23,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
-import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -193,7 +192,11 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 Function<String, PostingsFormat> postingsFormats = es87BloomFilterPostingsFormat.getPostingsFormats();
                 result = postingsFormats.apply("_id");
             }
-            assertThat(result, instanceOf(ES812PostingsFormat.class));
+            if (randomSyntheticId) {
+                assertThat(result, instanceOf(TSDBSyntheticIdPostingsFormat.class));
+            } else {
+                assertThat(result.getName(), equalTo(ES812_POSTINGS_FORMAT_NAME));
+            }
         }
     }
 

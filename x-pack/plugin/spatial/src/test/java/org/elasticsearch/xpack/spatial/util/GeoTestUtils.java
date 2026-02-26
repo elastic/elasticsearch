@@ -48,9 +48,7 @@ public class GeoTestUtils {
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
         GeometryDocValueReader reader = new GeometryDocValueReader();
-        reader.reset(
-            GeometryDocValueWriter.write(indexer.getIndexableFields(normalized), encoder, centroidCalculator, List.of(normalized))
-        );
+        reader.reset(GeometryDocValueWriter.write(indexer.getIndexableFields(normalized), encoder, centroidCalculator, List.of(geometry)));
         return reader;
     }
 
@@ -58,7 +56,7 @@ public class GeoTestUtils {
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, name);
         Geometry normalized = indexer.normalize(geometry);
         BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
-        field.add(indexer.getIndexableFields(normalized), geometry, normalized);
+        field.add(indexer.getIndexableFields(normalized), geometry);
         return field;
     }
 
@@ -66,7 +64,7 @@ public class GeoTestUtils {
     public static BinaryShapeDocValuesField binaryCartesianShapeDocValuesField(String name, Geometry geometry) {
         CartesianShapeIndexer indexer = new CartesianShapeIndexer(name);
         BinaryShapeDocValuesField field = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN);
-        field.add(indexer.indexShape(geometry), geometry, geometry);
+        field.add(indexer.indexShape(geometry), geometry);
         return field;
     }
 

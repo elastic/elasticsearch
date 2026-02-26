@@ -138,16 +138,11 @@ public class GeoShapeScriptMapperTests extends MapperScriptTestCase<GeometryFiel
     private void assertBinaryDocValue(
         IndexableField binaryDocValue,
         CentroidCalculator calculator,
-        List<org.elasticsearch.geometry.Geometry> normalizedGeometries,
+        List<org.elasticsearch.geometry.Geometry> geometries,
         IndexableField... values
     ) {
         try {
-            BytesRef bytesRef = GeometryDocValueWriter.write(
-                Arrays.stream(values).toList(),
-                CoordinateEncoder.GEO,
-                calculator,
-                normalizedGeometries
-            );
+            BytesRef bytesRef = GeometryDocValueWriter.write(Arrays.stream(values).toList(), CoordinateEncoder.GEO, calculator, geometries);
             assertEquals(bytesRef, binaryDocValue.binaryValue());
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);

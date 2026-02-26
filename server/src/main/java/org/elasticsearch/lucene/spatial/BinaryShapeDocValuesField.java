@@ -24,36 +24,35 @@ public class BinaryShapeDocValuesField extends CustomDocValuesField {
     private final List<IndexableField> fields;
     private final CoordinateEncoder coordinateEncoder;
     private final CentroidCalculator centroidCalculator;
-    private final List<Geometry> normalizedGeometries;
+    private final List<Geometry> geometries;
 
     public BinaryShapeDocValuesField(String name, CoordinateEncoder coordinateEncoder) {
         super(name);
         this.fields = new ArrayList<>();
         this.coordinateEncoder = coordinateEncoder;
         this.centroidCalculator = new CentroidCalculator();
-        this.normalizedGeometries = new ArrayList<>();
+        this.geometries = new ArrayList<>();
     }
 
     /**
-     * Add tessellated fields and both the original and normalized geometry.
-     * The original geometry is used for centroid calculation (better precision for edge cases
-     * like coordinates > 180 longitude). The normalized geometry is used for connectivity
-     * (its vertex ordering after dateline normalization is what gets stored in doc-values).
+     * Add tessellated fields and the original geometry. The original (pre-normalization) geometry
+     * is used for both centroid calculation and connectivity reconstruction. Using the original
+     * rather than the normalized geometry produces doc-values that are closer to the source,
+     * differing only in coordinate quantization.
      *
-     * @param fields              tessellated triangle fields from the indexer
-     * @param originalGeometry    the original geometry for centroid calculation
-     * @param normalizedGeometry  the normalized geometry for connectivity/reconstruction
+     * @param fields   tessellated triangle fields from the indexer
+     * @param geometry the original geometry
      */
-    public void add(List<IndexableField> fields, Geometry originalGeometry, Geometry normalizedGeometry) {
+    public void add(List<IndexableField> fields, Geometry geometry) {
         this.fields.addAll(fields);
-        this.centroidCalculator.add(originalGeometry);
-        this.normalizedGeometries.add(normalizedGeometry);
+        this.centroidCalculator.add(geometry);
+        this.geometries.add(geometry);
     }
 
     @Override
     public BytesRef binaryValue() {
         try {
-            return GeometryDocValueWriter.write(fields, coordinateEncoder, centroidCalculator, normalizedGeometries);
+            return GeometryDocValueWriter.write(fields, coordinateEncoder, centroidCalculator, geometries);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to encode shape", e);
         }

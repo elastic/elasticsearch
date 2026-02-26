@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
  *   <li>Table catalog connectors (Iceberg, Delta Lake) for table metadata - keyed by catalog type</li>
  *   <li>Custom operator factories for complex datasources - keyed by source type</li>
  *   <li>Filter pushdown support for predicate pushdown optimization - keyed by source type</li>
+ *   <li>Decompression codecs for compound extensions (e.g. .csv.gz) - via {@link #decompressionCodecs(Settings)}</li>
  * </ul>
  *
  * <p>All methods have default implementations returning empty maps/lists, allowing
@@ -87,6 +88,14 @@ public interface DataSourcePlugin {
 
     default Map<String, FormatReaderFactory> formatReaders(Settings settings) {
         return Map.of();
+    }
+
+    /**
+     * Decompression codecs this plugin provides (e.g. gzip for .gz, .gzip).
+     * Used for compound extensions like .csv.gz or .ndjson.gz.
+     */
+    default List<DecompressionCodec> decompressionCodecs(Settings settings) {
+        return List.of();
     }
 
     // Complete external source factories

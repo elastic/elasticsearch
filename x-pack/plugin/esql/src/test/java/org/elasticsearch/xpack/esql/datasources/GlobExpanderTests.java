@@ -231,6 +231,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(listing);
         PartitionConfig config = new PartitionConfig(PartitionConfig.TEMPLATE, "{year}/{month}");
 
+        @SuppressWarnings("RegexpMultiline")
         FileSet result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true, config, Map.of());
         assertTrue(result.isResolved());
         assertEquals(2, result.size());

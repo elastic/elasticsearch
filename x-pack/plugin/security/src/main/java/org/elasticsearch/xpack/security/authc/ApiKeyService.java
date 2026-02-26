@@ -1777,7 +1777,7 @@ public class ApiKeyService implements Closeable {
         // created by newer nodes in test environments with assertions enabled.
         if (currentDocVersion.after(targetDocVersion)) {
             logger.warn(
-                "API key [{}}] has version [{} which is greater than current version [{}]",
+                "API key [{}] has version [{}] which is greater than current version [{}]",
                 currentVersionedDoc.id(),
                 currentDocVersion,
                 targetDocVersion

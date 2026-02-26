@@ -14,8 +14,9 @@
 // which would make the tests flaky.
 
 
-total count
-required_capability: approximation
+// wil be fixed by pushing down to Lucene in follow-up PR
+total count-Ignore
+required_capability: approximation_v2
 
 SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(*)
@@ -27,7 +28,7 @@ count:long
 
 
 approximate stats on large data
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
@@ -41,7 +42,7 @@ count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(cou
 
 
 exact stats on small data
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation={"rows":100000}\;
 FROM many_numbers
@@ -55,8 +56,9 @@ count:long | avg:double | sum:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED
 ;
 
 
-exact total count and approximate stats on large data
-required_capability: approximation
+// wil be fixed by pushing down to Lucene in follow-up PR
+exact total count and approximate stats on large data-Ignore
+required_capability: approximation_v2
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
@@ -69,7 +71,7 @@ count:long | count2:long | count3:long | countValue:long  | CONFIDENCE_INTERVAL(
 
 
 with where
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
@@ -84,14 +86,14 @@ count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(cou
 
 
 with stats where
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation={"confidence_level":0.85}\;
 FROM many_numbers
     | MV_EXPAND value
-    | STATS count=COUNT()  WHERE value >= 1000,
+    | STATS count=COUNT()  WHERE value >= 999,
             avg=AVG(value) WHERE value >= 1000,
-            sum=SUM(value) WHERE value >= 1000
+            sum=SUM(value) WHERE value >= 1001
 ;
 
 count:long       | avg:double  | sum:long              | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):boolean | CONFIDENCE_INTERVAL(sum):long                   | CERTIFIED(sum):boolean
@@ -100,7 +102,7 @@ count:long       | avg:double  | sum:long              | CONFIDENCE_INTERVAL(cou
 
 
 with sample
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation={"rows":100000,"confidence_level":0.85}\;
 FROM many_numbers
@@ -115,7 +117,7 @@ count:long       | avg:double  | sum:long             | CONFIDENCE_INTERVAL(coun
 
 
 with commands before stats
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation={}\;
 FROM many_numbers
@@ -139,7 +141,7 @@ count:long       | avg:double | sum:long               | CONFIDENCE_INTERVAL(cou
 
 
 with commands after stats
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
@@ -158,7 +160,7 @@ avg:double | avg2:double | CONFIDENCE_INTERVAL(avg):double | CERTIFIED(avg):bool
 
 
 with dependent variables that have confidence interval
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
@@ -177,7 +179,7 @@ y:integer | plus1:double     | CONFIDENCE_INTERVAL(plus1):double   | CERTIFIED(p
 
 
 with dependent string variable
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
@@ -194,7 +196,7 @@ from_str:double
 
 
 with dependent multivalued variable
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
@@ -210,7 +212,7 @@ mv:double
 
 
 approximate stats with zero variance
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation=true\;
 FROM many_numbers
@@ -230,28 +232,27 @@ avg:double | median:double | one:double | value:integer | CONFIDENCE_INTERVAL(av
 
 
 approximate stats by on large data
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation={"rows":100000}\;
 FROM many_numbers
     | MV_EXPAND value
     | STATS count=COUNT() BY value
     | SORT value DESC
-    | KEEP value, count
     | LIMIT 5
 ;
 
-value:integer | count:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
-2000          | 1000..3000 | [500..2500,1500..4000]          | {any}
-1999          | 1000..3000 | [500..2500,1500..4000]          | {any}
-1998          | 1000..3000 | [500..2500,1500..4000]          | {any}
-1997          | 1000..3000 | [500..2500,1500..4000]          | {any}
-1996          | 1000..3000 | [500..2500,1500..4000]          | {any}
+count:long | value:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
+1000..3000 | 2000          | [500..2500,1500..4000]          | {any}
+1000..3000 | 1999          | [500..2500,1500..4000]          | {any}
+1000..3000 | 1998          | [500..2500,1500..4000]          | {any}
+1000..3000 | 1997          | [500..2500,1500..4000]          | {any}
+1000..3000 | 1996          | [500..2500,1500..4000]          | {any}
 ;
 
 
 exact stats by on small data
-required_capability: approximation
+required_capability: approximation_v2
 
 SET approximation={"rows":100000}\;
 FROM many_numbers

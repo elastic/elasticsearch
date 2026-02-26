@@ -73,10 +73,10 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
     ) throws IOException {
         NumericDocValues recoverySource = reader.getNumericDocValues(pruneNumericDVFieldName);
         if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
-            if (useSyntheticId == false) {
-                return reader;  // early terminate - nothing to do here since none of the docs has a recovery source anymore.
+            if (useSyntheticId) {
+                return unwrapSyntheticIdStoredFieldsReader(reader);
             }
-            return unwrapSyntheticIdStoredFieldsReader(reader);
+            return reader;  // early terminate - nothing to do here since none of the docs has a recovery source anymore.
         }
         IndexSearcher s = new IndexSearcher(reader);
         s.setQueryCache(null);
@@ -87,10 +87,10 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             // calculating the cardinality is significantly cheaper than skipping all bulk-merging we might do
             // if retentions are high we keep most of it
             if (recoverySourceToKeep.cardinality() == reader.maxDoc()) {
-                if (useSyntheticId == false) {
-                    return reader; // keep all source
+                if (useSyntheticId) {
+                    return unwrapSyntheticIdStoredFieldsReader(reader);
                 }
-                return unwrapSyntheticIdStoredFieldsReader(reader);
+                return reader; // keep all source
             }
             return new SourcePruningFilterCodecReader(
                 pruneStoredFieldName,

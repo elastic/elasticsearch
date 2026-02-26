@@ -30,11 +30,8 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
     private final Set<String> metadataFields;
 
-    public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadDimensions, boolean loadMetrics) {
-        if (loadDimensions == false && loadMetrics == false) {
-            throw new IllegalArgumentException("At least one type of metadata (dimension or metric) is required");
-        }
-        this.metadataFields = timeSeriesMetadata(context, loadDimensions, loadMetrics);
+    public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadMetrics) {
+        this.metadataFields = timeSeriesMetadata(context, loadMetrics);
     }
 
     @Override
@@ -87,37 +84,32 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         }
     }
 
-    private Set<String> timeSeriesMetadata(MappedFieldType.BlockLoaderContext ctx, boolean loadDimensions, boolean loadMetrics) {
+    private Set<String> timeSeriesMetadata(MappedFieldType.BlockLoaderContext ctx, boolean loadMetrics) {
         if (ctx.indexSettings().getMode() != IndexMode.TIME_SERIES) {
             throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
         }
 
         assert ctx.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
+        var config = (BlockLoaderFunctionConfig.TimeSeriesMetadata) ctx.blockLoaderFunctionConfig();
 
-        var excludeDimensions = ((BlockLoaderFunctionConfig.TimeSeriesMetadata) ctx.blockLoaderFunctionConfig()).excludeDimensions();
-        Set<String> result = new LinkedHashSet<>();
-
-        if (loadDimensions && loadMetrics == false) {
+        if (loadMetrics == false) {
             IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
             List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
             if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
-                result.addAll(dimensionFieldsFromSettings);
-                result.removeAll(excludeDimensions);
+                Set<String> result = new LinkedHashSet<>(dimensionFieldsFromSettings);
+                result.removeAll(config.excludeDimensions());
                 return result;
             }
         }
 
+        Set<String> result = new LinkedHashSet<>();
         MappingLookup mappingLookup = ctx.mappingLookup();
         for (Mapper mapper : mappingLookup.fieldMappers()) {
             if (mapper instanceof FieldMapper fieldMapper) {
                 MappedFieldType fieldType = fieldMapper.fieldType();
-                if (loadDimensions && fieldType.isDimension()) {
-                    var fieldName = fieldType.name();
-                    if (excludeDimensions.contains(fieldName) == false) {
-                        result.add(fieldType.name());
-                    }
+                if (fieldType.isDimension() && config.excludeDimensions().contains(fieldType.name()) == false) {
+                    result.add(fieldType.name());
                 }
-
                 if (loadMetrics && fieldType.getMetricType() != null) {
                     result.add(fieldType.name());
                 }

@@ -1956,10 +1956,10 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
-         * Support for {@code without} grouping in PromQL.
-         * For example, {@code sum without (pod) (rate(foo[5m]))}
+         * Support for {@code TSDIM_WITHOUT} grouping function that excludes
+         * specific dimensions from time-series grouping.
          */
-        PROMQL_WITHOUT,
+        TSDIM_WITHOUT,
 
         /**
          * KNN function adds support for k and visit_percentage options

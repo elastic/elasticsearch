@@ -212,20 +212,6 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         );
     }
 
-    /**
-     * {@code sum without (pod) (network.bytes_in)} groups by _timeseries (all dims except pod).
-     * After TranslateTimeSeriesAggregate, the plan becomes:
-     * <pre>
-     * Project[result, step, _timeseries]
-     *   \_Filter[ISNOTNULL(result)]
-     *     \_Eval[TODOUBLE]
-     *       \_Project (unpack)
-     *         \_Eval[UnpackDimension]
-     *           \_Aggregate[sum(...) BY pack_timeseries, step]        (second pass)
-     *             \_Eval[PackDimension]
-     *               \_TimeSeriesAggregate[..., DIMENSION_VALUES BY _tsid, step]  (first pass)
-     * </pre>
-     */
     public void testWithoutGrouping() {
         var plan = planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))");
 
@@ -234,15 +220,14 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
 
         var tsAggregates = plan.collect(TimeSeriesAggregate.class);
-        assertThat("should have first-pass TimeSeriesAggregate", tsAggregates, hasSize(1));
+        assertThat(tsAggregates, hasSize(1));
 
         var aggregates = plan.collect(Aggregate.class);
-        assertThat("should have second-pass Aggregate", aggregates, not(empty()));
+        assertThat(aggregates, not(empty()));
 
         var firstPassAgg = tsAggregates.getFirst();
-        assertNotNull("TimeSeriesAggregate should have tsdimWithout", firstPassAgg.tsdimWithout());
+        assertNotNull(firstPassAgg.tsdimWithout());
         assertThat(
-            "TsdimWithout should contain 'pod' field",
             firstPassAgg.tsdimWithout()
                 .children()
                 .stream()

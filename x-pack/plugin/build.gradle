@@ -175,9 +175,26 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/40_tsdb/PromQL irate on counter field", "We filter out null values now")
     // Expected deprecation warning to compat yaml tests:
     task.addAllowedWarningRegex("Parameter \\[default_metric\\] is deprecated and will be removed in a future version")
+    task.skipTest("aggregate-metrics/10_basic/Sort", "Average is used now instead of the default metric")
+    task.skipTest("aggregate-metrics/10_basic/Test term query on aggregate metric field", "Average is used now instead of the default metric")
+    task.skipTest("aggregate-metrics/10_basic/Test range query on aggregate metric field", "Average is used now instead of the default metric")
+    task.skipTest("aggregate-metrics/20_min_max_agg/Test min_max aggs with query", "Average is used now instead of the default metric")
     task.skipTest("aggregate-metrics/40_avg_agg/Test avg agg with query", "Default metric cannot be defined, so the query is empty")
     task.skipTest("aggregate-metrics/30_sum_agg/Test sum agg with query", "Default metric cannot be defined, so the query is empty")
     task.skipTest("aggregate-metrics/50_value_count_agg/Test value_count agg with query", "Default metric cannot be defined, so the query is empty")
+    // Malformed values are now stored in binary doc values (sorted) instead of stored fields (insertion order).
+    task.skipTest(
+      "analytics/histogram/histogram with synthetic source and ignore_malformed",
+      "Malformed values are now stored in binary doc values which sort differently than stored fields"
+    )
+    task.skipTest(
+      "analytics/t_digest_fieldtype/histogram with synthetic source and ignore_malformed",
+      "Malformed values are now stored in binary doc values which sort differently than stored fields"
+    )
+    task.skipTest(
+      "aggregate-metrics/100_synthetic_source/aggregate_metric_double with ignore_malformed",
+      "Malformed values are now stored in binary doc values which sort differently than stored fields"
+    )
   }
 )
 

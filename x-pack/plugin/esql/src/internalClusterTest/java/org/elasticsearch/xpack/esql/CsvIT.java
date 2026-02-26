@@ -66,7 +66,6 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
-import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramMapperPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.ml.job.categorization.FirstLineWithLettersCharFilter;
 import org.elasticsearch.xpack.ml.job.categorization.FirstLineWithLettersCharFilterFactory;
@@ -188,7 +187,6 @@ public class CsvIT extends ESTestCase {
                 ConstantKeywordMapperPlugin.class,
                 EnrichPlugin.class,
                 IngestCommonPlugin.class,
-                ExponentialHistogramMapperPlugin.class,
                 LocalStateInferencePlugin.class,
                 MapperExtrasPlugin.class,
                 SpatialPlugin.class,

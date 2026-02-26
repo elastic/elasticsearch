@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -62,7 +64,7 @@ public class IbmWatsonxChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_OverridesExistingModelId() throws URISyntaxException {
         var model = createChatCompletionModel(TEST_URI, "apiVersion", "modelId", "projectId", "apiKey");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             "different_model",
             null,
             null,
@@ -80,7 +82,7 @@ public class IbmWatsonxChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_OverridesNullModelId() throws URISyntaxException {
         var model = createChatCompletionModel(TEST_URI, "apiVersion", null, "projectId", "apiKey");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             "different_model",
             null,
             null,
@@ -98,7 +100,7 @@ public class IbmWatsonxChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_KeepsNullIfNoModelIdProvided() throws URISyntaxException {
         var model = createChatCompletionModel(TEST_URI, "apiVersion", null, "projectId", "apiKey");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             null,
             null,
             null,
@@ -116,7 +118,7 @@ public class IbmWatsonxChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() throws URISyntaxException {
         var model = createChatCompletionModel(TEST_URI, "apiVersion", "modelId", "projectId", "apiKey");
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
+            List.of(new Message(new ContentString("hello"), "role", null, null)),
             null, // not overriding model
             null,
             null,

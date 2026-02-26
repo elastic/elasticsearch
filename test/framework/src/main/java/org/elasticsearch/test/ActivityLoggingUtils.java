@@ -18,10 +18,10 @@ import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_DURATION_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_ENABLED;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_QUERY;
 import static org.elasticsearch.test.ESIntegTestCase.updateClusterSettings;
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -67,7 +67,7 @@ public class ActivityLoggingUtils {
         assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo(type));
         assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took")), greaterThan(0L));
         assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "query"), containsString(query));
+        assertThat(message.get(QUERY_FIELD_QUERY), containsString(query));
         assertThat(Long.valueOf(message.get(EVENT_DURATION_FIELD)), equalTo(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took"))));
     }
 
@@ -82,7 +82,7 @@ public class ActivityLoggingUtils {
         assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo(type));
         assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took")), greaterThan(0L));
         assertThat(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "query"), containsString(query));
+        assertThat(message.get(QUERY_FIELD_QUERY), containsString(query));
         assertThat(Long.valueOf(message.get(EVENT_DURATION_FIELD)), equalTo(Long.valueOf(message.get(ES_FIELDS_PREFIX + "took"))));
         if (errorMessage != null) {
             assertThat(message.get("error.message"), containsString(errorMessage));

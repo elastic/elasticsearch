@@ -20,6 +20,7 @@ import org.elasticsearch.datastreams.lifecycle.ErrorRecordingActionListener;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.time.Clock;
 import java.util.function.BiConsumer;
 
 /**
@@ -31,7 +32,8 @@ public record DlmStepContext(
     ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> transportActionsDeduplicator,
     DataStreamLifecycleErrorStore errorStore,
     int signallingErrorRetryThreshold,
-    Client client
+    Client client,
+    Clock clock
 ) {
 
     /**
@@ -47,7 +49,8 @@ public record DlmStepContext(
             actionContext.transportActionsDeduplicator(),
             actionContext.errorStore(),
             actionContext.signallingErrorRetryThreshold(),
-            actionContext.client()
+            actionContext.client(),
+            actionContext.clock()
         );
     }
 

@@ -112,6 +112,7 @@ import org.elasticsearch.xpack.stateless.reshard.SplitStateRequest;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardSplitAction;
+import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitSourceShardStateAction;
 import org.elasticsearch.xpack.stateless.reshard.TransportUpdateSplitTargetShardStateAction;
 import org.hamcrest.Matcher;
 
@@ -3226,6 +3227,60 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             assertThat(stats.getMin(), greaterThanOrEqualTo(0L));
             assertThat(stats.getMax(), lessThanOrEqualTo(TimeValue.THIRTY_SECONDS.millis())); // timeout
         }
+    }
+
+    public void testSourceShardMonitoringSucceedsWhenTargetsAreAlreadyDone() throws InterruptedException, BrokenBarrierException {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        startSearchNodes(1);
+        ensureStableCluster(3);
+
+        final String indexName = randomIndexName();
+        int numShards = randomIntBetween(1, 10);
+        createIndex(indexName, indexSettings(numShards, 1).build());
+        ensureGreen(indexName);
+
+        var moveToDoneAttempts = new CyclicBarrier(numShards + 1); // source shards and the test itself
+        var moveToDoneFailures = new CountDownLatch(numShards);
+        var sourceShardMoveToDoneBlocked = new AtomicBoolean(true);
+
+        // Wait for the source shards to observe target shards being DONE but don't allow them to proceed to DONE.
+        var indexNodeTransportService = MockTransportService.getInstance(indexNode);
+        indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitSourceShardStateAction.TYPE.name().equals(action)) {
+                try {
+                    moveToDoneAttempts.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    throw new RuntimeException(e);
+                }
+
+                if (sourceShardMoveToDoneBlocked.get()) {
+                    moveToDoneFailures.countDown();
+                    throw new RuntimeException("broken");
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+
+        // Wait for all search shards to attempt to transition to DONE meaning that all target shards (for all sources)
+        // are now DONE.
+        moveToDoneAttempts.await();
+        // Make sure we completed this "round" of source shard logic.
+        moveToDoneFailures.await();
+
+        // Now source shards will retry the entire state machine including waiting for target shards to be DONE.
+        // That check should fast-succeed even though there are no cluster state changes happening at this time.
+        // We specifically check this behavior since it is possible to get this wrong due to a "trap"
+        // of using `waitForNextChange` on a newly created `ClusterStateObserver` instead of `ClusterStateObserver#waitForState`.
+        // The latter checks the predicate on the current state but the former does not which would make us stall here.
+
+        // So we expect all source shards to arrive at the transition to DONE state again and this time we'll allow them to proceed.
+        sourceShardMoveToDoneBlocked.set(false);
+        moveToDoneAttempts.await();
+
+        waitForReshardCompletion(indexName);
     }
 
     @Override

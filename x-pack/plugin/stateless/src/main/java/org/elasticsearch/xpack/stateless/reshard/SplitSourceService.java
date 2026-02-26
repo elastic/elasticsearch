@@ -839,13 +839,6 @@ public class SplitSourceService {
         }
 
         private void monitorTargetShardsState() {
-            ClusterStateObserver observer = new ClusterStateObserver(
-                clusterService,
-                null,
-                logger,
-                clusterService.threadPool().getThreadContext()
-            );
-
             var allTargetsAreDonePredicate = new Predicate<ClusterState>() {
                 @Override
                 public boolean test(ClusterState state) {
@@ -876,35 +869,42 @@ public class SplitSourceService {
                 }
             };
 
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    if (cancelled.get()) {
-                        return;
+            ClusterStateObserver.waitForState(
+                clusterService,
+                clusterService.threadPool().getThreadContext(),
+                new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        if (cancelled.get()) {
+                            return;
+                        }
+
+                        // See the explanation in the predicate.
+                        // If there is no split metadata in the cluster state, there is no reason to do anything else here.
+                        // TODO should we just let the idempotent flow complete here?
+                        IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
+                        if (split == null) {
+                            return;
+                        }
+
+                        advance(new State.TargetShardsDone());
                     }
 
-                    // See the explanation in the predicate.
-                    // If there is no split metadata in the cluster state, there is no reason to do anything else here.
-                    // TODO should we just let the idempotent flow complete here?
-                    IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
-                    if (split == null) {
-                        return;
+                    @Override
+                    public void onClusterServiceClose() {
+                        // nothing to do
                     }
 
-                    advance(new State.TargetShardsDone());
-                }
-
-                @Override
-                public void onClusterServiceClose() {
-                    // nothing to do
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    // there is no timeout
-                    assert false;
-                }
-            }, allTargetsAreDonePredicate);
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        // there is no timeout
+                        assert false;
+                    }
+                },
+                allTargetsAreDonePredicate,
+                null,
+                logger
+            );
         }
 
         private void deleteUnownedData() {

@@ -2,13 +2,12 @@ setup:
   - requires:
       cluster_features: ["mapper.tsdb_nested_field_support"]
       reason: "tsdb index with nested field support enabled"
-
-  - skip:
-      cluster_features: "index.time_series_synthetic_id"
-      reason: when cluster has synthetic_id feature use 161/162_nested_fields_synthetic_id_false/true instead
+  - requires:
+      cluster_features: ["index.time_series_synthetic_id"]
+      reason: "index.mapping.synthetic_id requires the tsdb_synthetic_id feature flag"
 
 ---
-"Create TSDB index with field of nested type":
+"Create TSDB index with field of nested type and synthetic_id true":
   - do:
       indices.create:
         index: test
@@ -22,6 +21,8 @@ setup:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
+              mapping:
+                synthetic_id: true
           mappings:
             properties:
               "@timestamp":
@@ -93,7 +94,7 @@ setup:
 
 ---
 
-"TSDB index with multi-level nested fields":
+"TSDB index with multi-level nested fields and synthetic_id true":
   - do:
       indices.create:
         index: test
@@ -107,6 +108,8 @@ setup:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
+              mapping:
+                synthetic_id: true
           mappings:
             properties:
               "@timestamp":

@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
@@ -18,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
@@ -764,7 +764,10 @@ public abstract class DocumentParserContext {
             // parent document's _id is not yet available.
             // So we just add the child document without the parent _id, then in TimeSeriesIdFieldMapper#postParse we set the _id on all
             // child documents once we've calculated it.
-            assert getRoutingFields().equals(RoutingFields.Noop.INSTANCE) == false;
+            // Time-series index created at or after TSID_CREATED_DURING_ROUTING with non-empty dimensions use ForIndexDimensions routing,
+            // which causes buildRoutingFields to return Noop.INSTANCE.
+            assert getRoutingFields().equals(RoutingFields.Noop.INSTANCE) == false
+                || indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }

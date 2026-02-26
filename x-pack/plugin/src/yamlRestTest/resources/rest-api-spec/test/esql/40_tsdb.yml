@@ -439,7 +439,7 @@ aggregate_metric_double unsortable:
           query: 'FROM test2 | sort agg_metric'
 
 ---
-stats on aggregate_metric_double with partial submetrics:
+stats on aggregate_metric_double with partial submetrics missing sum and count:
   - requires:
       test_runner_features: [capabilities]
       capabilities:
@@ -453,10 +453,10 @@ stats on aggregate_metric_double with partial submetrics:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY k8s.pod.uid | SORT k8s.pod.uid'
+          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric), std_dev(agg_metric) BY k8s.pod.uid | SORT k8s.pod.uid'
 
   - length: {values: 2}
-  - length: {values.0: 5}
+  - length: {values.0: 6}
   - match: {columns.0.name: "max(agg_metric)"}
   - match: {columns.0.type: "double"}
   - match: {columns.1.name: "min(agg_metric)"}
@@ -465,18 +465,22 @@ stats on aggregate_metric_double with partial submetrics:
   - match: {columns.2.type: "double"}
   - match: {columns.3.name: "count(agg_metric)"}
   - match: {columns.3.type: "long"}
-  - match: {columns.4.name: "k8s.pod.uid"}
-  - match: {columns.4.type: "keyword"}
+  - match: {columns.4.name: "std_dev(agg_metric)"}
+  - match: {columns.4.type: "double"}
+  - match: {columns.5.name: "k8s.pod.uid"}
+  - match: {columns.5.type: "keyword"}
   - match: {values.0.0: 10.0}
   - match: {values.0.1: -3.0}
   - match: {values.0.2: null}
   - match: {values.0.3: null}
-  - match: {values.0.4: "947e4ced-1786-4e53-9e0c-5c447e959507"}
+  - match: {values.0.4: null}
+  - match: {values.0.5: "947e4ced-1786-4e53-9e0c-5c447e959507"}
   - match: {values.1.0: 17.0}
   - match: {values.1.1: 2.0}
   - match: {values.1.2: null}
   - match: {values.1.3: null}
-  - match: {values.1.4: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
+  - match: {values.1.4: null}
+  - match: {values.1.5: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
 
 ---
 stats on aggregate_metric_double missing min and max:

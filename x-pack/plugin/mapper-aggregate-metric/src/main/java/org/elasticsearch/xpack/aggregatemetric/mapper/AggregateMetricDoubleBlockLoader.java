@@ -8,9 +8,8 @@
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
@@ -171,23 +170,14 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
             }
         }
 
-        static NumericDocValues getNumericDocValues(NumberFieldMapper.NumberFieldType field, LeafReader leafReader) throws IOException {
-            if (field == null) {
-                return null;
-            }
-            String fieldName = field.name();
-            var values = leafReader.getNumericDocValues(fieldName);
-            if (values != null) {
-                return values;
-            }
-            var sortedValues = leafReader.getSortedNumericDocValues(fieldName);
-            return DocValues.unwrapSingleton(sortedValues);
-        }
-
         @Override
         public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            NumericDocValues sumValues = getNumericDocValues(sumFieldType, context.reader());
-            NumericDocValues valueCountValues = getNumericDocValues(countFieldType, context.reader());
+            SortedNumericDocValues sumValues = sumFieldType == null
+                ? null
+                : DocValues.getSortedNumeric(context.reader(), sumFieldType.name());
+            SortedNumericDocValues valueCountValues = countFieldType == null
+                ? null
+                : DocValues.getSortedNumeric(context.reader(), countFieldType.name());
             return new BlockDocValuesReader(breaker) {
                 @Override
                 public void close() {
@@ -225,8 +215,8 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
                             if (advance) {
                                 this.docID = doc;
                                 lastDoc = doc;
-                                double sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
-                                long count = valueCountValues.longValue();
+                                double sum = NumericUtils.sortableLongToDouble(sumValues.nextValue());
+                                long count = valueCountValues.nextValue();
                                 builder.appendDouble(sum / count);
                             } else {
                                 builder.appendNull();
@@ -241,8 +231,8 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
                     DoubleBuilder blockBuilder = (DoubleBuilder) builder;
                     if (sumValues.advanceExact(docId) && valueCountValues.advanceExact(docId)) {
                         this.docID = docId;
-                        var sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
-                        var count = Math.toIntExact(valueCountValues.longValue());
+                        var sum = NumericUtils.sortableLongToDouble(sumValues.nextValue());
+                        var count = valueCountValues.nextValue();
                         blockBuilder.appendDouble(sum / count);
                     } else {
                         blockBuilder.appendNull();

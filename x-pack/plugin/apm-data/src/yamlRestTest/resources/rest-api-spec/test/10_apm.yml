@@ -18,6 +18,14 @@ setup:
   - contains: {index_templates: {name: traces-apm.sampled@template}}
 
 ---
+"Test apm timestamp.us mapping":
+  - do:
+      cluster.get_component_template:
+        name: apm@mappings
+  - match:
+      component_templates.0.component_template.template.mappings.properties.timestamp.properties.us.type: long
+
+---
 "Test metrics-apm* template installation":
   - skip:
       reason: contains is a newly added assertion

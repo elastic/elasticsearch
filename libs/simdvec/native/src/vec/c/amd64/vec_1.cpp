@@ -209,6 +209,95 @@ EXPORT void vec_sqri7u_bulk_offsets(
  * instead, at the cost of doing double the loops
  */
 
+struct cosine_results_t {
+    int32_t sum;
+    int32_t norm1;
+    int32_t norm2;
+};
+
+static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    // Init accumulator(s) with 0
+    __m256i sum = _mm256_setzero_si256();
+    __m256i norm1 = _mm256_setzero_si256();
+    __m256i norm2 = _mm256_setzero_si256();
+
+    for(int i = 0; i < dims; i += sizeof(__m128i)) {
+        // Load packed 8-bit integers
+        __m128i va8 = _mm_loadu_si128((const __m128i*)(a + i));
+        __m128i vb8 = _mm_loadu_si128((const __m128i*)(b + i));
+
+        // sign-extend to 16-bits
+        __m256i va16 = _mm256_cvtepi8_epi16(va8);
+        __m256i vb16 = _mm256_cvtepi8_epi16(vb8);
+
+        // vertically multiply and add a little bit to 32-bit values
+        __m256i sums = _mm256_madd_epi16(va16, vb16);
+        __m256i norm1s = _mm256_madd_epi16(va16, va16);
+        __m256i norm2s = _mm256_madd_epi16(vb16, vb16);
+
+        // accumulate
+        sum = _mm256_add_epi32(sums, sum);
+        norm1 = _mm256_add_epi32(norm1s, norm1);
+        norm2 = _mm256_add_epi32(norm2s, norm2);
+    }
+
+    // reduce (horizontally add all)
+    return cosine_results_t {
+        mm256_reduce_epi32<_mm_add_epi32>(sum),
+        mm256_reduce_epi32<_mm_add_epi32>(norm1),
+        mm256_reduce_epi32<_mm_add_epi32>(norm2)
+    };
+}
+
+EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
+    cosine_results_t res = cosine_results_t { 0, 0, 0 };
+    int i = 0;
+    if (dims > sizeof(__m128i)) {
+        i += dims & ~(sizeof(__m128i) - 1);
+        res = cosi8_inner(a, b, i);
+    }
+    for (; i < dims; i++) {
+        int32_t ai = (int32_t) a[i];
+        int32_t bi = (int32_t) b[i];
+        res.sum += ai * bi;
+        res.norm1 += ai * ai;
+        res.norm2 += bi * bi;
+    }
+
+    return (f32_t) ((double) res.sum / sqrt((double) res.norm1 * res.norm2));
+}
+
+template <int64_t(*mapper)(int32_t, const int32_t*)>
+static inline void cosi8_inner_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    for (int c=0; c<count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = vec_cosi8(a0, b, dims);
+    }
+}
+
+EXPORT void vec_cosi8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    cosi8_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_cosi8_bulk_offsets(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    cosi8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+}
+
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();
@@ -216,8 +305,8 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
 #pragma GCC unroll 4
     for(int i = 0; i < dims; i += sizeof(__m128i)) {
         // Load packed 8-bit integers
-        __m128i va8 = _mm_load_si128((const __m128i*)(a + i));
-        __m128i vb8 = _mm_load_si128((const __m128i*)(b + i));
+        __m128i va8 = _mm_loadu_si128((const __m128i*)(a + i));
+        __m128i vb8 = _mm_loadu_si128((const __m128i*)(b + i));
 
         // sign-extend to 16-bits
         __m256i va16 = _mm256_cvtepi8_epi16(va8);
@@ -234,7 +323,7 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
     return mm256_reduce_epi32<_mm_add_epi32>(acc1);
 }
 
-EXPORT int32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
+EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > sizeof(__m128i)) {
@@ -244,7 +333,7 @@ EXPORT int32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
     for (; i < dims; i++) {
         res += a[i] * b[i];
     }
-    return res;
+    return (f32_t)res;
 }
 
 template <int64_t(*mapper)(int32_t, const int32_t*)>
@@ -259,7 +348,7 @@ static inline void doti8_inner_bulk(
 ) {
     for (int c=0; c<count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_doti8(a0, b, dims);
+        results[c] = vec_doti8(a0, b, dims);
     }
 }
 
@@ -285,8 +374,8 @@ static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_
 #pragma GCC unroll 4
     for(int i = 0; i < dims; i += sizeof(__m128i)) {
         // Load packed 8-bit integers
-        __m128i va8 = _mm_load_si128((const __m128i*)(a + i));
-        __m128i vb8 = _mm_load_si128((const __m128i*)(b + i));
+        __m128i va8 = _mm_loadu_si128((const __m128i*)(a + i));
+        __m128i vb8 = _mm_loadu_si128((const __m128i*)(b + i));
 
         // sign-extend to 16-bits
         __m256i va16 = _mm256_cvtepi8_epi16(va8);
@@ -302,7 +391,7 @@ static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_
     return mm256_reduce_epi32<_mm_add_epi32>(acc1);
 }
 
-EXPORT int32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
+EXPORT f32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > sizeof(__m128i)) {
@@ -313,7 +402,7 @@ EXPORT int32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
         int32_t dist = a[i] - b[i];
         res += dist * dist;
     }
-    return res;
+    return (f32_t)res;
 }
 
 template <int64_t(*mapper)(int32_t, const int32_t*)>

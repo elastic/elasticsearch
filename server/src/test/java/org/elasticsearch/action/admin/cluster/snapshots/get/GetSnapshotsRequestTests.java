@@ -32,6 +32,11 @@ public class GetSnapshotsRequestTests extends ESTestCase {
             assertNull(request.validate());
         }
         {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").offset(-1);
+            final ActionRequestValidationException e = request.validate();
+            assertThat(e.getMessage(), containsString("offset must be non-negative"));
+        }
+        {
             final GetSnapshotsRequest request = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, "repo", "snapshot").verbose(false)
                 .size(randomIntBetween(1, 500));
             final ActionRequestValidationException e = request.validate();

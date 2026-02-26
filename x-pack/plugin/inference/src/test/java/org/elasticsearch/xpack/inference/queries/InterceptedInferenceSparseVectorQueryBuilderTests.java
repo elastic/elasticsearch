@@ -20,7 +20,6 @@ import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfigTests;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
@@ -30,9 +29,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractInterceptedInferenceQueryBuilderTestCase<
@@ -88,10 +87,13 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         if (transportVersion.supports(NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
             assertThat(rewritten, instanceOf(InterceptedInferenceSparseVectorQueryBuilder.class));
 
+            // Rewrite the original query to populate the query vector
+            QueryBuilder originalWithQueryVector = rewriteAndFetch(original, queryRewriteContext);
+
             InterceptedInferenceSparseVectorQueryBuilder intercepted = (InterceptedInferenceSparseVectorQueryBuilder) rewritten;
-            assertThat(intercepted.originalQuery, equalTo(original));
+            assertThat(intercepted.originalQuery, equalTo(originalWithQueryVector));
             assertThat(intercepted.inferenceResultsMap, notNullValue());
-            assertThat(intercepted.inferenceResultsMap.size(), equalTo(1));
+            assertThat(intercepted.inferenceResultsMap.isEmpty(), is(true));
         } else {
             // Rewrite using the query rewrite context to populate the inference results
             @SuppressWarnings("deprecation")
@@ -143,16 +145,11 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         assertThat(coordinatorRewritten, instanceOf(InterceptedInferenceSparseVectorQueryBuilder.class));
         InterceptedInferenceSparseVectorQueryBuilder coordinatorIntercepted =
             (InterceptedInferenceSparseVectorQueryBuilder) coordinatorRewritten;
-        assertThat(coordinatorIntercepted.originalQuery, equalTo(sparseVectorQuery));
         assertThat(coordinatorIntercepted.inferenceResultsMap, notNullValue());
-        assertThat(coordinatorIntercepted.inferenceResultsMap.size(), equalTo(1));
+        assertThat(coordinatorIntercepted.inferenceResultsMap.isEmpty(), is(true));
 
-        InferenceResults inferenceResults = coordinatorIntercepted.inferenceResultsMap.get(
-            new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, SPARSE_INFERENCE_ID)
-        );
-        assertThat(inferenceResults, notNullValue());
-        assertThat(inferenceResults, instanceOf(TextExpansionResults.class));
-        TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;
+        List<WeightedToken> queryVector = coordinatorIntercepted.originalQuery.getQueryVectors();
+        assertThat(queryVector, notNullValue());
 
         // Perform data node rewrite on test index 1
         final QueryRewriteContext indexMetadataContextTestIndex1 = createIndexMetadataContext(
@@ -161,10 +158,7 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
             testIndex1.nonInferenceFields()
         );
         QueryBuilder dataRewrittenTestIndex1 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextTestIndex1);
-        NestedQueryBuilder expectedDataRewrittenTestIndex1 = buildExpectedNestedQuery(
-            sparseVectorQuery,
-            textExpansionResults.getWeightedTokens()
-        );
+        NestedQueryBuilder expectedDataRewrittenTestIndex1 = buildExpectedNestedQuery(sparseVectorQuery, queryVector);
         assertThat(dataRewrittenTestIndex1, equalTo(expectedDataRewrittenTestIndex1));
 
         // Perform data node rewrite on test index 2
@@ -174,10 +168,7 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
             testIndex2.nonInferenceFields()
         );
         QueryBuilder dataRewrittenTestIndex2 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextTestIndex2);
-        SparseVectorQueryBuilder expectedDataRewrittenTestIndex2 = buildExpectedSparseVectorQuery(
-            sparseVectorQuery,
-            textExpansionResults.getWeightedTokens()
-        );
+        SparseVectorQueryBuilder expectedDataRewrittenTestIndex2 = buildExpectedSparseVectorQuery(sparseVectorQuery, queryVector);
         assertThat(dataRewrittenTestIndex2, equalTo(expectedDataRewrittenTestIndex2));
     }
 

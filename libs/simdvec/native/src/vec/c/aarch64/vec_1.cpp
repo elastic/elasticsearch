@@ -27,6 +27,98 @@
 #define SQRI8_STRIDE_BYTES_LEN 16 // Must be a power of 2
 #endif
 
+struct cosine_results_t {
+    int32_t sum;
+    int32_t norm1;
+    int32_t norm2;
+};
+
+static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    int32x4_t acc_sum1 = vdupq_n_s32(0);
+    int32x4_t acc_sum2 = vdupq_n_s32(0);
+    int32x4_t acc_norm11 = vdupq_n_s32(0);
+    int32x4_t acc_norm12 = vdupq_n_s32(0);
+    int32x4_t acc_norm21 = vdupq_n_s32(0);
+    int32x4_t acc_norm22 = vdupq_n_s32(0);
+
+    for (int i = 0; i < dims; i += SQRI8_STRIDE_BYTES_LEN) {
+        // Read into 16 x 8 bit vectors.
+        int8x16_t va = vld1q_s8(a + i);
+        int8x16_t vb = vld1q_s8(b + i);
+
+        int16x8_t sum1 = vmull_s8(vget_low_s8(va), vget_low_s8(vb));
+        int16x8_t sum2 = vmull_s8(vget_high_s8(va), vget_high_s8(vb));
+        int16x8_t norm11 = vmull_s8(vget_low_s8(va), vget_low_s8(va));
+        int16x8_t norm12 = vmull_s8(vget_high_s8(va), vget_high_s8(va));
+        int16x8_t norm21 = vmull_s8(vget_low_s8(vb), vget_low_s8(vb));
+        int16x8_t norm22 = vmull_s8(vget_high_s8(vb), vget_high_s8(vb));
+
+        // Accumulate, adding adjacent 32-bit lanes
+        acc_sum1 = vpadalq_s16(acc_sum1, sum1);
+        acc_sum2 = vpadalq_s16(acc_sum2, sum2);
+        acc_norm11 = vpadalq_s16(acc_norm11, norm11);
+        acc_norm12 = vpadalq_s16(acc_norm12, norm12);
+        acc_norm21 = vpadalq_s16(acc_norm21, norm21);
+        acc_norm22 = vpadalq_s16(acc_norm22, norm22);
+    }
+
+    // reduce
+    return cosine_results_t {
+        vaddvq_s32(vaddq_s32(acc_sum1, acc_sum2)),
+        vaddvq_s32(vaddq_s32(acc_norm11, acc_norm12)),
+        vaddvq_s32(vaddq_s32(acc_norm21, acc_norm22))
+    };
+}
+
+EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
+    cosine_results_t res = cosine_results_t { 0, 0, 0 };
+    int i = 0;
+    if (dims > SQRI8_STRIDE_BYTES_LEN) {
+        i += dims & ~(SQRI8_STRIDE_BYTES_LEN - 1);
+        res = cosi8_inner(a, b, i);
+    }
+    for (; i < dims; i++) {
+        int32_t ai = (int32_t) a[i];
+        int32_t bi = (int32_t) b[i];
+        res.sum += ai * bi;
+        res.norm1 += ai * ai;
+        res.norm2 += bi * bi;
+    }
+
+    return (f32_t) ((double) res.sum / sqrt((double) res.norm1 * res.norm2));
+}
+
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline void cosi8_inner_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    for (int c = 0; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = vec_cosi8(a0, b, dims);
+    }
+}
+
+EXPORT void vec_cosi8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
+    cosi8_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_cosi8_bulk_offsets(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    cosi8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+}
+
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
     // We have contention in the instruction pipeline on the accumulation
     // registers if we use too few.
@@ -61,7 +153,7 @@ static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_
     return vaddvq_s32(vaddq_s32(acc5, acc6));
 }
 
-EXPORT int32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
+static inline int32_t doti8_common(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > DOTI8_STRIDE_BYTES_LEN) {
@@ -75,8 +167,11 @@ EXPORT int32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
 }
 
 EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) {
-#pragma inline
-    return vec_doti8(a, b, dims);
+    return doti8_common(a, b, dims);
+}
+
+EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return (f32_t)doti8_common(a, b, dims);
 }
 
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
@@ -228,7 +323,7 @@ static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_
     return vaddvq_s32(vaddq_s32(acc5, acc6));
 }
 
-EXPORT int32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
+static inline int32_t sqri8_common(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
     if (dims > SQRI8_STRIDE_BYTES_LEN) {
@@ -243,8 +338,11 @@ EXPORT int32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
 }
 
 EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) {
-#pragma inline
-    return vec_sqri8(a, b, dims);
+    return sqri8_common(a, b, dims);
+}
+
+EXPORT f32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
+    return (f32_t)sqri8_common(a, b, dims);
 }
 
 template <int64_t(*mapper)(const int32_t, const int32_t*)>

@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: [ capabilities, allowed_warnings_regex, contains, warnings_regex ]
+      test_runner_features: [ capabilities, allowed_warnings_regex, contains, warnings_regex, allowed_warnings ]
       capabilities:
         - method: POST
           path: /_query
@@ -154,6 +154,8 @@ setup:
 
   # Aggregate data types ─ https://www.elastic.co/docs/reference/elasticsearch/mapping-reference/field-data-types#aggregated-data-types
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: aggregate_family
         body:

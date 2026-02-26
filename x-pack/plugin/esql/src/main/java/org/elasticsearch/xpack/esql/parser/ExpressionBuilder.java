@@ -96,6 +96,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.promqlNameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
@@ -1231,9 +1232,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (node == null) {
             return null;
         }
-        // The token could be a single parameter marker or double parameter markers
         Token token = node.getSymbol();
         String nameOrPosition = nameOrPosition(token);
+        if (nameOrPosition.isBlank()) {
+            nameOrPosition = promqlNameOrPosition(token);
+        }
         if (isInteger(nameOrPosition)) {
             int index = Integer.parseInt(nameOrPosition);
             if (params.get(index) == null) {
@@ -1318,7 +1321,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 )
             );
         }
-        return new UnresolvedAttribute(source(ctx), param.value().toString());
+        if (param.value() == null) {
+            context.params.addParsingError(new ParsingException(source(ctx), "Query parameter [{}] is null", ctx.getText()));
+        }
+        return new UnresolvedAttribute(source(ctx), String.valueOf(param.value()));
     }
 
     @Override

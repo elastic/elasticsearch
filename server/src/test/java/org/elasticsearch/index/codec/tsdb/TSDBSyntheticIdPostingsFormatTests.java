@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -21,6 +22,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -28,11 +30,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.bloomfilter.LazyFilterTermsEnum;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -45,7 +50,10 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -76,7 +84,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      *
      * Note: if version > 1, the document is processed as a soft-update of a previously indexed document
      */
-    private record Doc(long timestamp, String hostName, String metricField, Integer metricValue, int version, int routing) {}
+    public record Doc(long timestamp, String hostName, String metricField, Integer metricValue, int version, int routing) {}
 
     public void testTerms() throws IOException {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
@@ -188,65 +196,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
     public void testSeek() throws IOException {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-        final int routing = randomNonNegativeInt();
-        final int maxHosts = randomIntBetween(1, 25);
-
-        // Generate a list of unique random documents
-        // Note: some documents will be later updated to a newer version so that 1 synthetic term have more than 1 posting (doc)
-        final var randomDocs = new ArrayList<Doc>();
-        for (int host = 0; host < maxHosts; host++) {
-            var timestamp = Instant.now();
-
-            int maxMetricsPerHost = randomIntBetween(1, 100);
-            for (int metric = 0; metric < maxMetricsPerHost; metric++) {
-                randomDocs.add(new Doc(timestamp.toEpochMilli(), "vm-prod-" + host, "cpu-load", metric, 1, routing));
-                timestamp = timestamp.plus(randomIntBetween(1, 59), randomFrom(ChronoUnit.MILLIS, ChronoUnit.SECONDS, ChronoUnit.MINUTES));
-            }
-        }
-
-        runTest((writer, parser) -> {
-            // Last version of docs, keyed by their synthetic id term
-            final var finalDocs = new TreeMap<BytesRef, Doc>();
-
-            // Shuffle docs ordering before indexing
-            final var randomlyOrderedDocs = new ArrayList<>(randomDocs);
-            Collections.shuffle(randomlyOrderedDocs, random());
-
-            int numDocs = 0;
-            for (int i = 0; i < randomlyOrderedDocs.size(); i++) {
-                var doc = randomlyOrderedDocs.get(i);
-                writer.addDocument(parser.parse(doc));
-                numDocs += 1;
-
-                var uid = createSyntheticIdBytesRef(buildTsId(doc), doc.timestamp(), doc.routing());
-                assertThat(finalDocs.put(uid, doc), nullValue());
-
-                if (i > 0 && rarely()) {
-                    // Randomly picks a previously indexed doc and soft-update it to a newer version
-                    uid = randomFrom(finalDocs.keySet());
-                    var previousDoc = finalDocs.get(uid);
-                    var updatedDoc = new Doc(
-                        previousDoc.timestamp(),
-                        previousDoc.hostName(),
-                        previousDoc.metricField(),
-                        previousDoc.metricValue(),
-                        previousDoc.version() + 1,
-                        previousDoc.routing()
-                    );
-
-                    Term uidTerm = new Term(IdFieldMapper.NAME, uid);
-                    if (randomBoolean()) {
-                        writer.softUpdateDocuments(uidTerm, List.of(parser.parse(updatedDoc)), Lucene.newSoftDeletesField());
-                    } else {
-                        writer.softUpdateDocument(uidTerm, parser.parse(updatedDoc), Lucene.newSoftDeletesField());
-                    }
-                    finalDocs.put(uid, updatedDoc);
-                    numDocs += 1;
-                }
-            }
-
+        runTestWithRandomDocs((writer, finalDocs) -> {
             try (var reader = DirectoryReader.open(writer)) {
-                assertThat(reader.getDocCount(IdFieldMapper.NAME), equalTo(numDocs));
+                assertThat(reader.getDocCount(IdFieldMapper.NAME), equalTo(finalDocs.values().stream().mapToInt(Doc::version).sum()));
                 assertThat(reader.getIndexCommit().getSegmentCount(), equalTo(1));
                 assertThat(reader.leaves().size(), equalTo(1));
                 final var leafReader = reader.leaves().getFirst().reader();
@@ -257,22 +209,29 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
                 final Terms terms = leafReader.terms(IdFieldMapper.NAME);
                 assertNotNull(terms);
-                final TermsEnum wrappedTermsEnum = asInstanceOf(LazyFilterTermsEnum.class, terms.iterator());
-                final TermsEnum unwrappedTermsEnum = asInstanceOf(SyntheticIdTermsEnum.class, LazyFilterTermsEnum.unwrap(wrappedTermsEnum));
+                final TermsEnum delegatingBloomTermsEnum = terms.iterator();
+                final TermsEnum lazyTermsEnum = asInstanceOf(LazyFilterTermsEnum.class, delegatingBloomTermsEnum);
+                final TermsEnum syntheticIdTermsEnum = asInstanceOf(SyntheticIdTermsEnum.class, LazyFilterTermsEnum.unwrap(lazyTermsEnum));
 
-                TermsEnum termsEnum = unwrappedTermsEnum;
+                TermsEnum termsEnum = randomFrom(syntheticIdTermsEnum, lazyTermsEnum, delegatingBloomTermsEnum);
 
                 // Test seek the exact term
                 {
                     for (var docIdTerm : docsIdsTerms) {
                         if (rarely()) {
-                            termsEnum = randomFrom(random(), () -> unwrappedTermsEnum, () -> wrappedTermsEnum, () -> {
-                                try {
-                                    return leafReader.terms(IdFieldMapper.NAME).iterator();
-                                } catch (IOException e) {
-                                    throw new AssertionError(e);
+                            termsEnum = randomFrom(
+                                random(),
+                                () -> syntheticIdTermsEnum,
+                                () -> lazyTermsEnum,
+                                () -> delegatingBloomTermsEnum,
+                                () -> {
+                                    try {
+                                        return leafReader.terms(IdFieldMapper.NAME).iterator();
+                                    } catch (IOException e) {
+                                        throw new AssertionError(e);
+                                    }
                                 }
-                            });
+                            );
                         }
                         switch (randomInt(2)) {
                             case 0:
@@ -358,9 +317,19 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 // Test seek after the last term
                 {
                     final var termAfterEnd = randomTermAfter(finalDocs.navigableKeySet().getLast());
+
+                    // If the terms enum is a SyntheticIdTermsEnum, then seekCeil/seekExact to a term after the last term should correctly
+                    // position the enum after the last term.
+                    //
+                    // When the enum uses a bloom filter, the exact term to seek with seekExact is not found and the result is immediately
+                    // returned without positioning the delegate terms enum. In that case we cannot tell what the #next() method will
+                    // return. But when seekCeil is used, the bloom filter delegates so the delegating terms enum is positioned afterwards.
+                    final var isPositionedAfterSeek = termsEnum instanceof SyntheticIdTermsEnum;
+
                     switch (randomInt(2)) {
                         case 0:
                             assertThat(termsEnum.seekCeil(termAfterEnd), equalTo(TermsEnum.SeekStatus.END));
+                            assertThat(termsEnum.next(), nullValue());
                             break;
                         case 1:
                             assertThat(termsEnum.seekExact(termAfterEnd), equalTo(false));
@@ -381,7 +350,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                         default:
                             throw new AssertionError();
                     }
-                    assertThat(termsEnum.next(), nullValue());
+                    if (isPositionedAfterSeek) {
+                        assertThat(termsEnum.next(), nullValue());
+                    }
                 }
 
                 // Test seek to non-existing terms
@@ -420,6 +391,70 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     /**
+     * Indexes random documents with synthetic id in a time-series Lucene index.
+     *
+     * See {@link #runTest(CheckedBiConsumer)}.
+     */
+    public static void runTestWithRandomDocs(CheckedBiConsumer<IndexWriter, TreeMap<BytesRef, Doc>, IOException> test) throws IOException {
+        final int routing = randomNonNegativeInt();
+        final int maxHosts = randomIntBetween(1, 25);
+
+        // Generate a list of unique random documents
+        // Note: some documents will be later updated to a newer version so that 1 synthetic term have more than 1 posting (doc)
+        final var randomDocs = new ArrayList<Doc>();
+        for (int host = 0; host < maxHosts; host++) {
+            var timestamp = Instant.now();
+
+            int maxMetricsPerHost = randomIntBetween(1, 100);
+            for (int metric = 0; metric < maxMetricsPerHost; metric++) {
+                randomDocs.add(new Doc(timestamp.toEpochMilli(), "vm-prod-" + host, "cpu-load", metric, 1, routing));
+                timestamp = timestamp.plus(randomIntBetween(1, 59), randomFrom(ChronoUnit.MILLIS, ChronoUnit.SECONDS, ChronoUnit.MINUTES));
+            }
+        }
+
+        runTest((writer, parser) -> {
+            // Last version of docs, keyed by their synthetic id term
+            final var finalDocs = new TreeMap<BytesRef, Doc>();
+
+            // Shuffle docs ordering before indexing
+            final var randomlyOrderedDocs = new ArrayList<>(randomDocs);
+            Collections.shuffle(randomlyOrderedDocs, random());
+
+            for (int i = 0; i < randomlyOrderedDocs.size(); i++) {
+                var doc = randomlyOrderedDocs.get(i);
+                writer.addDocument(parser.parse(doc));
+
+                var uid = createSyntheticIdBytesRef(buildTsId(doc), doc.timestamp(), doc.routing());
+                assertThat(finalDocs.put(uid, doc), nullValue());
+
+                if (i > 0 && rarely()) {
+                    // Randomly picks a previously indexed doc and soft-update it to a newer version
+                    uid = randomFrom(finalDocs.keySet());
+                    var previousDoc = finalDocs.get(uid);
+                    var updatedDoc = new Doc(
+                        previousDoc.timestamp(),
+                        previousDoc.hostName(),
+                        previousDoc.metricField(),
+                        previousDoc.metricValue(),
+                        previousDoc.version() + 1,
+                        previousDoc.routing()
+                    );
+
+                    Term uidTerm = new Term(IdFieldMapper.NAME, uid);
+                    if (randomBoolean()) {
+                        writer.softUpdateDocuments(uidTerm, List.of(parser.parse(updatedDoc)), Lucene.newSoftDeletesField());
+                    } else {
+                        writer.softUpdateDocument(uidTerm, parser.parse(updatedDoc), Lucene.newSoftDeletesField());
+                    }
+                    finalDocs.put(uid, updatedDoc);
+                }
+            }
+
+            test.accept(writer, finalDocs);
+        });
+    }
+
+    /**
      * Set up a time-series Lucene index with synthetic id.
      *
      * Note:
@@ -432,7 +467,7 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * tests, the tests use the default mappers and default index sort configuration to parse and to index documents. We think this is the
      * best way to stay close to the default options of time-series indices, while keeping it light enough for unit tests.
      */
-    private void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
+    private static void runTest(CheckedBiConsumer<IndexWriter, TestDocParser, IOException> test) throws IOException {
         final var indexName = randomIdentifier();
         final var indexSettings = buildIndexSettings(indexName);
         final var mapperService = buildMapperService(indexSettings);
@@ -446,6 +481,11 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             directory.setCheckIndexOnClose(false);
 
             final var indexWriterConfig = newIndexWriterConfig();
+            indexWriterConfig.setCodec(
+                new ES93TSDBDefaultCompressionLucene103Codec(
+                    new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                )
+            );
             // Configure the index writer for time-series indices
             indexWriterConfig.setMergePolicy(indexSettings.getMergePolicy(true));
             indexWriterConfig.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
@@ -492,9 +532,6 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                                         "time_series_metric": "counter"
                                     }
                                 }
-                            },
-                            "version": {
-                                "type": "integer"
                             }
                         }
                     }""")
@@ -517,9 +554,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     /**
      * Builds a {@link MapperService} that can be used to parse time-series documents in test.
      */
-    private MapperService buildMapperService(final IndexSettings indexSettings) throws IOException {
+    private static MapperService buildMapperService(final IndexSettings indexSettings) throws IOException {
         final var mapperService = MapperTestUtils.newMapperService(
-            xContentRegistry(),
+            new NamedXContentRegistry(CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())),
             createTempFile(),
             indexSettings.getSettings(),
             indexSettings.getIndex().getName()
@@ -624,6 +661,12 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
         var expectedDocId = TsidExtractingIdFieldMapper.createSyntheticId(expectedTsId, expectedTimestamp, doc.routing());
         assertThat(Uid.decodeId(docId.binaryValue()), equalTo(expectedDocId));
+
+        // version field is set by the engine, not after parsing, so we set it manually here
+        var docVersion = luceneDoc.getField(VersionFieldMapper.NAME);
+        assertThat(docVersion, notNullValue());
+        assertThat(docVersion.numericValue().longValue(), equalTo(-1L /* default value after parsing */));
+        parsedDoc.version().setLongValue(doc.version());
     }
 
     private static BytesRef buildTsId(Doc doc) {

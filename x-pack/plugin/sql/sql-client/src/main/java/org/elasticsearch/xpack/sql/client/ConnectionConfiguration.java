@@ -64,6 +64,7 @@ public class ConnectionConfiguration {
     public static final String AUTH_USER = "user";
     // NB: this is password instead of pass since that's what JDBC DriverManager/tools use
     public static final String AUTH_PASS = "password";
+    public static final String AUTH_API_KEY = "apiKey";
 
     // Default catalog
 
@@ -87,6 +88,7 @@ public class ConnectionConfiguration {
             PAGE_SIZE,
             AUTH_USER,
             AUTH_PASS,
+            AUTH_API_KEY,
             CATALOG,
             ALLOW_PARTIAL_SEARCH_RESULTS,
             PROJECT_ROUTING
@@ -114,6 +116,7 @@ public class ConnectionConfiguration {
     private final int pageSize;
 
     private final String user, pass;
+    private final String apiKey;
 
     private final SslConfig sslConfig;
     private final ProxyConfig proxyConfig;
@@ -152,6 +155,14 @@ public class ConnectionConfiguration {
         // auth
         user = settings.getProperty(AUTH_USER);
         pass = settings.getProperty(AUTH_PASS);
+        apiKey = settings.getProperty(AUTH_API_KEY);
+
+        // validate that only one authentication method is specified
+        if (StringUtils.hasText(apiKey) && StringUtils.hasText(user)) {
+            throw new ClientException(
+                "Cannot use both API key and basic authentication. Please specify either [" + AUTH_API_KEY + "] or [" + AUTH_USER + "]."
+            );
+        }
 
         sslConfig = new SslConfig(settings, baseURI);
         proxyConfig = new ProxyConfig(settings);
@@ -179,6 +190,7 @@ public class ConnectionConfiguration {
         int pageSize,
         String user,
         String pass,
+        String apiKey,
         SslConfig sslConfig,
         ProxyConfig proxyConfig,
         boolean allowPartialSearchResults,
@@ -197,6 +209,14 @@ public class ConnectionConfiguration {
         // auth
         this.user = user;
         this.pass = pass;
+        this.apiKey = apiKey;
+
+        // validate that only one authentication method is specified
+        if (StringUtils.hasText(apiKey) && StringUtils.hasText(user)) {
+            throw new ClientException(
+                "Cannot use both API key and basic authentication. Please specify either [" + AUTH_API_KEY + "] or [" + AUTH_USER + "]."
+            );
+        }
 
         this.sslConfig = sslConfig;
         this.proxyConfig = proxyConfig;
@@ -305,6 +325,10 @@ public class ConnectionConfiguration {
 
     public String authPass() {
         return pass;
+    }
+
+    public String apiKey() {
+        return apiKey;
     }
 
     public URI baseUri() {

@@ -371,3 +371,24 @@ FROM sample_data, employees
 message:keyword
 Disconnected
 ;
+
+nullInputRow
+ROW n = null
+| DISSECT n "%{abc}"
+;
+
+n:null | abc:keyword
+  null | null
+;
+
+nullInput
+FROM employees
+| EVAL n = null
+| DISSECT n "%{abc}"
+| WHERE emp_no == 10001
+| KEEP n, abc
+;
+
+n:null | abc:keyword
+  null | null
+;

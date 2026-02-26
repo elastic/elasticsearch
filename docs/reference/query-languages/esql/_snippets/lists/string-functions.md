@@ -6,6 +6,7 @@
 * [`ENDS_WITH`](../../functions-operators/string-functions/ends_with.md)
 * [`FROM_BASE64`](../../functions-operators/string-functions/from_base64.md)
 * [`HASH`](../../functions-operators/string-functions/hash.md)
+* [`JSON_EXTRACT`](../../functions-operators/string-functions/json_extract.md)
 * [`LEFT`](../../functions-operators/string-functions/left.md)
 * [`LENGTH`](../../functions-operators/string-functions/length.md)
 * [`LOCATE`](../../functions-operators/string-functions/locate.md)

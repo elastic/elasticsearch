@@ -420,10 +420,9 @@ public class PlannerUtils {
      * TODO: Remove this
      */
     @Deprecated(forRemoval = true)
-    public static final BlockFactory NON_BREAKING_BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop-esql-breaker"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    public static final BlockFactory NON_BREAKING_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     public static boolean usesScoring(QueryPlan<?> plan) {
         return plan.output().stream().anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));

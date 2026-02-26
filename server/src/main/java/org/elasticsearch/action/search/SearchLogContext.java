@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.function.Predicate;
 
 public class SearchLogContext extends ActivityLoggerContext {
-    private static final String TYPE = "search";
+    public static final String TYPE = "dsl";
     private final SearchRequest request;
     private final @Nullable SearchResponse response;
     private final NamedWriteableRegistry namedWriteableRegistry;

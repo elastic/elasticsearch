@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ActivityLoggingUtils;
+import org.elasticsearch.xpack.eql.logging.EqlLogContext;
 import org.elasticsearch.xpack.eql.logging.EqlLogProducer;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -80,7 +81,7 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertThat(response.isRunning(), is(false));
         assertThat(response.isPartial(), is(false));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageSuccess(message, "eql", query);
+        assertMessageSuccess(message, EqlLogContext.TYPE, query);
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(success ? "1" : "0"));
     }
@@ -95,7 +96,7 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         expectThrows(Exception.class, () -> client().execute(EqlSearchAction.INSTANCE, request).get());
         assertThat(appender.events.size(), equalTo(1));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageFailure(message, "eql", query, IndexNotFoundException.class, "Unknown index [test]");
+        assertMessageFailure(message, EqlLogContext.TYPE, query, IndexNotFoundException.class, "Unknown index [test]");
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
     }

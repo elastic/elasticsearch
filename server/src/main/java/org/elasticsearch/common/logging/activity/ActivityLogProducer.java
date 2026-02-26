@@ -24,12 +24,9 @@ import java.util.concurrent.TimeUnit;
  */
 public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
 
-    String ES_FIELDS_PREFIX = "elasticsearch.activitylog.";
     String X_OPAQUE_ID_FIELD = "http.request.headers.x_opaque_id";
     String EVENT_OUTCOME_FIELD = "event.outcome";
     String EVENT_DURATION_FIELD = "event.duration";
-    // Fields specific to querying logs - search, esql, etc. Common fields are in ES_FIELDS_PREFIX.
-    String ES_QUERY_FIELDS_PREFIX = "elasticsearch.activitylog.querying.";
     String QUERY_LOGGER_NAME = "elasticsearch.querylog";
 
     /**
@@ -44,22 +41,22 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
     /**
      * Produces a {@link ESLogMessage} with common fields.
      */
-    default ESLogMessage produceCommon(Context context, ActionLoggingFields additionalFields) {
+    default ESLogMessage produceCommon(Context context, String prefix, ActionLoggingFields additionalFields) {
         var fields = new ESLogMessage();
         fields.withFields(additionalFields.logFields());
         fields.field(X_OPAQUE_ID_FIELD, context.getOpaqueId());
         long tookInNanos = context.getTookInNanos();
         fields.field(EVENT_DURATION_FIELD, tookInNanos);
-        fields.field(ES_FIELDS_PREFIX + "took", tookInNanos);
-        fields.field(ES_FIELDS_PREFIX + "took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
         fields.field(EVENT_OUTCOME_FIELD, context.isSuccess() ? "success" : "failure");
-        fields.field(ES_FIELDS_PREFIX + "type", context.getType());
+        fields.field(prefix + "took", tookInNanos);
+        fields.field(prefix + "took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+        fields.field(prefix + "type", context.getType());
         if (context.isSuccess() == false) {
             fields.field("error.type", context.getErrorType());
             fields.field("error.message", context.getErrorMessage());
         }
         if (context.isTimedOut()) {
-            fields.field(ES_FIELDS_PREFIX + "timed_out", true);
+            fields.field(prefix + "timed_out", true);
         }
         return fields;
     }

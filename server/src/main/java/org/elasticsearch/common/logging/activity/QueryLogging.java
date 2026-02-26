@@ -9,13 +9,11 @@
 
 package org.elasticsearch.common.logging.activity;
 
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
-
 /**
- * Constants specific to logging queries - search, esql, etc. Common fields are in ES_FIELDS_PREFIX.
+ * Constants specific to logging queries - search, esql, etc. Common fields use ES_QUERY_FIELDS_PREFIX.
  */
 public interface QueryLogging {
-    String ES_QUERY_FIELDS_PREFIX = ES_FIELDS_PREFIX + "querying.";
+    String ES_QUERY_FIELDS_PREFIX = "elasticsearch.querylog.";
     String QUERY_FIELD_QUERY = ES_QUERY_FIELDS_PREFIX + "query";
     String QUERY_FIELD_RESULT_COUNT = ES_QUERY_FIELDS_PREFIX + "result_count";
     String QUERY_FIELD_INDICES = ES_QUERY_FIELDS_PREFIX + "indices";

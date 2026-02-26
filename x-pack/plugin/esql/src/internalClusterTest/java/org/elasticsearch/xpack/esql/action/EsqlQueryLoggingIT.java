@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -85,7 +86,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     private void assertQuery(String query, long hits) {
         try (var resp = run(query)) {
             var message = getMessageData(appender.getLastEventAndReset());
-            assertMessageSuccess(message, "esql", query);
+            assertMessageSuccess(message, EsqlLogContext.TYPE, query);
 
             // Create empty EsqlQueryProfile just to get the markers
             EsqlQueryProfile profile = new EsqlQueryProfile();
@@ -101,6 +102,6 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     private void assertFailedQuery(String query, String expectedMessage, Class<? extends Throwable> expectedException) {
         expectThrows(VerificationException.class, () -> run(query));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageFailure(message, "esql", query, expectedException, expectedMessage);
+        assertMessageFailure(message, EsqlLogContext.TYPE, query, expectedException, expectedMessage);
     }
 }

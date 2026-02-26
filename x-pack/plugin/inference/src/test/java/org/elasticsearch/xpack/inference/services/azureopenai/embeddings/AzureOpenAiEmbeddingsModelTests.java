@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretS
 import java.net.URISyntaxException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettingsTests.getAzureOpenAiRequestTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettingsTests.createRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -26,7 +26,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
 
     public void testOverrideWith_OverridesUser() {
         var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id");
-        var requestTaskSettingsMap = getAzureOpenAiRequestTaskSettingsMap("user_override");
+        var requestTaskSettingsMap = createRequestTaskSettingsMap("user_override");
 
         var overriddenModel = AzureOpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
 

@@ -279,10 +279,6 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         return map;
     }
 
-    public static Map<String, Object> getAzureOpenAiRequestTaskSettingsMap(@Nullable String user) {
-        return createRequestTaskSettingsMap(user);
-    }
-
     @Override
     protected T mutateInstanceForVersion(T instance, TransportVersion version) {
         if (version.supports(INFERENCE_AZURE_OPENAI_TASK_SETTINGS_HEADERS)) {

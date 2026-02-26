@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.api.waitforactiveshards;
+package org.elasticsearch.xpack.stateless.waitforactiveshards;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;

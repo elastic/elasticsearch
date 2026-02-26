@@ -380,15 +380,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/142739
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testResolveExternalRelationPassesFileSet
-  issue: https://github.com/elastic/elasticsearch/issues/142795
-- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
-  method: testResolveExternalRelationUnresolvedFileSet
-  issue: https://github.com/elastic/elasticsearch/issues/142796
-- class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
-  method: testCrossClusterReplicationForTSDB
-  issue: https://github.com/elastic/elasticsearch/issues/142797
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField
   issue: https://github.com/elastic/elasticsearch/issues/141202
@@ -404,12 +395,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/142843
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testSingleScalarVsVectorized {p0=1024 p1=1 p2=NIO p3=DOT_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142881
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testSingleScalarVsVectorized {p0=384 p1=4 p2=NIO p3=COSINE}
-  issue: https://github.com/elastic/elasticsearch/issues/142883
 - class: org.elasticsearch.compute.operator.exchange.BatchDriverTests
   method: testSinglePageSingleBatch
   issue: https://github.com/elastic/elasticsearch/issues/142895
@@ -458,6 +443,9 @@ tests:
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyWorkflowsRestrictionRestIT
   method: testWorkflowsRestrictionAllowsAccess
   issue: https://github.com/elastic/elasticsearch/issues/143130
+- class: org.elasticsearch.index.mapper.GeoPointFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/143174
 
 # Examples:
 #

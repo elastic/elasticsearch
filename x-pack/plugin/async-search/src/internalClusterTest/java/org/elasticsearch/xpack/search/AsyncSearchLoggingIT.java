@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(SearchLogProducer.LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(SearchLogProducer.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass

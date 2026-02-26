@@ -26,7 +26,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -164,19 +163,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final String DEFAULT_EIS_ELSER_INFERENCE_ID = DEFAULT_ELSER_ENDPOINT_ID_V2;
     public static final String DEFAULT_EIS_JINA_V5_INFERENCE_ID = DEFAULT_JINA_V5_ENDPOINT_ID;
 
-    /**
-     * An index setting that allows users to pin the default inference ID for {@code semantic_text} fields that do not declare an explicit
-     * {@code inference_id}. Setting this in an index template insulates users from cluster-level default changes in the inference id.
-     * <p>
-     * The value is not validated against existing inference endpoints at index creation time; an invalid ID will only surface as an error
-     * when a document is indexed against a {@code semantic_text} field that uses this default.
-     */
-    public static final Setting<String> INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID = Setting.simpleString(
-        "index.semantic_text.default_inference_id",
-        Setting.Property.IndexScope,
-        Setting.Property.Final
-    );
-
     public static final String UNSUPPORTED_INDEX_MESSAGE = "["
         + CONTENT_TYPE
         + "] is available on indices created with 8.11 or higher. Please create a new index to use ["
@@ -193,14 +179,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
      * Gating on index version ensures all semantic_text fields in an existing index use the same
      * default model, avoiding mixed embedding types within a single index.
      */
-    private static String getDefaultInferenceId(ModelRegistry modelRegistry, IndexSettings indexSettings) {
-        String userDefault = INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.get(indexSettings.getSettings());
-        if (Strings.isEmpty(userDefault) == false) {
-            return userDefault;
-        }
+    private static String getDefaultInferenceId(ModelRegistry modelRegistry, IndexVersion indexVersionCreated) {
         if (modelRegistry != null
             && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_JINA_V5_INFERENCE_ID)
-            && indexSettings.getIndexVersionCreated().onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)) {
+            && indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)) {
             return DEFAULT_EIS_JINA_V5_INFERENCE_ID;
         }
         return DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
@@ -294,7 +276,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 INFERENCE_ID_FIELD,
                 true,
                 mapper -> ((SemanticTextFieldType) mapper.fieldType()).inferenceId,
-                getDefaultInferenceId(modelRegistry, indexSettings)
+                getDefaultInferenceId(modelRegistry, indexSettings.getIndexVersionCreated())
             ).addValidator(v -> {
                 if (Strings.isEmpty(v)) {
                     throw new IllegalArgumentException(

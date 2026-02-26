@@ -370,54 +370,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
     }
 
-    public void testIndexSettingOverridesDefaultInferenceId() throws Exception {
-        // When index.semantic_text.default_inference_id is set, it takes precedence over the cluster-level default
-        // (Jina V5 on EIS) regardless of index version.
-        final String fieldName = "field";
-        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
-
-        var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), DEFAULT_FALLBACK_ELSER_INFERENCE_ID)
-            .build();
-        MapperService mapperService = createMapperService(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5, settings, fieldMapping);
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
-    }
-
-    public void testIndexSettingWithCustomInferenceId() throws Exception {
-        // When index.semantic_text.default_inference_id is set to a custom value, semantic_text fields without
-        // an explicit inference_id use that custom endpoint.
-        final String fieldName = "field";
-        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
-        final String customEndpoint = "my-custom-elser-endpoint";
-
-        var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), customEndpoint)
-            .build();
-        MapperService mapperService = createMapperService(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5, settings, fieldMapping);
-        assertInferenceEndpoints(mapperService, fieldName, customEndpoint, customEndpoint);
-    }
-
-    public void testExplicitFieldInferenceIdTakesPrecedenceOverIndexSetting() throws Exception {
-        // An explicit inference_id on the field itself always wins over the index setting default.
-        final String fieldName = "field";
-        final String explicitEndpoint = "explicit-endpoint";
-        final XContentBuilder fieldMapping = fieldMapping(
-            b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, explicitEndpoint)
-        );
-
-        var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), DEFAULT_FALLBACK_ELSER_INFERENCE_ID)
-            .build();
-        MapperService mapperService = createMapperService(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5, settings, fieldMapping);
-        assertInferenceEndpoints(mapperService, fieldName, explicitEndpoint, explicitEndpoint);
-    }
-
     private void removeDefaultEisEndpoint() {
         PlainActionFuture<Boolean> removalFuture = new PlainActionFuture<>();
         globalModelRegistry.removeDefaultConfigs(Set.of(DEFAULT_EIS_JINA_V5_INFERENCE_ID), removalFuture);

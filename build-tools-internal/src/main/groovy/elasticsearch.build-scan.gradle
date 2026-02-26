@@ -8,38 +8,18 @@
  */
 
 
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 
+import static org.elasticsearch.gradle.internal.util.CiUtils.runBuildkiteAgent
 import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
 // Resolving this early to avoid issues with the build scan plugin in combination with the configuration cache usage
 def taskNames = gradle.startParameter.taskNames.join(' ')
-
-/**
- * Executes a buildkite-agent command with timeout and exit code checking.
- * Failures are logged as warnings but do not fail the build.
- */
-def runBuildkiteAgent(List<String> args, String description, Closure stdinWriter = null) {
-  try {
-    def process = new ProcessBuilder(['buildkite-agent'] + args).start()
-    if (stdinWriter != null) {
-      process.withWriter { stdinWriter(it) }
-    }
-    def completed = process.waitFor(30, TimeUnit.SECONDS)
-    if (completed == false) {
-      logger.warn("Timeout ${description}")
-      process.destroyForcibly()
-    } else if (process.exitValue() != 0) {
-      logger.warn("Failed ${description}: exit code ${process.exitValue()}")
-    }
-  } catch (Exception e) {
-    logger.warn("Failed ${description}: ${e.message}")
-  }
-}
 
 develocity {
 
@@ -142,16 +122,16 @@ develocity {
         // where we deal with build metadata within the gradle build.
         def jobId = System.getenv('BUILDKITE_JOB_ID')
         if (jobId) {
+          // testSeed is a Provider<String>, so we need to call .get() to unwrap the value for the List<String> args
           runBuildkiteAgent(
-            ['meta-data', 'set', "tests-seed-${jobId}", testSeed],
+            ['meta-data', 'set', "tests-seed-${jobId}", testSeed.get()],
             "storing test seed in Buildkite metadata"
           )
         }
 
         buildFinished { result ->
 
-          buildScanPublished { scan
-            ->
+          buildScanPublished { scan ->
             // Attach build scan link as build metadata
             // See: https://buildkite.com/docs/pipelines/build-meta-data
             runBuildkiteAgent(

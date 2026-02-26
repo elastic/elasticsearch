@@ -455,6 +455,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
+- class: org.elasticsearch.compute.aggregation.TimeSeriesFirstDocIdDeduplicationTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/143128
 
 # Examples:
 #

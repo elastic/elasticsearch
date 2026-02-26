@@ -80,6 +80,6 @@
   "examples" : [
     "FROM employees\n| WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE(\"1985-02-01..1985-03-01\"))\n| KEEP emp_no, hire_date\n| SORT emp_no"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

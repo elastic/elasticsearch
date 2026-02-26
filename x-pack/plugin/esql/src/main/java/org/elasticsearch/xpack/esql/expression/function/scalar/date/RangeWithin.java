@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -54,6 +56,8 @@ public class RangeWithin extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "boolean",
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = "Returns true if the value is within the range (Lucene CONTAINS semantics). "
             + "Supports (date_range, date), (date, date_range), (date_range, date_range), (date, date).",
         appendix = "RANGE_WITHIN supports all four combinations of date and date_range with Lucene CONTAINS semantics. "

@@ -18,33 +18,24 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> {
 
-    private enum HeadersDefinition {
-        EMPTY(Map.of()),
-        DEFINED(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15)));
-
-        private final Map<String, String> headers;
-
-        HeadersDefinition(Map<String, String> headers) {
-            this.headers = headers;
-        }
-    }
-
     public static Headers createRandom() {
-        var headers = randomFrom(HeadersDefinition.values()).headers;
-        return new Headers(headers);
+        return randomFrom(
+            Headers.ABSENT_INSTANCE,
+            Headers.NULL_INSTANCE,
+            new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))))
+        );
     }
 
     @Override
@@ -59,11 +50,23 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
 
     @Override
     protected Headers mutateInstance(Headers instance) throws IOException {
-        var currentHeaders = instance.headersMap();
-        var newHeaders = new HashMap<>(currentHeaders);
+        return doMutateInstance(instance);
+    }
 
-        newHeaders.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
-        return new Headers(newHeaders);
+    public static Headers doMutateInstance(Headers instance) {
+        var statefulValue = instance.value();
+        if (statefulValue.isPresent()) {
+            var newHeaders = new HashMap<>(statefulValue.get());
+            newHeaders.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
+            var withNewKey = new Headers(StatefulValue.of(newHeaders));
+            return randomFrom(withNewKey, Headers.NULL_INSTANCE, Headers.ABSENT_INSTANCE);
+        }
+        if (statefulValue.isNull()) {
+            var withValue = new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))));
+            return randomFrom(withValue, Headers.ABSENT_INSTANCE);
+        }
+        var withValue = new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))));
+        return randomFrom(withValue, Headers.NULL_INSTANCE);
     }
 
     @Override
@@ -80,21 +83,64 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
     }
 
     public void testConstructor_WhenNull_ThrowsNullPointerException() {
-        expectThrows(NullPointerException.class, () -> new Headers((Map<String, String>) null));
+        expectThrows(NullPointerException.class, () -> new Headers((StatefulValue<Map<String, String>>) null));
+    }
+
+    public void testIsPresent_WhenAbsent() {
+        assertFalse(Headers.ABSENT_INSTANCE.isPresent());
+    }
+
+    public void testIsPresent_WhenNull() {
+        assertFalse(Headers.NULL_INSTANCE.isPresent());
+    }
+
+    public void testState_WhenWithValue() {
+        var headers = new Headers(StatefulValue.of(Map.of("k", "v")));
+        assertTrue(headers.isPresent());
+        assertFalse(headers.isNull());
+        assertFalse(headers.isEmpty());
+    }
+
+    public void testIsNull_WhenAbsent() {
+        assertFalse(Headers.ABSENT_INSTANCE.isNull());
+    }
+
+    public void testIsNull_WhenNull() {
+        assertTrue(Headers.NULL_INSTANCE.isNull());
+    }
+
+    public void testIsNull_WhenWithValue() {
+        assertFalse(new Headers(StatefulValue.of(Map.of("k", "v"))).isNull());
+    }
+
+    public void testIsEmpty_WhenAbsent() {
+        assertTrue(Headers.ABSENT_INSTANCE.isEmpty());
+    }
+
+    public void testIsEmpty_WhenNull() {
+        assertTrue(Headers.NULL_INSTANCE.isEmpty());
+    }
+
+    public void testIsEmpty_WhenPresentWithEmptyMap() {
+        var headers = new Headers(StatefulValue.of(Map.of()));
+        assertTrue(headers.isEmpty());
+        assertTrue(headers.isPresent());
+    }
+
+    public void testIsEmpty_WhenPresentWithEntries() {
+        assertFalse(new Headers(StatefulValue.of(Map.of("k", "v"))).isEmpty());
     }
 
     public void testToXContent_WhenEmptyMap() throws IOException {
-        var headers = new Headers(Map.of());
+        var headers = new Headers(StatefulValue.of(Map.of()));
         assertThat(toXContentString(headers), is(XContentHelper.stripWhitespace("""
-                {
-                  "headers": {}
-                }
+            {}
             """)));
     }
 
     public void testToXContent_WhenWithEntries() throws IOException {
         var headerMap = Map.of("key", "value");
-        var headers = new Headers(headerMap);
+        var headers = new Headers(StatefulValue.of(headerMap));
         assertThat(toXContentString(headers), is(XContentHelper.stripWhitespace("""
             {
               "headers": {
@@ -112,7 +158,10 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
               }
             }
             """;
-        parseJson(json, parsed -> assertThat(parsed.headersMap(), is(Map.of("key", "value"))));
+        parseJson(json, parsed -> {
+            assertTrue(parsed.value().isPresent());
+            assertThat(parsed.value().get(), is(Map.of("key", "value")));
+        });
     }
 
     public void testParse_WhenHeadersMissing_ReturnsNullHeaders() throws IOException {
@@ -120,7 +169,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
             {
             }
             """;
-        parseJson(json, Assert::assertNull);
+        parseJson(json, parsed -> assertThat(parsed, sameInstance(Headers.ABSENT_INSTANCE)));
     }
 
     public void testParse_WhenHeadersEmptyMap() throws IOException {
@@ -129,7 +178,16 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
               "headers": {}
             }
             """;
-        parseJson(json, parsed -> assertThat(parsed.headersMap(), anEmptyMap()));
+        parseJson(json, parsed -> assertThat(parsed, sameInstance(Headers.ABSENT_INSTANCE)));
+    }
+
+    public void testParse_WhenHeadersIsSetToNull() throws IOException {
+        var json = """
+            {
+              "headers": null
+            }
+            """;
+        parseJson(json, parsed -> assertThat(parsed, sameInstance(Headers.NULL_INSTANCE)));
     }
 
     public void testParse_ThrowsWhenValueNotString() {
@@ -171,7 +229,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
     }
 
     public void testParse_Roundtrip() throws IOException {
-        var original = createRandom();
+        var original = randomValueOtherThan(Headers.NULL_INSTANCE, HeadersTests::createRandom);
         var json = toXContentString(original);
         parseJson(json, parsedHeaders -> assertThat(parsedHeaders, is(original)));
     }

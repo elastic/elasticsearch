@@ -22,12 +22,12 @@ public class AzureOpenAiCompletionTaskSettings extends AzureOpenAiTaskSettings<A
 
     private static final AzureOpenAiTaskSettings.Factory<AzureOpenAiCompletionTaskSettings> FACTORY = new Factory<>() {
         @Override
-        public AzureOpenAiCompletionTaskSettings create(@Nullable String user, @Nullable Headers headers) {
-            if (user == null && headers == null) {
+        public AzureOpenAiCompletionTaskSettings create(Settings settings) {
+            if (settings.isEmpty()) {
                 return emptySettings();
             }
 
-            return new AzureOpenAiCompletionTaskSettings(user, headers);
+            return new AzureOpenAiCompletionTaskSettings(settings);
         }
 
         @Override
@@ -40,6 +40,10 @@ public class AzureOpenAiCompletionTaskSettings extends AzureOpenAiTaskSettings<A
 
     public static AzureOpenAiCompletionTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         return AzureOpenAiTaskSettings.parseSettingsFromMap(map, context, FACTORY);
+    }
+
+    private AzureOpenAiCompletionTaskSettings(Settings settings) {
+        super(settings, FACTORY);
     }
 
     public AzureOpenAiCompletionTaskSettings(@Nullable String user, @Nullable Headers headers) {

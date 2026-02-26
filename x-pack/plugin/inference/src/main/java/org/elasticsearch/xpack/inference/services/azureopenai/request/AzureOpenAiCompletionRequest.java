@@ -23,7 +23,8 @@ public class AzureOpenAiCompletionRequest extends AzureOpenAiRequest {
     }
 
     private static String createRequestEntity(List<String> input, AzureOpenAiCompletionModel model, boolean stream) {
-        return Strings.toString(new AzureOpenAiCompletionRequestEntity(input, model.getTaskSettings().user(), stream));
+        var user = model.getTaskSettings().user().orElse(null);
+        return Strings.toString(new AzureOpenAiCompletionRequestEntity(input, user, stream));
     }
 
     @Override

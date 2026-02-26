@@ -54,8 +54,8 @@ public abstract class AzureOpenAiRequest implements Request {
         decorateWithAuthHeader(httpPost, model.getSecretSettings());
 
         var headers = taskSettings.headers();
-        if (headers != null && headers.headersMap() != null) {
-            for (var entry : headers.headersMap().entrySet()) {
+        if (headers.value().isPresent()) {
+            for (var entry : headers.value().get().entrySet()) {
                 httpPost.setHeader(entry.getKey(), entry.getValue());
             }
         }

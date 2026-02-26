@@ -17,6 +17,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.HeadersTests;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 
@@ -24,10 +26,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettings.INFERENCE_AZURE_OPENAI_TASK_SETTINGS_HEADERS;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -36,23 +36,11 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     private static final String USER = "user";
     private static final Map<String, String> HEADERS_MAP = Map.of("key", "value");
-    private static final Headers HEADERS = new Headers(HEADERS_MAP);
-
-    private enum HeadersDefinition {
-        NULL(null),
-        EMPTY(Headers.EMPTY_INSTANCE),
-        DEFINED(new Headers(Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5))));
-
-        private final Headers headers;
-
-        HeadersDefinition(@Nullable Headers headers) {
-            this.headers = headers;
-        }
-    }
+    private static final Headers HEADERS = new Headers(StatefulValue.of(HEADERS_MAP));
 
     public T createRandom() {
         var user = randomBoolean() ? null : randomAlphaOfLength(15);
-        var headers = randomFrom(HeadersDefinition.values()).headers;
+        var headers = HeadersTests.createRandom();
         return create(user, headers);
     }
 
@@ -64,7 +52,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         var bothNull = create(null, null);
         assertTrue(bothNull.isEmpty());
 
-        var nullUserEmptyHeaders = create(null, new Headers(Map.of()));
+        var nullUserEmptyHeaders = create(null, new Headers(StatefulValue.of(Map.of())));
         assertTrue(nullUserEmptyHeaders.isEmpty());
 
         var nullHeaders = create(USER, null);
@@ -82,23 +70,23 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         var newSettings = createRandom();
 
         Map<String, Object> newSettingsMap = new HashMap<>();
-        if (newSettings.user() != null) {
-            newSettingsMap.put(AzureOpenAiServiceFields.USER, newSettings.user());
+        if (newSettings.user().isPresent()) {
+            newSettingsMap.put(AzureOpenAiServiceFields.USER, newSettings.user().get());
         }
 
-        if (newSettings.headers() != null) {
-            newSettingsMap.put(Headers.HEADERS_FIELD, newSettings.headers().headersMap());
+        if (newSettings.headers().isPresent()) {
+            newSettingsMap.put(Headers.HEADERS_FIELD, new HashMap<>(newSettings.headers().value().get()));
         }
 
         var updatedSettings = initialSettings.updatedTaskSettings(Collections.unmodifiableMap(newSettingsMap));
 
-        if (newSettings.user() == null) {
+        if (newSettings.user().isPresent() == false) {
             assertEquals(initialSettings.user(), updatedSettings.user());
         } else {
             assertEquals(newSettings.user(), updatedSettings.user());
         }
 
-        if (newSettings.headers() == null) {
+        if (newSettings.headers().isPresent() == false) {
             assertEquals(initialSettings.headers(), updatedSettings.headers());
         } else {
             assertEquals(newSettings.headers(), updatedSettings.headers());
@@ -110,11 +98,11 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         Map<String, Object> newSettingsMap = Map.of(Headers.HEADERS_FIELD, Map.of());
 
         var updatedSettings = initialSettingsNullHeaders.updatedTaskSettings(newSettingsMap);
-        assertThat(updatedSettings, is(create(USER, new Headers(Map.of()))));
+        assertThat(updatedSettings, is(create(USER, null)));
 
         var initialSettingsDefinedHeaders = create(USER, HEADERS);
         updatedSettings = initialSettingsDefinedHeaders.updatedTaskSettings(newSettingsMap);
-        assertThat(updatedSettings, is(create(USER, new Headers(Map.of()))));
+        assertThat(updatedSettings, is(initialSettingsDefinedHeaders));
     }
 
     public void testFromMap_WithUserAndHeaders() {
@@ -141,35 +129,37 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testFromMap_UserIsEmptyString_DoesNotThrowForPersistentContext() {
         var settings = createFromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "")), ConfigurationParseContext.PERSISTENT);
-        assertTrue(settings.user().isEmpty());
+        assertTrue(settings.user().isPresent() && settings.user().get().isEmpty());
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
         var taskSettings = createFromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST);
-        assertNull(taskSettings.user());
+        assertTrue(taskSettings.user().isAbsent());
     }
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapDoesNotContainTheFields() {
+        // The HashMap is missing the headers key
         var settings = createFromMap(new HashMap<>(HEADERS_MAP), ConfigurationParseContext.PERSISTENT);
-        assertNull(settings.user());
-        assertNull(settings.headers());
+        assertTrue(settings.user().isAbsent());
+        assertThat(settings.headers(), sameInstance(Headers.ABSENT_INSTANCE));
     }
 
-    public void testFromMap_ParsesCorrectly_WhenUserIsNull() {
+    public void testFromMap_ParsesCorrectly_WhenUserIsMissing() {
         var settings = createFromMap(
             new HashMap<>(Map.of(Headers.HEADERS_FIELD, new HashMap<>(HEADERS_MAP))),
             ConfigurationParseContext.REQUEST
         );
 
-        assertNull(settings.user());
+        assertTrue(settings.user().isAbsent());
         assertThat(settings.headers(), is(HEADERS));
     }
 
-    public void testFromMap_ParsesCorrectly_WhenHeadersIsNull() {
+    public void testFromMap_ParsesCorrectly_WhenHeadersIsMissing() {
         var settings = createFromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER)), ConfigurationParseContext.REQUEST);
 
-        assertThat(settings.user(), is(USER));
-        assertNull(settings.headers());
+        assertTrue(settings.user().isPresent());
+        assertThat(settings.user().get(), is(USER));
+        assertThat(settings.headers(), is(Headers.ABSENT_INSTANCE));
     }
 
     public void testFromMap_ParsesCorrectly_WhenHeadersIsEmptyMap() {
@@ -178,8 +168,9 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
             ConfigurationParseContext.REQUEST
         );
 
-        assertThat(settings.user(), is(USER));
-        assertThat(settings.headers().headersMap(), anEmptyMap());
+        assertTrue(settings.user().isPresent());
+        assertThat(settings.user().get(), is(USER));
+        assertTrue(settings.headers().isEmpty());
     }
 
     public void testFromMap_ParsesCorrectly_WhenHeadersMapOfNulls() {
@@ -191,8 +182,9 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
             ConfigurationParseContext.REQUEST
         );
 
-        assertThat(settings.user(), is(USER));
-        assertThat(settings.headers().headersMap(), anEmptyMap());
+        assertTrue(settings.user().isPresent());
+        assertThat(settings.user().get(), is(USER));
+        assertTrue(settings.headers().isEmpty());
     }
 
     public void testFromMap_ThrowsException_WhenHeadersContainsAnInteger() {
@@ -207,7 +199,8 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         assertThat(
             exception.getMessage(),
             containsString(
-                "Map field [task_settings.headers] has an entry that is not valid, [key => 1]. Value type of [Integer] is not one of [String]."
+                "Map field [task_settings.headers] has an entry that is not valid, "
+                    + "[key => 1]. Value type of [Integer] is not one of [String]."
             )
         );
     }
@@ -222,8 +215,8 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
     public void testFromMap_WithRequestContext_ReturnsEmptySettings_WhenMapIsEmpty() {
         var settings = createFromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST);
         assertTrue(settings.isEmpty());
-        assertNull(settings.user());
-        assertNull(settings.headers());
+        assertTrue(settings.user().isAbsent());
+        assertThat(settings.headers(), sameInstance(Headers.ABSENT_INSTANCE));
         assertThat(settings, sameInstance(emptySettings()));
     }
 
@@ -271,8 +264,9 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(settings.user(), is(USER));
-        assertThat(settings.headers().headersMap(), anEmptyMap());
+        assertTrue(settings.user().isPresent());
+        assertThat(settings.user().get(), is(USER));
+        assertTrue(settings.headers().isEmpty());
     }
 
     public static Map<String, Object> createRequestTaskSettingsMap(@Nullable String user) {
@@ -295,7 +289,8 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
             return instance;
         }
 
-        return create(instance.user(), null);
+        var user = instance.user().isPresent() ? instance.user().get() : null;
+        return create(user, null);
     }
 
     @Override
@@ -303,22 +298,14 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         var setNull = randomBoolean();
         var fieldToMutate = randomIntBetween(0, 1);
 
+        var userForCreate = instance.user().isPresent() ? instance.user().get() : null;
+
         return switch (fieldToMutate) {
             case 0 -> create(
-                instance.user() == null ? randomAlphaOfLength(15) : (setNull ? null : instance.user() + "modified"),
+                userForCreate == null ? randomAlphaOfLength(15) : (setNull ? null : userForCreate + "modified"),
                 instance.headers()
             );
-            case 1 -> {
-                if (instance.headers() == null) {
-                    yield create(instance.user(), new Headers(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))));
-                } else if (setNull) {
-                    yield create(instance.user(), null);
-                } else {
-                    var instanceHeaders = new HashMap<>(Objects.requireNonNull(instance.headers().headersMap()));
-                    instanceHeaders.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
-                    yield create(instance.user(), new Headers(instanceHeaders));
-                }
-            }
+            case 1 -> create(userForCreate, HeadersTests.doMutateInstance(instance.headers()));
             default -> throw new IllegalStateException("Unexpected value: " + fieldToMutate);
         };
     }

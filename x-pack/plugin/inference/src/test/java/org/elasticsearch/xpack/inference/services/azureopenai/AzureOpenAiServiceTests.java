@@ -145,7 +145,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
-                assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+                assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
@@ -171,7 +171,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
-                assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+                assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             }, exception -> fail("Unexpected exception: " + exception));
 
@@ -199,7 +199,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
-                assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+                assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             }, exception -> fail("Unexpected exception: " + exception));
 
@@ -345,7 +345,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
                 assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
-                assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+                assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
@@ -384,7 +384,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -413,7 +413,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -442,7 +442,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -501,7 +501,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -532,7 +532,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -561,7 +561,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -598,7 +598,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -629,7 +629,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
@@ -649,7 +649,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
@@ -670,7 +670,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -691,7 +691,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -736,7 +736,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
@@ -762,7 +762,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
@@ -785,7 +785,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(embeddingsModel.getServiceSettings().resourceName(), is(RESOURCE_NAME_VALUE));
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is(DEPLOYMENT_ID_VALUE));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
-            assertThat(embeddingsModel.getTaskSettings().user(), is(ROLE_VALUE));
+            assertThat(embeddingsModel.getTaskSettings().user().get(), is(ROLE_VALUE));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }

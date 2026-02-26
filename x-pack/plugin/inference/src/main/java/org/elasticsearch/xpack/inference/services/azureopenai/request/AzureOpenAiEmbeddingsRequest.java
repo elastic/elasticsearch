@@ -40,7 +40,7 @@ public class AzureOpenAiEmbeddingsRequest extends AzureOpenAiRequest {
             new AzureOpenAiEmbeddingsRequestEntity(
                 input.input(),
                 inputType,
-                model.getTaskSettings().user(),
+                model.getTaskSettings().user().orElse(null),
                 model.getServiceSettings().dimensions(),
                 model.getServiceSettings().dimensionsSetByUser()
             )

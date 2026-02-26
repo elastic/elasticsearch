@@ -23,7 +23,8 @@ public class AzureOpenAiChatCompletionRequest extends AzureOpenAiRequest {
     }
 
     private static String createRequestEntity(UnifiedChatInput chatInput, AzureOpenAiCompletionModel model) {
-        return Strings.toString(new AzureOpenAiChatCompletionRequestEntity(chatInput, model.getTaskSettings().user()));
+        var user = model.getTaskSettings().user().orElse(null);
+        return Strings.toString(new AzureOpenAiChatCompletionRequestEntity(chatInput, user));
     }
 
     @Override

@@ -28,12 +28,12 @@ public class AzureOpenAiEmbeddingsTaskSettings extends AzureOpenAiTaskSettings<A
 
     private static final AzureOpenAiTaskSettings.Factory<AzureOpenAiEmbeddingsTaskSettings> FACTORY = new Factory<>() {
         @Override
-        public AzureOpenAiEmbeddingsTaskSettings create(@Nullable String user, @Nullable Headers headers) {
-            if (user == null && headers == null) {
+        public AzureOpenAiEmbeddingsTaskSettings create(Settings settings) {
+            if (settings.isEmpty()) {
                 return emptySettings();
             }
 
-            return new AzureOpenAiEmbeddingsTaskSettings(user, headers);
+            return new AzureOpenAiEmbeddingsTaskSettings(settings);
         }
 
         @Override
@@ -46,6 +46,10 @@ public class AzureOpenAiEmbeddingsTaskSettings extends AzureOpenAiTaskSettings<A
 
     public static AzureOpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         return AzureOpenAiTaskSettings.parseSettingsFromMap(map, context, FACTORY);
+    }
+
+    private AzureOpenAiEmbeddingsTaskSettings(Settings settings) {
+        super(settings, FACTORY);
     }
 
     public AzureOpenAiEmbeddingsTaskSettings(@Nullable String user, @Nullable Headers headers) {

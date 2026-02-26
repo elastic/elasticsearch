@@ -2084,7 +2084,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("type", "int4_hnsw");
             b.field("m", 20);
             b.field("ef_construction", 90);
-            b.field("confidence_interval", 0.4);
             b.endObject();
             b.endObject();
         }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT);

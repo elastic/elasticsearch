@@ -25,7 +25,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
@@ -57,9 +56,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 
-public class GroqService extends SenderService {
+public class GroqService extends SenderService<GroqModel> {
     public static final String NAME = "groq";
     private static final String SERVICE_NAME = "Groq";
 
@@ -83,7 +81,7 @@ public class GroqService extends SenderService {
     }
 
     public GroqService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -134,26 +132,6 @@ public class GroqService extends SenderService {
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
         }
-    }
-
-    @Override
-    public GroqModel parsePersistedConfig(UnparsedModel unparsedModel) {
-        var config = unparsedModel.settings();
-        var secrets = unparsedModel.secrets();
-        var taskType = unparsedModel.taskType();
-
-        Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        var secretSettingsMap = secrets == null ? null : removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        return createModel(
-            unparsedModel.inferenceEntityId(),
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            secretSettingsMap,
-            ConfigurationParseContext.PERSISTENT
-        );
     }
 
     @Override

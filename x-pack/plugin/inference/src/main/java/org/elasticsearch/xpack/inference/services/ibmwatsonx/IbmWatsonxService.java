@@ -28,7 +28,6 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
@@ -72,7 +71,7 @@ import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxSe
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.PROJECT_ID;
 
-public class IbmWatsonxService extends SenderService implements RerankingInferenceService {
+public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements RerankingInferenceService {
 
     private static final String SERVICE_NAME = "IBM watsonx";
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
@@ -114,7 +113,7 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
     }
 
     public IbmWatsonxService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -183,31 +182,6 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
     }
 
     @Override
-    public IbmWatsonxModel parsePersistedConfig(UnparsedModel unparsedModel) {
-        var config = unparsedModel.settings();
-        var secrets = unparsedModel.secrets();
-        var taskType = unparsedModel.taskType();
-
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        var secretSettingsMap = secrets == null ? null : removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(
-            unparsedModel.inferenceEntityId(),
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            secretSettingsMap
-        );
-    }
-
-    @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
             MODEL_CREATORS,
@@ -226,25 +200,6 @@ public class IbmWatsonxService extends SenderService implements RerankingInferen
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
         return SUPPORTED_TASK_TYPES;
-    }
-
-    private static IbmWatsonxModel createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings
-    ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            ConfigurationParseContext.PERSISTENT
-        );
     }
 
     @Override

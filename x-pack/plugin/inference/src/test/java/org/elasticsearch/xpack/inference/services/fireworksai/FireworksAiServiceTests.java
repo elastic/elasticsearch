@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsServiceSettings;
@@ -73,7 +72,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
         return new TestConfiguration.Builder(
             new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, EnumSet.of(TaskType.TEXT_EMBEDDING)) {
                 @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                protected FireworksAiService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return FireworksAiServiceTests.createService(threadPool, clientManager);
                 }
 

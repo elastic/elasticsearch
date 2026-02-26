@@ -27,7 +27,6 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -49,13 +48,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-
 /**
  * Contextual AI inference service for reranking tasks.
  * This service uses the Contextual AI REST API to perform document reranking.
  */
-public class ContextualAiService extends SenderService implements RerankingInferenceService {
+public class ContextualAiService extends SenderService<ContextualAiModel> implements RerankingInferenceService {
     public static final String NAME = "contextualai";
     private static final String SERVICE_NAME = "Contextual AI";
 
@@ -76,7 +73,7 @@ public class ContextualAiService extends SenderService implements RerankingInfer
     }
 
     public ContextualAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -136,26 +133,6 @@ public class ContextualAiService extends SenderService implements RerankingInfer
             null,
             secretSettings,
             context
-        );
-    }
-
-    @Override
-    public ContextualAiModel parsePersistedConfig(UnparsedModel unparsedModel) {
-        var config = unparsedModel.settings();
-        var secrets = unparsedModel.secrets();
-        var taskType = unparsedModel.taskType();
-
-        Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = secrets == null ? null : removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        return createModel(
-            unparsedModel.inferenceEntityId(),
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            secretSettingsMap,
-            ConfigurationParseContext.PERSISTENT
         );
     }
 

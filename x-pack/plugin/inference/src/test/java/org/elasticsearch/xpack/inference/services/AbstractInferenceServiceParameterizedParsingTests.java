@@ -59,7 +59,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
     ) {}
 
     private record ServiceParserParams(
-        SenderService service,
+        SenderService<?> service,
         Utils.PersistedConfig persistedConfig,
         AbstractInferenceServiceBaseTests.TestConfiguration testConfiguration
     ) {}
@@ -534,7 +534,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
         }
     }
 
-    private void assertFailedParse(SenderService service, Utils.PersistedConfig persistedConfig) {
+    private void assertFailedParse(SenderService<?> service, Utils.PersistedConfig persistedConfig) {
         var exception = expectThrows(
             ElasticsearchStatusException.class,
             () -> testCase.serviceParser.parseConfigs(new ServiceParserParams(service, persistedConfig, testConfiguration))
@@ -548,7 +548,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
         );
     }
 
-    private void assertSuccessfulParse(SenderService service, Utils.PersistedConfig persistedConfig) {
+    private void assertSuccessfulParse(SenderService<?> service, Utils.PersistedConfig persistedConfig) {
         var model = testCase.serviceParser.parseConfigs(new ServiceParserParams(service, persistedConfig, testConfiguration));
 
         if (persistedConfig.config().containsKey(ModelConfigurations.CHUNKING_SETTINGS)) {

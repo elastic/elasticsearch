@@ -579,7 +579,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(settings.region(), is(REGION_VALUE));
             assertThat(settings.modelId(), is(MODEL_VALUE));
             assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
-            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            var secretSettings = model.getSecretSettings();
             assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
             assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
@@ -615,7 +615,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(settings.modelId(), is(MODEL_VALUE));
             assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            var secretSettings = model.getSecretSettings();
             assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
             assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
@@ -646,7 +646,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(settings.modelId(), is(MODEL_VALUE));
             assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            var secretSettings = model.getSecretSettings();
             assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
             assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
@@ -704,7 +704,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(settings.region(), is(REGION_VALUE));
             assertThat(settings.modelId(), is(MODEL_VALUE));
             assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
-            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            var secretSettings = model.getSecretSettings();
             assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
             assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
@@ -734,7 +734,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(settings.region(), is(REGION_VALUE));
             assertThat(settings.modelId(), is(MODEL_VALUE));
             assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
-            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            var secretSettings = model.getSecretSettings();
             assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
             assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
@@ -764,7 +764,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(settings.region(), is(REGION_VALUE));
             assertThat(settings.modelId(), is(MODEL_VALUE));
             assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
-            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            var secretSettings = model.getSecretSettings();
             assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
             assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
@@ -794,7 +794,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(settings.region(), is(REGION_VALUE));
             assertThat(settings.modelId(), is(MODEL_VALUE));
             assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
-            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+            var secretSettings = model.getSecretSettings();
             assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
             assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
@@ -837,7 +837,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
         assertThat(taskSettings.topP(), is(expectedTopP));
         assertThat(taskSettings.topK(), is(expectedTopK));
         assertThat(taskSettings.maxNewTokens(), is(expectedMaxNewTokens));
-        var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+        var secretSettings = model.getSecretSettings();
         assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
         assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
     }

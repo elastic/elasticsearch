@@ -78,7 +78,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.USER_ROLE;
 
-public class ElasticInferenceService extends SenderService {
+public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> {
 
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
@@ -113,11 +113,6 @@ public class ElasticInferenceService extends SenderService {
         TEXT_EMBEDDING
     );
 
-    /**
-     * The task types that support chunking settings
-     */
-    private static final EnumSet<TaskType> CHUNKING_TASK_TYPES = EnumSet.of(SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING);
-
     private final Map<TaskType, ElasticInferenceServiceModelCreator<? extends ElasticInferenceServiceModel>> modelCreators;
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
     private ElasticInferenceServiceActionCreator actionCreator;
@@ -139,7 +134,7 @@ public class ElasticInferenceService extends SenderService {
         ClusterService clusterService,
         CCMAuthenticationApplierFactory ccmAuthApplierFactory
     ) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, Map.of());
         this.ccmAuthenticationApplierFactory = ccmAuthApplierFactory;
         var elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
@@ -423,7 +418,7 @@ public class ElasticInferenceService extends SenderService {
     }
 
     @Override
-    public Model parsePersistedConfig(UnparsedModel unparsedModel) {
+    public ElasticInferenceServiceModel parsePersistedConfig(UnparsedModel unparsedModel) {
         var config = unparsedModel.settings();
         var secrets = unparsedModel.secrets();
         var taskType = unparsedModel.taskType();

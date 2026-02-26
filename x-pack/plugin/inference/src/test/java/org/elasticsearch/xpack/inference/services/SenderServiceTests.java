@@ -362,9 +362,9 @@ public class SenderServiceTests extends ESTestCase {
         return sender;
     }
 
-    private static class TestSenderService extends SenderService {
+    private static class TestSenderService extends SenderService<Model> {
         TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-            super(factory, serviceComponents, clusterService);
+            super(factory, serviceComponents, clusterService, Map.of());
         }
 
         @Override

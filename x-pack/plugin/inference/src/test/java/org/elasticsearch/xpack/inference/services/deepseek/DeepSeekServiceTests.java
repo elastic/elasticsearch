@@ -402,7 +402,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
                 new UnparsedModel("inference-id", TaskType.CHAT_COMPLETION, DeepSeekService.NAME, map(json), null)
             );
             assertThat(model, isA(DeepSeekChatCompletionModel.class));
-            return (DeepSeekChatCompletionModel) model;
+            return model;
         }
     }
 
@@ -438,7 +438,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             }
             """)));
         assertThat(model, isA(DeepSeekChatCompletionModel.class));
-        return (DeepSeekChatCompletionModel) model;
+        return model;
     }
 
     public void testBuildModelFromConfigAndSecrets_ChatCompletion() throws IOException {

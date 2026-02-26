@@ -28,7 +28,6 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -50,14 +49,13 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
 /**
  * Mixedbread inference service for reranking tasks.
  * This service uses the Mixedbread REST API to perform document reranking.
  */
-public class MixedbreadService extends SenderService implements RerankingInferenceService {
+public class MixedbreadService extends SenderService<MixedbreadModel> implements RerankingInferenceService {
     public static final String NAME = "mixedbread";
     public static final String SERVICE_NAME = "Mixedbread";
 
@@ -103,7 +101,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     }
 
     public MixedbreadService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -172,27 +170,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
             chunkingSettings,
             secretSettings,
             context
-        );
-    }
-
-    @Override
-    public MixedbreadModel parsePersistedConfig(UnparsedModel unparsedModel) {
-        var config = unparsedModel.settings();
-        var secrets = unparsedModel.secrets();
-        var taskType = unparsedModel.taskType();
-
-        Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        var secretSettingsMap = secrets == null ? null : removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        return createModel(
-            unparsedModel.inferenceEntityId(),
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            null,
-            secretSettingsMap,
-            ConfigurationParseContext.PERSISTENT
         );
     }
 

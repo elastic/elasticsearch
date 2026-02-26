@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModel;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankModelTests;
 import org.elasticsearch.xpack.inference.services.mixedbread.rerank.MixedbreadRerankServiceSettings;
@@ -111,7 +110,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
         return new TestConfiguration.Builder(new CommonConfig(RERANK, COMPLETION, EnumSet.of(RERANK)) {
 
             @Override
-            protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+            protected MixedbreadService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                 return MixedbreadServiceTests.createService(threadPool, clientManager);
             }
 
@@ -215,7 +214,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
         assertThat(mixedbreadModel.getTaskType(), Matchers.is(RERANK));
     }
 
-    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static MixedbreadService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new MixedbreadService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }

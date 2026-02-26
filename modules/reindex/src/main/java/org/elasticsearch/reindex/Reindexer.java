@@ -48,6 +48,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
@@ -163,7 +164,12 @@ public class Reindexer {
                     projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
-                    workerListenerWithRelocationAndMetrics(listenerWithRelocations, startTime, request.getRemoteInfo() != null)
+                    workerListenerWithRelocationAndMetrics(
+                        listenerWithRelocations,
+                        startTime,
+                        request.getRemoteInfo() != null,
+                        slicingMode(request)
+                    )
                 );
                 searchAction.start();
             }
@@ -174,13 +180,15 @@ public class Reindexer {
     ActionListener<BulkByScrollResponse> workerListenerWithRelocationAndMetrics(
         ActionListener<BulkByScrollResponse> potentiallyWrappedRelocationListener,
         long startTime,
-        boolean isRemote
+        boolean isRemote,
+        ReindexMetrics.SlicingMode slicingMode
     ) {
         final ActionListener<BulkByScrollResponse> metricListener = wrapWithMetrics(
             potentiallyWrappedRelocationListener,
             reindexMetrics,
             startTime,
-            isRemote
+            isRemote,
+            slicingMode
         );
 
         return metricListener.delegateFailure((l, resp) -> {
@@ -201,7 +209,8 @@ public class Reindexer {
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ReindexMetrics metrics,
         long startTime,
-        boolean isRemote
+        boolean isRemote,
+        ReindexMetrics.SlicingMode slicingMode
     ) {
         if (metrics == null) {
             return listener;
@@ -224,17 +233,17 @@ public class Reindexer {
                 if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
                     // record only the first sample error in metric
                     Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
-                    metrics.recordFailure(isRemote, e);
+                    metrics.recordFailure(isRemote, e, slicingMode);
                     listener.onResponse(bulkByScrollResponse);
                 } else {
-                    metrics.recordSuccess(isRemote);
+                    metrics.recordSuccess(isRemote, slicingMode);
                     listener.onResponse(bulkByScrollResponse);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                metrics.recordFailure(isRemote, e);
+                metrics.recordFailure(isRemote, e, slicingMode);
                 listener.onFailure(e);
             }
         };
@@ -242,8 +251,20 @@ public class Reindexer {
         // add duration metric
         return ActionListener.runAfter(withCompletionMetrics, () -> {
             long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-            metrics.recordTookTime(elapsedTime, isRemote);
+            metrics.recordTookTime(elapsedTime, isRemote, slicingMode);
         });
+    }
+
+    private static ReindexMetrics.SlicingMode slicingMode(ReindexRequest request) {
+        if (request.getSearchRequest().source().slice() != null) {
+            return ReindexMetrics.SlicingMode.MANUAL;
+        } else if (request.getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES) {
+            return ReindexMetrics.SlicingMode.AUTO_AUTO;
+        } else if (request.getSlices() > 1) {
+            return ReindexMetrics.SlicingMode.AUTO_FIXED;
+        } else {
+            return ReindexMetrics.SlicingMode.NONE;
+        }
     }
 
     /** Wraps the listener with relocation handling (if applicable). Visible for testing. */

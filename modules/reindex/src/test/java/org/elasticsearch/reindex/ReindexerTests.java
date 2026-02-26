@@ -60,35 +60,38 @@ public class ReindexerTests extends ESTestCase {
     public void testWrapWithMetricsSuccess() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true);
+        var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true, slicingMode);
 
         BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics).recordSuccess(true);
-        verify(metrics, never()).recordFailure(anyBoolean(), any());
-        verify(metrics).recordTookTime(anyLong(), eq(true));
+        verify(metrics).recordSuccess(true, slicingMode);
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
+        verify(metrics).recordTookTime(anyLong(), eq(true), eq(slicingMode));
     }
 
     public void testWrapWithMetricsFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true);
+        var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true, slicingMode);
 
         Exception exception = new Exception("random failure");
         wrapped.onFailure(exception);
 
         verify(listener).onFailure(exception);
-        verify(metrics, never()).recordSuccess(anyBoolean());
-        verify(metrics).recordFailure(true, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(true));
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics).recordFailure(true, exception, slicingMode);
+        verify(metrics).recordTookTime(anyLong(), eq(true), eq(slicingMode));
     }
 
     public void testWrapWithMetricsBulkFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), false);
+        var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), false, slicingMode);
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
@@ -99,15 +102,16 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics, never()).recordSuccess(anyBoolean());
-        verify(metrics).recordFailure(false, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(false));
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics).recordFailure(false, exception, slicingMode);
+        verify(metrics).recordTookTime(anyLong(), eq(false), eq(slicingMode));
     }
 
     public void testWrapWithMetricsSearchFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true);
+        var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true, slicingMode);
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
@@ -118,9 +122,9 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics, never()).recordSuccess(anyBoolean());
-        verify(metrics).recordFailure(true, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(true));
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics).recordFailure(true, exception, slicingMode);
+        verify(metrics).recordTookTime(anyLong(), eq(true), eq(slicingMode));
     }
 
     // listenerWithRelocations tests
@@ -223,16 +227,17 @@ public class ReindexerTests extends ESTestCase {
         final ReindexMetrics metrics = mock();
         final Reindexer reindexer = reindexerWithRelocationAndMetrics(metrics);
         final ActionListener<BulkByScrollResponse> outer = spy(ActionListener.noop());
+        var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
 
-        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(outer, randomNonNegativeLong(), randomBoolean());
+        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(outer, randomNonNegativeLong(), randomBoolean(), slicingMode);
 
         final BulkByScrollResponse response = reindexResponseWithResumeInfo();
         wrapped.onResponse(response);
 
         // metrics should NOT be recorded for a relocation response
-        verify(metrics, never()).recordSuccess(anyBoolean());
-        verify(metrics, never()).recordFailure(anyBoolean(), any());
-        verify(metrics, never()).recordTookTime(anyLong(), anyBoolean());
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
+        verify(metrics, never()).recordTookTime(anyLong(), anyBoolean(), any());
         // outer listener should still receive the response
         verify(outer).onResponse(response);
 
@@ -244,15 +249,16 @@ public class ReindexerTests extends ESTestCase {
         final ReindexMetrics metrics = mock();
         final Reindexer reindexer = reindexerWithRelocationAndMetrics(metrics);
         final ActionListener<BulkByScrollResponse> outer = spy(ActionListener.noop());
+        var slicingMode = randomFrom(ReindexMetrics.SlicingMode.values());
 
-        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(outer, randomNonNegativeLong(), true);
+        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(outer, randomNonNegativeLong(), true, slicingMode);
 
         final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         verify(outer).onResponse(response);
-        verify(metrics).recordSuccess(true);
-        verify(metrics).recordTookTime(anyLong(), eq(true));
+        verify(metrics).recordSuccess(true, slicingMode);
+        verify(metrics).recordTookTime(anyLong(), eq(true), eq(slicingMode));
 
         verifyNoMoreInteractions(metrics, outer);
     }

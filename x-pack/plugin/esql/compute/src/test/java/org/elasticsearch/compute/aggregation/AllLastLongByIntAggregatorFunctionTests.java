@@ -11,32 +11,28 @@ import org.elasticsearch.compute.aggregation.FirstLastAggregatorTestingUtils.Gro
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongIntBlockSourceOperator;
+import org.elasticsearch.core.Tuple;
 
 import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.aggregation.FirstLastAggregatorTestingUtils.processPages;
 
-public class AllLastBytesRefByLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
+public class AllLastLongByIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen tsgen = randomFrom(
-            FirstLongByTimestampGroupingAggregatorFunctionTests.TimestampGen.values()
-        );
-        return new ListRowsBlockSourceOperator(
+        return new LongIntBlockSourceOperator(
             blockFactory,
-            List.of(ElementType.BYTES_REF, ElementType.LONG),
-            IntStream.range(0, size).mapToObj(l -> List.of(randomAlphanumericOfLength(randomInt(20)), tsgen.gen())).toList()
+            IntStream.range(0, size).mapToObj(l -> Tuple.tuple(randomBoolean() ? null : randomLong(), randomInt()))
         );
     }
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new AllLastBytesRefByLongAggregatorFunctionSupplier();
+        return new AllLastLongByIntAggregatorFunctionSupplier();
     }
 
     @Override
@@ -46,7 +42,7 @@ public class AllLastBytesRefByLongAggregatorFunctionTests extends AggregatorFunc
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "all_last_bytesref_by_long";
+        return "all_last_long_by_int";
     }
 
     @Override

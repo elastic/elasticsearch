@@ -83,7 +83,7 @@ GET my_index/_search
       "type": "mmr",
       "field": "my_dense_vector_field",
       "lambda": 0.7,
-      "size": 3
+      "size": 3,
       "query_vector": [0.1, 0.2, 0.3],
       "retriever": {
         "standard": {

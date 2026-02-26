@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
@@ -97,7 +98,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final String MAPPING_ALL_TYPES_LOOKUP;
 
     static {
-        String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-all-types.json");
+        String properties = CsvTestsDataLoader.getResourceString("/index/mappings/mapping-all-types.json");
         MAPPING_FIELD = "\"mappings\": " + properties;
         MAPPING_ALL_TYPES = "{" + MAPPING_FIELD + "}";
         String settings = "\"settings\" : {\"mode\" : \"lookup\"}";
@@ -175,7 +176,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         public RequestObjectBuilder timeZone(ZoneId zoneId) throws IOException {
-            builder.field("time_zone", zoneId.toString());
+            return timeZone(zoneId.toString());
+        }
+
+        public RequestObjectBuilder timeZone(String timezone) throws IOException {
+            builder.field("time_zone", timezone);
             return this;
         }
 
@@ -2150,7 +2155,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return request;
     }
 
-    private static String attachBody(RequestObjectBuilder requestObject, Request request) throws IOException {
+    public static String attachBody(RequestObjectBuilder requestObject, Request request) throws IOException {
         String mediaType = requestObject.contentType().mediaTypeWithoutParameters();
         try (ByteArrayOutputStream bos = (ByteArrayOutputStream) requestObject.getOutputStream()) {
             request.setEntity(new NByteArrayEntity(bos.toByteArray(), ContentType.getByMimeType(mediaType)));

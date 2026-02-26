@@ -7,6 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolCall;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -78,6 +84,47 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
         });
     }
 
+    public void testEntitiesForChatCompletion() {
+        List.of(ANTHROPIC, AI21LABS, AMAZONTITAN, COHERE, META, MISTRAL).forEach(provider -> {
+            var expectedModel = ANTHROPIC.name();
+            var expectedMaxToken = randomLongBetween(1, 10);
+            var expectedStop = List.of("stop");
+            var expectedTemp = randomDoubleBetween(1, 10, true);
+            var expectedTopP = randomDoubleBetween(1, 10, true);
+
+            var content = new ContentString("content");
+            var toolCall = new ToolCall("id", new ToolCall.FunctionField("function", expectedModel), "");
+            var message = new Message(content, "user", "tooluse_Z7IP83_eTt2y_TECni1ULw", List.of(toolCall));
+            var expectedMessages = List.of(message);
+
+            var expectedToolChoice = new ToolChoiceString("any");
+            var tools = List.of(new Tool("type", null));
+
+            var request = new UnifiedCompletionRequest(
+                expectedMessages,
+                expectedModel,
+                expectedMaxToken,
+                expectedStop,
+                (float) expectedTemp,
+                expectedToolChoice,
+                tools,
+                (float) expectedTopP
+            );
+            var model = model(provider, expectedTemp, expectedTopP, (int) expectedMaxToken);
+
+            var entity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, request);
+
+            assertThat(entity, notNullValue());
+            assertThat(entity.messages(), equalTo(expectedMessages));
+            assertThat(entity.model(), equalTo(expectedModel));
+            assertThat(entity.maxCompletionTokens(), equalTo(expectedMaxToken));
+            assertThat(entity.stop(), equalTo(expectedStop));
+            assertThat(entity.temperature(), equalTo((float) expectedTemp));
+            assertThat(entity.toolChoice(), equalTo(expectedToolChoice));
+            assertThat(entity.topP(), equalTo((float) expectedTopP));
+        });
+    }
+
     AmazonBedrockChatCompletionModel model(AmazonBedrockProvider provider, Double temperature, Double topP, Integer maxTokenCount) {
         return model(provider, temperature, topP, maxTokenCount, null);
     }
@@ -86,7 +133,7 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
         var serviceSettings = mock(AmazonBedrockChatCompletionServiceSettings.class);
         when(serviceSettings.provider()).thenReturn(provider);
 
-        var taskSettings = mock(AmazonBedrockChatCompletionTaskSettings.class);
+        var taskSettings = mock(AmazonBedrockCompletionTaskSettings.class);
         when(taskSettings.temperature()).thenReturn(temp);
         when(taskSettings.topP()).thenReturn(topP);
         when(taskSettings.maxNewTokens()).thenReturn(tokenCount);

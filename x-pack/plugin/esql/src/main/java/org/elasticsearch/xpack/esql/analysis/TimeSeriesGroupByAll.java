@@ -50,7 +50,9 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
                 alias.forEachDownMayReturnEarly((lp, exit) -> {
                     if (lp instanceof TimeSeriesAggregateFunction) {
                         // we've encountered a time-series aggregation function first, so we'll enable the "group by all" logic
-                        newAggHolder.set(new Alias(alias.source(), alias.name(), new Values(alias.child().source(), alias.child())));
+                        newAggHolder.set(
+                            new Alias(alias.source(), alias.name(), new Values(alias.child().source(), alias.child()), alias.id())
+                        );
                         lastTSAggFunction.set(agg);
                         exit.set(true);
                     } else if (lp instanceof AggregateFunction) {

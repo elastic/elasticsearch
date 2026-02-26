@@ -1,6 +1,0 @@
-pr: 139774
-summary: ES|QL - fix ENRICH command when using dense_vector columns
-area: ES|QL
-type: bug
-issues:
- - 137699

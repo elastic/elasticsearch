@@ -227,7 +227,7 @@ public abstract class BlockHashTestCase extends ESTestCase {
     }
 
     protected IntVector intRange(int startInclusive, int endExclusive) {
-        return IntVector.range(startInclusive, endExclusive, TestBlockFactory.getNonBreakingInstance());
+        return TestBlockFactory.getNonBreakingInstance().newIntRangeVector(startInclusive, endExclusive);
     }
 
     protected IntVector intVector(int... values) {

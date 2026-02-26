@@ -123,7 +123,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
         ShardAllocationExplainer shardAllocationExplainer,
         DesiredBalanceMetrics desiredBalanceMetrics,
-        AllocationBalancingRoundMetrics balancingRoundMetrics
+        AllocationBalancingRoundMetrics balancingRoundMetrics,
+        ShardRelocationOrder shardRelocationOrder
     ) {
         this(
             delegateAllocator,
@@ -133,7 +134,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             reconciler,
             nodeAllocationStatsAndWeightsCalculator,
             desiredBalanceMetrics,
-            balancingRoundMetrics
+            balancingRoundMetrics,
+            shardRelocationOrder
         );
     }
 
@@ -145,7 +147,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         DesiredBalanceReconcilerAction reconciler,
         NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
         DesiredBalanceMetrics desiredBalanceMetrics,
-        AllocationBalancingRoundMetrics balancingRoundMetrics
+        AllocationBalancingRoundMetrics balancingRoundMetrics,
+        ShardRelocationOrder shardRelocationOrder
     ) {
         this.desiredBalanceMetrics = desiredBalanceMetrics;
         this.balancingRoundMetrics = balancingRoundMetrics;
@@ -159,7 +162,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.threadPool = threadPool;
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
-        this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool);
+        this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool, shardRelocationOrder);
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
@@ -544,5 +547,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     // Visible for testing
     Set<String> getProcessedNodeShutdowns() {
         return Set.copyOf(processedNodeShutdowns);
+    }
+
+    // Visible for testing
+    public DesiredBalanceReconciler getReconciler() {
+        return desiredBalanceReconciler;
     }
 }

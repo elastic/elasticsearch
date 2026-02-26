@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene.read;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -21,6 +22,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Loads values from a many leaves. Much less efficient than {@link ValuesFromSingleReader}.
@@ -30,7 +33,6 @@ class ValuesFromManyReader extends ValuesReader {
 
     private final int[] forwards;
     private final int[] backwards;
-    private final BlockLoader.RowStrideReader[] rowStride;
 
     private BlockLoaderStoredFieldsFromLeafLoader storedFields;
 
@@ -38,7 +40,6 @@ class ValuesFromManyReader extends ValuesReader {
         super(operator, docs);
         forwards = docs.shardSegmentDocMapForwards();
         backwards = docs.shardSegmentDocMapBackwards();
-        rowStride = new BlockLoader.RowStrideReader[operator.fields.length];
         log.debug("initializing {} positions", docs.getPositionCount());
     }
 
@@ -49,15 +50,8 @@ class ValuesFromManyReader extends ValuesReader {
         }
     }
 
-    private record BlockBuilderAndLoader(Block.Builder builder, BlockLoader loader) implements Releasable {
-        @Override
-        public void close() {
-            builder.close();
-        }
-    }
-
     class Run implements Releasable {
-        private final ComputeBlockLoaderFactory blockFactory = new ComputeBlockLoaderFactory(operator.blockFactory);
+        private final ComputeBlockLoaderFactory blockFactory = new ComputeBlockLoaderFactory(operator.driverContext.blockFactory());
         private final Block[] target;
         /**
          * The "final" builder for the block we're going to return. See {@link #current} for
@@ -76,13 +70,18 @@ class ValuesFromManyReader extends ValuesReader {
          *     shard again.
          * </p>
          */
-        private final BlockBuilderAndLoader[] current;
+        private final CurrentWork[] current;
+
+        private final List<CurrentWork> columnAtATime;
+        private final List<CurrentWork> rowStride;
         private int currentShard = -1;
 
         Run(Block[] target) {
             this.target = target;
             finalBuilders = new Block.Builder[target.length];
-            current = new BlockBuilderAndLoader[target.length];
+            current = new CurrentWork[target.length];
+            columnAtATime = new ArrayList<>(target.length);
+            rowStride = new ArrayList<>(target.length);
         }
 
         void run(int offset) throws IOException {
@@ -94,7 +93,8 @@ class ValuesFromManyReader extends ValuesReader {
                  * (one for each field and shard), and converters (again one for each field and shard) to actually perform the field
                  * loading in a way that is correct for the mapped field type, and then convert between that type and the desired type.
                  */
-                finalBuilders[f] = operator.fields[f].info.type().newBlockBuilder(docs.getPositionCount(), operator.blockFactory);
+                finalBuilders[f] = operator.fields[f].info.type()
+                    .newBlockBuilder(docs.getPositionCount(), operator.driverContext.blockFactory());
             }
             int p = forwards[offset];
             int shard = docs.shards().getInt(p);
@@ -103,8 +103,9 @@ class ValuesFromManyReader extends ValuesReader {
             operator.positionFieldWork(shard, segment, firstDoc);
             LeafReaderContext ctx = operator.ctx(shard, segment);
             fieldsMoved(ctx, shard);
-            read(firstDoc);
+            readRowStride(firstDoc);
 
+            int segmentStart = offset;
             int i = offset + 1;
             long estimated = estimatedRamBytesUsed();
             long dangerZoneBytes = Long.MAX_VALUE; // TODO danger_zone if ascending
@@ -114,21 +115,24 @@ class ValuesFromManyReader extends ValuesReader {
                 segment = docs.segments().getInt(p);
                 boolean changedSegment = operator.positionFieldWorkDocGuaranteedAscending(shard, segment);
                 if (changedSegment) {
+                    readColumnAtATime(segmentStart, i);
+                    segmentStart = i;
                     ctx = operator.ctx(shard, segment);
                     fieldsMoved(ctx, shard);
                 }
-                read(docs.docs().getInt(p));
+                readRowStride(docs.docs().getInt(p));
                 i++;
                 estimated = estimatedRamBytesUsed();
                 log.trace("{}: bytes loaded {}/{}", p, estimated, dangerZoneBytes);
             }
+            readColumnAtATime(segmentStart, i);
             buildBlocks();
             if (log.isDebugEnabled()) {
                 long actual = 0;
                 for (Block b : target) {
                     actual += b.ramBytesUsed();
                 }
-                log.debug("loaded {} positions total estimated/actual {}/{} bytes", p, estimated, actual);
+                log.debug("loaded {} positions total estimated/actual {}/{} bytes", p + 1, estimated, actual);
             }
         }
 
@@ -136,19 +140,36 @@ class ValuesFromManyReader extends ValuesReader {
             convertAndAccumulate();
             for (int f = 0; f < target.length; f++) {
                 try (Block targetBlock = finalBuilders[f].build()) {
-                    target[f] = targetBlock.filter(backwards);
+                    assert targetBlock.getPositionCount() == backwards.length
+                        : targetBlock.getPositionCount() + " == " + backwards.length + " " + targetBlock;
+                    target[f] = targetBlock.filter(false, backwards);
                 }
-                operator.sanityCheckBlock(rowStride[f], backwards.length, target[f], f);
+                operator.sanityCheckBlock(current[f].rowStride, backwards.length, target[f], f);
             }
             if (target[0].getPositionCount() != docs.getPositionCount()) {
                 throw new IllegalStateException("partial pages not yet supported");
             }
         }
 
-        private void read(int doc) throws IOException {
+        private void readRowStride(int doc) throws IOException {
             storedFields.advanceTo(doc);
-            for (int f = 0; f < current.length; f++) {
-                rowStride[f].read(doc, storedFields, current[f].builder);
+            for (CurrentWork r : rowStride) {
+                assert r.columnAtATime == null;
+                r.rowStride.read(doc, storedFields, r.builder);
+            }
+        }
+
+        private void readColumnAtATime(int segmentStart, int segmentEnd) throws IOException {
+            ValuesReaderDocs readerDocs = new ValuesReaderDocs(docs).mapped(forwards, segmentStart, segmentEnd);
+            readerDocs.setCount(segmentEnd);
+            for (CurrentWork c : columnAtATime) {
+                assert c.rowStride == null;
+                try (Block read = (Block) c.columnAtATime.read(blockFactory, readerDocs, segmentStart, c.field.info.nullsFiltered())) {
+                    // TODO add a `read(builder, docs, offset, nullsFiltered)` override
+                    assert read.getPositionCount() == segmentEnd - segmentStart
+                        : read.getPositionCount() + " == " + segmentEnd + " - " + segmentStart + " " + read;
+                    c.builder.copyFrom(read, 0, read.getPositionCount());
+                }
             }
         }
 
@@ -167,11 +188,25 @@ class ValuesFromManyReader extends ValuesReader {
         }
 
         private void fieldsMoved(LeafReaderContext ctx, int shard) throws IOException {
+            if (currentShard != shard) {
+                if (currentShard >= 0) {
+                    convertAndAccumulate();
+                }
+                moveBuildersAndLoadersToShard();
+                currentShard = shard;
+            }
             StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
-            for (int f = 0; f < operator.fields.length; f++) {
-                ValuesSourceReaderOperator.FieldWork field = operator.fields[f];
-                rowStride[f] = field.rowStride(ctx);
-                storedFieldsSpec = storedFieldsSpec.merge(field.loader.rowStrideStoredFieldSpec());
+            columnAtATime.clear();
+            rowStride.clear();
+            for (CurrentWork field : current) {
+                field.columnAtATime = field.field.columnAtATime(ctx);
+                if (field.columnAtATime != null) {
+                    columnAtATime.add(field);
+                } else {
+                    field.rowStride = field.field.rowStride(ctx);
+                    storedFieldsSpec = storedFieldsSpec.merge(field.field.loader.rowStrideStoredFieldSpec());
+                    rowStride.add(field);
+                }
             }
             SourceLoader sourceLoader = null;
             if (storedFieldsSpec.requiresSource()) {
@@ -185,24 +220,16 @@ class ValuesFromManyReader extends ValuesReader {
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
                 operator.trackStoredFields(storedFieldsSpec, false);
             }
-
-            if (currentShard != shard) {
-                if (currentShard >= 0) {
-                    convertAndAccumulate();
-                }
-                moveBuildersAndLoadersToShard();
-                currentShard = shard;
-            }
         }
 
         private void convertAndAccumulate() {
-            for (int f = 0; f < current.length; f++) {
-                try (Block orig = (Block) current[f].loader.convert(current[f].builder.build())) {
-                    finalBuilders[f].copyFrom(orig, 0, orig.getPositionCount());
+            for (CurrentWork currentWork : current) {
+                try {
+                    currentWork.convertAndAccumulate();
                 } finally {
-                    current[f].close();
+                    currentWork.close();
                     /*
-                     * Calling current[f].close() here is redundant. Once you call
+                     * Calling currentWork.close() here is redundant. Once you call
                      * `BlockBuilder#build`, `BlockBuilder#close` becomes a noop. Safe to call
                      * but not required. But calling it is more idiomatic, so we do it.
                      *
@@ -221,10 +248,63 @@ class ValuesFromManyReader extends ValuesReader {
         private void moveBuildersAndLoadersToShard() {
             for (int f = 0; f < operator.fields.length; f++) {
                 // NOTE: This relies on the operator.fields being positioned on the new shard.
-                current[f] = new BlockBuilderAndLoader(
-                    (Block.Builder) operator.fields[f].loader.builder(blockFactory, docs.getPositionCount()),
-                    operator.fields[f].loader
-                );
+                current[f] = new CurrentWork(blockFactory, docs, operator.fields[f], finalBuilders[f]);
+            }
+        }
+    }
+
+    /**
+     * Work for a single field for the current segment. If there's a conversion, then this contains
+     * a "scratch" builder and {@link #convertAndAccumulate} accumulates the scratch builder into
+     * the {@link #finalBuilder}. If there isn't a conversion then this accumulates directly into
+     * the {@link #finalBuilder} immediately.
+     */
+    private static class CurrentWork implements Releasable {
+        private final ValuesSourceReaderOperator.FieldWork field;
+        /**
+         * Converter for the field at the current segment. It's a copy of
+         * {@code field.converter} at the time of construction. By the time we actually
+         * go to use the converter, the field has moved onto another shard, changing
+         * the value of {@code field.converter}.
+         */
+        @Nullable
+        private final ValuesSourceReaderOperator.ConverterEvaluator converter;
+        private final Block.Builder builder;
+        private final Block.Builder finalBuilder;
+
+        private BlockLoader.ColumnAtATimeReader columnAtATime;
+        private BlockLoader.RowStrideReader rowStride;
+
+        CurrentWork(
+            ComputeBlockLoaderFactory blockFactory,
+            DocVector docs,
+            ValuesSourceReaderOperator.FieldWork field,
+            Block.Builder finalBuilder
+        ) {
+            this.field = field;
+            this.converter = field.converter;
+            this.builder = converter == null ? finalBuilder : (Block.Builder) field.loader.builder(blockFactory, docs.getPositionCount());
+            this.finalBuilder = finalBuilder;
+        }
+
+        void convertAndAccumulate() {
+            if (converter == null) {
+                // We built directly into the final block so there isn't any need to convert anything
+                return;
+            }
+            try (Block orig = converter.convert(builder.build())) {
+                finalBuilder.copyFrom(orig, 0, orig.getPositionCount());
+            }
+        }
+
+        @Override
+        public void close() {
+            if (converter != null) {
+                /*
+                 * If there *isn't* a converter than the `builder` is just the final builder
+                 * and it's closed by the Run.
+                 */
+                builder.close();
             }
         }
     }

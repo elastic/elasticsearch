@@ -169,12 +169,12 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             } else {
                 if (resp.getTook() != null) {
                     builder.setTook(
-                        TimeValue.timeValueNanos(executionInfo.planningProfile().planning().timeTook().nanos() + resp.getTook().nanos())
+                        TimeValue.timeValueNanos(executionInfo.queryProfile().planning().timeTook().nanos() + resp.getTook().nanos())
                     );
                 } else {
                     // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
                     // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-                    builder.setTook(executionInfo.tookSoFar());
+                    builder.setTook(executionInfo.queryProfile().total().timeSinceStarted());
                 }
             }
             if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
@@ -264,7 +264,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
         ReductionPlan reductionPlan = ComputeService.reductionPlan(
-            computeService.plannerSettings(),
+            computeService.plannerSettings().get(),
             computeService.createFlags(),
             configuration,
             configuration.newFoldContext(),
@@ -303,6 +303,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
+                    computeService.plannerSettings().get(),
+                    LocalPhysicalOptimization.ENABLED,
                     configuration.profile() ? new PlanTimeProfile() : null,
                     computeListener.acquireCompute()
                 );

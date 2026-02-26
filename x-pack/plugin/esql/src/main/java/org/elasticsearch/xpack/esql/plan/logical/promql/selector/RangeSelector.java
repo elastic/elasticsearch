@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 
 import java.util.List;
 import java.util.Objects;
@@ -96,5 +97,10 @@ public final class RangeSelector extends Selector {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), range);
+    }
+
+    @Override
+    public PromqlDataType returnType() {
+        return PromqlDataType.RANGE_VECTOR;
     }
 }

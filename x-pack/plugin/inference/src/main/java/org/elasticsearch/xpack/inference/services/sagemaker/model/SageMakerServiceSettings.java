@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
  * Maintains the settings for SageMaker that cannot be changed without impacting semantic search and AI assistants.
  * Model-specific settings are stored in {@link SageMakerStoredServiceSchema}.
  */
-record SageMakerServiceSettings(
+public record SageMakerServiceSettings(
     String endpointName,
     String region,
     String api,
@@ -59,7 +59,7 @@ record SageMakerServiceSettings(
     private static final String BATCH_SIZE = "batch_size";
     private static final TransportVersion ML_INFERENCE_SAGEMAKER = TransportVersion.fromName("ml_inference_sagemaker");
 
-    SageMakerServiceSettings {
+    public SageMakerServiceSettings {
         Objects.requireNonNull(endpointName);
         Objects.requireNonNull(region);
         Objects.requireNonNull(api);

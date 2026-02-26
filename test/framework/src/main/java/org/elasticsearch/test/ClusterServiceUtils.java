@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -41,6 +42,8 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -114,6 +117,23 @@ public class ClusterServiceUtils {
             DiscoveryNodeUtils.create("node", "node"),
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            projectId
+        );
+    }
+
+    public static ClusterService createClusterService(
+        ThreadPool threadPool,
+        ProjectId projectId,
+        Settings nodeSettings,
+        Set<Setting<?>> additionalClusterSettings
+    ) {
+        Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingSet.addAll(additionalClusterSettings);
+        return createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("node", "node"),
+            nodeSettings,
+            new ClusterSettings(nodeSettings, settingSet),
             projectId
         );
     }

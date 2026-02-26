@@ -35,7 +35,9 @@ public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.Stored
 
     private void advanceIfNeeded() throws IOException {
         if (loaderDocId != docId) {
-            loader.advanceTo(docId);
+            if (loader != null) {
+                loader.advanceTo(docId);
+            }
             loaderDocId = docId;
         }
     }
@@ -68,5 +70,10 @@ public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.Stored
     public Map<String, List<Object>> storedFields() throws IOException {
         advanceIfNeeded();
         return loader.storedFields();
+    }
+
+    @Override
+    public boolean loaded() {
+        return loaderDocId == docId;
     }
 }

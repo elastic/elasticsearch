@@ -124,7 +124,7 @@ public class UniqueTokenFilterTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.UNIQUE_TOKEN_FILTER_POS_FIX)
+                IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.UNIQUE_TOKEN_FILTER_POS_FIX)
             )
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

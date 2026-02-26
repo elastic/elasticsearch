@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -37,18 +38,29 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  *   ]
  * }
  * </pre>
- * @param inferenceStrings the list of {@link InferenceString} which should result in generating a single embedding vector
  */
-public record InferenceStringGroup(List<InferenceString> inferenceStrings) implements Writeable, ToXContentObject {
-    private static final String CONTENT_FIELD = "content";
+public final class InferenceStringGroup implements Writeable, ToXContentObject {
+    public static final String CONTENT_FIELD = "content";
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<InferenceStringGroup, Void> PARSER = new ConstructingObjectParser<>(
         InferenceStringGroup.class.getSimpleName(),
         args -> new InferenceStringGroup((List<InferenceString>) args[0])
     );
+
     static {
         PARSER.declareObjectArray(constructorArg(), InferenceString.PARSER::apply, new ParseField(CONTENT_FIELD));
+    }
+
+    private final List<InferenceString> inferenceStrings;
+    private final boolean containsNonTextEntry;
+
+    /**
+     * @param inferenceStrings the list of {@link InferenceString} which should result in generating a single embedding vector
+     */
+    public InferenceStringGroup(List<InferenceString> inferenceStrings) {
+        this.inferenceStrings = inferenceStrings;
+        containsNonTextEntry = inferenceStrings.stream().anyMatch(s -> s.isText() == false);
     }
 
     public InferenceStringGroup(StreamInput in) throws IOException {
@@ -62,6 +74,18 @@ public record InferenceStringGroup(List<InferenceString> inferenceStrings) imple
     // Convenience constructor for the common use case of a single text input
     public InferenceStringGroup(String input) {
         this(singletonList(new InferenceString(DataType.TEXT, input)));
+    }
+
+    public List<InferenceString> inferenceStrings() {
+        return inferenceStrings;
+    }
+
+    public boolean containsNonTextEntry() {
+        return containsNonTextEntry;
+    }
+
+    public boolean containsMultipleInferenceStrings() {
+        return inferenceStrings.size() > 1;
     }
 
     @Override
@@ -81,7 +105,7 @@ public record InferenceStringGroup(List<InferenceString> inferenceStrings) imple
         var token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             // Create content object from String
-            return new InferenceStringGroup(singletonList(new InferenceString(DataType.TEXT, parser.text())));
+            return new InferenceStringGroup(parser.text());
         } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) {
             // Create content object from InferenceString(s)
             return InferenceStringGroup.PARSER.apply(parser, null);
@@ -134,4 +158,51 @@ public record InferenceStringGroup(List<InferenceString> inferenceStrings) imple
     public static List<String> toStringList(List<InferenceStringGroup> inferenceStringGroups) {
         return InferenceString.toStringList(toInferenceStringList(inferenceStringGroups));
     }
+
+    /**
+     * Method used to determine if a list of {@link InferenceStringGroup} contains any {@link InferenceString} that represent a non-text
+     * value
+     *
+     * @param inferenceStringGroups the list of {@link InferenceStringGroup} to check
+     * @return true if the input list contains any non-text values, false otherwise
+     */
+    public static boolean containsNonTextEntry(List<InferenceStringGroup> inferenceStringGroups) {
+        return inferenceStringGroups.stream().anyMatch(InferenceStringGroup::containsNonTextEntry);
+    }
+
+    /**
+     * Method used to determine if a list of {@link InferenceStringGroup} contains any with more than one {@link InferenceString} in them
+     *
+     * @param inferenceStringGroups the list of {@link InferenceStringGroup} to check
+     * @return the index of the first {@link InferenceStringGroup} found to contain more than one {@link InferenceString}, or null if no
+     * elements in the list contain more than one {@link InferenceString}
+     */
+    public static Integer indexContainingMultipleInferenceStrings(List<InferenceStringGroup> inferenceStringGroups) {
+        for (int i = 0; i < inferenceStringGroups.size(); i++) {
+            InferenceStringGroup inferenceStringGroup = inferenceStringGroups.get(i);
+            if (inferenceStringGroup.containsMultipleInferenceStrings()) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+        if (obj == null || obj.getClass() != this.getClass()) return false;
+        var that = (InferenceStringGroup) obj;
+        return Objects.equals(this.inferenceStrings, that.inferenceStrings);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(inferenceStrings);
+    }
+
+    @Override
+    public String toString() {
+        return "InferenceStringGroup[" + "inferenceStrings=" + inferenceStrings + ']';
+    }
+
 }

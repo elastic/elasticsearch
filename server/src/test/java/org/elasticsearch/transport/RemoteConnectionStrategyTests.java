@@ -20,8 +20,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.telemetry.InstrumentType;
-import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.test.MockLog;
@@ -32,7 +30,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.MockLog.assertThatLogger;
@@ -42,7 +39,6 @@ import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTIO
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS;
 import static org.elasticsearch.transport.RemoteClusterSettings.toConfig;
 import static org.elasticsearch.transport.RemoteConnectionStrategy.buildConnectionProfile;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class RemoteConnectionStrategyTests extends ESTestCase {
@@ -219,11 +215,6 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                 new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class), threadContext)
             )
         ) {
-            assert transportService.getTelemetryProvider() != null;
-            final var meterRegistry = transportService.getTelemetryProvider().getMeterRegistry();
-            assert meterRegistry instanceof RecordingMeterRegistry;
-            final var metricRecorder = ((RecordingMeterRegistry) meterRegistry).getRecorder();
-
             for (boolean shouldConnectFail : new boolean[] { true, false }) {
                 for (boolean isInitialConnectAttempt : new boolean[] { true, false }) {
                     final var strategy = new FakeConnectionStrategy(
@@ -265,34 +256,12 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                             expectedLogMessage
                         )
                     );
-                    if (shouldConnectFail) {
-                        metricRecorder.collect();
-                        final var counterName = RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME;
-                        final var measurements = metricRecorder.getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, counterName);
-                        assertFalse(measurements.isEmpty());
-                        final var measurement = measurements.getLast();
-                        assertThat(measurement.getLong(), equalTo(1L));
-                        final var attributes = measurement.attributes();
-                        final var keySet = Set.of(
-                            RemoteConnectionStrategy.linkedProjectIdLabel,
-                            RemoteConnectionStrategy.linkedProjectAliasLabel,
-                            RemoteConnectionStrategy.connectionAtemptLabel
-                        );
-                        final var expectedAttemptType = isInitialConnectAttempt
-                            ? RemoteConnectionStrategy.ConnectionAttempt.initial
-                            : RemoteConnectionStrategy.ConnectionAttempt.reconnect;
-                        assertThat(attributes.keySet(), equalTo(keySet));
-                        assertThat(attributes.get(RemoteConnectionStrategy.linkedProjectIdLabel), equalTo(linkedProjectId.toString()));
-                        assertThat(attributes.get(RemoteConnectionStrategy.linkedProjectAliasLabel), equalTo(alias));
-                        assertThat(attributes.get(RemoteConnectionStrategy.connectionAtemptLabel), equalTo(expectedAttemptType.toString()));
-                    }
                 }
             }
 
             // Now verify connection errors when closing (node shutting down) are logged at debug and not warn.
             final var strategy = new FakeConnectionStrategy(originProjectId, linkedProjectId, alias, transportService, connectionManager);
             waitForConnect(strategy);
-            metricRecorder.resetCalls();
             strategy.setShouldConnectFail(true);
             strategy.setWaitInConnect(true);
             final var expectedLogLevel = Level.DEBUG;
@@ -320,11 +289,6 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
                     expectedLogMessage
                 )
             );
-            // Expect no metric change if the strategy has been closed.
-            metricRecorder.collect();
-            final var counterName = RemoteClusterService.CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME;
-            final var measurements = metricRecorder.getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, counterName);
-            assertTrue(measurements.isEmpty());
         }
     }
 

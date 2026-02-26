@@ -24,4 +24,7 @@ public class TaskTypeTests extends ESTestCase {
         assertThat(TaskType.fromStringOrStatusException("any"), Matchers.is(TaskType.ANY));
     }
 
+    public static TaskType randomEmbeddingTaskType() {
+        return randomFrom(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING);
+    }
 }

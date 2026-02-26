@@ -18,6 +18,7 @@ import org.junit.runners.model.Statement;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
@@ -167,6 +168,12 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     public InputStream getNodeLog(int index, LogType logType) {
         checkHandle();
         return handle.getNodeLog(index, logType);
+    }
+
+    @Override
+    public Path getNodeConfigPath(int index) {
+        checkHandle();
+        return handle.getNodeConfigPath(index);
     }
 
     @Override

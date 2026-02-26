@@ -47,29 +47,31 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        TaskType taskType
     ) {
         this(
             inferenceId,
-            JinaAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
+            createServiceSettings(serviceSettings, taskType, context),
             JinaAIEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
             DefaultSecretSettings.fromMap(secrets),
-            null
+            null,
+            taskType
         );
     }
 
-    // should only be used for testing
     JinaAIEmbeddingsModel(
-        String modelId,
-        JinaAIEmbeddingsServiceSettings serviceSettings,
+        String inferenceId,
+        BaseJinaAIEmbeddingsServiceSettings serviceSettings,
         JinaAIEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secretSettings,
-        @Nullable String uri
+        @Nullable String uri,
+        TaskType taskType
     ) {
         super(
-            new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(inferenceId, taskType, JinaAIService.NAME, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings(),
@@ -77,17 +79,33 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
         );
     }
 
+    /**
+     * Constructor for creating {@link JinaAIEmbeddingsModel} instances
+     * from {@link ModelConfigurations} and {@link ModelSecrets}.
+     * @param config a model configurations object
+     * @param secrets a model secrets object
+     */
+    public JinaAIEmbeddingsModel(ModelConfigurations config, ModelSecrets secrets) {
+        super(
+            config,
+            secrets,
+            (DefaultSecretSettings) secrets.getSecretSettings(),
+            ((BaseJinaAIEmbeddingsServiceSettings) config.getServiceSettings()).getCommonSettings(),
+            buildUri("JinaAI", DEFAULT_URI_BUILDER::build)
+        );
+    }
+
     private JinaAIEmbeddingsModel(JinaAIEmbeddingsModel model, JinaAIEmbeddingsTaskSettings taskSettings) {
         super(model, taskSettings);
     }
 
-    public JinaAIEmbeddingsModel(JinaAIEmbeddingsModel model, JinaAIEmbeddingsServiceSettings serviceSettings) {
+    public JinaAIEmbeddingsModel(JinaAIEmbeddingsModel model, BaseJinaAIEmbeddingsServiceSettings serviceSettings) {
         super(model, serviceSettings);
     }
 
     @Override
-    public JinaAIEmbeddingsServiceSettings getServiceSettings() {
-        return (JinaAIEmbeddingsServiceSettings) super.getServiceSettings();
+    public BaseJinaAIEmbeddingsServiceSettings getServiceSettings() {
+        return (BaseJinaAIEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
     @Override
@@ -103,5 +121,18 @@ public class JinaAIEmbeddingsModel extends JinaAIModel {
     @Override
     public ExecutableAction accept(JinaAIActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
+    }
+
+    private static BaseJinaAIEmbeddingsServiceSettings createServiceSettings(
+        Map<String, Object> serviceSettings,
+        TaskType taskType,
+        ConfigurationParseContext context
+    ) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> JinaAITextEmbeddingServiceSettings.fromMap(serviceSettings, context);
+            case EMBEDDING -> JinaAIEmbeddingServiceSettings.fromMap(serviceSettings, context);
+            // Should not be possible
+            default -> throw new IllegalArgumentException();
+        };
     }
 }

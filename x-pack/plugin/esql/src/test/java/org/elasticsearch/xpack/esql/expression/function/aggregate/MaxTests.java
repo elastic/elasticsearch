@@ -45,6 +45,7 @@ public class MaxTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
+        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
@@ -57,8 +58,8 @@ public class MaxTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList()
         ).flatMap(List::stream).map(MaxTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         FunctionAppliesTo unsignedLongAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.2.0", "", true);
@@ -204,7 +205,7 @@ public class MaxTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
@@ -235,7 +236,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                     .map(obj -> (ExponentialHistogram) obj)
                     .filter(histo -> histo.valueCount() > 0) // only non-empty histograms have an influence
                     .map(ExponentialHistogram::max)
-                    .min(Comparator.naturalOrder())
+                    .max(Comparator.naturalOrder())
                     .orElse(null);
                 expectedReturnType = DataType.DOUBLE;
             } else if (fieldSupplier.type() == DataType.TDIGEST) {
@@ -244,11 +245,11 @@ public class MaxTests extends AbstractAggregationTestCase {
                     .map(obj -> (TDigestHolder) obj)
                     .filter(histo -> histo.getValueCount() > 0) // only non-empty histograms have an influence
                     .map(TDigestHolder::getMax)
-                    .min(Comparator.naturalOrder())
+                    .max(Comparator.naturalOrder())
                     .orElse(null);
                 expectedReturnType = DataType.DOUBLE;
             } else {
-                expected = fieldTypedData.multiRowData()
+                expected = fieldTypedData.originalMultiRowData()
                     .stream()
                     .map(v -> (Comparable<? super Comparable<?>>) v)
                     .max(Comparator.naturalOrder())

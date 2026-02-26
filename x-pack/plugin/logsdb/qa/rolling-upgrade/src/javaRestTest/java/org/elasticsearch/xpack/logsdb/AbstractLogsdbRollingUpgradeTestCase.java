@@ -58,7 +58,7 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return getCluster().getHttpAddresses();
     }
 
     protected Settings restClientSettings() {
@@ -76,8 +76,12 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
 
         var upgradeVersion = newClusterVersion != null ? Version.fromString(newClusterVersion) : Version.CURRENT;
         logger.info("Upgrading node {} to version {}", n, upgradeVersion);
-        cluster.upgradeNodeToVersion(n, upgradeVersion);
+        getCluster().upgradeNodeToVersion(n, upgradeVersion);
         initClient();
+    }
+
+    protected ElasticsearchCluster getCluster() {
+        return cluster;
     }
 
     static String formatInstant(Instant instant) {

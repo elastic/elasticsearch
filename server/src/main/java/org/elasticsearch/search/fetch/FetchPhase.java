@@ -100,8 +100,11 @@ public final class FetchPhase {
                 ? Profiler.NOOP
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
+        long searchHitsBytesSize = 0L;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
+            SearchHitsWithSizeBytes result = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, memoryChecker);
+            hits = result.hits;
+            searchHitsBytesSize = result.searchHitsBytesSize;
         } finally {
             try {
                 // Always finish profiling
@@ -109,7 +112,11 @@ public final class FetchPhase {
                 // Only set the shardResults if building search hits was successful
                 if (hits != null) {
                     context.fetchResult().shardResult(hits, profileResult);
+                    context.fetchResult().setSearchHitsSizeBytes(searchHitsBytesSize);
                     hits = null;
+                } else {
+                    assert searchHitsBytesSize == 0L
+                        : "searchHitsBytesSize must be 0 when hits are null but was [" + searchHitsBytesSize + "]";
                 }
             } finally {
                 if (hits != null) {
@@ -129,7 +136,7 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(
+    private SearchHitsWithSizeBytes buildSearchHits(
         SearchContext context,
         int[] docIdsToLoad,
         Profiler profiler,
@@ -288,12 +295,15 @@ public final class FetchPhase {
             }
 
             TotalHits totalHits = context.getTotalHits();
-            return new SearchHits(hits, totalHits, context.getMaxScore());
-        } finally {
+            SearchHits searchHits = new SearchHits(hits, totalHits, context.getMaxScore());
+            return new SearchHitsWithSizeBytes(searchHits, docsIterator.getRequestBreakerBytes());
+        } catch (Exception e) {
+            // On exception, release the breaker bytes immediately since the hits won't make it to the result
             long bytes = docsIterator.getRequestBreakerBytes();
             if (bytes > 0L) {
                 context.circuitBreaker().addWithoutBreaking(-bytes);
             }
+            throw e;
         }
     }
 
@@ -501,5 +511,15 @@ public final class FetchPhase {
                 return "noop";
             }
         };
+    }
+
+    private static class SearchHitsWithSizeBytes {
+        final SearchHits hits;
+        final long searchHitsBytesSize;
+
+        SearchHitsWithSizeBytes(SearchHits hits, long searchHitsBytesSize) {
+            this.hits = hits;
+            this.searchHitsBytesSize = searchHitsBytesSize;
+        }
     }
 }

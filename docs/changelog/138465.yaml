@@ -1,5 +1,0 @@
-pr: 138465
-summary: "Allocation: add duration and count metrics for write load hotspot"
-area: Allocation
-type: enhancement
-issues: []

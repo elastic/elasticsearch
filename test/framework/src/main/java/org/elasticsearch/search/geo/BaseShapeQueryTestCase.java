@@ -362,7 +362,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
 
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
         createMapping(defaultIndexName, defaultFieldName, Settings.builder().put("index.number_of_shards", 1).build());
-        createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
+        createIndex("shapes", Settings.EMPTY, "_source", "enabled=false");
         ensureGreen();
 
         Rectangle shape = new Rectangle(-45, 45, 45, -45);

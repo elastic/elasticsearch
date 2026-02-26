@@ -52,6 +52,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
    * `gauge`
    * `aggregate_metric_double`
    * `exponential_histogram` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
+   * `tdigest` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
 
 
 ### Unsupported types [_unsupported_types]
@@ -102,11 +103,42 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
 
 - In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
+#### Spatial precision [esql-limitations-spatial-precision]
+
+The spatial types `geo_point`, `geo_shape`, `cartesian_point` and `cartesian_shape` are maintained at source precision in the original documents,
+but indexed at reduced precision by Lucene, for performance reasons.
+To ensure this optimization is available in the widest context, all [spatial functions](/reference/query-languages/esql/functions-operators/spatial-functions.md) will produce results
+at this reduced precision, aligned with the underlying Lucene index grid.
+For `geo_point` and `geo_shape`, this grid is smaller than 1 cm at the equator, which is still very high precision for most use cases.
+If the exact, original precision is desired, return the original field in the ES|QL query, which will maintain the original values.
+To prioritize performance over precision, simply drop that field.
+
+For example:
+
+```esql
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| KEEP location, geohex
+```
+
+This query will perform slowly, due to the need to retrieve the original `location` field from the source document.
+However, the following example will perform much faster:
+
+```esql
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| EVAL x = ST_X(location), y = ST_Y(location)
+| KEEP x, y, geohex
+```
+
+This query will perform much faster, since the original field `location` is not retrieved, and the three spatial functions used will all return values aligned with the Lucene index grid.
+Note that if you return both the original `location` and the extracted `x` and `y` you will see very slight differences in the extracted values due to the precision loss.
+
 #### Partial support in 9.2.0
 
 * {applies_to}`stack: preview 9.2.0` The following types are only partially supported on 9.2.0. This is fixed in 9.2.1:
-  * `dense_vector`: The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) and the [`TO_DENSE_VECTOR` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_dense_vector) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when these functions are not used.
-  * `aggregate_metric_double`: Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_aggregate_metric_double) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
+  * `dense_vector`: The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) and the [`TO_DENSE_VECTOR` function](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when these functions are not used.
+  * `aggregate_metric_double`: Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_aggregate_metric_double.md) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
 
     :::{note}
     This means that a simple query like `FROM test` will not retrieve `dense_vector` or `aggregate_metric_double` data. However, using the appropriate functions will work:
@@ -121,7 +153,7 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
 ## Full-text search [esql-limitations-full-text-search]
 
 One limitation of [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is that it is necessary to use the search function,
-like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
+like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
 in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command directly after the
 [`FROM`](/reference/query-languages/esql/commands/from.md) source command, or close enough to it.
 Otherwise, the query will fail with a validation error.
@@ -142,9 +174,9 @@ FROM books
 ```
 
 Note that any queries on `text` fields that do not explicitly use the full-text functions,
-[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
-[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr) or
-[`KQL`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-kql),
+[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) or
+[`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md),
 will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.
 
 
@@ -222,7 +254,7 @@ Work around this limitation by converting the field to single value with one of 
 
 ## INLINE STATS limitations [esql-limitations-inlinestats]
 
-[`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not currently supported.
+[`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions/categorize.md) grouping function is not currently supported.
 
 Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
 
@@ -234,10 +266,6 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 * Discover shows no more than 50 columns. If a query returns more than 50 columns, Discover only shows the first 50.
 * CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
 * Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/drop.md) or [`KEEP`](/reference/query-languages/esql/commands/keep.md) to limit the number of fields returned.
-
-## Cross-cluster search limitations [esql-ccs-limitations]
-
-{{esql}} does not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) on [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
 
 ## Known issues [esql-known-issues]
 

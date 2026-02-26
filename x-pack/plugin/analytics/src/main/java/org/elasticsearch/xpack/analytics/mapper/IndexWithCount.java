@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.mapper;
 
+import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.CopyableBucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
@@ -43,7 +44,7 @@ public record IndexWithCount(long index, long count) {
         };
     }
 
-    public static List<IndexWithCount> fromIterator(CopyableBucketIterator iterator) {
+    public static List<IndexWithCount> fromIterator(BucketIterator iterator) {
         List<IndexWithCount> result = new ArrayList<>();
         while (iterator.hasNext()) {
             result.add(new IndexWithCount(iterator.peekIndex(), iterator.peekCount()));

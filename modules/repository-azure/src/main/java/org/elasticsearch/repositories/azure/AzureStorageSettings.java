@@ -99,6 +99,13 @@ final class AzureStorageSettings {
         () -> ACCOUNT_SETTING
     );
 
+    public static final AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(
+        AZURE_CLIENT_PREFIX_KEY,
+        "read_timeout",
+        key -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.NodeScope),
+        () -> ACCOUNT_SETTING
+    );
+
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
     public static final AffixSetting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(
         AZURE_CLIENT_PREFIX_KEY,
@@ -130,6 +137,7 @@ final class AzureStorageSettings {
     private final String connectString;
     private final String endpointSuffix;
     private final TimeValue timeout;
+    private final TimeValue readTimeout;
     private final int maxRetries;
     private final Proxy proxy;
     private final boolean hasCredentials;
@@ -141,6 +149,7 @@ final class AzureStorageSettings {
         String sasToken,
         String endpointSuffix,
         TimeValue timeout,
+        TimeValue readTimeout,
         int maxRetries,
         Proxy.Type proxyType,
         String proxyHost,
@@ -153,6 +162,7 @@ final class AzureStorageSettings {
         this.hasCredentials = Strings.hasText(key) || Strings.hasText(sasToken);
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
+        this.readTimeout = readTimeout;
         this.maxRetries = maxRetries;
         this.credentialsUsageFeatures = Strings.hasText(key) ? Set.of("uses_key_credentials")
             : Strings.hasText(sasToken) ? Set.of("uses_sas_token")
@@ -185,6 +195,10 @@ final class AzureStorageSettings {
 
     public TimeValue getTimeout() {
         return timeout;
+    }
+
+    public TimeValue getReadTimeout() {
+        return readTimeout;
     }
 
     public int getMaxRetries() {
@@ -257,6 +271,7 @@ final class AzureStorageSettings {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
         sb.append("account='").append(account).append('\'');
         sb.append(", timeout=").append(timeout);
+        sb.append(", readTimeout=").append(readTimeout);
         sb.append(", endpointSuffix='").append(endpointSuffix).append('\'');
         sb.append(", maxRetries=").append(maxRetries);
         sb.append(", proxy=").append(proxy);
@@ -299,6 +314,7 @@ final class AzureStorageSettings {
                 sasToken.toString(),
                 getValue(settings, clientName, ENDPOINT_SUFFIX_SETTING),
                 getValue(settings, clientName, TIMEOUT_SETTING),
+                getValue(settings, clientName, READ_TIMEOUT_SETTING),
                 getValue(settings, clientName, MAX_RETRIES_SETTING),
                 getValue(settings, clientName, PROXY_TYPE_SETTING),
                 getValue(settings, clientName, PROXY_HOST_SETTING),
@@ -390,12 +406,23 @@ final class AzureStorageSettings {
             && Objects.equals(connectString, that.connectString)
             && Objects.equals(endpointSuffix, that.endpointSuffix)
             && Objects.equals(timeout, that.timeout)
+            && Objects.equals(readTimeout, that.readTimeout)
             && Objects.equals(proxy, that.proxy)
             && Objects.equals(credentialsUsageFeatures, that.credentialsUsageFeatures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(account, connectString, endpointSuffix, timeout, maxRetries, proxy, hasCredentials, credentialsUsageFeatures);
+        return Objects.hash(
+            account,
+            connectString,
+            endpointSuffix,
+            timeout,
+            readTimeout,
+            maxRetries,
+            proxy,
+            hasCredentials,
+            credentialsUsageFeatures
+        );
     }
 }

@@ -9,9 +9,13 @@ mapped_pages:
 
 # {{esql}} dense vector functions [esql-dense-vector-functions]
 
+:::{tip}
+For more examples of these functions in action, refer to [the {{esql}} for search tutorial](/reference/query-languages/esql/esql-search-tutorial.md#vector-search-with-knn-similarity-functions-and-text_embedding).
+:::
+
 {{esql}} supports dense vector functions for vector similarity calculations and
 k-nearest neighbor search.
-Dsense vector functions work with [
+Dense vector functions work with [
 `dense_vector` fields](/reference/elasticsearch/mapping-reference/dense-vector.md)
 and require appropriate field mappings.
 
@@ -19,31 +23,3 @@ and require appropriate field mappings.
 
 :::{include} ../_snippets/lists/dense-vector-functions.md
 :::
-
-:::{include} ../_snippets/functions/layout/knn.md
-:::
-
-:::{include} ../_snippets/functions/layout/text_embedding.md
-:::
-
-:::{include} ../_snippets/functions/layout/v_cosine.md
-:::
-
-:::{include} ../_snippets/functions/layout/v_dot_product.md
-:::
-
-:::{include} ../_snippets/functions/layout/v_hamming.md
-:::
-
-:::{include} ../_snippets/functions/layout/v_l1_norm.md
-:::
-
-lists/dense-vector-functions.md
-:::{include} ../_snippets/functions/layout/v_l2_norm.md
-:::
-
-% V_MAGNITUDE is currently a hidden feature
-% To make it visible again, uncomment this and the line in
-% lists/dense-vector-functions.md
-% :::{include} ../_snippets/functions/layout/v_magnitude.md
-% :::

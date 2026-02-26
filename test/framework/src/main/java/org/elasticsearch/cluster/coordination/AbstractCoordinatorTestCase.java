@@ -1106,7 +1106,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     // relax lag detector
                     settingsBuilder.put(
                         LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(),
-                        randomFrom(TimeValue.ONE_HOUR, TimeValue.timeValueDays(100))
+                        randomFrom(TimeValue.ONE_HOUR, TimeValue.timeValueDays(100), TimeValue.ZERO, TimeValue.MINUS_ONE)
                     );
                 }
                 settingsBuilder.put(nodeSettings);

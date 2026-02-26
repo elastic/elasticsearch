@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
@@ -24,39 +25,33 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MvMinIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
-    public MvMinIntsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        super(blockAtATime, multiValues, missingValues);
+    public MvMinIntsFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
+        super(multiValues, missingValues);
     }
 
     @Override
-    protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
+    protected void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException {
         var intsLoader = new IntsBlockLoader("field");
         var mvMinIntsLoader = new MvMinIntsFromDocValuesBlockLoader("field");
 
-        var intsReader = intsLoader.reader(ctx);
-        var mvMinIntsReader = mvMinIntsLoader.reader(ctx);
-        assertThat(mvMinIntsReader, readerMatcher());
         BlockLoader.Docs docs = TestBlock.docs(ctx);
-        try (
-            TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-            TestBlock minInts = read(mvMinIntsLoader, mvMinIntsReader, ctx, docs);
-        ) {
-            checkBlocks(ints, minInts);
+        try (var intsReader = intsLoader.reader(breaker, ctx); var mvMinIntsReader = mvMinIntsLoader.reader(breaker, ctx);) {
+            assertThat(mvMinIntsReader, readerMatcher());
+            try (TestBlock ints = read(intsReader, docs); TestBlock minInts = read(mvMinIntsReader, docs);) {
+                checkBlocks(ints, minInts);
+            }
         }
 
-        intsReader = intsLoader.reader(ctx);
-        mvMinIntsReader = mvMinIntsLoader.reader(ctx);
-        for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-            int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-            for (int d = 0; d < docsArray.length; d++) {
-                docsArray[d] = i + d;
-            }
-            docs = TestBlock.docs(docsArray);
-            try (
-                TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-                TestBlock minInts = read(mvMinIntsLoader, mvMinIntsReader, ctx, docs);
-            ) {
-                checkBlocks(ints, minInts);
+        try (var intsReader = intsLoader.reader(breaker, ctx); var mvMinIntsReader = mvMinIntsLoader.reader(breaker, ctx);) {
+            for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                for (int d = 0; d < docsArray.length; d++) {
+                    docsArray[d] = i + d;
+                }
+                docs = TestBlock.docs(docsArray);
+                try (TestBlock ints = read(intsReader, docs); TestBlock minInts = read(mvMinIntsReader, docs);) {
+                    checkBlocks(ints, minInts);
+                }
             }
         }
     }

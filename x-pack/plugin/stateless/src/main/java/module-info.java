@@ -17,11 +17,9 @@
 
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
-import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.repositories.SnapshotShardContextFactory;
 import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 import org.elasticsearch.xpack.stateless.allocation.StatelessHeapUsageCollector;
-import org.elasticsearch.xpack.stateless.mapper.ServerlessRootObjectMapperNamespaceValidator;
 import org.elasticsearch.xpack.stateless.recovery.StatelessRestoreTransformer;
 import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotShardContextFactory;
 import org.elasticsearch.xpack.stateless.templates.StatelessTemplateSettingsDecoratorProvider;
@@ -45,7 +43,6 @@ module org.elasticsearch.xpack.stateless {
     // TODO: remove unnecessary "to" clauses ES-13786
     exports org.elasticsearch.xpack.stateless to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.action to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
-    exports org.elasticsearch.xpack.stateless.mapper to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.xpack to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.recovery to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.commits to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
@@ -74,7 +71,6 @@ module org.elasticsearch.xpack.stateless {
             org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingServiceProvider;
     provides EstimatedHeapUsageCollector with StatelessHeapUsageCollector;
     provides IndexMetadataRestoreTransformer with StatelessRestoreTransformer;
-    provides RootObjectMapperNamespaceValidator with ServerlessRootObjectMapperNamespaceValidator;
     provides SnapshotShardContextFactory with StatelessSnapshotShardContextFactory;
     provides TemplateDecoratorProvider with StatelessTemplateSettingsDecoratorProvider;
 }

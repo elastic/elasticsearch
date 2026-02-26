@@ -927,8 +927,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         /** The estimated heap usage should be zero, as was initialized in the ClusterInfo above. */
 
         var nodeHeapUsages = simulator.getEstimatedHeapUsages();
-        assertThat(nodeHeapUsages.get(harness.nodeId1).getEstimatedUsageBytes(), equalTo(0));
-        assertThat(nodeHeapUsages.get(harness.nodeId2).getEstimatedUsageBytes(), equalTo(0));
+        assertNull(nodeHeapUsages.get(harness.nodeId1));
+        assertNull(nodeHeapUsages.get(harness.nodeId2));
 
         var sourceNodeId = shardRouting1.currentNodeId();
         var targetNodeId = sourceNodeId == harness.nodeId1 ? harness.nodeId2 : harness.nodeId1;
@@ -946,8 +946,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
             simulator.simulateShardStarted(relocationShards.v2());
 
-            assertThat(nodeHeapUsages.get(sourceNodeId).getEstimatedUsageBytes(), equalTo(0));
-            assertThat(nodeHeapUsages.get(targetNodeId).getEstimatedUsageBytes(), equalTo(0));
+            assertNull(nodeHeapUsages.get(sourceNodeId));
+            assertNull(nodeHeapUsages.get(targetNodeId));
 
             // Want to continue testing with this shard later, so start it.
             shardRouting1 = allocation.routingNodes().startShard(relocationShards.v2(), allocation.changes(), 0);
@@ -970,7 +970,7 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                 .initializeShard(unassignedShardRouting, newTargetNodeId, null, 0, allocation.changes());
             simulator.simulateShardStarted(shardRouting1);
 
-            assertThat(nodeHeapUsages.get(newTargetNodeId).getEstimatedUsageBytes(), equalTo(0));
+            assertNull(nodeHeapUsages.get(newTargetNodeId));
         }
     }
 

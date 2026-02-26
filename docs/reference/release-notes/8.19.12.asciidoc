@@ -30,16 +30,27 @@ Infra/Core::
 * Reindexing older indices with percolator fields clears migration assistant errors {es-pull}141539[#141539]
 
 Machine Learning::
+* Add missing `job_id` filter to Anomaly Detection data deleter {es-pull}138160[#138160]
 * Reduce locking when persisting ML job statistics {es-pull}141519[#141519] (issue: {es-issue}140511[#140511])
 
 Mapping::
 * Allow shadowing time series metrics and dimension in non time series indexing {es-pull}141549[#141549] (issue: {es-issue}140882[#140882])
+
+Ranking::
+* Fixing for NPE when there is no query specified for the standard retriever {es-pull}142479[#142479] (issue: {es-issue}142336[#142336])
 
 Search::
 * Fix Top Hits Incompatible Field Types on Sort Across Indices {es-pull}142046[#142046] (issue: {es-issue}141906[#141906])
 * Fix handling empty collapse construct {es-pull}141973[#141973] (issue: {es-issue}139299[#139299])
 * Prevent large CancelTasksRequest descriptions by truncating nodes and actions {es-pull}141815[#141815]
 * Reduce cancellation check interval in `CancellableBulkScorer` for better responsiveness {es-pull}141747[#141747]
+
+Security::
+* Fix built-in roles sync to retry on lock contention instead of silently discarding pending updates {es-pull}142433[#142433]
+
+Transform::
+* Fix transform producing empty dest index when source query references runtime fields {es-pull}142450[#142450] (issue: {es-issue}113156[#113156])
+* Fix transform validation to reject PUT and `_start` when user lacks remote index permissions {es-pull}142403[#142403] (issue: {es-issue}95367[#95367])
 
 [[enhancement-8.19.12]]
 [float]
@@ -54,5 +65,3 @@ ES|QL::
 
 Packaging::
 * Updating bundled jdk version to 25.0.2+10 {es-pull}142500[#142500]
-
-

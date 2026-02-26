@@ -20,6 +20,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -62,6 +63,8 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeByte
 public class VectorScorerByteBenchmark {
 
     static {
+        NodeNamePatternConverter.setGlobalNodeName("benchmark");
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
         if (supportsHeapSegments() == false) {
             final Logger LOG = LogManager.getLogger(VectorScorerByteBenchmark.class);

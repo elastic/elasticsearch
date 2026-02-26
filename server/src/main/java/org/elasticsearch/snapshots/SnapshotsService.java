@@ -1250,6 +1250,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     entry.startTime(),
                     indexSnapshotDetails
                 );
+                assert snapshotInfo.state() != null;
                 final boolean snapshotInfoStateInvariant = getSnapshotInfoStateInvariant(snapshotInfo);
                 final ListenableFuture<List<ActionListener<SnapshotInfo>>> snapshotListeners = new ListenableFuture<>();
                 repo.finalizeSnapshot(
@@ -1260,7 +1261,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         metaForSnapshot,
                         snapshotInfo,
                         entry.version(),
-                        ActionListener.wrap(updatedRepositoryData -> {
+                        ActionListener.runBefore(ActionListener.wrap(updatedRepositoryData -> {
                             assert snapshotInfoStateInvariant : snapshot + " FAILED without future deletion";
                             // get a hold of the listeners for this snapshot here and store them in the future so they can be used
                             // by the snapshot info callback below and won't be failed needlessly if #runNextQueuedOperation runs into
@@ -1275,18 +1276,20 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 // we might have written the new root blob before failing here, so we must use the updated shardGenerations
                                 updatedShardGenerations
                             )
-                        ),
+                        ), () -> {
+                            RepositoryMetadata repoMetadata = repo.getMetadata();
+                            final Map<String, Object> attributes = Maps.copyMapWithAddedEntry(
+                                SnapshotMetrics.createAttributesMap(snapshot.getProjectId(), repoMetadata),
+                                "state",
+                                snapshotInfo.state().name()
+                            );
+                            snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributes);
+                            snapshotMetrics.snapshotsDurationHistogram()
+                                .record((threadPool.absoluteTimeInMillis() - snapshotInfo.startTime()) / 1_000.0, attributes);
+                        }),
                         () -> snapshotListeners.addListener(new ActionListener<>() {
                             @Override
                             public void onResponse(List<ActionListener<SnapshotInfo>> actionListeners) {
-                                final Map<String, Object> attributesWithState = Maps.copyMapWithAddedEntry(
-                                    SnapshotMetrics.createAttributesMap(snapshot.getProjectId(), repo.getMetadata()),
-                                    "state",
-                                    snapshotInfo.state().name()
-                                );
-                                snapshotMetrics.snapshotsCompletedCounter().incrementBy(1, attributesWithState);
-                                snapshotMetrics.snapshotsDurationHistogram()
-                                    .record((snapshotInfo.endTime() - snapshotInfo.startTime()) / 1_000.0, attributesWithState);
                                 SnapshotsServiceUtils.completeListenersIgnoringException(actionListeners, snapshotInfo);
                                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                             }

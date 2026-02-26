@@ -193,26 +193,38 @@ public class VectorScorerOSQBenchmark {
     @Benchmark
     public float[] score() throws IOException {
         float[] results = new float[numQueries * numVectors];
+
+        float[] scores = new float[bulkSize];
+        float[] lowerIntervals = new float[bulkSize];
+        float[] upperIntervals = new float[bulkSize];
+        int[] sums = new int[bulkSize];
+        float[] additional = new float[bulkSize];
+
         for (int j = 0; j < numQueries; j++) {
             input.seek(0);
-            for (int i = 0; i < numVectors; i++) {
-                float qDist = scorer.quantizeScore(binaryQueries[j].quantizedVector());
-                input.readFloats(corrections, 0, corrections.length);
-                int addition = Short.toUnsignedInt(input.readShort());
-                float score = scorer.score(
-                    binaryQueries[j].lowerInterval(),
-                    binaryQueries[j].upperInterval(),
-                    binaryQueries[j].quantizedComponentSum(),
-                    binaryQueries[j].additionalCorrection(),
-                    similarityFunction,
-                    centroidDp,
-                    corrections[0],
-                    corrections[1],
-                    addition,
-                    corrections[2],
-                    qDist
-                );
-                results[j * numVectors + i] = score;
+            for (int i = 0; i < numVectors; i += bulkSize) {
+                scorer.quantizeScoreBulk(binaryQueries[j].quantizedVector(), bulkSize, scores);
+                input.readFloats(lowerIntervals, 0, bulkSize);
+                input.readFloats(upperIntervals, 0, bulkSize);
+                input.readInts(sums, 0, bulkSize);
+                input.readFloats(additional, 0, bulkSize);
+
+                for (int b = 0; b < bulkSize; b++) {
+                    float score = scorer.score(
+                        binaryQueries[j].lowerInterval(),
+                        binaryQueries[j].upperInterval(),
+                        binaryQueries[j].quantizedComponentSum(),
+                        binaryQueries[j].additionalCorrection(),
+                        similarityFunction,
+                        centroidDp,
+                        lowerIntervals[b],
+                        upperIntervals[b],
+                        sums[b],
+                        additional[b],
+                        scores[b]
+                    );
+                    results[j * numVectors + i + b] = score;
+                }
             }
         }
         return results;

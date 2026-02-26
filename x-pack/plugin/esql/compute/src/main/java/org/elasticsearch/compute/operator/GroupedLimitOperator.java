@@ -212,14 +212,6 @@ public class GroupedLimitOperator implements Operator {
             return ENTRY.name;
         }
 
-        public int limitPerGroup() {
-            return limitPerGroup;
-        }
-
-        public int groupCount() {
-            return groupCount;
-        }
-
         public int pagesProcessed() {
             return pagesProcessed;
         }

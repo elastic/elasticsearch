@@ -570,7 +570,7 @@ public class LocalExecutionPlanner {
         }).toList();
         List<Integer> groupKeys = topNExec.groupings()
             .stream()
-            .map(grouping -> getAttributeChannel(grouping, layout, "expression in LIMIT BY must be an attribute"))
+            .map(grouping -> getAttributeChannel(grouping, layout, "LIMIT BY expression must be an attribute"))
             .toList();
 
         int limit;
@@ -1227,7 +1227,7 @@ public class LocalExecutionPlanner {
         Layout layout = source.layout;
         List<Integer> groupKeys = limit.groupings()
             .stream()
-            .map(g -> getAttributeChannel(g, layout, "expression in LIMIT BY must be an attribute"))
+            .map(g -> getAttributeChannel(g, layout, "LIMIT BY expression must be an attribute"))
             .toList();
         List<Layout.ChannelSet> inverse = layout.inverse();
         List<ElementType> elementTypes = new ArrayList<>(layout.numberOfChannels());

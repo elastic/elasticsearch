@@ -60,44 +60,44 @@ public class PositionKeyEncoder {
             writeVInt(0);
             return;
         }
-        int firstValue = block.getFirstValueIndex(position);
+        int firstValueIndex = block.getFirstValueIndex(position);
         int valueCount = block.getValueCount(position);
         writeVInt(valueCount);
         switch (type) {
             case INT -> {
                 IntBlock b = (IntBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    writeInt(b.getInt(firstValue + v));
+                    writeInt(b.getInt(firstValueIndex + v));
                 }
             }
             case LONG -> {
                 LongBlock b = (LongBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    writeLong(b.getLong(firstValue + v));
+                    writeLong(b.getLong(firstValueIndex + v));
                 }
             }
             case DOUBLE -> {
                 DoubleBlock b = (DoubleBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    writeLong(Double.doubleToLongBits(b.getDouble(firstValue + v)));
+                    writeLong(Double.doubleToLongBits(b.getDouble(firstValueIndex + v)));
                 }
             }
             case FLOAT -> {
                 FloatBlock b = (FloatBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    writeInt(Float.floatToIntBits(b.getFloat(firstValue + v)));
+                    writeInt(Float.floatToIntBits(b.getFloat(firstValueIndex + v)));
                 }
             }
             case BOOLEAN -> {
                 BooleanBlock b = (BooleanBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    scratch.append((byte) (b.getBoolean(firstValue + v) ? 1 : 0));
+                    scratch.append((byte) (b.getBoolean(firstValueIndex + v) ? 1 : 0));
                 }
             }
             case BYTES_REF -> {
                 BytesRefBlock b = (BytesRefBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    BytesRef ref = b.getBytesRef(firstValue + v, scratchBytesRef);
+                    BytesRef ref = b.getBytesRef(firstValueIndex + v, scratchBytesRef);
                     writeVInt(ref.length);
                     scratch.append(ref.bytes, ref.offset, ref.length);
                 }

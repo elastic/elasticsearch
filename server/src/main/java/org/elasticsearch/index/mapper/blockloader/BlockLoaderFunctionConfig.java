@@ -45,7 +45,17 @@ public interface BlockLoaderFunctionConfig {
         }
     }
 
-    record WithExclusions(Function function, Set<String> excludedFields) implements BlockLoaderFunctionConfig {};
+    /**
+     * Configuration for loading time-series metadata fields from {@code _source}.
+     * Controls which field types to include (dimensions, metrics, or both)
+     * and which dimensions to exclude.
+     */
+    record TimeSeriesMetadata(boolean loadMetrics, Set<String> excludeDimensions) implements BlockLoaderFunctionConfig {
+        @Override
+        public Function function() {
+            return Function.TIME_SERIES_METADATA;
+        }
+    }
 
     enum Function {
         AMD_COUNT,
@@ -62,7 +72,6 @@ public interface BlockLoaderFunctionConfig {
         V_HAMMING,
         V_L1NORM,
         V_L2NORM,
-        TIME_SERIES_DIMENSIONS,
-        TIME_SERIES_METRICS_AND_DIMENSIONS
+        TIME_SERIES_METADATA
     }
 }

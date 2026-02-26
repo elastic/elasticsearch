@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * A grouping function that modifies the effective {@code _tsid} grouping to exclude the specified dimension fields.
+ * Grouping function that modifies the effective {@code _tsid} grouping to exclude the specified dimension fields.
  */
 public class TsdimWithout extends GroupingFunction.NonEvaluatableGroupingFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

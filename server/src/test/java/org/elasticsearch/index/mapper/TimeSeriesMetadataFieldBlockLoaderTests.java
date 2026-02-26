@@ -52,9 +52,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
         assertThat(sourceMapper.enabled(), equalTo(true));
 
-        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.JustFunction(
-            BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS
-        );
+        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of());
 
         BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(createBlockLoaderContext(mapperService, config));
 
@@ -124,9 +122,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
         assertThat(sourceMapper.enabled(), equalTo(true));
 
-        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.JustFunction(
-            BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS
-        );
+        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of());
 
         BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(createBlockLoaderContext(mapperService, config));
 
@@ -161,9 +157,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         MapperService mapperService = createMapperService(settings, mapping);
         SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
 
-        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.JustFunction(
-            BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS
-        );
+        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of());
 
         BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(createBlockLoaderContext(mapperService, config));
 
@@ -202,15 +196,11 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         MapperService mapperService = createMapperService(settings, mapping);
         SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
 
-        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.JustFunction(
-            BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS
-        );
+        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.TimeSeriesMetadata(true, Set.of());
 
         BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(createBlockLoaderContext(mapperService, config));
 
         assertThat(blockLoader, instanceOf(TimeSeriesMetadataFieldBlockLoader.class));
-
-        // Should only include dimensions and metrics, not regular fields (message, status_code, tags)
         var storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
         Set<String> requiredFields = storedFieldsSpec.requiresSource() ? storedFieldsSpec.sourcePaths() : Set.of();
         assertThat(requiredFields, equalTo(Set.of("host", "env", "cpu", "request_count")));
@@ -241,10 +231,7 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         MapperService mapperService = createMapperService(settings, mapping);
         SourceFieldMapper sourceMapper = mapperService.documentMapper().sourceMapper();
 
-        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.WithExclusions(
-            BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS,
-            Set.of("host")
-        );
+        BlockLoaderFunctionConfig config = new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, Set.of("host"));
 
         BlockLoader blockLoader = sourceMapper.fieldType().blockLoader(createBlockLoaderContext(mapperService, config));
 
@@ -256,11 +243,20 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
     }
 
     private MappedFieldType.BlockLoaderContext createBlockLoaderContext(MapperService mapperService, BlockLoaderFunctionConfig config) {
-        return new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
-            @Override
-            public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-                return config;
-            }
-        };
+        return new TestBlockLoaderContext(mapperService, config);
+    }
+
+    private static class TestBlockLoaderContext extends DummyBlockLoaderContext.MapperServiceBlockLoaderContext {
+        private final BlockLoaderFunctionConfig config;
+
+        private TestBlockLoaderContext(MapperService mapperService, BlockLoaderFunctionConfig config) {
+            super(mapperService);
+            this.config = config;
+        }
+
+        @Override
+        public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+            return config;
+        }
     }
 }

@@ -350,12 +350,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (enabled) {
-                BlockLoaderFunctionConfig config = blContext.blockLoaderFunctionConfig();
-                if (config != null && config.function() == BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS) {
-                    Set<String> excluded = config instanceof BlockLoaderFunctionConfig.WithExclusions we ? we.excludedFields() : Set.of();
-                    return new TimeSeriesMetadataFieldBlockLoader(blContext, true, false, excluded);
-                } else if (config != null && config.function() == BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS) {
-                    return new TimeSeriesMetadataFieldBlockLoader(blContext, true, true);
+                var config = blContext.blockLoaderFunctionConfig();
+                if (config instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata tsm) {
+                    return new TimeSeriesMetadataFieldBlockLoader(blContext, true, tsm.loadMetrics());
                 }
                 return new SourceFieldBlockLoader();
             }

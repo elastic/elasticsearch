@@ -15,14 +15,13 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-
-import static java.util.Collections.emptySet;
 
 /**
  * Load {@code _timeseries} into blocks.
@@ -32,19 +31,10 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     private final Set<String> metadataFields;
 
     public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadDimensions, boolean loadMetrics) {
-        this(context, loadDimensions, loadMetrics, emptySet());
-    }
-
-    public TimeSeriesMetadataFieldBlockLoader(
-        MappedFieldType.BlockLoaderContext context,
-        boolean loadDimensions,
-        boolean loadMetrics,
-        Set<String> skipFields
-    ) {
         if (loadDimensions == false && loadMetrics == false) {
             throw new IllegalArgumentException("At least one type of metadata (dimension or metric) is required");
         }
-        this.metadataFields = timeSeriesMetadata(context, loadDimensions, loadMetrics, skipFields);
+        this.metadataFields = timeSeriesMetadata(context, loadDimensions, loadMetrics);
     }
 
     @Override
@@ -97,16 +87,14 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         }
     }
 
-    private Set<String> timeSeriesMetadata(
-        MappedFieldType.BlockLoaderContext ctx,
-        boolean loadDimensions,
-        boolean loadMetrics,
-        Set<String> skipFields
-    ) {
+    private Set<String> timeSeriesMetadata(MappedFieldType.BlockLoaderContext ctx, boolean loadDimensions, boolean loadMetrics) {
         if (ctx.indexSettings().getMode() != IndexMode.TIME_SERIES) {
             throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
         }
 
+        assert ctx.blockLoaderFunctionConfig() instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata;
+
+        var excludeDimensions = ((BlockLoaderFunctionConfig.TimeSeriesMetadata) ctx.blockLoaderFunctionConfig()).excludeDimensions();
         Set<String> result = new LinkedHashSet<>();
 
         if (loadDimensions && loadMetrics == false) {
@@ -114,6 +102,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
             List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
             if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
                 result.addAll(dimensionFieldsFromSettings);
+                result.removeAll(excludeDimensions);
                 return result;
             }
         }
@@ -123,7 +112,10 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
             if (mapper instanceof FieldMapper fieldMapper) {
                 MappedFieldType fieldType = fieldMapper.fieldType();
                 if (loadDimensions && fieldType.isDimension()) {
-                    result.add(fieldType.name());
+                    var fieldName = fieldType.name();
+                    if (excludeDimensions.contains(fieldName) == false) {
+                        result.add(fieldType.name());
+                    }
                 }
 
                 if (loadMetrics && fieldType.getMetricType() != null) {
@@ -131,8 +123,6 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
                 }
             }
         }
-
-        result.removeAll(skipFields);
 
         return result;
     }

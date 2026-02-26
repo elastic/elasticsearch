@@ -10,13 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.*;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
@@ -26,19 +20,10 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TsdimWithout;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
-import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.*;
 import org.elasticsearch.xpack.esql.planner.AggregateMapper;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * A rule that moves `VALUES(dimension-field)` aggregations in time-series aggregations
@@ -99,7 +84,6 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                         }
                         Attribute oldAttr = oldIntermediates.get(intermediateOffset);
                         if (MetadataAttribute.isTimeSeriesAttribute(dimensionField)) {
-                            BlockLoaderFunctionConfig loaderConfig = blockLoaderConfigForTimeSeries(excludedDimensions);
                             var sourceField = new FieldAttribute(
                                 dimensionField.source(),
                                 null,
@@ -114,7 +98,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                         EsField.TimeSeriesFieldType.DIMENSION
                                     ),
                                     DataType.KEYWORD,
-                                    loaderConfig
+                                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(/*loadMetrics=*/ false, excludedDimensions)
                                 ),
                                 true
                             );
@@ -163,16 +147,6 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
             evalExec = new EvalExec(oldAgg.source(), fieldExtractExec, aliases);
         }
         return new ProjectExec(oldAgg.source(), evalExec, oldIntermediates);
-    }
-
-    private static BlockLoaderFunctionConfig blockLoaderConfigForTimeSeries(Set<String> excludedDimensions) {
-        if (excludedDimensions.isEmpty() == false) {
-            return new BlockLoaderFunctionConfig.WithExclusions(
-                BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS,
-                excludedDimensions
-            );
-        }
-        return new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS);
     }
 
     private static Attribute valuesOfDimensionField(AggregateFunction af, AttributeSet inputAttributes) {

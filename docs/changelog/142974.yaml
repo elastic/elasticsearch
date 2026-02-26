@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 139928
 pr: 142974
-summary: "Feat(es|ql): add `dense_vector` support to coalesce"
+summary: Add support for `dense_vector` in `COALESCE`
 type: enhancement

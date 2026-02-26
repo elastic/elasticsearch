@@ -20,7 +20,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
@@ -120,7 +120,7 @@ public final class InactiveApiKeysRemover extends AbstractRunnable {
                     failure.getCause()
                 );
             }
-            for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
+            for (PaginatedHitSource.SearchFailure failure : response.getSearchFailures()) {
                 logger.debug(
                     () -> format(
                         "search failed for index [%s], shard [%s] on node [%s]",

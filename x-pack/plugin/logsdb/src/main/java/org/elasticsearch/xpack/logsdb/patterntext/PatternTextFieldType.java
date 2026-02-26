@@ -29,6 +29,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
@@ -119,6 +120,9 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        if (disableTemplating) {
+            return storedFieldValueFetcher();
+        }
         return new ValueFetcher() {
             BinaryDocValues docValues;
 
@@ -133,7 +137,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
             @Override
             public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
-                if (false == docValues.advanceExact(doc)) {
+                if (docValues == null || false == docValues.advanceExact(doc)) {
                     return List.of();
                 }
                 return List.of(docValues.binaryValue().utf8ToString());
@@ -141,7 +145,39 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                // PatternedTextCompositeValues may require a stored field, but it handles loading this field internally.
+                // PatternTextCompositeValues may require a stored field, but it handles loading this field internally.
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
+        };
+    }
+
+    private ValueFetcher storedFieldValueFetcher() {
+        var loader = StoredFieldLoader.create(false, Set.of(storedNamed()));
+        return new ValueFetcher() {
+            LeafStoredFieldLoader leafLoader;
+
+            @Override
+            public void setNextReader(LeafReaderContext context) {
+                try {
+                    this.leafLoader = loader.getLoader(context, null);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            @Override
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+                leafLoader.advanceTo(doc);
+                var storedFields = leafLoader.storedFields();
+                var values = storedFields.get(storedNamed());
+                if (values == null || values.isEmpty()) {
+                    return List.of();
+                }
+                return List.of(((BytesRef) values.getFirst()).utf8ToString());
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
                 return StoredFieldsSpec.NO_REQUIREMENTS;
             }
         };
@@ -174,7 +210,11 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             return docId -> {
                 leafLoader.advanceTo(docId);
                 var storedFields = leafLoader.storedFields();
-                return storedFields.get(name);
+                var values = storedFields.get(name);
+                if (values == null || values.isEmpty()) {
+                    return List.of();
+                }
+                return List.of(((BytesRef) values.getFirst()).utf8ToString());
             };
         };
     }

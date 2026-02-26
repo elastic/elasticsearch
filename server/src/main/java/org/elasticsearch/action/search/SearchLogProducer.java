@@ -76,7 +76,6 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
             }
         }
         return Optional.of(msg);
-
     }
 
     public void setLogSystemSearches(boolean logSystemSearches) {

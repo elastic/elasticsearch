@@ -17,6 +17,8 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PointInSetQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.compute.data.Block;
@@ -170,19 +172,12 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         // copied from UsageTrackingQueryCachingPolicy
         private static boolean costlyToBuildScorer(Query query) {
-            if (query instanceof MultiTermQuery) {
+            if (query instanceof MultiTermQuery || query instanceof PointRangeQuery || query instanceof PointInSetQuery) {
                 return true;
             }
             final String clazzName = query.getClass().getSimpleName();
             if (clazzName.equals("MultiTermQueryConstantScoreBlendedWrapper") || clazzName.equals("MultiTermQueryConstantScoreWrapper")) {
                 return true;
-            }
-            // we need to check for super classes because we occasionally use anonymous sub classes of eg. PointRangeQuery
-            for (Class<?> clazz = query.getClass(); clazz != Query.class; clazz = clazz.getSuperclass()) {
-                final String simpleName = clazz.getSimpleName();
-                if (simpleName.startsWith("Point") && simpleName.endsWith("Query")) {
-                    return true;
-                }
             }
             return false;
         }

@@ -62,7 +62,6 @@ import java.util.stream.Collectors;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.PROJECT_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
 

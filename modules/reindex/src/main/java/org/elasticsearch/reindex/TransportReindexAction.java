@@ -114,6 +114,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             scriptService,
             sslConfig,
             reindexMetrics,
+            transportService.getTaskManager(),
             transportService,
             relocationNodePicker
         );

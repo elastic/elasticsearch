@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
@@ -37,6 +38,7 @@ public final class SystemPrivilege extends Privilege {
         "indices:admin/template/put", // needed for the TemplateUpgradeService
         "indices:admin/template/delete", // needed for the TemplateUpgradeService
         "indices:admin/seq_no/global_checkpoint_sync*", // needed for global checkpoint syncs
+        RefreshAction.NAME + "*", // needed for reshard to invoke refresh
         "indices:admin/reshard/split*", // needed for reshard operations
         RetentionLeaseSyncAction.ACTION_NAME + "*", // needed for retention lease syncs
         RetentionLeaseBackgroundSyncAction.ACTION_NAME + "*", // needed for background retention lease syncs

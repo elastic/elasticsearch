@@ -32,7 +32,7 @@ public class ForceMergeStep implements DlmStep {
      * Index setting that indicates whether DLM force merge has been completed for this index.
      */
     public static final Setting<Boolean> DLM_FORCE_MERGE_COMPLETE_SETTING = Setting.boolSetting(
-        "dlm.force_merge_complete",
+        "index.dlm.force_merge_complete",
         false,
         Setting.Property.Dynamic,
         Setting.Property.IndexScope

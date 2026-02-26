@@ -392,9 +392,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/142843
-- class: org.elasticsearch.compute.operator.exchange.BatchDriverTests
-  method: testSinglePageSingleBatch
-  issue: https://github.com/elastic/elasticsearch/issues/142895
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/to_aggregate_metric_double with multi_values}
   issue: https://github.com/elastic/elasticsearch/issues/142964

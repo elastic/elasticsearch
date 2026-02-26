@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInt
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -148,8 +147,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                             existingUnparsedModel.inferenceEntityId(),
                             existingUnparsedModel.taskType(),
                             existingUnparsedModel.service(),
-                            new HashMap<>(existingUnparsedModel.settings()),
-                            new HashMap<>(existingUnparsedModel.secrets())
+                            existingUnparsedModel.settings(),
+                            existingUnparsedModel.secrets()
                         )
                     );
 

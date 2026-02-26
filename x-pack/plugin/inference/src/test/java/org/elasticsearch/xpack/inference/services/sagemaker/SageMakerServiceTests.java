@@ -128,8 +128,16 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets() {
-        sageMakerService.parsePersistedConfig(new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), Map.of()));
-        verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(Map.of()));
+        sageMakerService.parsePersistedConfig(
+            new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), Map.of("key", "value"))
+        );
+        verify(modelBuilder, only()).fromStorage(
+            eq("modelId"),
+            eq(TaskType.ANY),
+            eq(SageMakerService.NAME),
+            eq(Map.of()),
+            eq(Map.of("key", "value"))
+        );
     }
 
     public void testParsePersistedConfig_WithoutSecrets() {

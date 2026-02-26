@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Represents an estimate of the heap used by allocated shards and ongoing merges on a particular node
@@ -76,5 +77,24 @@ public class EstimatedHeapUsage implements Writeable {
     // Visible for testing
     public long getEstimatedUsageBytes() {
         return estimatedUsageBytes;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodeId, totalBytes, estimatedUsageBytes);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
+
+        EstimatedHeapUsage other = (EstimatedHeapUsage) obj;
+        return nodeId.equals(other.nodeId) && totalBytes == other.totalBytes && estimatedUsageBytes == other.estimatedUsageBytes;
+
     }
 }

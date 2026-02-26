@@ -706,6 +706,8 @@ to_aggregate_metric_double with multi_values:
           - {"index": {}}
           - {"some_long_field": [20385, 182941, -10958], "some_double_field": [195.1, 102.444], "some_int_field": [64, 121, 498, 1456], "some_unsigned_long_field": [13985, 19418924, 123]}
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       esql.query:
         body:
           query: 'FROM new_test | EVAL from_long=TO_AGGREGATE_METRIC_DOUBLE(some_long_field), from_double=TO_AGGREGATE_METRIC_DOUBLE(some_double_field), from_int=TO_AGGREGATE_METRIC_DOUBLE(some_int_field), from_ulong=TO_AGGREGATE_METRIC_DOUBLE(some_unsigned_long_field) | KEEP from_long, from_double, from_int, from_ulong | LIMIT 1'
@@ -818,6 +820,8 @@ TS Command grouping on text field:
           - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}, "text_field": "peak text"}'
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       esql.query:
         body:
           query: |

@@ -70,7 +70,7 @@ public class ReindexMetrics {
         reindexCompletionCounter.incrementBy(1, attributes);
     }
 
-    public void recordFailure(boolean remote, Throwable e, SlicingMode slicingMode) {
+    public void recordFailure(boolean remote, SlicingMode slicingMode, Throwable e) {
         Map<String, Object> attributes = getAttributes(remote, slicingMode);
         // best effort to extract useful error type if possible
         String errorType;

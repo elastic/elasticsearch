@@ -83,7 +83,7 @@ public class ReindexerTests extends ESTestCase {
 
         verify(listener).onFailure(exception);
         verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(true, exception, slicingMode);
+        verify(metrics).recordFailure(true, slicingMode, exception);
         verify(metrics).recordTookTime(anyLong(), eq(true), eq(slicingMode));
     }
 
@@ -103,7 +103,7 @@ public class ReindexerTests extends ESTestCase {
 
         verify(listener).onResponse(response);
         verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(false, exception, slicingMode);
+        verify(metrics).recordFailure(false, slicingMode, exception);
         verify(metrics).recordTookTime(anyLong(), eq(false), eq(slicingMode));
     }
 
@@ -123,7 +123,7 @@ public class ReindexerTests extends ESTestCase {
 
         verify(listener).onResponse(response);
         verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(true, exception, slicingMode);
+        verify(metrics).recordFailure(true, slicingMode, exception);
         verify(metrics).recordTookTime(anyLong(), eq(true), eq(slicingMode));
     }
 

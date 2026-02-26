@@ -88,7 +88,7 @@ public class ReindexMetricsTests extends ESTestCase {
 
     public void testRecordFailure() {
         // first metric
-        metrics.recordFailure(false, new IllegalArgumentException("random failure"), ReindexMetrics.SlicingMode.AUTO_FIXED);
+        metrics.recordFailure(false, ReindexMetrics.SlicingMode.AUTO_FIXED, new IllegalArgumentException("random failure"));
 
         List<Measurement> measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_COMPLETION_COUNTER);
         assertEquals(1, measurements.size());
@@ -100,8 +100,7 @@ public class ReindexMetricsTests extends ESTestCase {
         // second metric
         metrics.recordFailure(
             true,
-            new ElasticsearchStatusException("another failure", RestStatus.BAD_REQUEST),
-            ReindexMetrics.SlicingMode.AUTO_AUTO
+            ReindexMetrics.SlicingMode.AUTO_AUTO, new ElasticsearchStatusException("another failure", RestStatus.BAD_REQUEST)
         );
 
         measurements = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REINDEX_COMPLETION_COUNTER);

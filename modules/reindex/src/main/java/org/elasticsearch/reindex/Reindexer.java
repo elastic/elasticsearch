@@ -233,7 +233,7 @@ public class Reindexer {
                 if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
                     // record only the first sample error in metric
                     Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
-                    metrics.recordFailure(isRemote, e, slicingMode);
+                    metrics.recordFailure(isRemote, slicingMode, e);
                     listener.onResponse(bulkByScrollResponse);
                 } else {
                     metrics.recordSuccess(isRemote, slicingMode);
@@ -243,7 +243,7 @@ public class Reindexer {
 
             @Override
             public void onFailure(Exception e) {
-                metrics.recordFailure(isRemote, e, slicingMode);
+                metrics.recordFailure(isRemote, slicingMode, e);
                 listener.onFailure(e);
             }
         };

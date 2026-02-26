@@ -81,27 +81,51 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
     }
 
     private void scoreSeparately(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
-        float[] firstVector = null;
 
-        MemorySegment firstSeg = input.segmentForEntryOrNull(firstOrd);
-        if (firstSeg == null) {
-            firstVector = values.vectorValue(firstOrd).clone();
+        MemorySegment queryVectorSeg = input.segmentForEntryOrNull(firstOrd);
+        if (queryVectorSeg == null) {
+            float[] firstVector = values.vectorValue(firstOrd).clone();
             for (int i = 0; i < numNodes; i++) {
                 scores[i] = fallbackScorer.compare(firstVector, values.vectorValue(ordinals[i]));
             }
         } else {
-            for (int i = 0; i < numNodes; i++) {
+            try (var arena = Arena.ofConfined()) {
+                var vectorsInBatch = Math.min(ordinals.length, 32);
+                var vectorsSeg = arena.allocate(vectorsInBatch * dims * Float.BYTES, 32);
 
-                MemorySegment secondSeg = input.segmentForEntryOrNull(ordinals[i]);
-                if (secondSeg == null) {
-                    if (firstVector == null) {
-                        firstVector = values.vectorValue(firstOrd).clone();
-                    }
-                    scores[i] = fallbackScorer.compare(firstVector, values.vectorValue(ordinals[i]));
-                } else {
-                    scores[i] = scoreFromSegments(firstSeg, secondSeg);
+                int i = 0;
+                for (; i + vectorsInBatch <= numNodes; i += vectorsInBatch) {
+                    scoreBatch(ordinals, i, vectorsInBatch, vectorsSeg, queryVectorSeg, scores, arena);
+                }
+                if (i < numNodes) {
+                    scoreBatch(ordinals, i, numNodes - i, vectorsSeg, queryVectorSeg, scores, arena);
                 }
             }
+        }
+    }
+
+    private void scoreBatch(
+        int[] ordinals,
+        int offset,
+        int vectorsInBatch,
+        MemorySegment vectorsSeg,
+        MemorySegment queryVectorSeg,
+        float[] scores,
+        Arena arena
+    ) throws IOException {
+        for (int j = 0; j < vectorsInBatch; j++) {
+            var ordinal = ordinals[offset + j];
+            MemorySegment.copy(values.vectorValue(ordinal), 0, vectorsSeg, ValueLayout.JAVA_FLOAT, (long) j * dims * Float.BYTES, dims);
+        }
+
+        if (SUPPORTS_HEAP_SEGMENTS) {
+            var scoresMemorySegment = MemorySegment.ofArray(scores)
+                .asSlice((long) offset * Float.BYTES, (long) vectorsInBatch * Float.BYTES);
+            bulkScoreFromSegment(vectorsSeg, queryVectorSeg, dims, scoresMemorySegment, vectorsInBatch);
+        } else {
+            var scoresMemorySegment = arena.allocate((long) vectorsInBatch * Float.BYTES, 32);
+            bulkScoreFromSegment(vectorsSeg, queryVectorSeg, dims, scoresMemorySegment, vectorsInBatch);
+            MemorySegment.copy(scoresMemorySegment, ValueLayout.JAVA_FLOAT, 0, scores, offset, vectorsInBatch);
         }
     }
 
@@ -127,6 +151,14 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         int vectorPitch,
         int firstOrd,
         MemorySegment ordinals,
+        MemorySegment scores,
+        int numNodes
+    );
+
+    abstract void bulkScoreFromSegment(
+        MemorySegment vectors,
+        MemorySegment queryVector,
+        int vectorLength,
         MemorySegment scores,
         int numNodes
     );
@@ -193,6 +225,16 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         }
 
         @Override
+        void bulkScoreFromSegment(MemorySegment vectors, MemorySegment queryVector, int vectorLength, MemorySegment scores, int numNodes) {
+            Similarities.squareDistanceF32Bulk(vectors, queryVector, dims, numNodes, scores);
+
+            for (int i = 0; i < numNodes; ++i) {
+                float squareDistance = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.normalizeDistanceToUnitInterval(squareDistance));
+            }
+        }
+
+        @Override
         public EuclideanSupplier copy() {
             return new EuclideanSupplier(input.clone(), values);
         }
@@ -239,6 +281,16 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         }
 
         @Override
+        void bulkScoreFromSegment(MemorySegment vectors, MemorySegment queryVector, int vectorLength, MemorySegment scores, int numNodes) {
+            Similarities.dotProductF32Bulk(vectors, queryVector, dims, numNodes, scores);
+
+            for (int i = 0; i < numNodes; ++i) {
+                float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.normalizeToUnitInterval(dotProduct));
+            }
+        }
+
+        @Override
         public DotProductSupplier copy() {
             return new DotProductSupplier(input.clone(), values);
         }
@@ -268,6 +320,16 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
             long firstByteOffset = (long) firstOrd * vectorPitch;
             var firstVector = vectors.asSlice(firstByteOffset, vectorPitch);
             Similarities.dotProductF32BulkWithOffsets(vectors, firstVector, dims, vectorPitch, ordinals, numNodes, scores);
+
+            for (int i = 0; i < numNodes; ++i) {
+                float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                scores.setAtIndex(ValueLayout.JAVA_FLOAT, i, VectorUtil.scaleMaxInnerProductScore(dotProduct));
+            }
+        }
+
+        @Override
+        void bulkScoreFromSegment(MemorySegment vectors, MemorySegment queryVector, int vectorLength, MemorySegment scores, int numNodes) {
+            Similarities.dotProductF32Bulk(vectors, queryVector, dims, numNodes, scores);
 
             for (int i = 0; i < numNodes; ++i) {
                 float dotProduct = scores.getAtIndex(ValueLayout.JAVA_FLOAT, i);

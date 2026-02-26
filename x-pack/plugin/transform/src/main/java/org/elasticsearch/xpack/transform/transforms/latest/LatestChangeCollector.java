@@ -105,7 +105,7 @@ class LatestChangeCollector implements Function.ChangeCollector {
             }
         }
 
-        return compositeAgg.afterKey();
+        return compositeAgg.getBuckets().size() < compositeAggregation.size() ? null : compositeAgg.afterKey();
     }
 
     /**

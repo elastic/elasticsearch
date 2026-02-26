@@ -79,8 +79,20 @@ teardown:
 
   - length: { preview: 3 }
 
+  # With multi-field unique key [order_id, region], each combination should pick highest updated_at.
+  # Results sorted lexicographically by [order_id, region].
+  - match: { preview.0.order_id: "order-1" }
+  - match: { preview.0.region: "US" }
+  - match: { preview.0.status: "accepted" }
+  - match: { preview.1.order_id: "order-2" }
+  - match: { preview.1.region: "EU" }
+  - match: { preview.1.status: "shipped" }
+  - match: { preview.2.order_id: "order-3" }
+  - match: { preview.2.region: "US" }
+  - match: { preview.2.status: "delivered" }
+
 ---
-"Test latest preview as index request includes document IDs":
+"Test latest preview includes document IDs":
   - do:
       transform.preview_transform:
         body: >
@@ -93,6 +105,17 @@ teardown:
           }
 
   - length: { preview: 3 }
-  - is_true: preview.0.order_id
-  - is_true: preview.0.status
+
+  # Verify all expected fields are present with correct values.
+  - match: { preview.0.order_id: "order-1" }
+  - match: { preview.0.region: "US" }
+  - match: { preview.0.status: "accepted" }
   - is_true: preview.0.updated_at
+  - match: { preview.1.order_id: "order-2" }
+  - match: { preview.1.region: "EU" }
+  - match: { preview.1.status: "shipped" }
+  - is_true: preview.1.updated_at
+  - match: { preview.2.order_id: "order-3" }
+  - match: { preview.2.region: "US" }
+  - match: { preview.2.status: "delivered" }
+  - is_true: preview.2.updated_at

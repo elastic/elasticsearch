@@ -93,42 +93,36 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     static Boolean evaluateFilter(Expression filter, Map<String, Object> partitionValues) {
-        if (filter instanceof Equals eq) {
-            return evaluateComparison(eq.left(), eq.right(), partitionValues, FileSplitProvider::compareEquals);
-        }
-        if (filter instanceof NotEquals neq) {
-            Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, FileSplitProvider::compareEquals);
-            return result != null ? result == false : null;
-        }
-        if (filter instanceof GreaterThanOrEqual gte) {
-            return evaluateComparison(gte.left(), gte.right(), partitionValues, (a, b) -> compareValues(a, b) >= 0);
-        }
-        if (filter instanceof GreaterThan gt) {
-            return evaluateComparison(gt.left(), gt.right(), partitionValues, (a, b) -> compareValues(a, b) > 0);
-        }
-        if (filter instanceof LessThanOrEqual lte) {
-            return evaluateComparison(lte.left(), lte.right(), partitionValues, (a, b) -> compareValues(a, b) <= 0);
-        }
-        if (filter instanceof LessThan lt) {
-            return evaluateComparison(lt.left(), lt.right(), partitionValues, (a, b) -> compareValues(a, b) < 0);
-        }
-        if (filter instanceof In in) {
-            String columnName = extractColumnName(in.value());
-            if (columnName == null || partitionValues.containsKey(columnName) == false) {
-                return null;
+        return switch (filter) {
+            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, FileSplitProvider::compareEquals);
+            case NotEquals neq -> {
+                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, FileSplitProvider::compareEquals);
+                yield result != null ? result == false : null;
             }
-            Object partitionValue = partitionValues.get(columnName);
-            for (Expression listItem : in.list()) {
-                if (listItem instanceof Literal lit == false) {
-                    return null;
+            case GreaterThanOrEqual gte -> evaluateComparison(gte.left(), gte.right(), partitionValues, (a, b) -> compareValues(a, b) >= 0);
+            case GreaterThan gt -> evaluateComparison(gt.left(), gt.right(), partitionValues, (a, b) -> compareValues(a, b) > 0);
+            case LessThanOrEqual lte -> evaluateComparison(lte.left(), lte.right(), partitionValues, (a, b) -> compareValues(a, b) <= 0);
+            case LessThan lt -> evaluateComparison(lt.left(), lt.right(), partitionValues, (a, b) -> compareValues(a, b) < 0);
+            case In in -> {
+                String columnName = extractColumnName(in.value());
+                if (columnName == null || partitionValues.containsKey(columnName) == false) {
+                    yield null;
                 }
-                if (compareEquals(partitionValue, ((Literal) listItem).value())) {
-                    return true;
+                Object partitionValue = partitionValues.get(columnName);
+                Boolean found = false;
+                for (Expression listItem : in.list()) {
+                    if (listItem instanceof Literal lit == false) {
+                        yield null;
+                    }
+                    if (compareEquals(partitionValue, ((Literal) listItem).value())) {
+                        found = true;
+                        break;
+                    }
                 }
+                yield found;
             }
-            return false;
-        }
-        return null;
+            default -> null;
+        };
     }
 
     private static Boolean evaluateComparison(
@@ -153,20 +147,18 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     private static String extractColumnName(Expression expr) {
-        if (expr instanceof FieldAttribute fa) {
-            return fa.name();
-        }
-        if (expr instanceof NamedExpression ne) {
-            return ne.name();
-        }
-        return null;
+        return switch (expr) {
+            case FieldAttribute fa -> fa.name();
+            case NamedExpression ne -> ne.name();
+            default -> null;
+        };
     }
 
     private static Object extractLiteralValue(Expression expr) {
-        if (expr instanceof Literal lit) {
-            return lit.value();
-        }
-        return null;
+        return switch (expr) {
+            case Literal lit -> lit.value();
+            default -> null;
+        };
     }
 
     private static boolean compareEquals(Object a, Object b) {

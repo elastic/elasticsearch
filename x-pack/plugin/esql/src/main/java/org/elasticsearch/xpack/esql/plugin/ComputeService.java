@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -202,6 +203,13 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    PhysicalPlan discoverSplits(PhysicalPlan plan) {
+        if (operatorFactoryRegistry == null) {
+            return plan;
+        }
+        return SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
     }
 
     public void execute(
@@ -353,8 +361,9 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile
     ) {
+        final PhysicalPlan resolvedPlan = discoverSplits(physicalPlan);
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
-            physicalPlan,
+            resolvedPlan,
             configuration
         );
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
@@ -374,7 +383,7 @@ public class ComputeService {
             listener.onFailure(new IllegalStateException("expected data node plan starts with an ExchangeSink; got " + dataNodePlan));
             return;
         }
-        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(physicalPlan, EsRelation::concreteIndices);
+        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(resolvedPlan, EsRelation::concreteIndices);
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
         if (dataNodePlan == null) {
             if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0) == false) {
@@ -401,7 +410,7 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     listener.map(completionInfo -> {
                         updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                        return new Result(physicalPlan.output(), collectedPages, configuration, completionInfo, execInfo);
+                        return new Result(resolvedPlan.output(), collectedPages, configuration, completionInfo, execInfo);
                     })
                 )
             ) {
@@ -424,7 +433,7 @@ public class ComputeService {
                 return;
             }
         }
-        Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(physicalPlan, EsRelation::originalIndices);
+        Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
         /*
@@ -432,7 +441,7 @@ public class ComputeService {
          * the listener without holding on to a reference to the
          * entire plan.
          */
-        List<Attribute> outputAttributes = physicalPlan.output();
+        List<Attribute> outputAttributes = resolvedPlan.output();
         var exchangeSource = new ExchangeSourceHandler(
             configuration.pragmas().exchangeBufferSize(),
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.FileSet;
 
@@ -43,7 +44,8 @@ public record SourceOperatorContext(
     Map<String, Object> config,
     Map<String, Object> sourceMetadata,
     Object pushedFilter,
-    FileSet fileSet
+    FileSet fileSet,
+    @Nullable ExternalSplit split
 ) {
     public SourceOperatorContext {
         if (path == null) {
@@ -75,6 +77,35 @@ public record SourceOperatorContext(
         Executor executor,
         Map<String, Object> config,
         Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        FileSet fileSet
+    ) {
+        this(
+            sourceType,
+            path,
+            projectedColumns,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            executor,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            fileSet,
+            null
+        );
+    }
+
+    public SourceOperatorContext(
+        String sourceType,
+        StoragePath path,
+        List<String> projectedColumns,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        Executor executor,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
         Object pushedFilter
     ) {
         this(
@@ -88,6 +119,7 @@ public record SourceOperatorContext(
             config,
             sourceMetadata,
             pushedFilter,
+            null,
             null
         );
     }
@@ -102,7 +134,7 @@ public record SourceOperatorContext(
         Executor executor,
         Map<String, Object> config
     ) {
-        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, Map.of(), null, null);
+        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, Map.of(), null, null, null);
     }
 
     public static Builder builder() {
@@ -121,6 +153,7 @@ public record SourceOperatorContext(
         private Map<String, Object> sourceMetadata;
         private Object pushedFilter;
         private FileSet fileSet;
+        private ExternalSplit split;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -177,6 +210,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder split(ExternalSplit split) {
+            this.split = split;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -189,7 +227,8 @@ public record SourceOperatorContext(
                 config,
                 sourceMetadata,
                 pushedFilter,
-                fileSet
+                fileSet,
+                split
             );
         }
     }

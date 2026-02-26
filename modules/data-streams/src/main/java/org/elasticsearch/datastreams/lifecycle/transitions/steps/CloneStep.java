@@ -374,13 +374,13 @@ public class CloneStep implements DlmStep {
                     );
                 }
             }, err -> {
-                logger.error(() -> Strings.format("DLM failed to delete clone index [%s]", cloneIndex), err);
                 if (err instanceof IndexNotFoundException) {
                     // If the index was not found, it means it was already deleted, so we can consider this a success
                     logger.debug("Clone index [{}] was not found during DLM delete attempt, it may have already been deleted", cloneIndex);
                     listener.onResponse(null);
                     return;
                 }
+                logger.error(() -> Strings.format("DLM failed to delete clone index [%s]", cloneIndex), err);
                 listener.onFailure(err);
             }));
     }

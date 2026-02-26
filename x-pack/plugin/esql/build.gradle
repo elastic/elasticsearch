@@ -16,6 +16,7 @@ import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 
@@ -49,7 +50,6 @@ dependencies {
   api project(":libs:h3")
   implementation project('arrow')
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
-
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
@@ -65,6 +65,7 @@ dependencies {
   testImplementation project(path: xpackModule('kql'))
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
+  testImplementation project(path: xpackModule('esql-datasource-gzip'))
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
@@ -96,6 +97,13 @@ tasks.named('splitPackagesAudit').configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+  exclude '**/*.avro'
+  exclude '**/.*.crc'
+}
+
 
 def generatedPath = "src/main/generated"
 def projectDirectory = project.layout.projectDirectory
@@ -654,3 +662,4 @@ tasks.register("analyzePromqlQueries", JavaExec) {
   classpath = sourceSets.test.runtimeClasspath
   args project.findProperty("queriesFile") ?: "", project.findProperty("outputFile") ?: ""
 }
+

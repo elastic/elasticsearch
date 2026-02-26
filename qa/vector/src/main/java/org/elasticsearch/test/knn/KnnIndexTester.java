@@ -155,17 +155,13 @@ public class KnnIndexTester {
         final KnnVectorsFormat format;
         Integer quantizeBits = args.quantizeBits();
         DenseVectorFieldMapper.ElementType elementType = args.vectorEncoding().elementType;
+        int mergeWorkers = exec != null ? args.numMergeWorkers() : 1;
 
         format = switch (args.indexType()) {
             case IVF -> {
-                ESNextDiskBBQVectorsFormat.QuantEncoding encoding = switch (quantizeBits) {
-                    case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
-                    case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
-                    case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
-                    default -> throw new IllegalArgumentException(
-                        "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + quantizeBits
-                    );
-                };
+                var encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
+                // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
+                int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
                 yield new ESNextDiskBBQVectorsFormat(
                     encoding,
                     args.ivfClusterSize(),
@@ -175,9 +171,10 @@ public class KnnIndexTester {
                     elementType,
                     args.onDiskRescore(),
                     exec,
-                    exec != null ? args.numMergeWorkers() : 1,
+                    mergeWorkers,
                     args.doPrecondition(),
-                    args.preconditioningBlockDims()
+                    args.preconditioningBlockDims(),
+                    flatVectorThreshold
                 );
             }
             case GPU_HNSW -> switch (quantizeBits) {
@@ -188,19 +185,13 @@ public class KnnIndexTester {
                 );
             };
             case HNSW -> switch (quantizeBits) {
-                case null -> new ES93HnswVectorsFormat(
-                    args.hnswM(),
-                    args.hnswEfConstruction(),
-                    elementType,
-                    exec != null ? args.numMergeWorkers() : 1,
-                    exec
-                );
+                case null -> new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType, mergeWorkers, exec);
                 case 1 -> new ES93HnswBinaryQuantizedVectorsFormat(
                     args.hnswM(),
                     args.hnswEfConstruction(),
                     elementType,
                     false,
-                    exec != null ? args.numMergeWorkers() : 1,
+                    mergeWorkers,
                     exec
                 );
                 default -> new ES93HnswScalarQuantizedVectorsFormat(
@@ -211,7 +202,7 @@ public class KnnIndexTester {
                     quantizeBits,
                     true,
                     false,
-                    exec != null ? args.numMergeWorkers() : 1,
+                    mergeWorkers,
                     exec
                 );
             };

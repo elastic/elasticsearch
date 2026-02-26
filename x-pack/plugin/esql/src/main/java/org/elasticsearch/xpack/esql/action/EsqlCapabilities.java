@@ -1494,9 +1494,14 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
-         * Decay function for custom scoring
+         * Decay function for custom scoring.
          */
         DECAY_FUNCTION,
+
+        /**
+         * Fix conversions for parameters for {@code DECAY}.
+         */
+        DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
          * Support correct counting of skipped shards.
@@ -2023,7 +2028,7 @@ public class EsqlCapabilities {
         /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
          */
-        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
+        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION,
 
         /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an
@@ -2057,6 +2062,11 @@ public class EsqlCapabilities {
          * Support for dense_vector arithmetic operations (+, -, *, /)
          */
         DENSE_VECTOR_ARITHMETIC,
+
+        /**
+         * Support for arithmetic operations (+, -, *, /) between dense_vector and scalar values
+         */
+        DENSE_VECTOR_SCALAR_ARITHMETIC,
 
         /**
          * Dense_vector aggregation functions
@@ -2141,6 +2151,11 @@ public class EsqlCapabilities {
         TDIGEST_TIME_SERIES_METRIC,
 
         /**
+         * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
+         */
+        TDIGEST_MEDIAN,
+
+        /**
          * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
          */
         TS_COMMAND_GROUP_ON_ALIASES,
@@ -2172,6 +2187,21 @@ public class EsqlCapabilities {
          * Support for the METRICS_INFO command.
          */
         METRICS_INFO_COMMAND,
+
+        /**
+         * Supports the REGISTERED_DOMAIN command.
+         */
+        REGISTERED_DOMAIN_COMMAND,
+
+        /**
+         * Support for the EXTERNAL command (datasource access).
+         */
+        EXTERNAL_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/142219
+         */
+        INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

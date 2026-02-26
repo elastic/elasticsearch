@@ -100,7 +100,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
     static {
         final var mainStorePurposeNames = Set.of("ClusterState", "Indices", "Translog");
-        final var obsPurposeNames = Set.of("SnapshotData", "SnapshotMetadata", "RepositoryAnalysis");
+        final var obsPurposeNames = Set.of("SnapshotData", "SnapshotMetadata", "RepositoryAnalysis", "Resharding");
         final var operationNames = Set.of(
             "HeadObject",
             "GetObject",

@@ -43,6 +43,7 @@ import java.util.function.LongConsumer;
 public class LongSwissHashBenchmark {
 
     static {
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

@@ -98,6 +98,7 @@ public class EvalBenchmark {
     static final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
 
     static {
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             // Smoke test all the expected values and force loading subclasses more like prod

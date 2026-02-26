@@ -70,6 +70,7 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 public class QueryPlanningBenchmark {
 
     static {
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

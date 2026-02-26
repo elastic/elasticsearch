@@ -77,6 +77,7 @@ public class TopNBenchmark {
     private static final String AND = "_and_";
 
     static {
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
         // Smoke test all the expected values and force loading subclasses more like prod
         selfTest();

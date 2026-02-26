@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 public class BytesArrayIndexOfBenchmark {
 
     static {
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

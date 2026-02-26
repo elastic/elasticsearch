@@ -94,6 +94,7 @@ import java.util.stream.IntStream;
 @Fork(1)
 public class ValuesSourceReaderBenchmark {
     static {
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

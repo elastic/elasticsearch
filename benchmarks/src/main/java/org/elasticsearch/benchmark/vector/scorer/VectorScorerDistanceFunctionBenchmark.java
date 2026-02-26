@@ -56,6 +56,7 @@ public class VectorScorerDistanceFunctionBenchmark {
     public static final int OPERATIONS = 25000;
 
     static {
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

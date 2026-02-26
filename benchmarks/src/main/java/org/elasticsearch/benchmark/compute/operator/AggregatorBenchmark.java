@@ -115,6 +115,7 @@ public class AggregatorBenchmark {
     private static final String CONSTANT_FALSE = "constant_false";
 
     static {
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
 
         // Smoke test all the expected values and force loading subclasses more like prod

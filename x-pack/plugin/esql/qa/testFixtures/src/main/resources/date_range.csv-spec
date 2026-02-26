@@ -126,7 +126,7 @@ decade:integer | description:keyword
 1950           | Nifty Fifties
 ;
 
-rangeWithinAtBoundaryStart
+rangeWithinAtBoundaryStart#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
 required_capability: date_range_field_type
 
 FROM decades
@@ -138,7 +138,7 @@ decade:integer | description:keyword
 1950           | Nifty Fifties
 ;
 
-rangeWithinAtBoundaryEnd
+rangeWithinAtBoundaryEnd#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
 required_capability: date_range_field_type
 
 FROM decades
@@ -150,7 +150,7 @@ decade:integer | description:keyword
 1950           | Nifty Fifties
 ;
 
-rangeWithinOutsideRange
+rangeWithinOutsideRange#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
 required_capability: date_range_field_type
 
 FROM decades
@@ -161,7 +161,7 @@ FROM decades
 decade:integer | description:keyword
 ;
 
-rangeWithinWithEval
+rangeWithinWithEval#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
 required_capability: date_range_field_type
 
 FROM decades
@@ -187,7 +187,7 @@ count:long
 11
 ;
 
-rangeWithinWithNull
+rangeWithinWithNull#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
 required_capability: date_range_field_type
 
 FROM employees
@@ -200,7 +200,7 @@ emp_no:integer | birth_date:date | in_range:boolean
 10040          | null            | null
 ;
 
-rangeWithinWithStats
+rangeWithinWithStats#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
 required_capability: date_range_field_type
 
 FROM employees
@@ -223,7 +223,7 @@ FROM decades
 decade:integer | description:keyword
 ;
 
-rangeWithinAfterEnd
+rangeWithinAfterEnd#[skip:-9.4.0,reason:RANGE_WITHIN added after 9.4.0]
 required_capability: date_range_field_type
 
 FROM decades

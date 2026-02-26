@@ -917,6 +917,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 "routeRemoved",
                 ClusterState.builder(new ClusterName("test"))
                     .nodes(nodes)
+                    .putCompatibilityVersions(NODE_ID, CompatibilityVersionsUtils.staticCurrent())
                     .metadata(
                         Metadata.builder()
                             .putCustom(
@@ -940,6 +941,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
                 "routeReAdded",
                 ClusterState.builder(new ClusterName("test"))
                     .nodes(nodes)
+                    .putCompatibilityVersions(NODE_ID, CompatibilityVersionsUtils.staticCurrent())
                     .metadata(
                         Metadata.builder()
                             .putCustom(

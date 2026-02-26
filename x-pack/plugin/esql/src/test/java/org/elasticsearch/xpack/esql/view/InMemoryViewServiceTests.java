@@ -93,6 +93,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     @Before
     public void setupTest() {
         viewService.clearAllViewsAndIndices();
+        for (String idx : List.of("emp", "emp1", "emp2", "emp3", "logs")) {
+            addIndex(idx);
+        }
     }
 
     public void testPutGet() {
@@ -166,6 +169,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testCCSExpressionNotResolvedAsView() {
+        addIndex("remote:view1");
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM remote:view1, view1");
         assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view1,emp1")));
@@ -258,6 +262,20 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan rewritten = replaceViews(plan);
         assertThat(rewritten, instanceOf(UnresolvedRelation.class));
         assertThat(as(rewritten, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("index1,emp"));
+    }
+
+    public void testMissingIndexPreservedWhenMixedWithView() {
+        addView("view1", "FROM emp");
+        LogicalPlan plan = query("FROM view1, missing-index");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(as(rewritten, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("missing-index,emp"));
+    }
+
+    public void testMissingIndexPreservedWhenMixedWithViewWithPipes() {
+        addView("view1", "FROM emp | WHERE emp.age > 30");
+        LogicalPlan plan = query("FROM view1, missing-index");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(rewritten, instanceOf(UnionAll.class));
     }
 
     public void testReplaceViewsPlanWildcard() {
@@ -497,6 +515,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                 Settings.builder().put(ViewResolver.MAX_VIEW_DEPTH_SETTING.getKey(), 1).build()
             )
         ) {
+            customViewService.addIndex(projectId, "emp");
             addView("view1", "FROM emp", customViewService);
             addView("view2", "FROM view1", customViewService);
             addView("view3", "FROM view2", customViewService);
@@ -575,12 +594,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testViewWithDateMathInBody() {
+        addDateMathIndex("logs-");
         addView("view1", "FROM <logs-{now/d}>");
         LogicalPlan plan = query("FROM view1");
         assertThat(replaceViews(plan), matchesPlan(query("FROM <logs-{now/d}>")));
     }
 
     public void testNestedViewWithDateMathInBody() {
+        addDateMathIndex("logs-");
         addView("view1", "FROM <logs-{now/d}>");
         addView("view2", "FROM view1");
         LogicalPlan plan = query("FROM view2");
@@ -588,6 +609,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testViewWithDateMathAndPipeInBody() {
+        addDateMathIndex("logs-");
         addView("view1", "FROM <logs-{now/d}> | WHERE log.level == \"error\"");
         LogicalPlan plan = query("FROM view1");
         assertThat(replaceViews(plan), matchesPlan(query("FROM <logs-{now/d}> | WHERE log.level == \"error\"")));
@@ -718,6 +740,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private void addIndex(String name) {
         viewService.addIndex(projectId, name);
+    }
+
+    private void addDateMathIndex(String prefix) {
+        addIndex(
+            prefix + LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyy.MM.dd", Locale.ROOT))
+        );
     }
 
     private void addView(String name, String query) {

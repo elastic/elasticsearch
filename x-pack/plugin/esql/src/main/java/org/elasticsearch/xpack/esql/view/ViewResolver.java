@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.View;
@@ -124,7 +125,7 @@ public class ViewResolver {
             new HashSet<>(),
             viewQueries,
             0,
-            ActionListener.wrap(rewritten -> listener.onResponse(new ViewResolutionResult(rewritten, viewQueries)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, rewritten) -> listener.onResponse(new ViewResolutionResult(rewritten, viewQueries)))
         );
     }
 
@@ -185,18 +186,18 @@ public class ViewResolver {
                     seenWildcards,
                     viewQueries,
                     depth + 1,
-                    ActionListener.wrap(newPlan -> {
+                    l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan.equals(subplan) == false) {
                             var updatedSubplansInner = updatedSubplans;
                             if (updatedSubplansInner == null) {
                                 updatedSubplansInner = new ArrayList<>(currentSubplans);
                             }
                             updatedSubplansInner.set(index, newPlan);
-                            l.onResponse(updatedSubplansInner);
+                            subListener.onResponse(updatedSubplansInner);
                         } else {
-                            l.onResponse(updatedSubplans);
+                            subListener.onResponse(updatedSubplans);
                         }
-                    }, l::onFailure)
+                    })
                 )
             );
         }
@@ -224,16 +225,16 @@ public class ViewResolver {
         var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT);
         req.indices(patterns);
 
-        doEsqlResolveViewsRequest(req, ActionListener.wrap(response -> {
+        doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l1, response) -> {
             if (response.views().length == 0) {
                 listener.onResponse(unresolvedRelation);
                 return;
             }
 
             final List<ViewPlan> subqueries = new ArrayList<>();
-            SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
+            SubscribableListener<Void> chain = SubscribableListener.newForked(l2 -> l2.onResponse(null));
             for (var view : response.views()) {
-                chain = chain.andThen(l -> {
+                chain = chain.andThen(l2 -> {
                     validateViewReference(view.name(), seenViews);
                     replaceViews(
                         resolve(view, parser, viewQueries),
@@ -242,10 +243,10 @@ public class ViewResolver {
                         seenWildcards,
                         viewQueries,
                         depth + 1,
-                        ActionListener.wrap(fullyResolved -> {
+                        l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             subqueries.add(new ViewPlan(view.name(), fullyResolved));
-                            l.onResponse(null);
-                        }, l::onFailure)
+                            l3.onResponse(null);
+                        })
                     );
                 });
             }
@@ -261,7 +262,7 @@ public class ViewResolver {
                 }
                 return buildPlanFromBranches(unresolvedRelation, subqueries, depth);
             }).addListener(listener);
-        }, listener::onFailure));
+        }));
     }
 
     private void validateViewReference(String viewName, LinkedHashSet<String> seenViews) {
@@ -275,8 +276,20 @@ public class ViewResolver {
         }
     }
 
+    /**
+     * Builds the list of unresolved (non-view) patterns from the view resolution response.
+     * <p>
+     * Expressions marked as {@code CONCRETE_RESOURCE_NOT_VISIBLE} or {@code CONCRETE_RESOURCE_UNAUTHORIZED}
+     * by the security filter are preserved so they flow through to field caps and eventually fail
+     * via the same security checks that handle non-view queries (e.g. the {@code search_shards} action).
+     */
     private List<String> buildUnresolvedPatterns(EsqlResolveViewAction.Response response, LinkedHashSet<String> seenViews) {
         return response.getResolvedIndexExpressions().expressions().stream().flatMap(resolvedIndexExpression -> {
+            var result = resolvedIndexExpression.localExpressions().localIndexResolutionResult();
+            if (result == ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
+                || result == ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED) {
+                return Stream.of(resolvedIndexExpression.original());
+            }
             if (resolvedIndexExpression.localExpressions().indices().stream().anyMatch(index -> seenViews.contains(index) == false)) {
                 return Stream.of(resolvedIndexExpression.original());
             }

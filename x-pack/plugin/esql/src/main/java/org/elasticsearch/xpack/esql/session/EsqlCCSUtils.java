@@ -218,7 +218,7 @@ public class EsqlCCSUtils {
          * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere
          * 2. fail query if a cluster has no matching indices *and* a concrete index was specified - handled here
          */
-        String fatalErrorMessage = null;
+        StringBuilder fatalErrorMessage = null;
         /*
          * These are clusters in the original request that are not present in the field-caps response. They were
          * specified with an index expression that matched no indices, so the search on that cluster is done.
@@ -230,9 +230,9 @@ public class EsqlCCSUtils {
                 String error = Strings.format("Unknown index [%s]", cluster.getQualifiedIndexExpression());
                 if (executionInfo.shouldSkipOnFailure(c) == false || usedFilter) {
                     if (fatalErrorMessage == null) {
-                        fatalErrorMessage = error;
+                        fatalErrorMessage = new StringBuilder(error);
                     } else {
-                        fatalErrorMessage += "; " + error;
+                        fatalErrorMessage.append("; ").append(error);
                     }
                 }
                 if (usedFilter == false) {
@@ -266,8 +266,24 @@ public class EsqlCCSUtils {
                 }
             }
         }
+        // When views split a query into multiple branches, each branch gets its own IndexResolution. A branch for an unauthorized
+        // concrete index will have an empty resolution that the per-cluster check above misses (because another branch on the same
+        // cluster has matches). Detect these individually.
+        for (IndexResolution indexResolution : indexResolutions) {
+            if (indexResolution.isValid()
+                && indexResolution.resolvedIndices().isEmpty()
+                && concreteIndexRequested(indexResolution.get().name())) {
+                String error = Strings.format("Unknown index [%s]", indexResolution.get().name());
+                if (fatalErrorMessage == null) {
+                    fatalErrorMessage = new StringBuilder(error);
+                } else {
+                    fatalErrorMessage.append("; ").append(error);
+                }
+            }
+        }
+
         if (fatalErrorMessage != null) {
-            throw new VerificationException(fatalErrorMessage);
+            throw new VerificationException(fatalErrorMessage.toString());
         }
     }
 

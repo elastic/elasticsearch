@@ -255,9 +255,8 @@ public class EsqlSession {
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
-            ActionListener.wrap(
-                viewResolution -> analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, listener),
-                listener::onFailure
+            listener.delegateFailureAndWrap(
+                (l, viewResolution) -> analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l)
             )
         );
     }

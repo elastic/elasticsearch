@@ -11,8 +11,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.FileSet;
 
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -45,7 +48,8 @@ public record SourceOperatorContext(
     Map<String, Object> sourceMetadata,
     Object pushedFilter,
     FileSet fileSet,
-    @Nullable ExternalSplit split
+    @Nullable ExternalSplit split,
+    Set<String> partitionColumnNames
 ) {
     public SourceOperatorContext {
         if (path == null) {
@@ -58,6 +62,9 @@ public record SourceOperatorContext(
         attributes = attributes != null ? List.copyOf(attributes) : List.of();
         config = config != null ? Map.copyOf(config) : Map.of();
         sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
+        partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
+            ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
+            : Set.of();
 
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -65,6 +72,37 @@ public record SourceOperatorContext(
         if (maxBufferSize <= 0) {
             throw new IllegalArgumentException("maxBufferSize must be positive, got: " + maxBufferSize);
         }
+    }
+
+    public SourceOperatorContext(
+        String sourceType,
+        StoragePath path,
+        List<String> projectedColumns,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        Executor executor,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        FileSet fileSet,
+        @Nullable ExternalSplit split
+    ) {
+        this(
+            sourceType,
+            path,
+            projectedColumns,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            executor,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            fileSet,
+            split,
+            null
+        );
     }
 
     public SourceOperatorContext(
@@ -92,6 +130,7 @@ public record SourceOperatorContext(
             sourceMetadata,
             pushedFilter,
             fileSet,
+            null,
             null
         );
     }
@@ -134,7 +173,7 @@ public record SourceOperatorContext(
         Executor executor,
         Map<String, Object> config
     ) {
-        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, Map.of(), null, null, null);
+        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, Map.of(), null, null, null, null);
     }
 
     public static Builder builder() {
@@ -154,6 +193,7 @@ public record SourceOperatorContext(
         private Object pushedFilter;
         private FileSet fileSet;
         private ExternalSplit split;
+        private Set<String> partitionColumnNames;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -215,6 +255,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder partitionColumnNames(Set<String> partitionColumnNames) {
+            this.partitionColumnNames = partitionColumnNames;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -228,7 +273,8 @@ public record SourceOperatorContext(
                 sourceMetadata,
                 pushedFilter,
                 fileSet,
-                split
+                split,
+                partitionColumnNames
             );
         }
     }

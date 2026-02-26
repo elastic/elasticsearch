@@ -230,10 +230,6 @@ public class SourceConfig implements Writeable, ToXContentObject {
         if (projectRouting != null) {
             builder.field(PROJECT_ROUTING.getPreferredName(), projectRouting);
         }
-
-        // IndicesOptions is not configurable to the user (yet), so we will not render it.
-        // we also don't need to save it because it is dependent on whether CPS is enabled.
-
         builder.endObject();
         return builder;
     }

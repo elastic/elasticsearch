@@ -163,6 +163,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
+        ExceptionsHelper.requireNonNull(transformServices.crossProjectModeDecider(), "crossProjectModeDecider");
         this.strictIndicesOptions = transformServices.crossProjectModeDecider().crossProjectEnabled()
             && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
                 ? SearchRequest.DEFAULT_CPS_INDICES_OPTIONS

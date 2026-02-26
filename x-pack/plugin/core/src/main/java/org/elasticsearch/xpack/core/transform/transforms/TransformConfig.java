@@ -116,11 +116,12 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
             String id = (String) args[0];
 
             // if the id has been specified in the body and the path, they must match
+            var optionalId = context.optionalTransformId();
             if (id == null) {
-                id = context.optionalTransformId();
-            } else if (context.optionalTransformId() != null && id.equals(context.optionalTransformId()) == false) {
+                id = optionalId;
+            } else if (optionalId != null && id.equals(optionalId) == false) {
                 throw new IllegalArgumentException(
-                    TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_INCONSISTENT_ID, id, context.optionalTransformId())
+                    TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_INCONSISTENT_ID, id, optionalId)
                 );
             }
 

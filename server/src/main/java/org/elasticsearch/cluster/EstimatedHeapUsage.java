@@ -64,6 +64,11 @@ public class EstimatedHeapUsage implements Writeable {
     }
 
     // Visible for testing
+    public String getNodeId() {
+        return nodeId;
+    }
+
+    // Visible for testing
     public long getTotalBytes() {
         return totalBytes;
     }

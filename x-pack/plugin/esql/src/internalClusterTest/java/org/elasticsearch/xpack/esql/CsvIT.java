@@ -107,6 +107,13 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
+/**
+ * CSV-based integration testing.
+ * This test picks up *.csv-specs and run them against `InternalTestCluster`.
+ * Unlike CsvTests this does not mock esql query execution infra and relies on real components.
+ * InternalTestCluster` reuses current jvm. This enables debugging all scenarios from IDE.
+ * Test data is loaded lazily in order to facilitate faster startup when running/debugging individual test cases.
+ */
 public class CsvIT extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(CsvIT.class);

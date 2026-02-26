@@ -232,7 +232,7 @@ public class MetadataCreateIndexService implements ClusterStateListener {
         this.threadPool = threadPool;
         this.blocksTransformerUponIndexCreation = createClusterBlocksTransformerForIndexCreation(settings);
         this.clusterStateUpdateTaskPriority = CREATE_INDEX_PRIORITY_SETTING.get(settings);
-        this.associatedIndicesAutomaton = new CharacterRunAutomaton(getAssociatedIndicesAutomaton());
+        this.associatedIndicesAutomaton = buildAssociatedIndicesAutomaton(systemIndices);
 
         if (clusterService.getClusterSettings().isDynamicSetting(CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey())) {
             // setting only registered in some tests today
@@ -258,16 +258,17 @@ public class MetadataCreateIndexService implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().clusterFeatures().equals(event.previousState().clusterFeatures()) == false) {
-            this.associatedIndicesAutomaton = new CharacterRunAutomaton(getAssociatedIndicesAutomaton());
+            this.associatedIndicesAutomaton = buildAssociatedIndicesAutomaton(systemIndices);
         }
     }
 
     /**
      * Visible for testing
      * Builds a single automaton that matches any index name matched by any of the given associated index descriptors.
+     * @param systemIndices system indices
      * @return determinized automaton matching any of the descriptors' patterns, or an empty automaton if the collection is empty
      */
-    Automaton getAssociatedIndicesAutomaton() {
+    static CharacterRunAutomaton buildAssociatedIndicesAutomaton(SystemIndices systemIndices) {
         List<AssociatedIndexDescriptor> associatedDescriptors = systemIndices.getFeatures()
             .stream()
             .map(SystemIndices.Feature::getAssociatedIndexDescriptors)
@@ -275,11 +276,10 @@ public class MetadataCreateIndexService implements ClusterStateListener {
             .toList();
 
         if (associatedDescriptors.isEmpty()) {
-            return Automata.makeEmpty();
+            return new CharacterRunAutomaton(Automata.makeEmpty());
         }
         List<Automaton> automata = associatedDescriptors.stream().map(descriptor -> buildAutomaton(descriptor.getIndexPattern())).toList();
-
-        return Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        return new CharacterRunAutomaton(Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
     public void validateIndexLimit(ProjectMetadata projectMetadata, CreateIndexClusterStateUpdateRequest request) {

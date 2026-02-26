@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import static org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmark.NUM_VECTORS;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 
 @TestLogging(
@@ -62,12 +63,14 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
             try {
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, NUM_VECTORS, similarityFunction);
+
                 scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
                 scalar.similarityFunction = similarityFunction;
-                scalar.setup(new Random(seed));
+                scalar.setup(data);
 
                 float[] expected = scalar.score();
 
@@ -76,7 +79,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
                 vectorized.similarityFunction = similarityFunction;
-                vectorized.setup(new Random(seed));
+                vectorized.setup(data);
 
                 float[] result = vectorized.score();
 
@@ -97,13 +100,14 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
             try {
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, NUM_VECTORS, similarityFunction);
 
                 scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
                 scalar.similarityFunction = similarityFunction;
-                scalar.setup(new Random(seed));
+                scalar.setup(data);
 
                 float[] expected = scalar.bulkScore();
 
@@ -112,7 +116,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
                 vectorized.similarityFunction = similarityFunction;
-                vectorized.setup(new Random(seed));
+                vectorized.setup(data);
 
                 float[] result = vectorized.bulkScore();
 

@@ -2093,6 +2093,12 @@ public class EsqlCapabilities {
          */
         TS_IMPLICIT_TIMESTAMP_SORT,
 
+        /**
+         * Fix for an ArrayIndexOutOfBoundsException in the aggregation framework when the same field is passed twice.
+         * https://github.com/elastic/elasticsearch/issues/142180
+         */
+        FIX_AGGREGATION_FRAMEWORK_CHANNELS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

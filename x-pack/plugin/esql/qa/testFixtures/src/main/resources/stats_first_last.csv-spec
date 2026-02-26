@@ -264,6 +264,7 @@ f_date:datetime                                                                |
 Test passing the same field in both parameters
 
 required_capability: first_last_agg_with_dates
+required_capability: fix_aggregation_framework_channels
 
 FROM voyager
 | STATS 

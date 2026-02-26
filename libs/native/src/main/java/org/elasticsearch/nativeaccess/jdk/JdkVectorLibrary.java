@@ -295,20 +295,33 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int count,
             MemorySegment result
         ) {
-            // TODO: more checks copied from checkBulk
-            if ((pitch % elementSize) != 0) throw new IllegalArgumentException("Pitch needs to be a multiple of " + elementSize);
+            if (pitch < length * elementSize) throw new IllegalArgumentException("Pitch needs to be at least " + length);
+            Objects.checkFromIndexSize(0, pitch * count, (int) a.byteSize());
+            Objects.checkFromIndexSize(0, length * elementSize, (int) b.byteSize());
+            Objects.checkFromIndexSize(0, count * Integer.BYTES, (int) offsets.byteSize());
+            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
             return true;
         }
 
         static boolean checkBBQBulkOffsets(
+            int dataBits,
             MemorySegment a,
             MemorySegment b,
-            int length,
+            int datasetVectorLengthInBytes,
             int pitch,
             MemorySegment offsets,
             int count,
             MemorySegment result
         ) {
+            final int queryBits = 4;
+            if (pitch < datasetVectorLengthInBytes) throw new IllegalArgumentException(
+                "Pitch needs to be at least " + datasetVectorLengthInBytes
+            );
+            Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * count, (int) a.byteSize());
+            // 1 bit data -> x4 bits query, 2 bit data -> x2 bits query
+            Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * (queryBits / dataBits), (int) b.byteSize());
+            Objects.checkFromIndexSize(0, count * Integer.BYTES, (int) offsets.byteSize());
+            Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
             return true;
         }
 
@@ -387,7 +400,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         );
 
         static long dotProductD1Q4(MemorySegment a, MemorySegment query, int length) {
-            Objects.checkFromIndexSize(0, length * 4L, (int) query.byteSize());
+            Objects.checkFromIndexSize(0, length * 4, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
             return callSingleDistanceLong(dotD1Q4Handle, a, query, length);
         }
@@ -622,12 +635,13 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         }
                         case BULK_OFFSETS -> {
                             MethodHandle handleWithChecks = switch (op.getKey().dataType()) {
-                                case BBQType _ -> {
+                                case BBQType bbq -> {
                                     MethodHandle checkMethod = lookup.findStatic(
                                         JdkVectorSimilarityFunctions.class,
                                         "checkBBQBulkOffsets",
                                         MethodType.methodType(
                                             boolean.class,
+                                            int.class,
                                             MemorySegment.class,
                                             MemorySegment.class,
                                             int.class,
@@ -638,7 +652,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         )
                                     );
                                     yield MethodHandles.guardWithTest(
-                                        checkMethod,
+                                        MethodHandles.insertArguments(checkMethod, 0, bbq.dataBits()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );

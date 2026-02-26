@@ -799,8 +799,8 @@ fields with ignore_malformed:
         ip:
           - 10.10.1.1
           - 192.8.1.2
-          - hot garbage # fields saved by ignore_malformed are sorted after doc values
-          - 7
+          - 7 # malformed values come after doc_values and are sorted by encoded byte representation
+          - hot garbage
   - is_false: fields
 
   - do:

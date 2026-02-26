@@ -407,9 +407,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchContextInvalidationIT
   method: testScrollReturns404WhenNodeLeavesCluster
   issue: https://github.com/elastic/elasticsearch/issues/142810
-- class: org.elasticsearch.packaging.test.DebMetadataTests
-  method: test05CheckLintian
-  issue: https://github.com/elastic/elasticsearch/issues/142819
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
   method: testWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/142821
@@ -443,15 +440,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.S3RepositoryAnalysisRestIT
-  method: testRepositoryAnalysis
-  issue: https://github.com/elastic/elasticsearch/issues/143091
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
-  method: testRepositoryAnalysis
-  issue: https://github.com/elastic/elasticsearch/issues/143099
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.S3RepositoryAnalysisStrongMpusRestIT
-  method: testRepositoryAnalysis
-  issue: https://github.com/elastic/elasticsearch/issues/143100
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
+  method: testAccumulateSearchLoad
+  issue: https://github.com/elastic/elasticsearch/issues/143111
+- class: org.elasticsearch.index.mapper.IpFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/143123
+- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/143124
+- class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
+  method: testCliConnectionWithApiKey
+  issue: https://github.com/elastic/elasticsearch/issues/143125
+- class: org.elasticsearch.packaging.test.DebMetadataTests
+  method: test05CheckLintian
+  issue: https://github.com/elastic/elasticsearch/issues/142819
 
 # Examples:
 #

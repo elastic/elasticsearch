@@ -15,7 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-module co.elastic.elasticsearch.serverless.shutdown.masterfailover {
+module org.elasticsearch.xpack.stateless.shutdown.masterfailover {
     requires org.elasticsearch.server;
     requires org.apache.logging.log4j;
     requires org.elasticsearch.base;

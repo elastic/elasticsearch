@@ -14,10 +14,11 @@
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
  */
+
 esplugin {
-    name = "serverless-master-failover"
-    description = "Triggers graceful master failover on shutdown for serverless Elasticsearch"
-    classname = "co.elastic.elasticsearch.serverless.shutdown.masterfailover.MasterFailoverPlugin"
+    name = "stateless-master-failover"
+    description = "Triggers graceful master failover on shutdown for stateless Elasticsearch"
+    classname = "org.elasticsearch.xpack.stateless.shutdown.masterfailover.MasterFailoverPlugin"
     extendedPlugins = listOf("x-pack-core")
 }
 
@@ -25,3 +26,4 @@ dependencies {
     compileOnly(xpackModule("core"))
     compileOnly(xpackModule("security"))
 }
+

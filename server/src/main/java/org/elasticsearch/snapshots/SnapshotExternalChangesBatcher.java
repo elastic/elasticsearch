@@ -305,6 +305,8 @@ final class SnapshotExternalChangesBatcher {
                     } else {
                         // Now we're down to completed or un-modified snapshots
                         if (snapshotEntry.state().completed() || completed(snapshotEntry.shardSnapshotStatusByRepoShardId().values())) {
+                            // TODO: Simplify the if statement if the assertion holds as expected
+                            assert snapshotEntry.state().completed() : "if all its shards completed then the snapshot should be completed";
                             finishedSnapshots.add(snapshotEntry);
                         }
                         updatedEntriesForRepo.add(snapshotEntry);

@@ -17,6 +17,11 @@ import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentType;
@@ -24,6 +29,7 @@ import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.datageneration.GeoShapeDataSourceHandler;
 
+import java.io.IOException;
 import java.nio.ByteOrder;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,12 +50,17 @@ public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
     @Override
     @SuppressWarnings("unchecked")
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+        boolean docValuesMode = params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
+            && (Boolean) fieldMapping.getOrDefault("doc_values", true);
+
+        if (docValuesMode) {
+            return expectedFromDocValues(value);
+        }
+
         if (value instanceof List<?> == false) {
             return convert(value);
         }
 
-        // TODO FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS is currently not covered, it needs special logic
-        // As a result we always load from source (stored or fallback synthetic) and they should work the same.
         var resultList = ((List<Object>) value).stream().map(this::convert).filter(Objects::nonNull).toList();
         return maybeFoldList(resultList);
     }
@@ -67,6 +78,51 @@ public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
         return null;
     }
 
+    /**
+     * Compute expected value for DOC_VALUES mode by round-tripping through the doc-values format.
+     * Doc-values combine multiple field values into a single binary value, reconstructing the
+     * original (non-normalized) geometry with quantized coordinates.
+     */
+    @SuppressWarnings("unchecked")
+    private Object expectedFromDocValues(Object value) {
+        List<Object> values = value instanceof List<?> ? (List<Object>) value : List.of(value);
+        List<Geometry> geometries = values.stream().map(this::parseGeometry).filter(Objects::nonNull).toList();
+        if (geometries.isEmpty()) {
+            return null;
+        }
+        try {
+            GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+            BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("test", CoordinateEncoder.GEO);
+            for (Geometry geometry : geometries) {
+                Geometry normalized = indexer.normalize(geometry);
+                field.add(indexer.getIndexableFields(normalized), geometry);
+            }
+            GeometryDocValueReader reader = new GeometryDocValueReader();
+            reader.reset(field.binaryValue());
+            Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+            if (reconstructed == null) {
+                return null;
+            }
+            return toWKB(reconstructed);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Geometry parseGeometry(Object value) {
+        try {
+            if (value instanceof String s) {
+                return WellKnownText.fromWKT(GeographyValidator.instance(true), false, s);
+            }
+            if (value instanceof Map<?, ?> m) {
+                return parseGeoJson(m);
+            }
+        } catch (Exception e) {
+            // Malformed value
+        }
+        return null;
+    }
+
     private Geometry fromWKT(String s) {
         try {
             var geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), false, s);
@@ -79,6 +135,16 @@ public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
     @SuppressWarnings("unchecked")
     private Geometry fromGeoJson(Map<?, ?> map) {
         try {
+            var geometry = parseGeoJson(map);
+            return normalize(geometry);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Geometry parseGeoJson(Map<?, ?> map) {
+        try {
             var parser = new MapXContentParser(
                 xContentRegistry(),
                 LoggingDeprecationHandler.INSTANCE,
@@ -86,9 +152,7 @@ public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
                 XContentType.JSON
             );
             parser.nextToken();
-
-            var geometry = GeoJson.fromXContent(GeographyValidator.instance(true), false, true, parser);
-            return normalize(geometry);
+            return GeoJson.fromXContent(GeographyValidator.instance(true), false, true, parser);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

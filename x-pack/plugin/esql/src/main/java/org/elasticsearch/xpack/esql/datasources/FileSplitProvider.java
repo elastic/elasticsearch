@@ -31,7 +31,10 @@ import java.util.function.BiFunction;
 /**
  * Default {@link SplitProvider} for file-based sources.
  * Converts each file in the {@link FileSet} into a {@link FileSplit},
- * applying partition pruning when filter hints and partition metadata are available.
+ * applying L1 partition pruning when filter hints and partition metadata are available.
+ *
+ * <p>When filter hints contain resolved {@link Expression} objects, evaluates them against
+ * each file's partition values to prune files that cannot match the filter.
  */
 public class FileSplitProvider implements SplitProvider {
 
@@ -44,6 +47,7 @@ public class FileSplitProvider implements SplitProvider {
 
         PartitionMetadata partitionInfo = context.partitionInfo();
         Map<String, Object> config = context.config();
+        List<Expression> filterHints = context.filterHints();
         List<ExternalSplit> splits = new ArrayList<>();
 
         for (StorageEntry entry : fileSet.files()) {
@@ -54,6 +58,12 @@ public class FileSplitProvider implements SplitProvider {
                 Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
                 if (filePartitions != null) {
                     partitionValues = filePartitions;
+                }
+            }
+
+            if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
+                if (matchesPartitionFilters(partitionValues, filterHints) == false) {
+                    continue;
                 }
             }
 

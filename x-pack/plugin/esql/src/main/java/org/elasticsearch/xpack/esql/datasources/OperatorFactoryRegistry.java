@@ -98,6 +98,10 @@ public class OperatorFactoryRegistry {
         return sourceType != null && (sourceFactories.containsKey(sourceType) || pluginFactories.containsKey(sourceType));
     }
 
+    public Map<String, ExternalSourceFactory> sourceFactories() {
+        return sourceFactories;
+    }
+
     public Executor executor() {
         return executor;
     }

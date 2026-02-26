@@ -235,9 +235,9 @@ public class DesiredBalanceComputer {
                         && routingAllocation.deciders()
                             .canAllocate(shardRouting, targetNode, routingAllocation)
                             .type() != Decision.Type.NO) {
-                        final var shardToRelocate = routingNodes.relocateShard(shardRouting, targetNodeId, 0L, "computation", changes).v2();
-                        clusterInfoSimulator.simulateShardStarted(shardToRelocate);
-                        routingNodes.startShard(shardToRelocate, changes, 0L);
+                        final var targetShard = routingNodes.relocateShard(shardRouting, targetNodeId, 0L, "computation", changes).v2();
+                        clusterInfoSimulator.simulateShardStarted(targetShard);
+                        routingNodes.startShard(targetShard, changes, 0L);
                         continue relocateToDesiredLocation;
                     }
                 }

@@ -96,6 +96,9 @@ public class ClusterInfoSimulator {
      * {@link org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider} for allocating new shards.
      * This assumes the worst case (all shards are placed on a single most used disk) and prevents node overflow.
      * Balance is later recalculated with a refreshed cluster info containing actual shards placement.
+     *
+     * A relocating shard will have the current node ID set for the new node, and the relocating ID set for the previous node.
+     * A new shard will have the current ID set for the new node, and relocating ID will be null.
      */
     public void simulateShardStarted(ShardRouting shard) {
         assert shard.initializing() : "expected an initializing shard, but got: " + shard;
@@ -127,11 +130,14 @@ public class ClusterInfoSimulator {
         shardMovementWriteLoadSimulator.simulateShardStarted(shard);
     }
 
+    /**
+     * Handles the simulated node heap usage change when a shard relocates / is newly assigned.
+     */
     private void simulateHeapUsageChange(ShardRouting shard) {
         if (shard.relocatingNodeId() != null) {
             // Shard relocation
-            modifyHeapUsage(allocation.routingNodes().node(shard.relocatingNodeId()), shard.shardId(), Modification.ADD);
-            modifyHeapUsage(allocation.routingNodes().node(shard.currentNodeId()), shard.shardId(), Modification.REMOVE);
+            modifyHeapUsage(allocation.routingNodes().node(shard.relocatingNodeId()), shard.shardId(), Modification.REMOVE);
+            modifyHeapUsage(allocation.routingNodes().node(shard.currentNodeId()), shard.shardId(), Modification.ADD);
         } else {
             // New shard
             modifyHeapUsage(allocation.routingNodes().node(shard.currentNodeId()), shard.shardId(), Modification.ADD);
@@ -145,32 +151,41 @@ public class ClusterInfoSimulator {
 
     private void modifyHeapUsage(RoutingNode routingNode, ShardId shardId, Modification modification) {
         var nodeHeap = estimatedHeapUsages.get(routingNode.nodeId());
+        if (nodeHeap == null) {
+            return;
+        }
+
         var shardAndIndexHeap = estimatedShardHeapUsages.get(shardId);
-        var numberOfShardsForIndex = routingNode.numberOfShardsForIndex(shardId.getIndex());
-        assert numberOfShardsForIndex > 0 : "A shard must be initializing on the node or being relocated away: should never find no shard";
+        if (shardAndIndexHeap == null) {
+            return;
+        }
+
+        var numberOfShardsForIndex = routingNode.numberOfOwningShardsForIndex(shardId.getIndex());
         switch (modification) {
             case ADD: {
                 nodeHeap.updateEstimatedUsage(shardAndIndexHeap.shardHeapUsageBytes());
                 if (numberOfShardsForIndex == 1) {
-                    // This node's index only has the initializing shard that is now being added in simulation, so this is the node's first
-                    // shard for the index. The index-level heap usage overhead must be added.
+                    // This node's index only has the initializing shard, which is now being added in simulation. This is the node's first
+                    // shard for the index, and the index-level heap usage overhead must be added.
                     nodeHeap.updateEstimatedUsage(shardAndIndexHeap.indexHeapUsageBytes());
                 }
                 break;
             }
             case REMOVE: {
-                nodeHeap.updateEstimatedUsage(-(shardAndIndexHeap.shardHeapUsageBytes()));
-                if (numberOfShardsForIndex == 1) {
-                    // This node only has the one shard of the index that is being relocated away in simulation. The index-level heap usage
-                    // overhead must be subtracted, since the node will no longer have the index.
-                    nodeHeap.updateEstimatedUsage(-(shardAndIndexHeap.indexHeapUsageBytes()));
+                nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.shardHeapUsageBytes());
+                if (numberOfShardsForIndex == 0) {
+                    // This node only had one shard of the index, which is now being relocated away in simulation. The index-level heap
+                    // usage overhead must be subtracted, since the node will no longer have the index.
+                    nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.indexHeapUsageBytes());
                 }
                 break;
             }
-            default: {
-
-            }
         }
+    }
+
+    // Visible for testing
+    public Map<String, EstimatedHeapUsage> getEstimatedHeapUsages() {
+        return estimatedHeapUsages;
     }
 
     /**

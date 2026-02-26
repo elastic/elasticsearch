@@ -62,4 +62,14 @@ public class EstimatedHeapUsage implements Writeable {
     public void updateEstimatedUsage(long bytes) {
         estimatedUsageBytes += bytes;
     }
+
+    // Visible for testing
+    public long getTotalBytes() {
+        return totalBytes;
+    }
+
+    // Visible for testing
+    public long getEstimatedUsageBytes() {
+        return estimatedUsageBytes;
+    }
 }

@@ -177,7 +177,6 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         final ClusterState clusterState = createClusterState();
         final var allocation = createRoutingAllocationWithShardWriteLoads(
             clusterState,
-            Set.of(INDICES),
             Map.of(),
             randomThreadPoolUsageStats(),
             randomThreadPoolUsageStats()
@@ -247,22 +246,16 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             .getProject(ProjectId.DEFAULT)
             .stream()
             .filter(index -> indicesWithNoWriteLoad.contains(index.getIndex().getName()) == false)
-            .flatMap(index -> IntStream.range(0, 3).mapToObj(shardNum -> new ShardId(index.getIndex(), shardNum)))
+            .flatMap(index -> IntStream.range(0, 2).mapToObj(shardNum -> new ShardId(index.getIndex(), shardNum)))
             .collect(
                 Collectors.toUnmodifiableMap(shardId -> shardId, shardId -> randomBoolean() ? 0.0f : randomDoubleBetween(0.1, 5.0, true))
             );
 
-        return createRoutingAllocationWithShardWriteLoads(
-            clusterState,
-            indicesWithNoWriteLoad,
-            shardWriteLoads,
-            arrayOfNodeThreadPoolStats
-        );
+        return createRoutingAllocationWithShardWriteLoads(clusterState, shardWriteLoads, arrayOfNodeThreadPoolStats);
     }
 
     private RoutingAllocation createRoutingAllocationWithShardWriteLoads(
         ClusterState clusterState,
-        Set<String> indicesWithNoWriteLoad,
         Map<ShardId, Double> shardWriteLoads,
         NodeUsageStatsForThreadPools.ThreadPoolUsageStats... arrayOfNodeThreadPoolStats
     ) {

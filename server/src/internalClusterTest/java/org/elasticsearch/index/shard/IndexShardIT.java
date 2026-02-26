@@ -295,7 +295,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             for (DiscoveryNode node : state.nodes()) {
                 assertTrue(estimatedHeapUsages.containsKey(node.getId()));
                 EstimatedHeapUsage estimatedHeapUsage = estimatedHeapUsages.get(node.getId());
-                assertThat(estimatedHeapUsage.estimatedFreeBytes(), lessThanOrEqualTo(estimatedHeapUsage.totalBytes()));
+                assertThat(estimatedHeapUsage.estimatedFreeBytes(), lessThanOrEqualTo(estimatedHeapUsage.getTotalBytes()));
             }
         } finally {
             updateClusterSettings(

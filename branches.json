@@ -11,11 +11,11 @@
     },
     {
       "branch" : "9.2",
-      "version" : "9.2.6"
+      "version" : "9.2.7"
     },
     {
       "branch" : "8.19",
-      "version" : "8.19.12"
+      "version" : "8.19.13"
     }
   ]
 }

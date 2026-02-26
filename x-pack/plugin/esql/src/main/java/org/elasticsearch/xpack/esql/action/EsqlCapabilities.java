@@ -1494,9 +1494,14 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
-         * Decay function for custom scoring
+         * Decay function for custom scoring.
          */
         DECAY_FUNCTION,
+
+        /**
+         * Fix conversions for parameters for {@code DECAY}.
+         */
+        DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
          * Support correct counting of skipped shards.
@@ -2192,6 +2197,16 @@ public class EsqlCapabilities {
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/142219
+         */
+        INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
+
+        /**
+         * Support for function {@code JSON_EXTRACT}.
+         */
+        FN_JSON_EXTRACT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

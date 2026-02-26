@@ -36,6 +36,7 @@ dependencies {
 
   // The datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-ndjson'))
+  clusterPlugins project(xpackModule('esql-datasource-gzip'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
   clusterPlugins project(xpackModule('esql-datasource-s3'))
   // GCS datasource plugin for gs:// storage backend

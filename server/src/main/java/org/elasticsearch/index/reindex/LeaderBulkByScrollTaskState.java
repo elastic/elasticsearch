@@ -109,6 +109,7 @@ public class LeaderBulkByScrollTaskState {
         if (runningSubtasks.decrementAndGet() != 0) {
             return;
         }
+
         List<BulkByScrollResponse> responses = new ArrayList<>(results.length());
         Exception exception = null;
         for (Result t : results.asList()) {

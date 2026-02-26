@@ -65,5 +65,3 @@ ES|QL::
 
 Packaging::
 * Updating bundled jdk version to 25.0.2+10 {es-pull}142500[#142500]
-
-

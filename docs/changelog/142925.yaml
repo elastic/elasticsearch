@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 142925
+summary: Add timeout support for KNN searches in the DFS phase
+type: bug

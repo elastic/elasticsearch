@@ -30,7 +30,7 @@ public class ReindexMetrics {
     public static final String ATTRIBUTE_VALUE_SOURCE_LOCAL = "local";
     public static final String ATTRIBUTE_VALUE_SOURCE_REMOTE = "remote";
 
-    public static final String ATTRIBUTE_NAME_SLICING_MODE = "slicing_mode";
+    public static final String ATTRIBUTE_NAME_SLICING_MODE = "es_slicing_mode";
 
     private final LongHistogram reindexTimeSecsHistogram;
     private final LongCounter reindexCompletionCounter;

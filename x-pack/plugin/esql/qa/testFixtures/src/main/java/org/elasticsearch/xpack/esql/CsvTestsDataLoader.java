@@ -206,7 +206,8 @@ public class CsvTestsDataLoader {
             "settings-histogram_time_series_index.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
         new TestDataset("many_numbers"),
-        new TestDataset("mmr_text_vector_keyword")
+        new TestDataset("mmr_text_vector_keyword"),
+        new TestDataset("json_logs").withRequiredCapabilities(EsqlCapabilities.Cap.FN_JSON_EXTRACT)
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(
@@ -828,6 +829,15 @@ public class CsvTestsDataLoader {
                     throw new IllegalArgumentException("can't parse range: " + value);
                 }
                 yield "{\"gte\": \"" + m.group(1) + "\", \"lt\": \"" + m.group(2) + "\"}";
+            }
+            // Text and keyword fields are always strings — strip outer quotes if present
+            // (they are CSV formatting, not part of the value), escape inner quotes, and wrap.
+            case "text", "keyword" -> {
+                String content = value;
+                if (content.startsWith("\"") && content.endsWith("\"")) {
+                    content = content.substring(1, content.length() - 1);
+                }
+                yield "\"" + content.replace("\"", "\\\"") + "\"";
             }
             default -> {
                 boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));

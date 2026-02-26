@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -90,7 +91,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(SearchLogProducer.QUERY_LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass

@@ -10,11 +10,27 @@
 package org.elasticsearch.common.logging.activity;
 
 /**
- * Constants specific to logging queries - search, esql, etc. Common fields use ES_QUERY_FIELDS_PREFIX.
+ * Constants specific to logging queries - DSL search, ESQL, etc.
  */
 public interface QueryLogging {
+    /**
+     * This is the prefix for all query logging specific fields.
+     */
     String ES_QUERY_FIELDS_PREFIX = "elasticsearch.querylog.";
+    /**
+     * Query text.
+     */
     String QUERY_FIELD_QUERY = ES_QUERY_FIELDS_PREFIX + "query";
+    /**
+     * How many results the search or query actually returned.
+     */
     String QUERY_FIELD_RESULT_COUNT = ES_QUERY_FIELDS_PREFIX + "result_count";
+    /**
+     * Which indices were queried. May not apply to some modules like ESQL or SQL.
+     */
     String QUERY_FIELD_INDICES = ES_QUERY_FIELDS_PREFIX + "indices";
+    /**
+     * This is the name Log4j logger will use.
+     */
+    String QUERY_LOGGER_NAME = "elasticsearch.querylog";
 }

@@ -12,10 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
-import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(EsqlLogProducer.QUERY_LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass

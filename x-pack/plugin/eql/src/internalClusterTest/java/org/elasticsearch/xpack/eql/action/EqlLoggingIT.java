@@ -13,11 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.xpack.eql.logging.EqlLogContext;
-import org.elasticsearch.xpack.eql.logging.EqlLogProducer;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
 
 public class EqlLoggingIT extends AbstractEqlIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(EqlLogProducer.QUERY_LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass

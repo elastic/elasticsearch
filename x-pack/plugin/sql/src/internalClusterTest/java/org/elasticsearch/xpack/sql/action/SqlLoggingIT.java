@@ -13,10 +13,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.VerificationException;
 import org.elasticsearch.xpack.sql.logging.SqlLogContext;
-import org.elasticsearch.xpack.sql.logging.SqlLogProducer;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.junit.After;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class SqlLoggingIT extends AbstractSqlIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(SqlLogProducer.QUERY_LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass

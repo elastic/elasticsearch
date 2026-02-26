@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.action.search.SearchLogContext;
-import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
@@ -43,7 +42,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(SearchLogProducer.QUERY_LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass

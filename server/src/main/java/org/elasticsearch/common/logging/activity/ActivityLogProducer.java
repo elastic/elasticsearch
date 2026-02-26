@@ -27,15 +27,17 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
     String X_OPAQUE_ID_FIELD = "http.request.headers.x_opaque_id";
     String EVENT_OUTCOME_FIELD = "event.outcome";
     String EVENT_DURATION_FIELD = "event.duration";
-    String QUERY_LOGGER_NAME = "elasticsearch.querylog";
 
     /**
      * Produces a {@link ESLogMessage} if the producer decides to log, or nothing otherwise.
      */
     Optional<ESLogMessage> produce(Context context, ActionLoggingFields additionalFields);
 
+    /**
+     * Since we only have query logging for now, set it as the default logger name for convenience.
+     */
     default String loggerName() {
-        return QUERY_LOGGER_NAME;
+        return QueryLogging.QUERY_LOGGER_NAME;
     }
 
     /**

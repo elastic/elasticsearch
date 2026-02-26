@@ -292,8 +292,7 @@ public class SearchApplicationIndexService {
 
     private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
         final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(bigArrays.withCircuitBreaking());
-        final ActionListener<DocWriteResponse> wrappedListener = ActionListener.runAfter(listener, buffer::close);
-        try {
+        ActionListener.run(ActionListener.runAfter(listener, buffer::close), l -> {
             XContentBuilder source = XContentFactory.jsonBuilder(buffer);
             source.startObject()
                 .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
@@ -311,10 +310,8 @@ public class SearchApplicationIndexService {
                 .opType(opType)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(buffer.bytes(), XContentType.JSON);
-            clientWithOrigin.index(indexRequest, wrappedListener);
-        } catch (Exception e) {
-            wrappedListener.onFailure(e);
-        }
+            clientWithOrigin.index(indexRequest, l);
+        });
     }
 
     private void deleteSearchApplication(String resourceName, ActionListener<DeleteResponse> listener) {

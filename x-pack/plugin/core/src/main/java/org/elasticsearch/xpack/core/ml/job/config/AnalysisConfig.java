@@ -77,6 +77,12 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     // even if they extend beyond the length of a truncated example.
     public static final int MAX_CATEGORIZATION_FIELD_LENGTH = 1001;
 
+    // Maximum length for analysis term fields (by_field, over_field, partition_field, influencer fields).
+    // Values longer than this are truncated before being sent to the C++ process to prevent excessive
+    // memory usage that could crash the autodetect process. This limit aligns with Elasticsearch's
+    // ignore_above default for keyword fields.
+    public static final int MAX_FIELD_VALUE_LENGTH = 256;
+
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> LENIENT_PARSER = createParser(true);
     public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> STRICT_PARSER = createParser(false);

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -157,15 +156,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     @Nullable
     public TsdimWithout tsdimWithout() {
         return tsdimWithout;
-    }
-
-    /**
-     * Dimension names to exclude when loading the {@code _timeseries} blob.
-     * Non-empty only for PromQL {@code without} grouping.
-     */
-    // TODO: Remove and verify plan directly
-    public Set<String> excludedDimensions() {
-        return tsdimWithout != null ? tsdimWithout.excludedFieldNames() : Set.of();
     }
 
     @Override

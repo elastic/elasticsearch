@@ -240,7 +240,17 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         assertThat("should have second-pass Aggregate", aggregates, not(empty()));
 
         var firstPassAgg = tsAggregates.getFirst();
-        assertThat("TimeSeriesAggregate should carry 'pod' exclusion", firstPassAgg.excludedDimensions(), hasItem("pod"));
+        assertNotNull("TimeSeriesAggregate should have tsdimWithout", firstPassAgg.tsdimWithout());
+        assertThat(
+            "TsdimWithout should contain 'pod' field",
+            firstPassAgg.tsdimWithout()
+                .children()
+                .stream()
+                .filter(e -> e instanceof FieldAttribute)
+                .map(e -> ((FieldAttribute) e).name())
+                .toList(),
+            hasItem("pod")
+        );
     }
 
     public void testInferredStepUsesDefaultBuckets() {

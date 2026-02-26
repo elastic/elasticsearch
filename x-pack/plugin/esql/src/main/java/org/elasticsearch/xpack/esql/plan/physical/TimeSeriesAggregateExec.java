@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 /**
  * An extension of {@link Aggregate} to perform time-series aggregation per time-series, such as rate or _over_time.
@@ -177,10 +176,6 @@ public class TimeSeriesAggregateExec extends AggregateExec {
 
     public TsdimWithout tsdimWithout() {
         return tsdimWithout;
-    }
-
-    public Set<String> excludedDimensions() {
-        return tsdimWithout != null ? tsdimWithout.excludedFieldNames() : Set.of();
     }
 
     public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {

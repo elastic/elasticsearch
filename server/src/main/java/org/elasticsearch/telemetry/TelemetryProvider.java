@@ -14,6 +14,8 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 
 public interface TelemetryProvider {
 
+    String OTEL_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.otel.metrics.enabled";
+
     Tracer getTracer();
 
     MeterRegistry getMeterRegistry();

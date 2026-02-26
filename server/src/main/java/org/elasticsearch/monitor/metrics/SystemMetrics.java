@@ -28,9 +28,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+
 public class SystemMetrics extends AbstractLifecycleComponent {
     private final Logger logger = LogManager.getLogger(SystemMetrics.class);
-    public static final String OTEL_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.otel.metrics.enabled";
 
     private static final AllocatedBytesMetrics ALLOCATED_BYTES_METRICS = new AllocatedBytesMetrics();
 
@@ -218,8 +219,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
             }
 
             long total = 0;
-            for (long id : THREAD_MX_BEAN.getAllThreadIds()) {
-                long allocated = sunThreadInfo.getThreadAllocatedBytes(id);
+            for (long allocated : sunThreadInfo.getAllThreadAllocatedBytes(THREAD_MX_BEAN.getAllThreadIds())) {
                 if (allocated > 0) {
                     total += allocated;
                 }

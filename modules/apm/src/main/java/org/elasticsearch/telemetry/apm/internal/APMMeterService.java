@@ -13,6 +13,8 @@ import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -21,8 +23,11 @@ import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 
 import java.util.function.Supplier;
 
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+
 public class APMMeterService extends AbstractLifecycleComponent {
-    static final String OTEL_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.otel.metrics.enabled";
+
+    private static final Logger LOGGER = LogManager.getLogger(APMMeterService.class);
 
     private final APMMeterRegistry meterRegistry;
     private final Supplier<Meter> otelMeterSupplier;
@@ -73,7 +78,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
             try {
                 closeable.close();
             } catch (Exception e) {
-                // TODO
+                LOGGER.warn("Exception closing OTel MeterSupplier", e);
             }
         }
         meterRegistry.setProvider(noopMeterSupplier.get());

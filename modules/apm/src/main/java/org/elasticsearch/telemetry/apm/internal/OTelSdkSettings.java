@@ -12,17 +12,14 @@ package org.elasticsearch.telemetry.apm.internal;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Locale;
-
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 
 public class OTelSdkSettings {
     private OTelSdkSettings() {}
 
-    public static final Setting<String> TELEMETRY_OTEL_METRICS_ENDPOINT = new Setting<>(
+    public static final Setting<String> TELEMETRY_OTEL_METRICS_ENDPOINT = Setting.simpleString(
         "telemetry.otel.metrics.endpoint",
         "",
-        s -> s.toLowerCase(Locale.ROOT),
         NodeScope
     );
 

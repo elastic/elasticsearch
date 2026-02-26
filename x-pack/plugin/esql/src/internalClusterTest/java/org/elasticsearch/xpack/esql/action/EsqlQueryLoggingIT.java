@@ -24,12 +24,15 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     static AccumulatingMockAppender appender;
@@ -64,8 +67,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testLogging() throws Exception {
-        setupIndex("index-1", "192.");
-        setupIndex("index-2", "10.");
+        int numDocs1 = setupIndex("index-1", "192.168.0.1");
+        int numDocs2 = setupIndex("index-2", "10.0.0.1");
 
         assertQuery("FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100", 2);
         assertQuery("FROM index-* | LIMIT 100", numDocs1 + numDocs2);
@@ -93,17 +96,18 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         assertMessageFailure(message, "esql", query, expectedException, expectedMessage);
     }
 
-    private void setupIndex(String name, String prefix) {
-        int numDocs1 = randomIntBetween(1, 15);
+    private int setupIndex(String name, String prefix) {
+        int numDocs = randomIntBetween(1, 15);
         int numShards = internalCluster().numDataNodes() + 2;
         assertAcked(
             client().admin().indices().prepareCreate(name).setMapping("host", "type=keyword").setSettings(indexSettings(numShards, 0))
         );
-        for (int i = 0; i < numDocs1; i++) {
-            client().prepareIndex(name).setSource("host", prefix + i).get();
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex(name).setSource("host", prefix, "value", i).get();
         }
         client().admin().indices().prepareRefresh(name).get();
         ensureGreen(name);
+        return numDocs;
     }
 
     /**
@@ -112,7 +116,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
      */
     public void testLoggingPartialShardFailure() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        setupIndex("esql_partial_test", "1.");
+        setupIndex("esql_partial_test", "1.1.1.1");
         internalCluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
         awaitClusterState(

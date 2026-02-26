@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -72,9 +73,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
             try {
                 // If parser is null, there's no request body. projectRouting will then yield `null`.
                 if (parser != null) {
-                    if (crossProjectEnabled) {
-                        projectRouting.set(parseProjectRouting(parser));
-                    }
+                    parseXContent(crossProjectEnabled, parser, projectRouting);
                 }
             } catch (Exception e) {
                 throw new ElasticsearchException("Couldn't parse request body", e);
@@ -100,11 +99,12 @@ public class RestResolveIndexAction extends BaseRestHandler {
         return channel -> client.admin().indices().resolveIndex(resolveRequest, new RestToXContentListener<>(channel));
     }
 
-    private static String parseProjectRouting(XContentParser parser) throws ParsingException {
+    private static void parseXContent(boolean crossProjectEnabled, XContentParser parser, AtomicReference<String> projectRouting)
+        throws ParsingException {
         try {
             XContentParser.Token first = parser.nextToken();
             if (first == null) {
-                return null;
+                return;
             }
 
             if (first != XContentParser.Token.START_OBJECT) {
@@ -115,20 +115,17 @@ public class RestResolveIndexAction extends BaseRestHandler {
                 );
             }
 
-            String projectRouting = null;
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String currentName = parser.currentName();
-                    if ("project_routing".equals(currentName)) {
+                    if (crossProjectEnabled && "project_routing".equals(currentName)) {
                         parser.nextToken();
-                        projectRouting = parser.text();
+                        projectRouting.set(parser.text());
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }
                 }
             }
-
-            return projectRouting;
         } catch (ParsingException e) {
             throw e;
         } catch (Exception e) {

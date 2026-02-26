@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -23,6 +24,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 
 import java.util.List;
 
@@ -31,14 +33,12 @@ import static org.mockito.Mockito.mock;
 
 public class RestResolveIndexActionTests extends ESTestCase {
 
-    public void testAddResolveCrossProjectBasedOnSettingValue() throws Exception {
-        final boolean cpsEnabled = randomBoolean();
+    private void executeRequest(BytesArray body, boolean cpsEnabled) throws Exception {
         final Settings settings = Settings.builder().put("serverless.cross_project.enabled", cpsEnabled).build();
         final var action = new RestResolveIndexAction(settings);
         final var request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_resolve/index/foo")
-            // Irrespective of CPS status, we should be able to accept an empty body.
-            .withContent(new BytesArray("{}"), XContentType.JSON)
+            .withContent(body, XContentType.JSON)
             .build();
 
         final NodeClient nodeClient = new NodeClient(settings, mock(ThreadPool.class), TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
@@ -58,5 +58,41 @@ public class RestResolveIndexActionTests extends ESTestCase {
         final var restChannel = new FakeRestChannel(request, true, 1);
         action.handleRequest(request, restChannel, nodeClient);
         assertThat(restChannel.responses().get(), equalTo(1));
+    }
+
+    public void testAddResolveCrossProjectBasedOnSettingValue() throws Exception {
+        // Empty body is always fine irrespective of CPS status.
+        executeRequest(randomBoolean() ? new BytesArray("{}") : new BytesArray(""), randomBoolean());
+    }
+
+    public void testResolveIndexWithInvalidBody() {
+        // Invalid request body.
+        ElasticsearchException error = assertThrows(ElasticsearchException.class, () -> executeRequest(new BytesArray("""
+            {
+              "foo": "bar"
+            }
+            """), randomBoolean()));
+        assertThat(error.getMessage(), equalTo("Couldn't parse request body"));
+        assertThat(error.getCause().toString(), Matchers.containsString("request does not support [foo]"));
+    }
+
+    public void testResolveIndexWithProjectRoutingForCps() throws Exception {
+        // Project routing is allowed when CPS is turned on.
+        executeRequest(new BytesArray("""
+            {
+              "project_routing": "_alias:_origin"
+            }
+            """), true);
+    }
+
+    public void testResolveIndexWithProjectRoutingForNonCps() {
+        // Project routing is disallowed when CPS is turned off and is treated as an invalid request body.
+        ElasticsearchException error = assertThrows(ElasticsearchException.class, () -> executeRequest(new BytesArray("""
+            {
+              "project_routing": "_alias:_origin"
+            }
+            """), false));
+        assertThat(error.getMessage(), equalTo("Couldn't parse request body"));
+        assertThat(error.getCause().toString(), Matchers.containsString("request does not support [project_routing]"));
     }
 }

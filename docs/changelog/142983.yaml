@@ -1,5 +1,0 @@
-area: Distributed
-issues: []
-pr: 142983
-summary: Move `checkAndCallWaitForEngineOrClosedShardListeners` to `postRecovery`
-type: enhancement

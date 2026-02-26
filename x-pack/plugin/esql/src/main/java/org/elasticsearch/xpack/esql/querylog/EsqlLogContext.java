@@ -45,6 +45,6 @@ public class EsqlLogContext extends ActivityLoggerContext {
     }
 
     Optional<EsqlQueryProfile> getQueryProfile() {
-        return response == null ? Optional.empty() : Optional.of(response.getExecutionInfo().queryProfile());
+        return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
     }
 }

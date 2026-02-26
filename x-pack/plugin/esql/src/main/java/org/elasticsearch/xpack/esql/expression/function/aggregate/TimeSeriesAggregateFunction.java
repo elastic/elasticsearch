@@ -55,22 +55,20 @@ public abstract class TimeSeriesAggregateFunction extends AggregateFunction impl
     public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
         if (requiredTimeSeriesSource()) {
             List<? extends Expression> parameters = parameters();
-            List<Expression> expressions = new ArrayList<>(1 + parameters.size() + EsQueryExec.TIME_SERIES_SOURCE_FIELDS.size());
-            expressions.add(field());
-            expressions.addAll(parameters);
+            List<Attribute> attributes = new ArrayList<>();
+            attributes.addAll(field().references());
+            for (Expression p : parameters) {
+                attributes.addAll(p.references());
+            }
             for (Attribute attr : inputAttributes.get()) {
                 for (EsField f : EsQueryExec.TIME_SERIES_SOURCE_FIELDS) {
                     if (attr.name().equals(f.getName())) {
-                        expressions.add(attr);
+                        attributes.addAll(attr.references());
                         break;
                     }
                 }
             }
-            List<Attribute> refs = new ArrayList<>();
-            for (Expression input : expressions) {
-                refs.addAll(input.references());
-            }
-            return refs;
+            return attributes;
         } else {
             return super.aggregateInputReferences(inputAttributes);
         }

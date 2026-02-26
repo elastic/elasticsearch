@@ -174,11 +174,12 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
      * The order must align with the input channels expected by the aggregator.
      */
     public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
-        List<Attribute> refs = new ArrayList<>();
-        for (Expression input : CollectionUtils.combine(List.of(field), parameters)) {
-            refs.addAll(input.references());
+        List<Attribute> attributes = new ArrayList<>(1 + parameters.size());
+        attributes.addAll(field.references());
+        for (Expression p : parameters) {
+            attributes.addAll(p.references());
         }
-        return refs;
+        return attributes;
     }
 
     @Override

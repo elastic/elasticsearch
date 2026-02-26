@@ -148,7 +148,19 @@ public final class SingleValueMatchQuery extends Query {
                     ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
                     return new DocIdSetIteratorScorerSupplier(boost, scoreMode, ndv);
                 }
+                DocValuesSkipper dvs = context.reader().getDocValuesSkipper(fieldData.getFieldName());
                 final CheckedIntPredicate predicate = doc -> {
+                    if (dvs instanceof EsDocValueSkipper skipper) {
+                        // We need to check the implementation to get access to the value count, for now
+                        if (doc > skipper.maxDocID(0)) {
+                            // NOCOMMIT - to discuss - I think it's correct to advance the skipper here, but I'd like confirmation
+                            skipper.advance(doc);
+                        }
+                        if (skipper.valueCount(0) == skipper.docCount(0)) {
+                            return true;
+                        }
+                    }
+
                     if (false == sortedNumerics.advanceExact(doc)) {
                         return false;
                     }

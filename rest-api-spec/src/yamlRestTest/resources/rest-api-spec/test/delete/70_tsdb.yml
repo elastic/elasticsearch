@@ -1,5 +1,8 @@
 ---
 "basic tsdb delete":
+  - skip:
+      cluster_features: "index.time_series_synthetic_id"
+      reason: when cluster has synthetic_id feature use 71_tsdb_synthetic_id_false or 72_tsdb_synthetic_id_true instead
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13

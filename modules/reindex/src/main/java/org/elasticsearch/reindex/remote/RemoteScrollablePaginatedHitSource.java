@@ -44,6 +44,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -103,6 +104,10 @@ public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
         remoteVersion = scrollResumeInfo.remoteVersion();
         assert remoteVersion != null : "remote cluster version must be set to resume remote reindex";
         setScroll(scrollResumeInfo.scrollId());
+    }
+
+    public Optional<Version> remoteVersion() {
+        return Optional.ofNullable(remoteVersion);
     }
 
     void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {

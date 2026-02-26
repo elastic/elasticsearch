@@ -17,7 +17,7 @@ NEW_COMMIT_MESSAGE="[CI] Update transport version definitions"
 echo "--- Generating updated transport version definitions"
 # Calculate backport branches based on pull request version labels
 backport_branches=$(
-  echo "${GITHUB_PR_LABELS:-}" \
+  echo "${GITHUB_PR_LABELS}" \
     | tr ',' '\n' \
     | grep -E "v[0-9]+\.[0-9]+\.[0-9]+" \
     | sed -E 's/^v([0-9]+)\.([0-9]+)\.[0-9]+$/\1.\2/' \

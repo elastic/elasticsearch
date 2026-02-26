@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.is;
 
 public class EqlLoggingIT extends AbstractEqlIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(EqlLogProducer.LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(EqlLogProducer.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass

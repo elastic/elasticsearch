@@ -11,6 +11,6 @@ mapped_pages:
 
 {{esql}} queries are built from the following building blocks:
 
-- An {{esql}} query must start with a [source command](./commands/source-commands.md).
+- Optionally, start with [query directives](./commands/directives.md) to define query settings and general behavior.
+- Every query must include a [source command](./commands/source-commands.md).
 - Use [processing commands](./commands/processing-commands.md) to modify an input table by adding, removing, or transforming rows and columns.
-- Optionally, use [query directives](./commands/directives.md) at the beginning of a query to define query settings and general behavior.

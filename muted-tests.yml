@@ -437,6 +437,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
+  method: testAccumulateSearchLoad
+  issue: https://github.com/elastic/elasticsearch/issues/143111
+- class: org.elasticsearch.index.mapper.IpFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/143123
+- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/143124
+- class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
+  method: testCliConnectionWithApiKey
+  issue: https://github.com/elastic/elasticsearch/issues/143125
+- class: org.elasticsearch.packaging.test.DebMetadataTests
+  method: test05CheckLintian
+  issue: https://github.com/elastic/elasticsearch/issues/142819
+- class: org.elasticsearch.compute.aggregation.TimeSeriesFirstDocIdDeduplicationTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/143128
+- class: org.elasticsearch.index.mapper.DateFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/143129
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/143023
+- class: org.elasticsearch.xpack.security.apikey.ApiKeyWorkflowsRestrictionRestIT
+  method: testWorkflowsRestrictionAllowsAccess
+  issue: https://github.com/elastic/elasticsearch/issues/143130
 
 # Examples:
 #

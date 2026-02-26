@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class SqlLoggingIT extends AbstractSqlIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(SqlLogProducer.LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(SqlLogProducer.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass

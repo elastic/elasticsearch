@@ -56,10 +56,10 @@ add time series mappings:
                               time_series_metric: gauge
 
 ---
-can't shadow dimensions:
+can shadow dimensions:
   - requires:
-      cluster_features: ["gte_v8.1.0"]
-      reason: introduced in 8.1.0
+      cluster_features: ["index.shadowing_dimensions_and_metrics_is_valid_in_non_tsdb"]
+      reason: "Fixed by #141549"
 
   - do:
       indices.create:
@@ -84,16 +84,15 @@ can't shadow dimensions:
                           time_series_dimension: true
 
   - do:
-      catch: /Field \[dim\] attempted to shadow a time_series_dimension/
       indices.put_mapping:
         index: test
         body:
           runtime:
             dim:
               type: keyword
+  - is_true: acknowledged
 
   - do:
-      catch: /Field \[dim\] attempted to shadow a time_series_dimension/
       search:
         index: test
         body:
@@ -102,16 +101,15 @@ can't shadow dimensions:
               type: keyword
 
   - do:
-      catch: /Field \[deep.deeper.deepest\] attempted to shadow a time_series_dimension/
       indices.put_mapping:
         index: test
         body:
           runtime:
             deep.deeper.deepest:
               type: keyword
+  - is_true: acknowledged
 
   - do:
-      catch: /Field \[deep.deeper.deepest\] attempted to shadow a time_series_dimension/
       search:
         index: test
         body:
@@ -121,10 +119,10 @@ can't shadow dimensions:
 
 
 ---
-can't shadow metrics:
+can shadow metrics:
   - requires:
-      cluster_features: ["gte_v8.1.0"]
-      reason: introduced in 8.1.0
+      cluster_features: ["index.shadowing_dimensions_and_metrics_is_valid_in_non_tsdb"]
+      reason: "Fixed by #141549"
 
   - do:
       indices.create:
@@ -149,16 +147,15 @@ can't shadow metrics:
                           time_series_metric: gauge
 
   - do:
-      catch: /Field \[metric\] attempted to shadow a time_series_metric/
       indices.put_mapping:
         index: test
         body:
           runtime:
             metric:
               type: keyword
+  - is_true: acknowledged
 
   - do:
-      catch: /Field \[metric\] attempted to shadow a time_series_metric/
       search:
         index: test
         body:
@@ -167,7 +164,6 @@ can't shadow metrics:
               type: keyword
 
   - do:
-      catch: /Field \[deep.deeper.deepest\] attempted to shadow a time_series_metric/
       indices.put_mapping:
         index: test
         body:
@@ -176,7 +172,6 @@ can't shadow metrics:
               type: keyword
 
   - do:
-      catch: /Field \[deep.deeper.deepest\] attempted to shadow a time_series_metric/
       search:
         index: test
         body:

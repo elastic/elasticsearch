@@ -24,5 +24,4 @@ module org.elasticsearch.tdigest {
 
     exports org.elasticsearch.tdigest;
     exports org.elasticsearch.tdigest.arrays;
-    exports org.elasticsearch.tdigest.parsing;
 }

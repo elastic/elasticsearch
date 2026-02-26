@@ -12,10 +12,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
-import org.elasticsearch.compute.operator.SequenceTDigestSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TDigestTestUtils;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceTDigestBlockSourceOperator;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -48,7 +48,10 @@ public class HistogramMergeTDigestAggregatorFunctionTests extends AggregatorFunc
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceTDigestSourceOperator(blockFactory, LongStream.range(0, size).mapToObj(i -> BlockTestUtils.randomTDigest()));
+        return new SequenceTDigestBlockSourceOperator(
+            blockFactory,
+            LongStream.range(0, size).mapToObj(i -> BlockTestUtils.randomTDigest())
+        );
     }
 
     @Override

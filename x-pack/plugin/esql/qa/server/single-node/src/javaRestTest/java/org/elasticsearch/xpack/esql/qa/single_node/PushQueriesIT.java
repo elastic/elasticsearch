@@ -188,7 +188,7 @@ public class PushQueriesIT extends ESRestTestCase {
                  * that don't have the `foo` field. "*:*" is because sometimes we end up on
                  * a shard where all `foo = 1`.
                  */
-                List.of("#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]");
+                List.of("#foo:[1 TO 1] #FieldExistsQuery [field=_primary_term]", "foo:[1 TO 1]", "FieldExistsQuery [field=_primary_term]");
         };
         ComputeSignature dataNodeSignature = switch (type) {
             case AUTO, CONSTANT_KEYWORD, KEYWORD, TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_QUERY;

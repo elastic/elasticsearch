@@ -199,7 +199,7 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 :   Runs an ingest processor on each element of an array or object.
 
 [`json` processor](/reference/enrich-processor/json-processor.md)
-:   Converts a JSON string into a structured JSON object.
+:   Parses a string containing JSON data into a structured object, string, or other value.
 
 [`script` processor](/reference/enrich-processor/script-processor.md)
 :   Runs an inline or stored [script](docs-content://explore-analyze/scripting.md) on incoming documents. The script runs in the [painless `ingest` context](/reference/scripting-languages/painless/painless-ingest-processor-context.md).

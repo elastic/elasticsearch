@@ -13,11 +13,15 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
+import java.util.Map;
+
 /**
  * {@link CompletionOperator} is an {@link InferenceOperator} that performs inference using prompt-based model (e.g., text completion).
  * It evaluates a prompt expression for each input row, constructs inference requests, and emits the model responses as output.
  */
 public class CompletionOperator extends InferenceOperator {
+    private final Map<String, Object> taskSettings;
+
     /**
      * Constructs a new {@code CompletionOperator}.
      *
@@ -30,14 +34,16 @@ public class CompletionOperator extends InferenceOperator {
         DriverContext driverContext,
         InferenceService inferenceService,
         String inferenceId,
-        ExpressionEvaluator promptEvaluator
+        ExpressionEvaluator promptEvaluator,
+        Map<String, Object> taskSettings
     ) {
         super(
             driverContext,
             inferenceService,
-            new CompletionRequestIterator.Factory(inferenceId, promptEvaluator),
+            new CompletionRequestIterator.Factory(inferenceId, promptEvaluator, taskSettings),
             new CompletionOutputBuilder(driverContext.blockFactory())
         );
+        this.taskSettings = taskSettings;
     }
 
     @Override
@@ -48,9 +54,12 @@ public class CompletionOperator extends InferenceOperator {
     /**
      * Factory for creating {@link CompletionOperator} instances.
      */
-    public record Factory(InferenceService inferenceService, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
-        implements
-            OperatorFactory {
+    public record Factory(
+        InferenceService inferenceService,
+        String inferenceId,
+        ExpressionEvaluator.Factory promptEvaluatorFactory,
+        Map<String, Object> taskSettings
+    ) implements OperatorFactory {
 
         @Override
         public String describe() {
@@ -59,7 +68,13 @@ public class CompletionOperator extends InferenceOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new CompletionOperator(driverContext, inferenceService, inferenceId, promptEvaluatorFactory.get(driverContext));
+            return new CompletionOperator(
+                driverContext,
+                inferenceService,
+                inferenceId,
+                promptEvaluatorFactory.get(driverContext),
+                taskSettings
+            );
         }
     }
 }

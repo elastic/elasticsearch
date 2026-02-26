@@ -203,8 +203,7 @@ public class SyntheticVectorFieldsRecoveryTests extends EngineTestCase {
                 fromSeqNo,
                 toSeqNo,
                 requiredFullRange,
-                accessStats,
-                indexVersionCreated
+                accessStats
             );
         } else {
             return new LuceneChangesSnapshot(
@@ -215,8 +214,7 @@ public class SyntheticVectorFieldsRecoveryTests extends EngineTestCase {
                 toSeqNo,
                 requiredFullRange,
                 singleConsumer,
-                accessStats,
-                indexVersionCreated
+                accessStats
             );
         }
     }

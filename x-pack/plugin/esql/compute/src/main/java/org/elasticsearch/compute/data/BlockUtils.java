@@ -233,18 +233,24 @@ public final class BlockUtils {
         }
     }
 
-    public static Block constantBlock(BlockFactory blockFactory, Object val, int size) {
-        if (val == null) {
-            return blockFactory.newConstantNullBlock(size);
+    public static Block constantBlock(BlockFactory blockFactory, Object value, int positions) {
+        if (value == null) {
+            return blockFactory.newConstantNullBlock(positions);
         }
-        if (val instanceof Collection<?> collection) {
-            if (collection.isEmpty()) {
-                return constantBlock(blockFactory, NULL, val, size);
+        if (value instanceof Collection<?> multiValue) {
+            if (multiValue.isEmpty()) {
+                return constantBlock(blockFactory, NULL, value, positions);
             }
-            Object colVal = collection.iterator().next();
-            return constantBlock(blockFactory, fromJava(colVal.getClass()), colVal, size);
+            try (
+                var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.iterator().next().getClass()), positions)
+            ) {
+                for (int i = 0; i < positions; i++) {
+                    wrapper.accept(multiValue);
+                }
+                return wrapper.builder().build();
+            }
         }
-        return constantBlock(blockFactory, fromJava(val.getClass()), val, size);
+        return constantBlock(blockFactory, fromJava(value.getClass()), value, positions);
     }
 
     // TODO: allow null values

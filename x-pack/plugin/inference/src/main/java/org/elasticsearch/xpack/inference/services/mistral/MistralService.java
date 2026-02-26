@@ -38,12 +38,15 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mistral.action.MistralActionCreator;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -58,7 +61,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -82,6 +84,15 @@ public class MistralService extends SenderService {
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new MistralUnifiedChatCompletionResponseHandler(
         "mistral chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
+    );
+    private static final MistralChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new MistralChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends MistralModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new MistralEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR
     );
 
     public MistralService(
@@ -130,7 +141,7 @@ public class MistralService extends SenderService {
             return;
         }
 
-        MistralChatCompletionModel mistralChatCompletionModel = (MistralChatCompletionModel) model;
+        var mistralChatCompletionModel = (MistralChatCompletionModel) model;
         var overriddenModel = MistralChatCompletionModel.of(mistralChatCompletionModel, inputs.getRequest());
         var manager = new GenericRequestManager<>(
             getServiceComponents().threadPool(),
@@ -244,6 +255,17 @@ public class MistralService extends SenderService {
     }
 
     @Override
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
+    }
+
+    @Override
     public MistralModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
@@ -267,21 +289,23 @@ public class MistralService extends SenderService {
     }
 
     private static MistralModel createModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        switch (taskType) {
-            case TEXT_EMBEDDING:
-                return new MistralEmbeddingsModel(modelId, taskType, NAME, serviceSettings, chunkingSettings, secretSettings, context);
-            case CHAT_COMPLETION, COMPLETION:
-                return new MistralChatCompletionModel(modelId, taskType, NAME, serviceSettings, secretSettings, context);
-            default:
-                throw createInvalidTaskTypeException(modelId, NAME, taskType, context);
-        }
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettings,
+            null,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     private MistralModel createModelFromPersistent(

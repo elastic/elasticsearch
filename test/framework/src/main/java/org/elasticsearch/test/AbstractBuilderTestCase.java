@@ -57,6 +57,7 @@ import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -508,8 +509,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 null
             );
-            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
-            });
+            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {});
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache, new NoneCircuitBreakerService());
             if (registerType) {
                 mapperService.merge(
@@ -615,7 +615,9 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> true,
                 null,
                 emptyMap(),
-                MapperMetrics.NOOP
+                null,
+                MapperMetrics.NOOP,
+                SearchExecutionContextHelper.SHARD_SEARCH_STATS
             );
         }
 

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 138008
+pr: 140905
+summary: Fix ES:QL Driver logging for 4xx errors and cancellations
+type: bug

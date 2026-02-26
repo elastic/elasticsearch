@@ -15,38 +15,48 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
+import org.junit.AssumptionViolatedException;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -116,49 +126,45 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         return newSuppliers;
     }
 
+    /**
+     * Returns true if the aggregation gives the same result given the same inputs. False otherwise.
+     */
+    protected boolean isDeterministic() {
+        return true;
+    }
+
     public void testAggregate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
-        resolveExpression(expression, this::aggregateSingleMode, this::evaluate);
+        executeExpression(expression, this::aggregateSingleMode);
     }
 
     public void testAggregateToString() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-        resolveExpression(expression, e -> {
-            try (var aggregator = aggregator(e, initialInputChannels(), AggregatorMode.SINGLE)) {
-                assertAggregatorToString(aggregator);
-            }
-        }, this::evaluate);
+        assertAggregatorToString(expression, false);
     }
 
     public void testGroupingAggregate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
-        resolveExpression(expression, this::aggregateGroupingSingleMode, this::evaluate);
+        executeExpression(expression, this::aggregateGroupingSingleMode);
     }
 
     public void testGroupingAggregateToString() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-        resolveExpression(expression, e -> {
-            try (var aggregator = groupingAggregator(e, initialInputChannels(), AggregatorMode.SINGLE)) {
-                assertAggregatorToString(aggregator);
-            }
-        }, this::evaluate);
+        assertAggregatorToString(expression, true);
     }
 
     public void testAggregateIntermediate() {
         Expression expression = randomBoolean() ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
 
-        resolveExpression(expression, this::aggregateWithIntermediates, this::evaluate);
+        executeExpression(expression, this::aggregateWithIntermediates);
     }
 
     public void testFold() {
         Expression expression = buildLiteralExpression(testCase);
 
-        resolveExpression(expression, aggregatorFunctionSupplier -> {
-            // An aggregation cannot be folded.
-            // It's not an error either as not all aggregations are foldable.
-        }, this::evaluate);
+        executeExpression(expression, (agg, pages) -> { throw new AssumptionViolatedException("Aggregate not foldable"); });
     }
 
     public void testSurrogateHasFilter() {
@@ -184,61 +190,53 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }
     }
 
-    private void aggregateSingleMode(Expression expression) {
+    private Object aggregateSingleMode(Expression expression, List<Page> pages) {
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
-            assertAggregatorToString(aggregator);
-            for (Page inputPage : rows(testCase.getMultiRowFields())) {
-                try (
-                    BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, inputPage.getPositionCount())
-                ) {
-                    aggregator.processPage(inputPage, noMasking);
-                } finally {
-                    inputPage.releaseBlocks();
+            for (Page inputPage : pages) {
+                if (inputPage.getPositionCount() > 0) {
+                    try (
+                        BooleanVector noMasking = driverContext().blockFactory()
+                            .newConstantBooleanVector(true, inputPage.getPositionCount())
+                    ) {
+                        aggregator.processPage(inputPage, noMasking);
+                    }
                 }
             }
 
-            result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
+            result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(expression.dataType()));
         }
 
-        assertTestCaseResultAndWarnings(result);
+        return result;
     }
 
-    private void aggregateGroupingSingleMode(Expression expression) {
-        var pages = rows(testCase.getMultiRowFields());
+    private Object aggregateGroupingSingleMode(Expression expression, List<Page> pages) {
         List<Object> results;
-        try {
-            assumeFalse("Grouping aggregations must receive data to check results", pages.isEmpty());
+        assumeFalse(
+            "Grouping aggregations must receive data to check results",
+            pages.isEmpty() || pages.getFirst().getPositionCount() == 0
+        );
 
-            try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
-                assertAggregatorToString(aggregator);
-                var groupCount = randomIntBetween(1, 1000);
-                for (Page inputPage : pages) {
+        try (var aggregator = groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
+            var groupCount = randomIntBetween(1, 1000);
+            for (Page inputPage : pages) {
+                if (inputPage.getPositionCount() > 0) {
                     processPageGrouping(aggregator, inputPage, groupCount);
                 }
+            }
 
-                results = extractResultsFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()), groupCount);
-            }
-        } finally {
-            for (var page : pages) {
-                page.releaseBlocks();
-            }
+            results = extractResultsFromAggregator(aggregator, PlannerUtils.toElementType(expression.dataType()), groupCount);
         }
 
-        for (var result : results) {
-            assertThat(result, not(equalTo(Double.NaN)));
-            assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
-            assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
-            assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
-            assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
-            assertThat(result, testCase.getMatcher());
-            if (testCase.getExpectedWarnings() != null) {
-                assertWarnings(testCase.getExpectedWarnings());
-            }
+        if (isDeterministic()) {
+            assertThat("All groups must have the same result", results.stream().distinct().count(), is(1L));
         }
+
+        assert results.isEmpty() == false;
+        return results.getFirst();
     }
 
-    private void aggregateWithIntermediates(Expression expression) {
+    private Object aggregateWithIntermediates(Expression expression, List<Page> pages) {
         int intermediateBlockOffset = randomIntBetween(0, 10);
         Block[] intermediateBlocks;
         int intermediateStates;
@@ -250,13 +248,14 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             int intermediateBlockExtraSize = randomIntBetween(0, 10);
             intermediateBlocks = new Block[intermediateBlockOffset + intermediateStates + intermediateBlockExtraSize];
 
-            for (Page inputPage : rows(testCase.getMultiRowFields())) {
-                try (
-                    BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, inputPage.getPositionCount())
-                ) {
-                    aggregator.processPage(inputPage, noMasking);
-                } finally {
-                    inputPage.releaseBlocks();
+            for (Page inputPage : pages) {
+                if (inputPage.getPositionCount() > 0) {
+                    try (
+                        BooleanVector noMasking = driverContext().blockFactory()
+                            .newConstantBooleanVector(true, inputPage.getPositionCount())
+                    ) {
+                        aggregator.processPage(inputPage, noMasking);
+                    }
                 }
             }
 
@@ -291,48 +290,202 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                 inputPage.releaseBlocks();
             }
 
-            result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(testCase.expectedType()));
+            result = extractResultFromAggregator(aggregator, PlannerUtils.toElementType(expression.dataType()));
         }
 
-        assertTestCaseResultAndWarnings(result);
+        return result;
     }
 
-    private void evaluate(Expression evaluableExpression) {
-        assertTrue(evaluableExpression.foldable());
+    private Block executeLeafEvaluableExpression(Expression expression) {
+        try (
+            BlockUtils.BuilderWrapper wrapper = BlockUtils.wrapperFor(
+                driverContext().blockFactory(),
+                PlannerUtils.toElementType(expression.dataType()),
+                0
+            )
+        ) {
+            List<Object> results = new ArrayList<>();
+            try (EvalOperator.ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
+                // TODO: This should look at the layout to place the correct blocks in the correct places
+                for (Page inputPage : rows(testCase.getMultiRowFields())) {
+                    try (Block block = evaluator.eval(inputPage)) {
+                        assertThat(block.getPositionCount(), is(inputPage.getPositionCount()));
+                        BlockTestUtils.readInto(results, block);
 
-        if (testCase.foldingExceptionClass() != null) {
-            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> evaluableExpression.fold(FoldContext.small()));
-            assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
+                        for (int i = 0; i < block.getPositionCount(); i++) {
+                            wrapper.accept(BlockTestUtils.valuesAtPosition(block, i, false));
+                        }
+                    } finally {
+                        inputPage.releaseBlocks();
+                    }
+                }
+            }
+            return wrapper.builder().build();
+        }
+    }
+
+    /**
+     * Executes an aggregation.
+     * <p>
+     *     Surrogates may return something like `DIV(SUM(MV_MIN(x)), COUNT(x))`. This has 3 layers:
+     * </p>
+     * <ol>
+     *     <li>The optional outer evaluable function, working individually on every input row (DIV)</li>
+     *     <li>The actual aggs, consuming all the input rows (SUM, COUNT)</li>
+     *     <li>The optional inner evaluable function, working on a single agg output row (MV_MIN)</li>
+     * </ol>
+     * <p>
+     *     We resolve them from inside-out, following these steps:
+     * </p>
+     * <ol>
+     *     <li>Resolve the expression: Surrogates, null folding...</li>
+     *     <li>Evaluate the aggs children, which must be non-agg functions</li>
+     *     <li>Evaluate the aggs, calling {@code executeAggregator} for each of them</li>
+     *     <li>Fold the final function, if any</li>
+     * </ol>
+     * <p>
+     *     Depending on the presence or absence of those surrogate structures, we'll just short-circuit wherever required.
+     * </p>
+     * @param originalExpression the expression to execute. Expected to be an aggregation
+     * @param executeAggregator a function that will handle the execution of an aggregation, given the page with the inputs.
+     *                          It allows us to test the execution with different modes (single, grouping, intermediate...)
+     */
+    private void executeExpression(Expression originalExpression, BiFunction<Expression, List<Page>, Object> executeAggregator) {
+        Expression expression = resolveExpression(originalExpression);
+        // Not expected to be evaluated (E.g. type error already checked)
+        if (expression == null) {
             return;
         }
 
-        Object result = evaluableExpression.fold(FoldContext.small());
-        // Decode unsigned longs into BigIntegers
-        if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
-            result = NumericUtils.unsignedLongAsBigInteger((Long) result);
-        }
-        assertTestCaseResultAndWarnings(result);
-    }
+        boolean isExecutableAgg = expression instanceof AggregateFunction
+            && expression.children()
+                .stream()
+                .allMatch(child -> child instanceof FieldAttribute || child instanceof DeepCopy || child instanceof Literal);
 
-    private void resolveExpression(Expression expression, Consumer<Expression> onAggregator, Consumer<Expression> onEvaluableExpression) {
-        String valuesString = testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","));
-        if (valuesString.length() > 200) {
-            valuesString = valuesString.substring(0, 200) + "...";
-        }
-        logger.info("Test Values: " + valuesString);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
+        // If there was no surrogate, or it didn't add evaluable functions, short-circuit for the happy-path
+        if (isExecutableAgg) {
+            var result = executeAggregator.apply(expression, rows(testCase.getMultiRowFields()));
+            assertTestCaseResultAndWarnings(result);
             return;
         }
-        expression = resolveSurrogates(expression);
 
-        // As expressions may be composed of multiple functions, we need to fold nulls bottom-up
-        expression = expression.transformUp(e -> new FoldNull().rule(e, unboundLogicalOptimizerContext()));
-        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+        // Maps with every evaluation result, which will help us simulating the Layout and pages of each step
+        Map<Expression, Block> blocksByField = new HashMap<>();
+        Map<Expression, Literal> literalsByField = new HashMap<>();
+        try {
+            // Populate maps with the test input data
+            int dataIndex = 0;
+            for (int i = 0; i < originalExpression.children().size(); i++) {
+                Expression field = originalExpression.children().get(i);
 
-        Expression.TypeResolution resolution = expression.typeResolved();
-        if (resolution.unresolved()) {
-            throw new AssertionError("expected resolved " + resolution.message());
+                if (field instanceof Literal) {
+                    continue;
+                }
+
+                var data = testCase.getData().get(dataIndex++);
+
+                if (data.isMultiRow()) {
+                    blocksByField.put(
+                        field,
+                        BlockTestUtils.asBlock(
+                            driverContext().blockFactory(),
+                            PlannerUtils.toElementType(field.dataType()),
+                            data.multiRowData()
+                        )
+                    );
+                } else {
+                    literalsByField.put(field, data.asLiteral());
+                }
+            }
+
+            // Resolve agg children and store their results in the literal/blocks maps
+            Expression expressionWithResolvedAggChildren = expression.transformUp(AggregateFunction.class, agg -> {
+                var newChildren = new ArrayList<Expression>(agg.children().size());
+                for (Expression child : agg.children()) {
+                    if (child.foldable()) {
+                        var literal = Literal.of(child, child.fold(FoldContext.small()));
+                        literalsByField.put(child, literal);
+                        newChildren.add(literal);
+                    } else {
+                        if (blocksByField.containsKey(child) == false) {
+                            Block result = executeLeafEvaluableExpression(child);
+                            blocksByField.put(child, result);
+                        }
+                        newChildren.add(child);
+                    }
+                }
+
+                return agg.replaceChildren(newChildren);
+            });
+
+            Function<Expression, Object> resolveAgg = (agg) -> {
+                // Holder used to release blocks generated in this section that aren't part of the blocksByField map
+                Holder<Block> releasableBlock = new Holder<>();
+                try (Releasable releasable = () -> {
+                    if (releasableBlock.get() != null) {
+                        releasableBlock.get().close();
+                    }
+                }) {
+                    Block[] blocks = agg.children()
+                        .stream()
+                        .filter(child -> child instanceof Literal == false)
+                        .map(blocksByField::get)
+                        .toArray(Block[]::new);
+                    if (blocks.length == 0) {
+                        var justPositionsBlock = driverContext().blockFactory()
+                            .newConstantNullBlock(testCase.getMultiRowFields().getFirst().multiRowData().size());
+                        releasableBlock.setOnce(justPositionsBlock);
+                        // Handle cases like COUNT(*), where there are no input fields
+                        blocks = new Block[] { justPositionsBlock };
+                    }
+                    // Generate the page based on the resolved blocks
+                    Page inputPage = new Page(blocks);
+                    return executeAggregator.apply(agg, List.of(inputPage));
+                }
+            };
+
+            // No top-level evaluators, short-circuit
+            if (expressionWithResolvedAggChildren instanceof AggregateFunction) {
+                var result = resolveAgg.apply(expressionWithResolvedAggChildren);
+                assertTestCaseResultAndWarnings(result);
+                return;
+            }
+
+            // Resolve nested aggs
+            Expression expressionWithResolvedAggs = expressionWithResolvedAggChildren.transformUp(e -> {
+                var newExpressionChildren = new ArrayList<Expression>(e.children().size());
+                boolean changed = false;
+                // Iterate agg children only
+                for (Expression agg : e.children()) {
+                    if (agg instanceof AggregateFunction == false) {
+                        newExpressionChildren.add(agg);
+                        continue;
+                    }
+
+                    var resultLiteral = Literal.of(agg, resolveAgg.apply(agg));
+
+                    literalsByField.put(agg, resultLiteral);
+                    newExpressionChildren.add(resultLiteral);
+                    changed = true;
+                }
+                return changed ? e.replaceChildren(newExpressionChildren) : e;
+            });
+
+            // Resolve final evaluation
+            Object result = Foldables.valueOf(FoldContext.small(), expressionWithResolvedAggs);
+            assertTestCaseResultAndWarnings(result);
+        } finally {
+            Releasables.close(blocksByField.values());
+        }
+    }
+
+    /**
+     * Asserts the evaluator toString of the given expression.
+     */
+    private void assertAggregatorToString(Expression originalExpression, boolean grouping) {
+        Expression expression = resolveExpression(originalExpression);
+        if (expression == null) {
+            return;
         }
 
         assumeTrue(
@@ -343,14 +496,58 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         );
 
         if (expression instanceof AggregateFunction == false) {
-            onEvaluableExpression.accept(expression);
+            // Not an aggregator
             return;
         }
 
         assertThat(expression, instanceOf(ToAggregator.class));
         logger.info("Result type: " + expression.dataType());
 
-        onAggregator.accept(expression);
+        try (
+            var aggregator = grouping
+                ? groupingAggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)
+                : aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)
+        ) {
+            assertAggregatorToString(aggregator);
+        }
+    }
+
+    /**
+     * Resolves the expression and checks type resolution and expected type.
+     * @return the resolved, ready-to-execute expression, or null if it wasn't resolved
+     */
+    private Expression resolveExpression(Expression expression) {
+        String valuesString = testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","));
+        if (valuesString.length() > 200) {
+            valuesString = valuesString.substring(0, 200) + "...";
+        }
+        logger.info("Test Values: " + valuesString);
+        if (testCase.getExpectedTypeError() != null) {
+            assertTypeResolutionFailure(expression);
+            return null;
+        }
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+        expression = resolveSurrogates(expression);
+
+        // Fold nulls
+        expression = expression.transformUp(e -> new FoldNull().rule(e, unboundLogicalOptimizerContext()));
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+
+        // Replace null aggs
+        expression = expression.transformUp(AggregateFunction.class, agg -> {
+            if (ReplaceStatsFilteredOrNullAggWithEval.shouldReplace(agg)) {
+                return Literal.of(agg, ReplaceStatsFilteredOrNullAggWithEval.mapNullToValue(agg));
+            }
+            return agg;
+        });
+        assertThat(expression.dataType(), equalTo(testCase.expectedType()));
+
+        Expression.TypeResolution resolution = expression.typeResolved();
+        if (resolution.unresolved()) {
+            throw new AssertionError("expected resolved " + resolution.message());
+        }
+
+        return expression;
     }
 
     private Object extractResultFromAggregator(Aggregator aggregator, ElementType expectedElementType) {
@@ -365,7 +562,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             // For null blocks, the element type is NULL, so if the provided matcher matches, the type works too
             assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
-            return toJavaObjectUnsignedLongAware(blocks[resultBlockIndex], 0);
+            return toJavaObject(blocks[resultBlockIndex], 0);
         } finally {
             Releasables.close(blocks);
         }
@@ -386,17 +583,14 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             // For null blocks, the element type is NULL, so if the provided matcher matches, the type works too
             assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
-            return IntStream.range(resultBlockIndex, groupCount)
-                .mapToObj(position -> toJavaObjectUnsignedLongAware(blocks[resultBlockIndex], position))
-                .toList();
+            return IntStream.range(0, groupCount).mapToObj(position -> toJavaObject(blocks[resultBlockIndex], position)).toList();
         } finally {
             Releasables.close(blocks);
         }
     }
 
     private List<Integer> initialInputChannels() {
-        // TODO: Randomize channels
-        // TODO: If surrogated, channels may change
+        // TODO: Randomize channels. If surrogated, channels may change
         return IntStream.range(0, testCase.getMultiRowFields().size()).boxed().toList();
     }
 
@@ -415,21 +609,21 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             return expression;
         }
 
-        for (int i = 0;; i++) {
-            assertThat("Potential infinite loop detected in surrogates", i, lessThan(10));
-
-            if (expression instanceof SurrogateExpression == false) {
-                break;
-            }
-
-            var surrogate = ((SurrogateExpression) expression).surrogate();
-
-            if (surrogate == null) {
-                break;
-            }
-
-            expression = surrogate;
+        // Run agg surrogates twice
+        // This simulates the double aggs surrogation in LogicalPlanOptimizer
+        for (int i = 0; i < 2; i++) {
+            expression = expression.transformUp(AggregateFunction.class, agg -> {
+                if (agg instanceof SurrogateExpression se) {
+                    var surrogate = se.surrogate();
+                    if (surrogate != null) {
+                        return surrogate;
+                    }
+                }
+                return agg;
+            });
         }
+
+        expression = SubstituteSurrogateExpressions.rule(expression);
 
         return expression;
     }

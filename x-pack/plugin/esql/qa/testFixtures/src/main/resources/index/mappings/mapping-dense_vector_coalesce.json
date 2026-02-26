@@ -65,7 +65,6 @@
     },
     "bfloat16_vector": {
       "type": "dense_vector",
-      "dims": 16,
       "similarity": "l2_norm",
       "element_type": "bfloat16",
       "index_options": {
@@ -76,7 +75,6 @@
     },
     "bfloat16_vector_2": {
       "type": "dense_vector",
-      "dims": 16,
       "similarity": "l2_norm",
       "element_type": "bfloat16",
       "index_options": {

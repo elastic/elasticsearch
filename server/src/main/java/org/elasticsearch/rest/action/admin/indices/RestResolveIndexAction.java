@@ -68,18 +68,20 @@ public class RestResolveIndexAction extends BaseRestHandler {
         AtomicReference<String> projectRouting = new AtomicReference<>();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS);
 
-        if (crossProjectEnabled) {
-            request.withContentOrSourceParamParserOrNull(parser -> {
-                try {
-                    // If parser is null, there's no request body. projectRouting will then yield `null`.
-                    if (parser != null) {
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            try {
+                // If parser is null, there's no request body. projectRouting will then yield `null`.
+                if (parser != null) {
+                    if (crossProjectEnabled) {
                         projectRouting.set(parseProjectRouting(parser));
                     }
-                } catch (Exception e) {
-                    throw new ElasticsearchException("Couldn't parse request body", e);
                 }
-            });
+            } catch (Exception e) {
+                throw new ElasticsearchException("Couldn't parse request body", e);
+            }
+        });
 
+        if (crossProjectEnabled) {
             indicesOptions = IndicesOptions.builder(indicesOptions)
                 .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                 .build();

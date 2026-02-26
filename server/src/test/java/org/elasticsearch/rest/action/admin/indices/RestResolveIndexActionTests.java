@@ -15,12 +15,14 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 
@@ -35,6 +37,8 @@ public class RestResolveIndexActionTests extends ESTestCase {
         final var action = new RestResolveIndexAction(settings);
         final var request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/_resolve/index/foo")
+            // Irrespective of CPS status, we should be able to accept an empty body.
+            .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
 
         final NodeClient nodeClient = new NodeClient(settings, mock(ThreadPool.class), TestProjectResolvers.DEFAULT_PROJECT_ONLY) {

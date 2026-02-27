@@ -76,20 +76,41 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
             Response result = executeCheck();
             assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
         } else {
-            var exception = expectThrows(ResponseException.class, this::executeCheck);
-            assertThat(exception, statusCodeMatcher(403));
+            try {
+                Response result = executeCheck();
+                // If the call succeeded in a denied context, a default value strategy must be in play.
+                // Verify the returned default matches the expected value.
+                String expectedDefault = result.getHeader("expectedDefaultIfDenied");
+                assertNotNull(
+                    "Action [" + actionName + "] succeeded in denied context but has no expectedDefaultIfDenied",
+                    expectedDefault
+                );
+                String actualValue = result.getHeader("resultValue");
+                assertThat("Action [" + actionName + "] returned unexpected default value", actualValue, equalTo(expectedDefault));
+            } catch (ResponseException exception) {
+                assertThat(exception, statusCodeMatcher(403));
+            }
         }
     }
 
     private static Matcher<ResponseException> statusCodeMatcher(int statusCode) {
         return new TypeSafeMatcher<>() {
             String expectedException = null;
+            String mismatchDetail = null;
 
             @Override
             protected boolean matchesSafely(ResponseException item) {
                 Response resp = item.getResponse();
                 expectedException = resp.getHeader("expectedException");
-                return resp.getStatusLine().getStatusCode() == statusCode && expectedException != null;
+                if (resp.getStatusLine().getStatusCode() != statusCode || expectedException == null) {
+                    return false;
+                }
+                String notEntitledCause = resp.getHeader("notEntitledCause");
+                if ("false".equals(notEntitledCause)) {
+                    mismatchDetail = "expected NotEntitledException in cause chain but it was absent";
+                    return false;
+                }
+                return true;
             }
 
             @Override
@@ -103,6 +124,9 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
                     .appendValue(item.getResponse().getStatusLine().getStatusCode())
                     .appendText("\n")
                     .appendValue(item.getMessage());
+                if (mismatchDetail != null) {
+                    description.appendText("\n").appendText(mismatchDetail);
+                }
             }
         };
     }

@@ -302,7 +302,6 @@ public class Reindexer {
         Consumer<Version> workerAction,
         long startTime
     ) {
-        // TODO - Update the metrics integration tests?
         // Wrap with metrics so failures before the worker runs (version lookup, PIT open) are recorded
         final ActionListener<BulkByScrollResponse> listenerWithMetrics = workerListenerWithRelocationAndMetrics(
             listenerWithRelocations,

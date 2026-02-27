@@ -79,9 +79,7 @@ abstract class ES93FlatFieldVectorsWriter<T> extends FlatFieldVectorsWriter<T> {
         }
         if (docID == lastDocID) {
             throw new IllegalArgumentException(
-                "VectorValuesField \""
-                    + fieldInfo.name
-                    + "\" appears more than once in this document (only one value is allowed per field)"
+                "VectorValuesField \"" + fieldInfo.name + "\" appears more than once in this document (only one value is allowed per field)"
             );
         }
         assert docID > lastDocID;
@@ -95,10 +93,9 @@ abstract class ES93FlatFieldVectorsWriter<T> extends FlatFieldVectorsWriter<T> {
     public long ramBytesUsed() {
         long size = SHALLOW_RAM_BYTES_USED;
         if (vectors.isEmpty()) return size;
-        return size
-            + docsWithField.ramBytesUsed()
-            + (long) vectors.size() * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
-            + (long) vectors.size() * fieldInfo.getVectorDimension() * fieldInfo.getVectorEncoding().byteSize;
+        return size + docsWithField.ramBytesUsed() + (long) vectors.size() * (RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) + (long) vectors.size() * fieldInfo.getVectorDimension() * fieldInfo
+                .getVectorEncoding().byteSize;
     }
 
     @Override

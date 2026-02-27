@@ -150,6 +150,29 @@ public class LookupQueryVectorBuilder implements QueryVectorBuilder {
                             value[i] = floats[i];
                         }
                     }
+                    case Object[] arr -> {
+                        value = new float[arr.length];
+                        for (int i = 0; i < arr.length; i++) {
+                            if (arr[i] instanceof Number num) {
+                                value[i] = num.floatValue();
+                            } else {
+                                listener.onFailure(
+                                    new IllegalArgumentException(
+                                        "Element at index ["
+                                            + i
+                                            + "] in field ["
+                                            + path
+                                            + "] in document with id ["
+                                            + id
+                                            + "] is of unsupported type ["
+                                            + arr[i].getClass().getName()
+                                            + "] for lookup query vector builder."
+                                    )
+                                );
+                                return;
+                            }
+                        }
+                    }
                     default -> {
                         listener.onFailure(
                             new IllegalArgumentException(

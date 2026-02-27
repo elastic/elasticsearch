@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.patterntext;
 
-import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -16,6 +16,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.KeywordDocValuesField;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Set;
 
 public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> {
 
@@ -71,8 +73,12 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
 
     @Override
     public LeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        LeafReader leafReader = context.reader();
-        var values = PatternTextCompositeValues.from(leafReader, fieldType);
+        final BinaryDocValues values;
+        if (fieldType.disableTemplating()) {
+            values = loadStoredFieldDocValues(context);
+        } else {
+            values = PatternTextCompositeValues.from(context.reader(), fieldType);
+        }
         return new LeafFieldData() {
 
             final ToScriptFieldFactory<SortedBinaryDocValues> factory = KeywordDocValuesField::new;
@@ -87,7 +93,7 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
                 return new SortedBinaryDocValues() {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
-                        return values.advanceExact(doc);
+                        return values != null && values.advanceExact(doc);
                     }
 
                     @Override
@@ -105,6 +111,52 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
             @Override
             public long ramBytesUsed() {
                 return 1L;
+            }
+        };
+    }
+
+    private BinaryDocValues loadStoredFieldDocValues(LeafReaderContext context) throws IOException {
+        var loader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));
+        var leafLoader = loader.getLoader(context, null);
+        return new BinaryDocValues() {
+            BytesRef currentValue;
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                leafLoader.advanceTo(target);
+                var storedFields = leafLoader.storedFields();
+                var fieldValues = storedFields.get(fieldType.storedNamed());
+                if (fieldValues != null && fieldValues.isEmpty() == false) {
+                    currentValue = (BytesRef) fieldValues.getFirst();
+                    return true;
+                }
+                currentValue = null;
+                return false;
+            }
+
+            @Override
+            public BytesRef binaryValue() {
+                return currentValue;
+            }
+
+            @Override
+            public int docID() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int nextDoc() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int advance(int target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long cost() {
+                return 0;
             }
         };
     }

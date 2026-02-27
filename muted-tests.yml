@@ -342,6 +342,3 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/142440
-- class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
-  method: testSimple
-  issue: https://github.com/elastic/elasticsearch/issues/142408

@@ -207,11 +207,10 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
             """;
         var exception = expectThrows(XContentParseException.class, () -> parseJson(json, parsed -> {}));
         assertThat(exception.getMessage(), containsString("[headers_parser] failed to parse field [headers]"));
-        assertThat(exception.getCause().getMessage(), containsString("Failed to build [headers_parser] after last required field arrived"));
         assertThat(
-            exception.getCause().getCause().getMessage(),
+            exception.getCause().getMessage(),
             containsString(
-                "Map field [root.headers] has an entry that is not valid, [key => 1]. Value type of [Integer] is not one of [String].;"
+                "Map field [headers] has an entry that is not valid, [key => 1]. Value type of [Integer] is not one of [String].;"
             )
         );
     }
@@ -226,12 +225,9 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
             """;
         var exception = expectThrows(XContentParseException.class, () -> parseJson(json, parsed -> {}));
         assertThat(exception.getMessage(), containsString("[headers_parser] failed to parse field [headers]"));
-        assertThat(exception.getCause().getMessage(), containsString("Failed to build [headers_parser] after last required field arrived"));
         assertThat(
-            exception.getCause().getCause().getMessage(),
-            containsString(
-                "Map field [root.headers] has an entry that is not valid, [key => {}]. Value type of [Map] is not one of [String].;"
-            )
+            exception.getCause().getMessage(),
+            containsString("Map field [headers] has an entry that is not valid, [key => {}]. Value type of [Map] is not one of [String].;")
         );
     }
 
@@ -242,6 +238,14 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
         var original = createRandomNonNull();
         var json = toXContentString(original);
         parseJson(json, parsedHeaders -> assertThat(parsedHeaders, is(original)));
+    }
+
+    public void testParse_RoundtripNull() throws IOException {
+        // When a null headers is serialized to xContent, it is not written at all
+        // (aka would look like this {}) instead of it being written {"headers": null}. This is because it's only used for
+        // the update API to indicate that the existing headers should be removed.
+        var json = toXContentString(Headers.NULL_INSTANCE);
+        parseJson(json, parsedHeaders -> assertThat(parsedHeaders, is(Headers.UNDEFINED_INSTANCE)));
     }
 
     private static void parseJson(String jsonInput, Consumer<Headers> assertCallback) throws IOException {

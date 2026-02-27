@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
@@ -84,16 +85,26 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
         var updatedSettings = initialSettings.updatedTaskSettings(Collections.unmodifiableMap(newSettingsMap));
 
-        if (newSettings.user().isPresent() == false) {
-            assertEquals(initialSettings.user(), updatedSettings.user());
-        } else {
+        if (newSettings.user().isPresent()) {
             assertEquals(newSettings.user(), updatedSettings.user());
+        } else if (newSettings.user().isNull()) {
+            // When the new settings has a null user, we want to remove the existing user, so the updated settings should now
+            // have the user as undefined
+            assertEquals(StatefulValue.undefined(), updatedSettings.user());
+        } else {
+            // If the new settings did not have user, the updated settings should keep the existing user
+            assertEquals(initialSettings.user(), updatedSettings.user());
         }
 
-        if (newSettings.headers().isPresent() == false) {
-            assertEquals(initialSettings.headers(), updatedSettings.headers());
-        } else {
+        if (newSettings.headers().isPresent()) {
             assertEquals(newSettings.headers(), updatedSettings.headers());
+        } else if (newSettings.headers().isNull()) {
+            // When the new settings has a null headers field, we want to remove the existing headers, so the updated settings should now
+            // have the headers as undefined
+            assertEquals(Headers.UNDEFINED_INSTANCE, updatedSettings.headers());
+        } else {
+            // If the new settings did not have the headers field, the updated settings should keep the existing headers
+            assertEquals(initialSettings.headers(), updatedSettings.headers());
         }
     }
 
@@ -193,19 +204,29 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testFromMap_ThrowsException_WhenHeadersContainsAnInteger() {
         var exception = expectThrows(
-            ValidationException.class,
+            XContentParseException.class,
             () -> createFromMap(
                 new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, Headers.HEADERS_FIELD, new HashMap<>(Map.of("key", 1)))),
                 ConfigurationParseContext.REQUEST
             )
         );
 
+        assertThat(exception.getMessage(), containsString("failed to parse field [headers]"));
+        assertThat(exception.getCause().getMessage(), containsString(
+            "Map field [headers] has an entry that is not "
+                + "valid, [key => 1]. Value type of [Integer] is not one of [String].;"
+        ));
+    }
+
+    public void testFromMap_ThrowsException_WhenUserIsAnInteger() {
+        var exception = expectThrows(
+            XContentParseException.class,
+            () -> createFromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, 1)), ConfigurationParseContext.REQUEST)
+        );
+
         assertThat(
             exception.getMessage(),
-            containsString(
-                "Map field [task_settings.headers] has an entry that is not valid, "
-                    + "[key => 1]. Value type of [Integer] is not one of [String]."
-            )
+            containsString("[azure_openai_task_settings_parser] user doesn't support values of type: VALUE_NUMBER")
         );
     }
 

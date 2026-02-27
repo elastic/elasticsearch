@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +31,7 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
     public static final String HEADERS_FIELD = "headers";
     // public for testing
     public static final Headers UNDEFINED_INSTANCE = new Headers(StatefulValue.undefined());
-    static final Headers NULL_INSTANCE = new Headers(StatefulValue.nullInstance());
+    public static final Headers NULL_INSTANCE = new Headers(StatefulValue.nullInstance());
 
     /**
      * Sentinel passed by the parser when the headers field is present with value null.
@@ -42,7 +41,33 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
     private static final ParseField HEADERS = new ParseField(HEADERS_FIELD);
 
     public static <Value, Context> void initParser(ConstructingObjectParser<Value, Context> parser) {
-        parser.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.mapOrdered(), PARSER_NULL_SENTINEL, HEADERS);
+        parser.declareObjectOrNull(optionalConstructorArg(), (p, c) -> {
+            var orderedMap = p.mapOrdered();
+            if (orderedMap == null || orderedMap == PARSER_NULL_SENTINEL) {
+                return orderedMap;
+            }
+
+            var validationException = new ValidationException();
+
+            return doValidation(orderedMap, validationException);
+        }, PARSER_NULL_SENTINEL, HEADERS);
+    }
+
+    private static Map<String, String> doValidation(Map<String, Object> map, ValidationException validationException) {
+        removeNullValues(map);
+
+        var stringHeaders = validateMapStringValues(
+            map,
+            HEADERS.getPreferredName(),
+            validationException,
+            false,
+            Map.of()
+        );
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+        return stringHeaders;
     }
 
     @SuppressWarnings("unchecked")
@@ -63,25 +88,15 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
             throw validationException;
         }
 
-        removeNullValues((Map<String, Object>) arg);
+        // It's not likely that this create method would be called with invalid values since they should be validated during parsing but
+        // we'll do it just in case this method is used elsewhere
+        var stringsMap = doValidation((Map<String, Object>) arg, validationException);
 
-        var stringHeaders = validateMapStringValues(
-            (Map<String, String>) arg,
-            Strings.format("%s.%s", path, HEADERS.getPreferredName()),
-            validationException,
-            false,
-            Map.of()
-        );
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        if (stringHeaders.isEmpty()) {
+        if (stringsMap.isEmpty()) {
             return UNDEFINED_INSTANCE;
         }
 
-        return new Headers(StatefulValue.of(stringHeaders));
+        return new Headers(StatefulValue.of(stringsMap));
     }
 
     public Headers {

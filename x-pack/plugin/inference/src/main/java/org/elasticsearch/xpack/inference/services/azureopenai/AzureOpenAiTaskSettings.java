@@ -18,7 +18,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
@@ -33,7 +32,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.common.parser.Headers.UNDEFINED_INSTANCE;
-import static org.elasticsearch.xpack.inference.common.parser.ParseExceptionUtils.unwrapXContentParseException;
 
 /**
  * Base class for Azure OpenAI task settings. Holds optional user and optional
@@ -143,8 +141,6 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to parse Azure OpenAI task settings", e);
-        } catch (XContentParseException e) {
-            throw unwrapXContentParseException(e);
         }
     }
 

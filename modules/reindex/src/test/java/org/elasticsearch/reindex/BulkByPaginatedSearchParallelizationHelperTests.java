@@ -41,7 +41,6 @@ import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearch
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.junit.Assert.assertThat;
 
 public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase {
 

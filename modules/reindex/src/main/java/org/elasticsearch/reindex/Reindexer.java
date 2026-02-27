@@ -235,6 +235,7 @@ public class Reindexer {
 
     /**
      * Returns the keep-alive duration for PIT. Uses the request's scroll time when set, otherwise defaults to 5 minutes.
+     * TODO - https://github.com/elastic/elasticsearch-team/issues/2334
      */
     private static TimeValue pitKeepAlive(ReindexRequest request) {
         return request.getScrollTime() != null ? request.getScrollTime() : TimeValue.timeValueMinutes(5);

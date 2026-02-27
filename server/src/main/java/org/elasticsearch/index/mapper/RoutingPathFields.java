@@ -18,7 +18,7 @@ import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutputHelper;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
@@ -45,7 +45,7 @@ public final class RoutingPathFields implements RoutingFields {
 
     private static final int MAX_HASH_LEN_BYTES = 2;
     static {
-        assert MAX_HASH_LEN_BYTES == StreamOutput.putVInt(new byte[2], hashLen(MAX_ROUTING_FIELDS), 0);
+        assert MAX_HASH_LEN_BYTES == StreamOutputHelper.putVInt(new byte[2], hashLen(MAX_ROUTING_FIELDS), 0);
     }
 
     /**
@@ -91,7 +91,7 @@ public final class RoutingPathFields implements RoutingFields {
         int len = hashLen(numberOfFields);
         // either one or two bytes are occupied by the vint since we're bounded by #MAX_ROUTING_FIELDS
         byte[] hash = new byte[MAX_HASH_LEN_BYTES + len];
-        int index = StreamOutput.putVInt(hash, len, 0);
+        int index = StreamOutputHelper.putVInt(hash, len, 0);
 
         hasher.reset();
         for (final BytesRef name : routingValues.keySet()) {

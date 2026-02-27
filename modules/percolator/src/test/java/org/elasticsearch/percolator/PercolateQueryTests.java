@@ -26,7 +26,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -159,10 +158,10 @@ public class PercolateQueryTests extends ESTestCase {
                 "_name",
                 queryStore,
                 Collections.singletonList(new BytesArray("c")),
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 percolateSearcher,
                 null,
-                new MatchAllDocsQuery()
+                Queries.ALL_DOCS_INSTANCE
             )
         );
         topDocs = shardSearcher.search(query, 10);

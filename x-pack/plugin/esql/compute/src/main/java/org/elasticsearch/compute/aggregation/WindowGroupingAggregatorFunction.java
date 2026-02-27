@@ -123,6 +123,21 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                     public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
                         throw new UnsupportedOperationException();
                     }
+
+                    @Override
+                    public int previousGroupId(int currentGroupId) {
+                        return -1;
+                    }
+
+                    @Override
+                    public int nextGroupId(int currentGroupId) {
+                        return -1;
+                    }
+
+                    @Override
+                    public void computeAdjacentGroupIds() {
+                        // not used by #nextGroupId and #previousGroupId
+                    }
                 }
             );
         }

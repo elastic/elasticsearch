@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Functions;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -30,11 +31,42 @@ import java.util.Objects;
 public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Project", Project::new);
 
+    /**
+     * Backward compatibility entry + name for reading the consolidated `EsqlProject` plans from pre-9.4.0 nodes.
+     */
+    private static final String LEGACY_PROJECT_NAME = "EsqlProject";
+
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_ANALYTICS)
+    public static final NamedWriteableRegistry.Entry V9_ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        LEGACY_PROJECT_NAME,
+        Project::readLegacyEsqlProject
+    );
+
+    private static Project readLegacyEsqlProject(StreamInput in) throws IOException {
+        return new Project(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
+            V9_ENTRY.name
+        );
+    }
+
     private final List<? extends NamedExpression> projections;
+    private final String writeableName;
 
     public Project(Source source, LogicalPlan child, List<? extends NamedExpression> projections) {
+        this(source, child, projections, ENTRY.name);
+    }
+
+    /**
+     * Constructor that allows specifying a custom writeable name for backward compatibility.
+     * Used when deserializing legacy "EsqlProject" plans from older cluster versions.
+     */
+    private Project(Source source, LogicalPlan child, List<? extends NamedExpression> projections, String writeableName) {
         super(source, child);
         this.projections = projections;
+        this.writeableName = writeableName;
         assert validateProjections(projections);
     }
 
@@ -55,7 +87,8 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
-            in.readNamedWriteableCollectionAsList(NamedExpression.class)
+            in.readNamedWriteableCollectionAsList(NamedExpression.class),
+            ENTRY.name
         );
     }
 
@@ -68,7 +101,7 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        return writeableName;
     }
 
     @Override
@@ -96,7 +129,13 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(projections);
+        for (NamedExpression projection : projections) {
+            // don't call dataType() - it will fail on UnresolvedAttribute
+            if (projection.resolved() == false && projection instanceof UnsupportedAttribute == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

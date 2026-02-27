@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -52,6 +53,11 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
         this.taskConcurrency = testCase.taskConcurrency;
     }
 
+    @BeforeClass
+    public static void checkCapabilities() {
+        assumeTrue("Node reduction must be enabled", EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled());
+    }
+
     public record TestCase(int shardCount, int maxConcurrentNodes, int taskConcurrency) {}
 
     @ParametersFactory
@@ -67,9 +73,7 @@ public abstract class EsqlReductionLateMaterializationTestCase extends AbstractE
         return result;
     }
 
-    public void setupIndex() throws Exception {
-        assumeTrue("requires query pragmas", canUseQueryPragmas());
-
+    private void setupIndex() throws Exception {
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("properties");
         {

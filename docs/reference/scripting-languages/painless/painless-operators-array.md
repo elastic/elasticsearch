@@ -1,15 +1,20 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-operators-array.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
 # Operators: Array [painless-operators-array]
 
-## Array Initialization [array-initialization-operator]
+## Array initialization [array-initialization-operator]
 
 Use the `array initialization operator '[] {}'` to allocate a single-dimensional [array type](/reference/scripting-languages/painless/painless-types.md#array-type) instance to the heap with a set of pre-defined elements. Each value used to initialize an element in the array type instance is cast to the specified element type value upon insertion. The order of specified values is maintained.
+
+For help with any required debugging, refer to [Debug array manipulation errors in Painless](docs-content://explore-analyze/scripting/painless-array-list-manipulation-errors.md).
 
 **Errors**
 
@@ -25,7 +30,7 @@ expression_list: expression (',' expression);
 
 **Example:**
 
-* Array initialization with static values.
+* Array initialization with static values
 
     ```painless
     int[] x = new int[] {1, 2, 3}; <1>
@@ -53,7 +58,7 @@ expression_list: expression (',' expression);
 
 
 
-## Array Access [array-access-operator]
+## Array access [array-access-operator]
 
 Use the `array access operator '[]'` to store a value to or load a value from an [array type](/reference/scripting-languages/painless/painless-types.md#array-type) value. Each element of an array type value is accessed with an `int` type value to specify the index to store/load. The range of elements within an array that are accessible is `[0, size)` where size is the number of elements specified at the time of allocation. Use a negative `int` type value as an index to access an element in reverse from the end of an array type value within a range of `[-size, -1]`.
 
@@ -70,7 +75,7 @@ brace_access: '[' expression ']'
 
 **Examples**
 
-* Array access with a single-dimensional array.
+* Array access with a single-dimensional array
 
     ```painless
     int[] x = new int[2]; <1>
@@ -88,7 +93,7 @@ brace_access: '[' expression ']'
     5. declare `int z`; store `int 1` to `z`;
     6. declare `int i`; load from `x` → `1-d int array reference`; load from `z` → `int 1`; load from `index [1]` of `1-d int array reference` → `int 5`; store `int 5` to `i`;
 
-* Array access with the `def` type.
+* Array access with the `def` type
 
     ```painless
     def d = new int[2];  <1>
@@ -106,7 +111,7 @@ brace_access: '[' expression ']'
     5. declare `def y`; implicit cast `int 1` to `def` → `def`; store `def` to `y`;
     6. declare `int i`; load from `d` → `def` implicit cast `def` to `1-d int array reference` → `1-d int array reference`; load from `y` → `def`; implicit cast `def` to `int 1` → `int 1`; load from `index [1]` of `1-d int array reference` → `int 5`; implicit cast `int 5` to `def`; store `def` to `z`;
 
-* Array access with a multi-dimensional array.
+* Array access with a multi-dimensional array
 
     ```painless
     int[][][] ia3 = new int[2][3][4]; <1>
@@ -120,13 +125,13 @@ brace_access: '[' expression ']'
 
 
 
-## Array Length [array-length-operator]
+## Array length [array-length-operator]
 
 An array type value contains a read-only member field named `length`. The `length` field stores the size of the array as an `int` type value where size is the number of elements specified at the time of allocation. Use the [field access operator](/reference/scripting-languages/painless/painless-operators-reference.md#field-access-operator) to load the field `length` from an array type value.
 
 **Examples**
 
-* Access the `length` field.
+* Access the `length` field
 
     ```painless
     int[] x = new int[10]; <1>
@@ -138,7 +143,7 @@ An array type value contains a read-only member field named `length`. The `lengt
 
 
 
-## New Array [new-array-operator]
+## New array [new-array-operator]
 
 Use the `new array operator 'new []'` to allocate an array type instance to the heap. Specify the element type following the `new` token. Specify each dimension with the `[` and `]` tokens following the element type name. The size of each dimension is specified by an `int` type value in between each set of `[` and `]` tokens.
 
@@ -154,7 +159,7 @@ new_array: 'new' TYPE ('[' expression ']')+;
 
 **Examples**
 
-* Allocation of different array types.
+* Allocation of different array types
 
     ```painless
     int[] x = new int[5];    <1>

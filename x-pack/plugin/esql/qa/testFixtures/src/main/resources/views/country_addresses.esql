@@ -1,0 +1,4 @@
+FROM addresses
+| RENAME city.country.name AS country
+| EVAL country = CASE(country == "United States of America", "United States", country)
+| STATS count=COUNT() BY country

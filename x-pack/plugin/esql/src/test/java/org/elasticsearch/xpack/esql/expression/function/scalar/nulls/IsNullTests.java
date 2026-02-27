@@ -42,9 +42,6 @@ public class IsNullTests extends AbstractScalarFunctionTestCase {
             if (type.supportedVersion().supportedLocally() == false) {
                 continue;
             }
-            if (type == DataType.TDIGEST) {
-                continue;
-            }
             if (type != DataType.NULL) {
                 suppliers.add(
                     new TestCaseSupplier(

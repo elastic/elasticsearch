@@ -102,6 +102,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 "cluster:admin/analyze",
                 "cluster:admin/script/put",
                 "cluster:admin/script/get",
+                // To allow Kibana to delete project routing expressions.
+                "cluster:admin/project_routing/delete",
                 // To facilitate using the file uploader functionality
                 "monitor_text_structure",
                 // To cancel tasks and delete async searches
@@ -109,7 +111,7 @@ class KibanaOwnedReservedRoleDescriptors {
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reporting-*", ".chat-*", ".workflows-*")
+                    .indices(".kibana*", ".reindexed-v8-kibana*", ".reporting-*", ".chat-*", ".workflows-*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -278,6 +280,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 // "Cases as data" analytics indexes and aliases
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.CASES_ANALYTICS_INDEXES).privileges("all").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.CASES_ANALYTICS_ALIASES).privileges("all").build(),
+                // "Alerting V2" indexes
+                RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTING_V2_INDEX_ALIAS).privileges("all").build(),
                 // "Alerts as data" public index alias used in Security Solution
                 // Kibana system user uses them to read / write alerts.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -340,15 +344,21 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
 
                 // Kibana Security Solution EDR workflows team
+                // - `.endpoint-script-file*`:
+                // indexes are used internally within Kibana in support of Elastic Defend scripts library.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".endpoint-script-file-meta-*", ".endpoint-script-file-data-*")
+                    .privileges("auto_configure", "read", "write", "delete", "create_index", "manage")
+                    .build(),
+
+                // Kibana Security Solution EDR workflows team
                 // 1.`.logs-endpoint.action.responses-*`:
                 // Endpoint specific action responses. Kibana reads and writes (for third party agents)
                 // to the index to display action responses to the user. `create_index`: is necessary
                 // in order to ensure that the DOT datastream index is created by Kibana in order to
                 // avoid errors on the Elastic Defend side when streaming documents to it.
-                // 2. `.endpoint-script-file*`:
-                // indexes are used internally within Kibana in support of Elastic Defend scripts library.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".logs-endpoint.action.responses-*", ".endpoint-script-file-meta-*", ".endpoint-script-file-data-*")
+                    .indices(".logs-endpoint.action.responses-*")
                     .privileges("auto_configure", "read", "write", "create_index")
                     .build(),
                 // Endpoint specific actions. Kibana reads and writes to this index to track new
@@ -557,7 +567,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES and Axonius specific actions.
+                // For ExtraHop, QualysGAV, SentinelOne, Island Browser, Cyera, IRONSCALES, Axonius
+                // and JupiterOne specific actions.
                 // Kibana reads, writes and manages this index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -566,13 +577,25 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-qualys_gav.asset-*",
                         "logs-sentinel_one.application-*",
                         "logs-sentinel_one.threat_event-*",
+                        "logs-sentinel_one.unified_alert-*",
                         "logs-island_browser.user-*",
                         "logs-island_browser.device-*",
                         "logs-cyera.classification-*",
                         "logs-cyera.issue-*",
                         "logs-cyera.datastore-*",
                         "logs-ironscales.incident-*",
-                        "logs-axonius.adapter-*"
+                        "logs-axonius.adapter-*",
+                        "logs-axonius.alert_and_incident-*",
+                        "logs-axonius.application-*",
+                        "logs-axonius.compute-*",
+                        "logs-axonius.exposure-*",
+                        "logs-axonius.gateway-*",
+                        "logs-axonius.identity-*",
+                        "logs-axonius.network-*",
+                        "logs-axonius.storage-*",
+                        "logs-axonius.ticket-*",
+                        "logs-axonius.user-*",
+                        "logs-jupiter_one.risks_and_alerts-*"
                     )
                     .privileges(
                         "manage",

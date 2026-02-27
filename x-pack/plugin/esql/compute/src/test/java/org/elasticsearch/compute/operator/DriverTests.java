@@ -7,10 +7,13 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -31,11 +34,16 @@ import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -121,11 +129,11 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
-        assertThat(driver.status().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.status().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
-        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
@@ -160,11 +168,11 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
-        assertThat(driver.status().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.status().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
-        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
@@ -198,11 +206,11 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
-        assertThat(driver.status().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.status().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
-        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
@@ -247,6 +255,37 @@ public class DriverTests extends ESTestCase {
         }
     }
 
+    public void testServerErrorsAreLoggedAsError() {
+        for (RuntimeException failure : List.of(
+            new IllegalStateException("simulated compute bug"),
+            new ArrayIndexOutOfBoundsException("simulated broken invariant"),
+            new RuntimeException(new IOException("io failure"))
+        )) {
+            assertFailureLogged(failure, failure.getClass(), Level.ERROR, "*Error running driver [test-task]*");
+        }
+    }
+
+    @TestLogging(reason = "assert DEBUG user-error logging in Driver", value = "org.elasticsearch.compute.operator.Driver:DEBUG")
+    public void testClientErrorsAreLoggedAsDebug() {
+        for (RuntimeException failure : List.of(
+            new ElasticsearchStatusException("bad request", RestStatus.BAD_REQUEST),
+            new IllegalArgumentException("bad argument"),
+            new CircuitBreakingException("too many bytes", CircuitBreaker.Durability.PERMANENT)
+        )) {
+            assertFailureLogged(failure, failure.getClass(), Level.DEBUG, "*User error running driver [test-task]*");
+        }
+    }
+
+    @TestLogging(reason = "assert DEBUG cancellation logging in Driver", value = "org.elasticsearch.compute.operator.Driver:DEBUG")
+    public void testTaskCancellationIsLoggedAsDebug() {
+        assertFailureLogged(
+            new TaskCancelledException("cancelled"),
+            TaskCancelledException.class,
+            Level.DEBUG,
+            "*Cancelling running driver [test-task]*"
+        );
+    }
+
     private static Driver createDriver(
         long startEpoch,
         long startNanos,
@@ -270,6 +309,51 @@ public class DriverTests extends ESTestCase {
             statusInterval,
             () -> {}
         );
+    }
+
+    private static Driver createFailingDriver(DriverContext driverContext, RuntimeException failure) {
+        return TestDriverFactory.create(
+            driverContext,
+            new CannedSourceOperator(List.of(new Page(driverContext.blockFactory().newConstantIntBlockWith(1, 1))).iterator()),
+            List.of(new AbstractPageMappingOperator() {
+                @Override
+                protected Page process(Page page) {
+                    throw failure;
+                }
+
+                @Override
+                public String toString() {
+                    return "failing_operator";
+                }
+            }),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+    }
+
+    private void assertFailureLogged(
+        RuntimeException failure,
+        Class<? extends RuntimeException> expectedExceptionClass,
+        Level expectedLogLevel,
+        String expectedMessagePattern
+    ) {
+        Driver driver = createFailingDriver(driverContext(), failure);
+        try {
+            MockLog.assertThatLogger(
+                () -> expectThrows(
+                    expectedExceptionClass,
+                    () -> driver.run(TimeValue.timeValueDays(1), Integer.MAX_VALUE, System::nanoTime)
+                ),
+                Driver.class,
+                new MockLog.SeenEventExpectation(
+                    "expected log event for " + failure.getClass().getSimpleName(),
+                    Driver.class.getCanonicalName(),
+                    expectedLogLevel,
+                    expectedMessagePattern
+                )
+            );
+        } finally {
+            driver.close();
+        }
     }
 
     static class NowSupplier implements LongSupplier {
@@ -532,7 +616,7 @@ public class DriverTests extends ESTestCase {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
-        return new DriverContext(bigArrays, blockFactory);
+        return new DriverContext(bigArrays, blockFactory, null);
     }
 
 }

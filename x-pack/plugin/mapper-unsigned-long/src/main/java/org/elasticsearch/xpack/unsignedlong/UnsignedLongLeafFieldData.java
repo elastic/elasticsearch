@@ -91,11 +91,6 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public void close() {
-        signedLongFD.close();
-    }
-
-    @Override
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
         return new FormattedSortedNumericDocValues(getLongValues(), format);
     }

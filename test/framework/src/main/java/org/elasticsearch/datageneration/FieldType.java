@@ -16,6 +16,7 @@ import org.elasticsearch.datageneration.fields.leaf.ConstantKeywordFieldDataGene
 import org.elasticsearch.datageneration.fields.leaf.CountedKeywordFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.DateFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.DoubleFieldDataGenerator;
+import org.elasticsearch.datageneration.fields.leaf.FlattenedFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.FloatFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.GeoPointFieldDataGenerator;
 import org.elasticsearch.datageneration.fields.leaf.HalfFloatFieldDataGenerator;
@@ -58,7 +59,8 @@ public enum FieldType {
         throw new IllegalArgumentException("Passthrough field type does not have a default generator");
     }),
     WILDCARD("wildcard", (fn, ds) -> new WildcardFieldDataGenerator(ds)),
-    MATCH_ONLY_TEXT("match_only_text", (fn, ds) -> new MatchOnlyTextFieldDataGenerator(ds)),;
+    MATCH_ONLY_TEXT("match_only_text", (fn, ds) -> new MatchOnlyTextFieldDataGenerator(ds)),
+    FLATTENED("flattened", (fn, ds) -> new FlattenedFieldDataGenerator(ds));
 
     private final String name;
     private final BiFunction<String, DataSource, FieldDataGenerator> fieldDataGenerator;

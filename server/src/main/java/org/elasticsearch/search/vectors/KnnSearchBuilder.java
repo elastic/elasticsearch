@@ -474,9 +474,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(
-            boost
-        ).queryName(queryName).addFilterQueries(filterQueries);
+        return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity).boost(boost)
+            .queryName(queryName)
+            .addFilterQueries(filterQueries);
     }
 
     public Float getSimilarity() {

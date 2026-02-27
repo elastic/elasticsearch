@@ -33,6 +33,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -65,7 +66,6 @@ public final class RemoteClusterService extends RemoteClusterAware
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
     public static final String REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME = "cluster:internal/remote_cluster/handshake";
-    public static final String CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME = "es.projects.linked.connections.error.total";
 
     private final boolean isRemoteClusterClient;
     private final boolean isSearchNode;
@@ -80,7 +80,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final Map<ProjectId, Map<String, RemoteClusterConnection>> remoteClusters;
     private final RemoteClusterCredentialsManager remoteClusterCredentialsManager;
     private final ProjectResolver projectResolver;
-    private final boolean crossProjectEnabled;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     RemoteClusterService(Settings settings, TransportService transportService, ProjectResolver projectResolver) {
         super(settings);
@@ -97,14 +97,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         if (remoteClusterServerEnabled) {
             registerRemoteClusterHandshakeRequestHandler(transportService);
         }
-        /*
-         * TODO: This is not the right way to check if we're in CPS context and is more of a temporary measure since
-         *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
-         */
-        this.crossProjectEnabled = settings.getAsBoolean("serverless.cross_project.enabled", false);
-        transportService.getTelemetryProvider()
-            .getMeterRegistry()
-            .registerLongCounter(CONNECTION_ATTEMPT_FAILURES_COUNTER_NAME, "linked project connection attempt failure count", "count");
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     public RemoteClusterCredentialsManager getRemoteClusterCredentialsManager() {
@@ -228,7 +221,7 @@ public final class RemoteClusterService extends RemoteClusterAware
      * it returns an empty value where we default/fall back to true.
      */
     public Optional<Boolean> isSkipUnavailable(String clusterAlias) {
-        if (crossProjectEnabled) {
+        if (crossProjectEnabled()) {
             return Optional.empty();
         } else {
             return Optional.of(getRemoteClusterConnection(clusterAlias).isSkipUnavailable());
@@ -236,7 +229,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     public boolean crossProjectEnabled() {
-        return crossProjectEnabled;
+        return crossProjectModeDecider.crossProjectEnabled();
     }
 
     /**
@@ -371,7 +364,7 @@ public final class RemoteClusterService extends RemoteClusterAware
 
         if (remote == null) {
             // this is a new cluster we have to add a new representation
-            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled());
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.CONNECTED));
         } else if (forceRebuild || remote.shouldRebuildConnection(config)) {
@@ -382,7 +375,7 @@ public final class RemoteClusterService extends RemoteClusterAware
                 logger.warn("project [" + projectId + "] failed to close remote cluster connections for cluster: " + clusterAlias, e);
             }
             connectionMap.remove(clusterAlias);
-            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled);
+            remote = new RemoteClusterConnection(config, transportService, remoteClusterCredentialsManager, crossProjectEnabled());
             connectionMap.put(clusterAlias, remote);
             remote.ensureConnected(listener.map(ignored -> RemoteClusterConnectionStatus.RECONNECTED));
         } else if (remote.isSkipUnavailable() != config.skipUnavailable()) {

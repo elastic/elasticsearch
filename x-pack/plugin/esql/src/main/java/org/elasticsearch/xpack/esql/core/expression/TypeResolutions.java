@@ -21,10 +21,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialOrGrid;
 
@@ -80,21 +83,27 @@ public final class TypeResolutions {
     /**
      * @see DataType#isRepresentable(DataType)
      */
-    public static TypeResolution isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndExponentialHistogram(
+    public static TypeResolution isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(
         Expression e,
         String operationName,
         ParamOrdinal paramOrd
     ) {
         return isType(
             e,
-            dt -> isRepresentable(dt) && dt != DENSE_VECTOR && dt != AGGREGATE_METRIC_DOUBLE && dt != EXPONENTIAL_HISTOGRAM,
+            dt -> isRepresentable(dt)
+                && dt != DENSE_VECTOR
+                && dt != AGGREGATE_METRIC_DOUBLE
+                && dt != EXPONENTIAL_HISTOGRAM
+                && dt != HISTOGRAM
+                && dt != TDIGEST
+                && dt != DATE_RANGE,
             operationName,
             paramOrd,
-            "any type except counter types, dense_vector, aggregate_metric_double or exponential_histogram"
+            "any type except counter types, dense_vector, aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
         );
     }
 
-    public static TypeResolution isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndExponentialHistogram(
+    public static TypeResolution isRepresentableExceptCountersSpatialDenseVectorAggregateMetricDoubleAndHistogram(
         Expression e,
         String operationName,
         ParamOrdinal paramOrd
@@ -105,10 +114,14 @@ public final class TypeResolutions {
                 && DataType.isRepresentable(t)
                 && t != DENSE_VECTOR
                 && t != AGGREGATE_METRIC_DOUBLE
-                && t != EXPONENTIAL_HISTOGRAM,
+                && t != EXPONENTIAL_HISTOGRAM
+                && t != HISTOGRAM
+                && t != TDIGEST
+                && t != DATE_RANGE,
             operationName,
             paramOrd,
-            "any type except counter, spatial types, dense_vector, aggregate_metric_double or exponential_histogram"
+            "any type except counter, spatial types, dense_vector, aggregate_metric_double, tdigest, histogram, "
+                + "exponential_histogram, or date_range"
         );
     }
 

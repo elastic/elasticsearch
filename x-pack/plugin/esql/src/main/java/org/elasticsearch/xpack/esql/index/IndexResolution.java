@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.index;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.List;
 import java.util.Map;
@@ -108,6 +109,13 @@ public final class IndexResolution {
      */
     public Set<String> resolvedIndices() {
         return resolvedIndices;
+    }
+
+    public boolean includesRemoteIndices() {
+        if (isValid()) {
+            return resolvedIndices.stream().anyMatch(RemoteClusterAware::isRemoteIndexName);
+        }
+        return false;
     }
 
     @Override

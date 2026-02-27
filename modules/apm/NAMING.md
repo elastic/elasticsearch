@@ -32,7 +32,9 @@ Follow with a module name, team or area of code, e.g. `snapshot, repositories, i
 The **hierarchy** of segments should be built by putting "more common" segments at the beginning. This facilitates the creation of new metrics under a common namespace.
 Each element in the metric name specializes or describes the prefix that precedes it. Rule of thumb: you could truncate the name at any segment, and what you're left with is something that makes sense by itself.
 
-Example: Prefer `.docs.deleted.total` over `.deleted.docs.total` so `.docs.ingested.total` could be added later.
+Example: Prefer `es.indices.docs.deleted.total` over `es.indices.deleted.docs.total` so `es.indices.docs.ingested.total` could be added later.
+
+**Note, to better highlight key differences, examples below starting with `.` omit the `es.` prefix and initial segments.**
 
 Recommendations:
 - When adding new metrics, [look for existing segments](#inspect-registered-metrics) as prefix in your domain. Also keep language consistent across the hierarchy, re-using segment names / terminology when possible.
@@ -44,7 +46,7 @@ E.g. stick to using `.error.total` if already in use rather than introducing `.f
 ### Name suffix
 
 The metric suffix is essential to describe the semantics of a metric and guide consumers on how to interpret and use a metric appropriately.
-If multiple suffixes are applicable, chose the most specific one.
+If multiple suffixes are applicable, choose the most specific one.
 
 *  `total`: a monotonic metric (always increasing counter), e.g. <code>es.indices.docs.deleted.<strong>total</strong></code>)
     * Note: such metrics typically report deltas that must be accumulated to get the total over a time window
@@ -72,7 +74,7 @@ Units are configured at registration time of the metric.
 
 **WARNING** Do not use **high cardinality** attributes / dimensions. This might result in the APM Java agent dropping events.
 
-It is not always straight forward to decide if something should part of the metric name or an attribute (dimension) of that metric.  As a rule of thumb:
+It is not always straight forward to decide if something should be part of the metric name or an attribute (dimension) of that metric.  As a rule of thumb:
 - any aggregation across any dimensions of a metric should be meaningful, and
 - meaningful aggregations should be possible without having to aggregate over different metrics.
 
@@ -92,7 +94,9 @@ es(_<segment>)+
 - The name may not exceed 255 characters.
 
 Attributes that represent an entity should be named in singular.
-If the attribute value represents a collection, it should be named in plural.
+If the attribute value represents a collection, it should be named in plural, e.g.
+- `es_security_realm_type`: singular, a single entity
+- `es_rest_request_headers`: plural, a collection of headers
 
 ### Migration of existing, invalid attributes
 

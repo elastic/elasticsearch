@@ -823,6 +823,22 @@ public class ParamsParserTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testNullDoubleParamsValue() {
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        String error = "Query parameter [??f1] is null";
+        List<String> commandWithDoubleParams = List.of(
+            "eval x = ??f1",
+            "stats x = count(??f1)",
+            "sort ??f1",
+            "keep ??f1",
+            "drop ??f1",
+            "mv_expand ??f1"
+        );
+        for (String command : commandWithDoubleParams) {
+            expectError("from test | " + command, List.of(paramAsConstant("f1", null)), error);
+        }
+    }
+
     public void testLikeParam() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
             LogicalPlan anonymous = query(

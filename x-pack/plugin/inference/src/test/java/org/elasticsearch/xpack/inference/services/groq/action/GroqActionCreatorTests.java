@@ -134,7 +134,7 @@ public class GroqActionCreatorTests extends ESTestCase {
         return actionCreator.create(model, Map.of());
     }
 
-    private GroqChatCompletionModel createModel(String url) {
+    public static GroqChatCompletionModel createModel(String url) {
         Map<String, Object> serviceSettings = new HashMap<>();
         serviceSettings.put(ServiceFields.MODEL_ID, MODEL_ID);
         serviceSettings.put(ServiceFields.URL, url);

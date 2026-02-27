@@ -59,6 +59,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.AssumptionViolatedException;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -82,6 +83,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
+import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.getFirstParametersIndexForSignature;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -647,6 +649,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             pageSize = randomIntBetween(1, 100);
         }
 
+        assert rowsCount == pages.stream().mapToInt(Page::getPositionCount).sum();
         return pages;
     }
 
@@ -671,8 +674,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected Object toJavaObjectUnsignedLongAware(Block block, int position) {
-        Object result;
-        result = toJavaObject(block, position);
+        Object result = toJavaObject(block, position);
+        return normalizeResultUnsignedLongAware(result);
+    }
+
+    protected Object normalizeResultUnsignedLongAware(Object result) {
         if (result == null || testCase.expectedType() != DataType.UNSIGNED_LONG) {
             return result;
         }
@@ -709,29 +715,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private static Object tryRandomizeBytesRefOffset(Object value) {
         if (value instanceof BytesRef bytesRef) {
-            return randomizeBytesRefOffset(bytesRef);
+            return embedInRandomBytes(bytesRef);
         }
 
         if (value instanceof List<?> list) {
             return list.stream().map(element -> {
                 if (element instanceof BytesRef bytesRef) {
-                    return randomizeBytesRefOffset(bytesRef);
+                    return embedInRandomBytes(bytesRef);
                 }
                 return element;
             }).toList();
         }
 
         return value;
-    }
-
-    private static BytesRef randomizeBytesRefOffset(BytesRef bytesRef) {
-        var offset = randomIntBetween(0, 10);
-        var extraLength = randomIntBetween(0, 10);
-        var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
-
-        System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
-
-        return new BytesRef(newBytesArray, offset, bytesRef.length);
     }
 
     public void testSerializationOfSimple() {
@@ -771,8 +767,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         for (DocsV3Support.TypeSignature entry : signatures(testClass)) {
             List<DocsV3Support.Param> types = entry.argTypes();
+            int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
             for (int i = 0; i < args.size() && i < types.size(); i++) {
-                typesFromSignature.get(i).add(types.get(i).dataType().esNameIfPossible());
+                typesFromSignature.get(initialProvidedParamIndex + i).add(types.get(i).dataType().esNameIfPossible());
             }
             if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
                 returnFromSignature.add(entry.returnType().esNameIfPossible());
@@ -915,7 +912,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * </p>
      */
     @SuppressWarnings("unchecked")
-    protected final void assertTestCaseResultAndWarnings(Object result) {
+    protected final void assertTestCaseResultAndWarnings(Object originalResult) {
+        Object result = normalizeResultUnsignedLongAware(originalResult);
         if (result instanceof Iterable<?>) {
             var collectionResult = (Iterable<Object>) result;
             assertThat(collectionResult, not(hasItem(Double.NaN)));
@@ -964,15 +962,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         for (Object p : params) {
             TestCaseSupplier tcs = (TestCaseSupplier) ((Object[]) p)[0];
-            TestCaseSupplier.TestCase tc = tcs.get();
-            if (tc.getExpectedTypeError() != null) {
-                continue;
+            try {
+                TestCaseSupplier.TestCase tc = tcs.get();
+                if (tc.getExpectedTypeError() != null) {
+                    continue;
+                }
+                if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
+                    continue;
+                }
+                List<DocsV3Support.Param> sig = tc.getData().stream().map(d -> new DocsV3Support.Param(d.type(), d.appliesTo())).toList();
+                signatures.add(new DocsV3Support.TypeSignature(signatureTypes(testClass, sig), tc.expectedType()));
+            } catch (AssumptionViolatedException ignored) {
+                // Throwing an AssumptionViolatedException in a test is a valid way of ignoring a test in junit.
+                // We catch that exception always to keep filling the signatures collection
             }
-            if (tc.getData().stream().anyMatch(t -> t.type() == DataType.NULL)) {
-                continue;
-            }
-            List<DocsV3Support.Param> sig = tc.getData().stream().map(d -> new DocsV3Support.Param(d.type(), d.appliesTo())).toList();
-            signatures.add(new DocsV3Support.TypeSignature(signatureTypes(testClass, sig), tc.expectedType()));
         }
         return signatures;
     }
@@ -1034,7 +1037,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
     }
 
     protected final DriverContext crankyContext() {
@@ -1042,7 +1045,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             .withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
     }
 
     @After

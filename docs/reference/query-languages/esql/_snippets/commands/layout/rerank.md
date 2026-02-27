@@ -1,20 +1,19 @@
 
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.2.0
+serverless: ga
+stack: preview 9.2-9.3, ga 9.4.0+
 ```
 
 The `RERANK` command uses an inference model to compute a new relevance score
 for an initial set of documents, directly within your ES|QL queries.
 
-:::::{important}
-**RERANK processes each row through an inference model, which impacts performance and costs.**
-
 ::::{tab-set}
 
 :::{tab-item} 9.3.0+
 
-Starting in version 9.3.0, `RERANK` automatically limits processing to **1000 rows by default** to prevent accidental high consumption. This limit is applied before the `RERANK` command executes.
+Starting in version 9.3.0, `RERANK` automatically limits processing to **1000
+rows by default** to prevent accidental high consumption. This limit is applied
+before the `RERANK` command executes.
 
 If you need to process more rows, you can adjust the limit using the cluster setting:
 ```
@@ -52,7 +51,6 @@ FROM books
 :::
 
 ::::
-:::::
 
 **Syntax**
 
@@ -92,6 +90,10 @@ retrieve an initial set of documents. This set is often sorted by `_score` and
 reduced to the top results (for example, 100) using `LIMIT`. The `RERANK`
 command then processes this smaller, refined subset, which is a good balance
 between performance and accuracy.
+
+When using `RERANK` with a multivalue column, each value is ranked individually.
+The score column is then assigned the maximum score resulting from ranking the
+individual values.
 
 **Requirements**
 
@@ -159,4 +161,10 @@ in a column named `rerank_score`:
 Combine the original score with the reranked score:
 
 :::{include} ../examples/rerank.csv-spec/combine.md
+:::
+
+Rerank using snippets extracted from the document with the `TOP_SNIPPETS`
+function:
+
+:::{include} ../examples/rerank.csv-spec/rerank-top-snippets.md
 :::

@@ -11,9 +11,11 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -758,39 +760,56 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private final TestCase testCase;
+    private final BlockLoaderTestRunner blockLoaderTestRunner;
 
     private static final int ROUTING_HASH = 7;
 
     public TsidExtractingIdFieldMapperTests(@Named("testCase") TestCase testCase) {
         this.testCase = testCase;
+        this.blockLoaderTestRunner = new BlockLoaderTestRunner(
+            new BlockLoaderTestCase.Params(false, randomFrom(MappedFieldType.FieldExtractPreference.values()))
+        ).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
     }
 
     public void testExpectedIdWithRoutingPath() throws IOException {
-        assertThat(parse(mapperService(false), testCase.source).id(), equalTo(testCase.expectedIdWithRoutingPath));
+        MapperService mapperService = mapperService(false);
+        blockLoaderTestRunner.mapperService(mapperService);
+        blockLoaderTestRunner.document(parse(mapperService, testCase.source));
+        assertThat(blockLoaderTestRunner.document().id(), equalTo(testCase.expectedIdWithRoutingPath));
+        verifyIdFromBlockLoader(testCase.expectedIdWithRoutingPath);
     }
 
     public void testExpectedIdWithIndexDimensions() throws IOException {
-        assertThat(parse(mapperService(true), testCase.source).id(), equalTo(testCase.expectedIdWithIndexDimensions));
+        MapperService mapperService = mapperService(true);
+        blockLoaderTestRunner.mapperService(mapperService);
+        blockLoaderTestRunner.document(parse(mapperService, testCase.source));
+        assertThat(blockLoaderTestRunner.document().id(), equalTo(testCase.expectedIdWithIndexDimensions));
+        verifyIdFromBlockLoader(testCase.expectedIdWithIndexDimensions);
     }
 
     public void testProvideExpectedIdWithRoutingPath() throws IOException {
-        assertThat(
-            parse(testCase.expectedIdWithRoutingPath, mapperService(false), testCase.source).id(),
-            equalTo(testCase.expectedIdWithRoutingPath)
-        );
+        MapperService mapperService = mapperService(false);
+        blockLoaderTestRunner.mapperService(mapperService);
+        blockLoaderTestRunner.document(parse(testCase.expectedIdWithRoutingPath, mapperService, testCase.source));
+        assertThat(blockLoaderTestRunner.document().id(), equalTo(testCase.expectedIdWithRoutingPath));
+        verifyIdFromBlockLoader(testCase.expectedIdWithRoutingPath);
     }
 
     public void testProvideExpectedIdWithIndexDimensions() throws IOException {
-        assertThat(
-            parse(testCase.expectedIdWithIndexDimensions, mapperService(true), testCase.source).id(),
-            equalTo(testCase.expectedIdWithIndexDimensions)
-        );
+        MapperService mapperService = mapperService(true);
+        blockLoaderTestRunner.mapperService(mapperService);
+        blockLoaderTestRunner.document(parse(testCase.expectedIdWithIndexDimensions, mapperService, testCase.source));
+        assertThat(blockLoaderTestRunner.document().id(), equalTo(testCase.expectedIdWithIndexDimensions));
+        verifyIdFromBlockLoader(testCase.expectedIdWithIndexDimensions);
     }
 
     public void testEquivalentSourcesWithRoutingPath() throws IOException {
         MapperService mapperService = mapperService(false);
         for (CheckedConsumer<XContentBuilder, IOException> equivalent : testCase.equivalentSources) {
-            assertThat(parse(mapperService, equivalent).id(), equalTo(testCase.expectedIdWithRoutingPath));
+            blockLoaderTestRunner.mapperService(mapperService);
+            blockLoaderTestRunner.document(parse(mapperService, equivalent));
+            assertThat(blockLoaderTestRunner.document().id(), equalTo(testCase.expectedIdWithRoutingPath));
+            verifyIdFromBlockLoader(testCase.expectedIdWithRoutingPath);
         }
     }
 
@@ -841,7 +860,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     private MapperService mapperService(boolean indexDimensions) throws IOException {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
         return createMapperService(indexSettings(version, indexDimensions), mapping(b -> {
             b.startObject("r1").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("r2").field("type", "keyword").field("time_series_dimension", true).endObject();
@@ -975,5 +994,9 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
                     + "]"
             )
         );
+    }
+
+    private void verifyIdFromBlockLoader(String expectedId) throws IOException {
+        blockLoaderTestRunner.fieldName("_id").run(new BytesRef(expectedId));
     }
 }

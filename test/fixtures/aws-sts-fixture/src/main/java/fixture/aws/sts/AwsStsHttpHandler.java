@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -26,6 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
@@ -41,11 +43,18 @@ public class AwsStsHttpHandler implements HttpHandler {
     public static final String ROLE_NAME = "sts-fixture-test";
 
     private final BiConsumer<String, String> newCredentialsConsumer;
-    private final String webIdentityToken;
+    private final Supplier<String> webIdentityTokenSupplier;
+    private final TimeValue tokenValidDuration;
 
-    public AwsStsHttpHandler(BiConsumer<String, String> newCredentialsConsumer, String webIdentityToken) {
+    public AwsStsHttpHandler(
+        BiConsumer<String, String> newCredentialsConsumer,
+        Supplier<String> webIdentityTokenSupplier,
+        TimeValue tokenValidDuration
+    ) {
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
-        this.webIdentityToken = Objects.requireNonNull(webIdentityToken);
+        this.webIdentityTokenSupplier = Objects.requireNonNull(webIdentityTokenSupplier);
+        this.tokenValidDuration = Objects.requireNonNull(tokenValidDuration);
+        assert tokenValidDuration.seconds() > 0 : tokenValidDuration.getStringRep();
     }
 
     @Override
@@ -68,7 +77,7 @@ public class AwsStsHttpHandler implements HttpHandler {
                     return;
                 }
                 if (ROLE_NAME.equals(params.get("RoleSessionName")) == false
-                    || webIdentityToken.equals(params.get("WebIdentityToken")) == false
+                    || Objects.requireNonNull(webIdentityTokenSupplier.get()).equals(params.get("WebIdentityToken")) == false
                     || ROLE_ARN.equals(params.get("RoleArn")) == false) {
                     exchange.sendResponseHeaders(RestStatus.UNAUTHORIZED.getStatus(), 0);
                     exchange.close();
@@ -105,7 +114,9 @@ public class AwsStsHttpHandler implements HttpHandler {
                     ROLE_NAME,
                     sessionToken,
                     randomSecretKey(),
-                    ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")),
+                    ZonedDateTime.now(Clock.systemUTC())
+                        .plusSeconds(tokenValidDuration.seconds())
+                        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")),
                     accessKey
                 ).getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "text/xml; charset=UTF-8");

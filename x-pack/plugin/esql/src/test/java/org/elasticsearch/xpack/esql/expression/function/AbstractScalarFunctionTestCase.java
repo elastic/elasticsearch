@@ -42,6 +42,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,7 +117,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             Page row = row(testCase.getDataValues());
             try (Block block = evaluator.eval(row)) {
                 assertThat(block.getPositionCount(), is(1));
-                result = toJavaObjectUnsignedLongAware(block, 0);
+                result = toJavaObject(block, 0);
                 extraBlockTests(row, block);
             } finally {
                 row.releaseBlocks();
@@ -297,7 +298,15 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             return;
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
-        int count = 10_000;
+        int count;
+        Set<DataType> complexTypes = Set.of(DataType.EXPONENTIAL_HISTOGRAM);
+        if (testCase.getData().stream().anyMatch(d -> complexTypes.contains(d.type()))) {
+            // Limit the amount of data for large types, otherwise the test run very long or even hang
+            count = 500;
+        } else {
+            count = 10_000;
+        }
+
         int threads = 5;
         var evalSupplier = evaluator(expression);
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {

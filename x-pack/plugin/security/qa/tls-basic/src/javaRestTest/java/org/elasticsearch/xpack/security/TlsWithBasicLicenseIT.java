@@ -13,10 +13,14 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -34,6 +38,35 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class TlsWithBasicLicenseIT extends ESRestTestCase {
+
+    private static final String USER = "admin";
+    private static final String PASS = "admin-password";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .nodes(2)
+        .configFile("http.key", Resource.fromClasspath("ssl/http.key"))
+        .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
+        .configFile("transport.key", Resource.fromClasspath("ssl/transport.key"))
+        .configFile("transport.crt", Resource.fromClasspath("ssl/transport.crt"))
+        .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.license.self_generated.type", "basic")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.certificate", "http.crt")
+        .setting("xpack.security.http.ssl.key", "http.key")
+        .setting("xpack.security.http.ssl.key_passphrase", "http-password")
+        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.transport.ssl.enabled", "true")
+        .setting("xpack.security.transport.ssl.certificate", "transport.crt")
+        .setting("xpack.security.transport.ssl.key", "transport.key")
+        .setting("xpack.security.transport.ssl.key_passphrase", "transport-password")
+        .setting("xpack.security.transport.ssl.certificate_authorities", "ca.crt")
+        .user(USER, PASS, "superuser", false)
+        .build();
+
     private static Path httpTrustStore;
 
     @BeforeClass
@@ -51,13 +84,18 @@ public class TlsWithBasicLicenseIT extends ESRestTestCase {
     }
 
     @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Override
     protected String getProtocol() {
         return "https";
     }
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .put(TRUSTSTORE_PATH, httpTrustStore)

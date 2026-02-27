@@ -215,7 +215,7 @@ public class GeoIpDownloader extends AbstractGeoIpDownloader {
             boolean nodeShuttingDown = e instanceof NodeClosedException
                 || (e instanceof EsRejectedExecutionException rejected && rejected.isExecutorShutdown());
             logger.log(
-                nodeShuttingDown ? Level.INFO : Level.ERROR,
+                nodeShuttingDown ? Level.INFO : Level.WARN,
                 () -> "error downloading geoip database [" + name + "] for project [" + projectId + "]",
                 e
             );
@@ -307,12 +307,12 @@ public class GeoIpDownloader extends AbstractGeoIpDownloader {
             updateDatabases();
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error("exception during geoip databases update", e);
+            logger.warn("exception during geoip databases update", e);
         }
         try {
             cleanDatabases();
         } catch (Exception e) {
-            logger.error("exception during geoip databases cleanup", e);
+            logger.warn("exception during geoip databases cleanup", e);
         }
     }
 

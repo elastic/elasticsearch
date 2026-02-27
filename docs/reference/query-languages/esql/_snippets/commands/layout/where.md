@@ -39,7 +39,7 @@ retrieve the last hour of logs:
 :::{include} ../examples/date.csv-spec/docsNowWhere.md
 :::
 `WHERE` supports various [functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions).
-For example the [`LENGTH`](/reference/query-languages/esql/functions-operators/string-functions.md#esql-length) function:
+For example the [`LENGTH`](/reference/query-languages/esql/functions-operators/string-functions/length.md) function:
 
 :::{include} ../examples/docs.csv-spec/whereFunction.md
 :::
@@ -60,7 +60,7 @@ For NULL comparison, use the `IS NULL` and `IS NOT NULL` predicates.
 
 For matching text, you can use [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) like `MATCH`.
 
-Use [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) to perform a
+Use [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) to perform a
 [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on a specified field.
 
 Match can be used on text fields, as well as other field types like boolean, dates, and numeric types.

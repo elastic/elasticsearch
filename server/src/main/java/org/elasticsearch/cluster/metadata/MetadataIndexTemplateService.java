@@ -712,7 +712,7 @@ public class MetadataIndexTemplateService {
             // We may need to normalize index settings, so do that also
             Settings finalSettings = innerTemplate.settings();
             if (finalSettings != null) {
-                finalSettings = Settings.builder().put(finalSettings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
+                finalSettings = finalSettings.maybeNormalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
             }
             // If an inner template was specified, its mappings may need to be
             // adjusted (to add _doc) and it should be validated
@@ -2036,7 +2036,7 @@ public class MetadataIndexTemplateService {
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 xContentRegistry,
-                tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap(), null, null),
                 IndexService.dateMathExpressionResolverAt(System.currentTimeMillis()),
                 systemIndices::isSystemName
             );

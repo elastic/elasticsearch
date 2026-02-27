@@ -21,7 +21,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -29,6 +28,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -91,7 +91,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         BucketCollector collector = getBucketCollector(THREADS * DOC_COUNTS);
 
-        indexSearcher.search(new MatchAllDocsQuery(), collector);
+        indexSearcher.search(Queries.ALL_DOCS_INSTANCE, collector);
         collector.postCollection();
 
         reader.close();
@@ -128,13 +128,13 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         {
             var collector = new TimeSeriesCancellationTests.CountingBucketCollector();
-            var query = new BoostQuery(new MatchAllDocsQuery(), 2f);
+            var query = new BoostQuery(Queries.ALL_DOCS_INSTANCE, 2f);
             indexSearcher.search(query, collector);
             assertEquals(collector.count.get(), DOC_COUNTS);
         }
         {
             var collector = new TimeSeriesCancellationTests.CountingBucketCollector();
-            var query = new BoostQuery(new MatchAllDocsQuery(), 1f);
+            var query = new BoostQuery(Queries.ALL_DOCS_INSTANCE, 1f);
             indexSearcher.search(query, collector);
             assertEquals(collector.count.get(), 0);
         }

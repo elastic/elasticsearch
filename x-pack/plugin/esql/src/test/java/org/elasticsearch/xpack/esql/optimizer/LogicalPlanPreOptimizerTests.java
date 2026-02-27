@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
@@ -102,7 +103,7 @@ public class LogicalPlanPreOptimizerTests extends ESTestCase {
         return switch (randomInt(3)) {
             case 0 -> of(randomInt());
             case 1 -> of(randomIdentifier());
-            case 2 -> new Add(Source.EMPTY, of(randomInt()), of(randomDouble()));
+            case 2 -> new Add(Source.EMPTY, of(randomInt()), of(randomDouble()), TEST_CFG);
             default -> new Concat(Source.EMPTY, of(randomIdentifier()), randomList(1, 10, () -> of(randomIdentifier())));
         };
     }

@@ -15,6 +15,30 @@ setup:
                 type: integer
               time:
                 type: date
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: a-perfect-regression-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "tags": ["regression", "tag1"],
+            "input": {"field_names": ["field1", "field2"]},
+            "inference_config": { "regression": {"results_field": "my_regression"}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 42}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
+          }
 
 ---
 "Test setting results field is invalid":
@@ -58,3 +82,44 @@ setup:
           }
   - match: { error.root_cause.0.type: "action_request_validation_exception" }
   - match: { error.root_cause.0.reason: "Validation Failed: 1: setting option [results_field] to [banana] is not valid for inference aggregations;" }
+
+---
+invalid parent aggregation:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ pipeline_aggs_parent_multi_bucket_error ]
+      test_runner_features: [capabilities]
+      reason: "changed error 500 to 400"
+  - do:
+      catch: /Expected a multi bucket aggregation but got \[InternalFilter\] for aggregation \[regression_agg\]/
+      search:
+        index: store
+        body: |
+          {
+            "aggs": {
+              "a": {
+                "filter": {
+                  "term": {
+                    "a": 1
+                  }
+                },
+                "aggs": {
+                  "avg_cost_agg": {
+                    "avg": {
+                      "field": "cost"
+                    }
+                  },
+                  "regression_agg" : {
+                    "inference": {
+                      "model_id": "a-perfect-regression-model",
+                      "buckets_path": {
+                        "cost" : "avg_cost_agg"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }

@@ -440,22 +440,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
-            ctx.registerAsyncAction((c, l) -> queryVectorBuilder.buildVector(c, l.delegateFailureAndWrap((ll, v) -> {
-                toSet.set(v);
-                if (v == null) {
-                    ll.onFailure(
-                        new IllegalArgumentException(
-                            format(
-                                "[%s] with name [%s] returned null query_vector",
-                                QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                                queryVectorBuilder.getWriteableName()
-                            )
-                        )
-                    );
-                    return;
-                }
-                ll.onResponse(null);
-            })));
+            ctx.registerUniqueAsyncAction(new QueryVectorBuilderAsyncAction(queryVectorBuilder), toSet::set);
             return new KnnVectorQueryBuilder(
                 fieldName,
                 queryVector,

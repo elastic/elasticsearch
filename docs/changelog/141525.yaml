@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 141525
+summary: Rolling upgrade test for synthetic id
+type: enhancement

@@ -228,7 +228,7 @@ FROM sample_data
 | EVAL duration_ms = event_duration/1000000.0
 ```
 
-`EVAL` supports several [functions](commands/eval.md). For example, to round a number to the closest number with the specified number of digits, use the [`ROUND`](functions-operators/math-functions.md#esql-round) function:
+`EVAL` supports several [functions](commands/eval.md). For example, to round a number to the closest number with the specified number of digits, use the [`ROUND`](functions-operators/math-functions/round.md) function:
 
 ```esql
 FROM sample_data
@@ -282,7 +282,7 @@ FROM sample_data
 
 ## Create a histogram [esql-getting-started-histogram]
 
-To track statistics over time, {{esql}} enables you to create histograms using the [`BUCKET`](functions-operators/grouping-functions.md#esql-bucket) function. `BUCKET` creates human-friendly bucket sizes and returns a value for each row that corresponds to the resulting bucket the row falls into.
+To track statistics over time, {{esql}} enables you to create histograms using the [`BUCKET`](functions-operators/grouping-functions/bucket.md) function. `BUCKET` creates human-friendly bucket sizes and returns a value for each row that corresponds to the resulting bucket the row falls into.
 
 Combine `BUCKET` with [`STATS`](commands/stats-by.md) to create a histogram. For example, to count the number of events per hour:
 
@@ -418,7 +418,6 @@ For more about data processing with {{esql}}, refer to [Data processing with DIS
 ## Learn more [esql-getting-learn-more]
 
 - Explore the zero-setup, live [{{esql}} demo environment](http://esql.demo.elastic.co/).
-- 
 - Follow along with our hands-on tutorials:
   - [Search and filter with {{esql}}](/reference/query-languages/esql/esql-search-tutorial.md): A hands-on tutorial that shows you how to use {{esql}} to search and filter data.
   - [Threat hunting with {{esql}}](docs-content://solutions/security/esql-for-security/esql-threat-hunting-tutorial.md): A hands-on tutorial that shows you how to use {{esql}} for advanced threat hunting techniques and security analysis.

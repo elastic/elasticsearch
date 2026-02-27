@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -62,12 +61,7 @@ public class NameId implements Writeable {
         return Long.toString(id);
     }
 
-    public static <S extends StreamInput & PlanStreamInput> NameId readFrom(S in) throws IOException {
-        /*
-         * The funny typing dance with `<S extends...>` is required we're in esql-core
-         * here and the real PlanStreamInput is in esql-proper. And we need PlanStreamInput
-         * to properly map NameIds.
-         */
+    public static NameId readFrom(PlanStreamInput in) throws IOException {
         long unmappedId = in.readLong();
         return in.mapNameId(unmappedId);
     }

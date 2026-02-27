@@ -12,14 +12,17 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
 public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
 
+    private final String sessionId;
     private EsqlExecutionInfo executionInfo;
 
     public EsqlQueryTask(
+        String sessionId,
         long id,
         String type,
         String action,
@@ -31,6 +34,7 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
         TimeValue keepAlive
     ) {
         super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);
+        this.sessionId = sessionId;
         this.executionInfo = null;
     }
 
@@ -40,6 +44,10 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
 
     public EsqlExecutionInfo executionInfo() {
         return executionInfo;
+    }
+
+    public String sessionId() {
+        return sessionId;
     }
 
     @Override
@@ -55,6 +63,7 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
             getExecutionId().getEncoded(),
             true,
             true,
+            ZoneOffset.UTC, // TODO: Retrieve the actual query timezone if we want to return early results
             getStartTime(),
             getExpirationTimeMillis(),
             executionInfo

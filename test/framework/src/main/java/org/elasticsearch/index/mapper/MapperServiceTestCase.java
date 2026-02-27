@@ -56,6 +56,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -92,6 +93,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -339,6 +341,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 scriptCompiler,
                 bitsetFilterCache::getBitSetProducer,
                 mapperMetrics,
+                null,
                 null
             );
 
@@ -405,7 +408,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
         );
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
-            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE)
+            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
         );
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
@@ -482,6 +485,17 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     /**
+     * Parse a dynamic mapping update {@link CompressedXContent} back into a {@link Mapping} for test assertions.
+     */
+    protected Mapping parseDynamicUpdate(CompressedXContent update) {
+        try {
+            return createMapperService(mapping(b -> {})).parseMapping("_doc", MapperService.MergeReason.MAPPING_UPDATE, update);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
      * Merge a new mapping into the one in the provided {@link MapperService}.
      */
     protected static void merge(MapperService mapperService, XContentBuilder mapping) throws IOException {
@@ -536,6 +550,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         dynamicMapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return builder.endObject();
+    }
+
+    protected static void mergeDynamicUpdate(MapperService mapperService, CompressedXContent dynamicUpdate) {
+        mapperService.merge("_doc", dynamicUpdate, MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     public static XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
@@ -851,7 +869,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

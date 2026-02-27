@@ -86,10 +86,20 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
             return p;
         });
 
-        // copy found evals on the left side
-        if (groupingAlias.size() > 0) {
-            left = new Eval(plan.source(), plan.left(), groupingAlias);
+        // If no evals were moved, there is nothing to propagate. In particular, INLINE STATS without groupings (or after other rewrites
+        // that removed the stubbed source) can have no StubRelation on the right side, and attempting to replace it would fail.
+        if (groupingAlias.isEmpty()) {
+            return plan;
         }
+
+        // copy found evals on the left side
+        left = new Eval(plan.source(), plan.left(), groupingAlias);
+        // if the StubRelation has been optimized away, remove the inline join altogether. This can happen when the aggregation is a
+        // SurrogateExpression and the aggregation itself is replaced usually by an Eval and Project.
+        if (right.anyMatch(p -> p instanceof StubRelation) == false) {
+            return plan.replaceChildren(left, right);
+        }
+
 
         /*
          * Handle DATE_FORMAT optimization pattern matching:

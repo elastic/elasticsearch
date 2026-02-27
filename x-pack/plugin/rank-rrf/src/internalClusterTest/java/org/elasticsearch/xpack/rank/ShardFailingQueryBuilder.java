@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.rank;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.DataInput;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,7 +60,7 @@ public class ShardFailingQueryBuilder extends AbstractQueryBuilder<ShardFailingQ
         if (context.getShardId() % 2 == 0) {
             throw new CorruptIndexException("simulated failure", (DataInput) null);
         } else {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
     }
 

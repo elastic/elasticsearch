@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -21,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +35,12 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Sum}, but it is used to calculate the sum of values over a time series from the given field.
  */
-public class SumOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
+public class SumOverTime extends TimeSeriesAggregateFunction
+    implements
+        OptionalArgument,
+        AggregateMetricDoubleNativeSupport,
+        SurrogateExpression,
+        ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "SumOverTime",
@@ -48,7 +57,11 @@ public class SumOverTime extends TimeSeriesAggregateFunction implements Optional
     )
     public SumOverTime(
         Source source,
-        @Param(name = "field", type = { "aggregate_metric_double", "double", "integer", "long", "exponential_histogram" }) Expression field,
+        @Param(
+            name = "field",
+            type = { "aggregate_metric_double", "double", "integer", "long", "exponential_histogram", "tdigest" },
+            description = "the metric field to calculate the value for"
+        ) Expression field,
         @Param(
             name = "window",
             type = { "time_duration" },
@@ -95,6 +108,16 @@ public class SumOverTime extends TimeSeriesAggregateFunction implements Optional
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
+    }
+
+    @Override
+    public Expression surrogate() {
+        return perTimeSeriesAggregation();
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier() {
+        return perTimeSeriesAggregation().supplier();
     }
 
     @Override

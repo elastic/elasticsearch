@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.gpu;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -23,7 +24,8 @@ public class GPUClientMultiNodeYamlTestSuiteIT extends ESClientYamlSuiteTestCase
 
     private static ElasticsearchCluster createCluster() {
         var builder = ElasticsearchCluster.local()
-            .nodes(3)
+            .distribution(DistributionType.DEFAULT)
+            .nodes(2)
             .module("gpu")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false")

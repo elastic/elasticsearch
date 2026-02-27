@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
@@ -31,8 +32,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.enableLogsdbByDefault;
-import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -213,7 +212,7 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
             String hostName = "host" + j % 50; // Not realistic, but makes asserting search / query response easier.
             String methodName = "method" + j % 5;
             String ip = NetworkAddress.format(randomIp(true));
-            String message = randomAlphasDelimitedBySpace(10, 1, 15);
+            String message = randomTokensDelimitedBySpace(10, 1, 15);
             recordSmallestMessage(dataStreamName, message);
             long length = randomLong();
             double factor = randomDouble();
@@ -236,15 +235,22 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
     }
 
     /**
-     * Generates a string containing a random number of random length alphas, all delimited by space.
+     * Generates a string containing a random number of tokens. Tokens are either
+     * random length alpha sequences or random integers and are delimited by spaces.
      */
-    private static String randomAlphasDelimitedBySpace(int maxAlphas, int minCodeUnits, int maxCodeUnits) {
-        int numAlphas = randomIntBetween(1, maxAlphas);
-        List<String> alphas = new ArrayList<>(numAlphas);
-        for (int i = 0; i < numAlphas; i++) {
-            alphas.add(randomAlphaOfLengthBetween(minCodeUnits, maxCodeUnits));
+    private static String randomTokensDelimitedBySpace(int maxTokens, int minCodeUnits, int maxCodeUnits) {
+        int numTokens = randomIntBetween(1, maxTokens);
+        List<String> tokens = new ArrayList<>(numTokens);
+        for (int i = 0; i < numTokens; i++) {
+            if (randomBoolean()) {
+                // alpha token
+                tokens.add(randomAlphaOfLengthBetween(minCodeUnits, maxCodeUnits));
+            } else {
+                // numeric token
+                tokens.add(Integer.toString(randomInt()));
+            }
         }
-        return String.join(" ", alphas);
+        return String.join(" ", tokens);
     }
 
     private static void recordSmallestMessage(final String dataStreamName, final String message) {
@@ -355,6 +361,27 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
 
     static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
+
+    static void enableLogsdbByDefault() throws IOException {
+        var request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+                "persistent": {
+                    "cluster.logsdb.enabled": true
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
+    }
+
+    @SuppressWarnings("unchecked")
+    static String getWriteBackingIndex(final RestClient client, final String dataStreamName, int backingIndex) throws IOException {
+        final Request request = new Request("GET", "_data_stream/" + dataStreamName);
+        final List<Object> DATA_STREAMs = (List<Object>) entityAsMap(client.performRequest(request)).get("data_streams");
+        final Map<String, Object> DATA_STREAM = (Map<String, Object>) DATA_STREAMs.get(0);
+        final List<Map<String, String>> backingIndices = (List<Map<String, String>>) DATA_STREAM.get("indices");
+        return backingIndices.get(backingIndex).get("index_name");
     }
 
 }

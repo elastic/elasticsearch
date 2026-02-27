@@ -113,3 +113,107 @@ setup:
          doc_count: 4
        - key: 10920.0
          doc_count: 5
+
+---
+"Min aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
+      reason: exponential_histogram min/max aggregations were introduced
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            min_agg:
+              min:
+                field: histo
+
+  - match: { hits.total.value: 5 }
+  - match: { aggregations.min_agg.value: -1000.0 }
+
+---
+"Max aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_min_max" ]
+      reason: exponential_histogram min/max aggregations were introduced
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            max_agg:
+              max:
+                field: histo
+
+  - match: { hits.total.value: 5 }
+  - match: { aggregations.max_agg.value: 13000.0 }
+
+---
+"Percentiles aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_percentiles" ]
+      reason: exponential_histogram percentile aggregations was introduced
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            percentiles_agg:
+              percentiles:
+                field: histo
+                percents: [5, 25, 50, 75, 95]
+
+  - match: { hits.total.value: 5 }
+  # Use range comparisons to handle small numeric errors across different machines
+  - gte: { aggregations.percentiles_agg.values.5\.0: -798.2 }
+  - lte: { aggregations.percentiles_agg.values.5\.0: -798.1 }
+  - gte: { aggregations.percentiles_agg.values.25\.0: -0.01 }
+  - lte: { aggregations.percentiles_agg.values.25\.0: 0.01 }
+  - gte: { aggregations.percentiles_agg.values.50\.0: 6.39 }
+  - lte: { aggregations.percentiles_agg.values.50\.0: 6.41 }
+  - gte: { aggregations.percentiles_agg.values.75\.0: 2730.6 }
+  - lte: { aggregations.percentiles_agg.values.75\.0: 2730.7 }
+  - gte: { aggregations.percentiles_agg.values.95\.0: 10922.6 }
+  - lte: { aggregations.percentiles_agg.values.95\.0: 10922.7 }
+
+---
+"Percentile ranks aggregation":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_percentile_ranks" ]
+      reason: exponential_histogram percentile_ranks aggregations was introduced
+  - do:
+      search:
+        index: test_exponential_histogram
+        size: 0
+        body:
+          aggs:
+            percentile_ranks_agg:
+              percentile_ranks:
+                field: histo
+                values: [0, 100, 1000, 5000]
+
+  - match: { hits.total.value: 5 }
+  - gte: { aggregations.percentile_ranks_agg.values.0\.0: 26.7 }
+  - lte: { aggregations.percentile_ranks_agg.values.0\.0: 26.9 }
+  - gte: { aggregations.percentile_ranks_agg.values.100\.0: 65.8 }
+  - lte: { aggregations.percentile_ranks_agg.values.100\.0: 65.9 }
+  - gte: { aggregations.percentile_ranks_agg.values.1000\.0: 70.7 }
+  - lte: { aggregations.percentile_ranks_agg.values.1000\.0: 70.8 }
+  - gte: { aggregations.percentile_ranks_agg.values.5000\.0: 77.9 }
+  - lte: { aggregations.percentile_ranks_agg.values.5000\.0: 78.1 }
+
+---
+"Exists query":
+  - do:
+      search:
+        index: test_exponential_histogram
+        body:
+          query:
+            exists:
+              field: histo
+
+  - match: { hits.total.value: 5 }
+

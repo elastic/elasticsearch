@@ -10,10 +10,10 @@ import org.HdrHistogram.DoubleHistogram;
 import org.HdrHistogram.DoubleHistogramIterationValue;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -84,14 +84,18 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> { iw.addDocument(singleton(getDocValue("wrong_number", new double[] { 7, 1 }))); }, hdr -> {
-            // assertEquals(0L, hdr.state.getTotalCount());
-            assertFalse(AggregationInspectionHelper.hasValue(hdr));
-        });
+        testCase(
+            Queries.ALL_DOCS_INSTANCE,
+            iw -> { iw.addDocument(singleton(getDocValue("wrong_number", new double[] { 7, 1 }))); },
+            hdr -> {
+                // assertEquals(0L, hdr.state.getTotalCount());
+                assertFalse(AggregationInspectionHelper.hasValue(hdr));
+            }
+        );
     }
 
     public void testEmptyField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> { iw.addDocument(singleton(getDocValue("number", new double[0]))); }, hdr -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> { iw.addDocument(singleton(getDocValue("number", new double[0]))); }, hdr -> {
             assertFalse(AggregationInspectionHelper.hasValue(hdr));
         });
     }

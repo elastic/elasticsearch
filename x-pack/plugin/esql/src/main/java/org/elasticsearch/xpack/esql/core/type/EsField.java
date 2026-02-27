@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.Map;
@@ -51,7 +51,7 @@ public class EsField implements Writeable {
                 if (other != DIMENSION) {
                     return METRIC;
                 }
-                throw new IllegalStateException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [METRIC].");
+                throw new IllegalArgumentException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [METRIC].");
             }
         },
         DIMENSION(3) {
@@ -60,7 +60,7 @@ public class EsField implements Writeable {
                 if (other != METRIC) {
                     return DIMENSION;
                 }
-                throw new IllegalStateException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [DIMENSION].");
+                throw new IllegalArgumentException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [DIMENSION].");
             }
         };
 

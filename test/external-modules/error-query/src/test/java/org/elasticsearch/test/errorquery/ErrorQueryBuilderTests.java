@@ -8,8 +8,8 @@
  */
 package org.elasticsearch.test.errorquery;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
@@ -47,7 +47,7 @@ public class ErrorQueryBuilderTests extends AbstractQueryTestCase<ErrorQueryBuil
 
     @Override
     protected void doAssertLuceneQuery(ErrorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertEquals(new MatchAllDocsQuery(), query);
+        assertEquals(Queries.ALL_DOCS_INSTANCE, query);
     }
 
     @Override

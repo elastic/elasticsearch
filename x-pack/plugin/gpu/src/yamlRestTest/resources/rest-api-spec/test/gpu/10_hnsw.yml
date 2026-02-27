@@ -18,7 +18,7 @@
                 index_options:
                   type: hnsw
           settings:
-            index.number_of_shards: 1
+            index.number_of_shards: 2
   - match: { error: null }
 
 

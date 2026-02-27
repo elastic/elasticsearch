@@ -44,8 +44,13 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -55,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -149,6 +155,16 @@ public class PlannerUtils {
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
+            case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
+                estimatedRowSize,
+                new MetricsInfoExec(
+                    metricsInfoExec.source(),
+                    metricsInfoExec.child(),
+                    metricsInfoExec.outputAttrs(),
+                    plan.output(),
+                    MetricsInfoExec.Mode.INTERMEDIATE
+                )
+            );
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };
     }
@@ -263,7 +279,6 @@ public class PlannerUtils {
         });
 
         PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
-
         return resultPlan;
     }
 
@@ -375,6 +390,7 @@ public class PlannerUtils {
             case EXPONENTIAL_HISTOGRAM -> ElementType.EXPONENTIAL_HISTOGRAM;
             case TDIGEST -> ElementType.TDIGEST;
             case DENSE_VECTOR -> ElementType.FLOAT;
+            case DATE_RANGE -> ElementType.LONG_RANGE;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };
@@ -392,5 +408,31 @@ public class PlannerUtils {
 
     public static boolean usesScoring(QueryPlan<?> plan) {
         return plan.output().stream().anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
+    }
+
+    /**
+     * Checks that the input rows of the plan have been reduced by LIMIT.
+     * In the case where non-unary plans are used, such as {@code Fork} or {@code UnionAll},
+     * we check that the rows from each branch are reduced by LIMIT.
+     */
+    public static boolean hasLimitedInput(LogicalPlan plan) {
+        while (true) {
+            switch (plan) {
+                case Limit ignored -> {
+                    return true;
+                }
+                case UnaryPlan unaryPlan -> plan = unaryPlan.child();
+                case LookupJoin lookupJoin -> plan = lookupJoin.left();
+                case Row ignored -> {
+                    return true;
+                }
+                case LeafPlan ignored -> {
+                    return false;
+                }
+                default -> {
+                    return plan.children().stream().allMatch(PlannerUtils::hasLimitedInput);
+                }
+            }
+        }
     }
 }

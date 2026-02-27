@@ -17,7 +17,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -42,7 +42,7 @@ public class ParsedDocument {
 
     private BytesReference source;
     private XContentType xContentType;
-    private Mapping dynamicMappingsUpdate;
+    private CompressedXContent dynamicMappingsUpdate;
 
     /**
      * Create a no-op tombstone document
@@ -100,14 +100,14 @@ public class ParsedDocument {
         document.add(versionField);
         if (useSyntheticId) {
             // Use a synthetic _id field which is not indexed nor stored
-            document.add(IdFieldMapper.syntheticIdField(id));
+            document.add(IdFieldMapper.syntheticIdField(uid));
 
             // Add doc values fields that are used to synthesize the synthetic _id.
             // Note: It is not strictly required for tombstones documents but we decided to add them so that iterating and seeking synthetic
             // _id terms over tombstones also work as if a regular _id field was present.
             var timeSeriesId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid);
             var timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
-            var routingHash = TsidExtractingIdFieldMapper.extractRoutingHashBytesFromSyntheticId(uid);
+            int routingHash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(uid);
 
             if (useDocValuesSkipper) {
                 document.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
@@ -116,7 +116,10 @@ public class ParsedDocument {
                 document.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
                 document.add(new LongField("@timestamp", timestamp, Field.Store.NO));
             }
-            var field = new SortedDocValuesField(TimeSeriesRoutingHashFieldMapper.NAME, routingHash);
+            var field = new SortedDocValuesField(
+                TimeSeriesRoutingHashFieldMapper.NAME,
+                Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash))
+            );
             document.add(field);
 
         } else {
@@ -144,7 +147,7 @@ public class ParsedDocument {
         List<LuceneDocument> documents,
         BytesReference source,
         XContentType xContentType,
-        Mapping dynamicMappingsUpdate,
+        CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
         this.version = version;
@@ -203,15 +206,13 @@ public class ParsedDocument {
      * Return dynamic updates to mappings or {@code null} if there were no
      * updates to the mappings.
      */
-    public Mapping dynamicMappingsUpdate() {
+    public CompressedXContent dynamicMappingsUpdate() {
         return dynamicMappingsUpdate;
     }
 
-    public void addDynamicMappingsUpdate(Mapping update) {
+    public void addDynamicMappingsUpdate(CompressedXContent update) {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
-        } else {
-            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_AUTO_UPDATE, Long.MAX_VALUE);
         }
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.gpu;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -23,6 +24,7 @@ public class GPUClientMixedNodeYamlTestSuiteIT extends ESClientYamlSuiteTestCase
 
     private static ElasticsearchCluster createCluster() {
         var builder = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
             .nodes(2)
             .module("gpu")
             .setting("xpack.license.self_generated.type", "trial")
@@ -56,6 +58,7 @@ public class GPUClientMixedNodeYamlTestSuiteIT extends ESClientYamlSuiteTestCase
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
+        // excluding int8_hnsw tests as the dataset is too small for CPU indexing to assert precise results
         return ESClientYamlSuiteTestCase.createParameters("gpu/10_hnsw");
     }
 

@@ -170,7 +170,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
                 exception -> {
                     var thrownException = exception instanceof RemoteTransportException ? exception.getCause() : exception;
                     if (thrownException instanceof ResourceAlreadyExistsException == false) {
-                        logger.error("Failed to create authorization poller task", exception);
+                        logger.warn("Failed to create authorization poller task", exception);
                     }
                 }
             )
@@ -237,7 +237,7 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
                 exception -> {
                     var thrownException = exception instanceof RemoteTransportException ? exception.getCause() : exception;
                     if (thrownException instanceof ResourceNotFoundException == false) {
-                        logger.error("Failed to stop authorization poller task", exception);
+                        logger.warn("Failed to stop authorization poller task", exception);
                     }
                 }
             )

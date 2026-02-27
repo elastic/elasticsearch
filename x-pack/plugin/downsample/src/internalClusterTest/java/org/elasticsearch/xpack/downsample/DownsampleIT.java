@@ -177,8 +177,12 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                   "type": "exponential_histogram",
                   "time_series_metric": "histogram"
                 },
-                "metrics.tdigest": {
+                "metrics.legacy": {
                   "type": "histogram",
+                  "time_series_metric": "histogram"
+                },
+                "metrics.tdigest": {
+                  "type": "tdigest",
                   "time_series_metric": "histogram"
                 },
                 "my_labels": {
@@ -233,6 +237,11 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                     .endObject()
 
                     .startObject("metrics.tdigest")
+                    .array("centroids", randomHistogramValues(maxHistogramSize))
+                    .array("counts", randomHistogramValueCounts(maxHistogramSize))
+                    .endObject()
+
+                    .startObject("metrics.legacy")
                     .array("values", randomHistogramValues(maxHistogramSize))
                     .array("counts", randomHistogramValueCounts(maxHistogramSize))
                     .endObject()
@@ -646,7 +655,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
         final double[] array = new double[size];
         double minHistogramValue = randomDoubleBetween(0.0, 0.1, true);
         for (int i = 0; i < array.length; i++) {
-            array[i] = minHistogramValue += randomDoubleBetween(0.0, 0.5, true);
+            array[i] = minHistogramValue += randomDoubleBetween(0.1, 10.0, true);
         }
         return array;
     }

@@ -13,7 +13,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -74,7 +73,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSimple() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
@@ -97,7 +96,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
      * First value from a derivative is null, so this makes sure the cusum can handle that
      */
     public void testDerivative() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
@@ -127,7 +126,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testCount() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
         aggBuilder.fixedInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
@@ -146,7 +145,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDocCount() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         int numDocs = randomIntBetween(6, 20);
         int interval = randomIntBetween(2, 5);
@@ -195,7 +194,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMetric() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         int numDocs = randomIntBetween(6, 20);
         int interval = randomIntBetween(2, 5);

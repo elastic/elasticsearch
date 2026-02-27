@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.BinaryDocValues;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -58,12 +59,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
     private static final Logger logger = LogManager.getLogger(PatternTextIntegrationTests.class);
 
-    @ParametersFactory(argumentFormatting = "indexOptions=%s, disableTemplating=%b")
+    @ParametersFactory(argumentFormatting = "indexOptions=%s, disableTemplating=%b, useBinaryDocValuesForRawText=%s")
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
         for (var indexOption : new String[] { "docs", "positions" }) {
             for (var templating : new boolean[] { true, false }) {
-                args.add(new Object[] { indexOption, templating });
+                for (var useBinaryDocValues : new boolean[] { true, false }) {
+                    args.add(new Object[] { indexOption, templating, useBinaryDocValues });
+                }
             }
         }
         return Collections.unmodifiableList(args);
@@ -72,11 +75,13 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
     private final String indexOptions;
     private final boolean disableTemplating;
     private final String mapping;
+    private final boolean useBinaryDocValues;
 
-    public PatternTextIntegrationTests(String indexOptions, boolean disableTemplating) {
+    public PatternTextIntegrationTests(String indexOptions, boolean disableTemplating, boolean useBinaryDocValues) {
         this.indexOptions = indexOptions;
         this.disableTemplating = disableTemplating;
         this.mapping = getMapping(indexOptions, disableTemplating);
+        this.useBinaryDocValues = useBinaryDocValues;
     }
 
     @Override
@@ -107,8 +112,6 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
             }
         """;
 
-    private static final Settings LOGSDB_SETTING = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
-
     @After
     public void cleanup() {
         assertAcked(admin().indices().prepareDelete(INDEX));
@@ -119,8 +122,16 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
             .replace("%disable_templating%", Boolean.toString(disableTemplating));
     }
 
+    private Settings getSettings() {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "logsdb")
+            // binary doc values are used when time series doc values format is enabled
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useBinaryDocValues)
+            .build();
+    }
+
     public void testSourceMatchAllManyValues() throws IOException {
-        var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
+        var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(getSettings()).setMapping(mapping);
         createIndex(INDEX, createRequest);
 
         int numDocs = randomIntBetween(1, 100);
@@ -132,7 +143,7 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
     }
 
     public void testLargeValueIsStored() throws IOException {
-        var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
+        var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(getSettings()).setMapping(mapping);
         IndexService indexService = createIndex(INDEX, createRequest);
 
         // large message
@@ -143,17 +154,23 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
         assertMappings();
         assertMessagesInSource(messages);
 
-        // assert contains stored field
         try (var searcher = indexService.getShard(0).acquireSearcher(INDEX)) {
             try (var indexReader = searcher.getIndexReader()) {
-                var document = indexReader.storedFields().document(0);
-                assertEquals(document.getField("field_pattern_text.stored").binaryValue().utf8ToString(), message);
+                if (useBinaryDocValues) {
+                    var leafReader = indexReader.leaves().get(0).reader();
+                    BinaryDocValues docValues = leafReader.getBinaryDocValues("field_pattern_text.stored");
+                    assertTrue(docValues.advanceExact(0));
+                    assertEquals(message, docValues.binaryValue().utf8ToString());
+                } else {
+                    var document = indexReader.storedFields().document(0);
+                    assertEquals(message, document.getField("field_pattern_text.stored").binaryValue().utf8ToString());
+                }
             }
         }
     }
 
     public void testSmallValueNotStored() throws IOException {
-        var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
+        var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(getSettings()).setMapping(mapping);
         IndexService indexService = createIndex(INDEX, createRequest);
 
         // small message
@@ -164,13 +181,22 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
         assertMappings();
         assertMessagesInSource(messages);
 
-        // assert only contains stored field if templating is disabled
         try (var searcher = indexService.getShard(0).acquireSearcher(INDEX)) {
             try (var indexReader = searcher.getIndexReader()) {
-                var document = indexReader.storedFields().document(0);
                 if (disableTemplating) {
-                    assertEquals(document.getField("field_pattern_text.stored").binaryValue().utf8ToString(), message);
+                    // when templating is disabled, large values are either stored in binary doc values or stored fields
+                    if (useBinaryDocValues) {
+                        var leafReader = indexReader.leaves().get(0).reader();
+                        BinaryDocValues docValues = leafReader.getBinaryDocValues("field_pattern_text.stored");
+                        assertTrue(docValues.advanceExact(0));
+                        assertEquals(message, docValues.binaryValue().utf8ToString());
+                    } else {
+                        var document = indexReader.storedFields().document(0);
+                        assertEquals(message, document.getField("field_pattern_text.stored").binaryValue().utf8ToString());
+                    }
                 } else {
+                    // when templating is enabled, small values are templated, not stored
+                    var document = indexReader.storedFields().document(0);
                     assertNull(document.getField("field_pattern_text.stored"));
                 }
             }
@@ -179,7 +205,7 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
 
     public void testPhraseQuery() throws IOException {
         var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
-        createRequest.settings(LOGSDB_SETTING);
+        createRequest.settings(getSettings());
         assertAcked(admin().indices().create(createRequest));
 
         String smallMessage = "cat dog 123 house mouse";
@@ -199,7 +225,7 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
         var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
 
         if (randomBoolean()) {
-            createRequest.settings(LOGSDB_SETTING);
+            createRequest.settings(getSettings());
         }
 
         assertAcked(admin().indices().create(createRequest));

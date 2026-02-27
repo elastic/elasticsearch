@@ -15,6 +15,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -22,13 +23,19 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -81,6 +88,8 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             for (int j = 0; j < malformed.length; j++) {
                 malformed[j] = getMalformedValue();
             }
+            // Binary doc values sort malformed values by their encoded BytesRef representation
+            Arrays.sort(malformed, encodedBytesRefComparator());
 
             var expectedDocument = jsonBuilder().startObject();
             var inputDocument = jsonBuilder().startObject();
@@ -257,20 +266,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         verifySyntheticArray(arrays, arrays, mapping, expectedStoredFields);
     }
 
-    private XContentBuilder arrayToSource(Object[] array) throws IOException {
+    private XContentBuilder arrayToSource(Object obj) throws IOException {
         var source = jsonBuilder().startObject();
-        if (array != null) {
-            // collapse array if it only consists of one element
-            // if the only element is null, then we'll skip synthesizing source for that field
-            if (array.length == 1 && array[0] != null) {
-                source.field("field", array[0]);
-            } else {
-                source.startArray("field");
-                for (Object arrayValue : array) {
-                    source.value(arrayValue);
-                }
-                source.endArray();
-            }
+        if (obj != null) {
+            source.field("field", obj);
         } else {
             source.field("field").nullValue();
         }
@@ -279,7 +278,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
     protected void verifySyntheticArray(
         Object[][] inputArrays,
-        Object[][] expectedArrays,
+        Object[] expectedArrays,
         XContentBuilder mapping,
         String... expectedStoredFields
     ) throws IOException {
@@ -454,5 +453,34 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             logger.info("field name: {}, {}", fieldInfo.name, fieldInfo.attributes());
         }
         return fieldInfos;
+    }
+
+    /**
+     * Returns a comparator that orders objects by their {@link XContentDataHelper} encoded {@code BytesRef} representation.
+     * This matches the sort order used by binary doc values for malformed values.
+     */
+    private static Comparator<Object> encodedBytesRefComparator() {
+        return (a, b) -> {
+            try {
+                return encodeToBytesRef(a).compareTo(encodeToBytesRef(b));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
+    }
+
+    private static BytesRef encodeToBytesRef(Object value) throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject().field("v", value).endObject();
+        try (
+            var parser = JsonXContent.jsonXContent.createParser(
+                XContentParserConfiguration.EMPTY,
+                BytesReference.bytes(builder).streamInput()
+            )
+        ) {
+            parser.nextToken(); // START_OBJECT
+            parser.nextToken(); // FIELD_NAME
+            parser.nextToken(); // value token
+            return XContentDataHelper.encodeToken(parser);
+        }
     }
 }

@@ -16,8 +16,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -35,6 +35,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.areTypesCompatible;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -44,10 +46,26 @@ import static java.util.stream.Collectors.toMap;
  * processing pipeline, and types which the language doesn't support, but require
  * special handling anyway (e.g. {@link DataType#OBJECT})
  *
+ * <h2>Behavior of new, previously unsupported data types</h2>
+ *
+ * Data types that have support in ES indices, but are not yet supported in ES|QL, are
+ * treated as {@link #UNSUPPORTED} by ES|QL. Fields of that type are filled with
+ * {@code null} values, and no functions support them.
+ * In query plans, these fields amount to
+ * {@link org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute}s.
+ * <p>
+ * When such a type gets support in ES|QL, query plans cannot contain it
+ * unless all nodes in the cluster (and remote clusters participating in the query)
+ * support it to avoid serialization errors and semantically invalid results.
+ * This is an example of version-aware query planning,
+ * see {@link org.elasticsearch.xpack.esql.session.Versioned}.
+ *
  * <h2>Process for adding a new data type</h2>
+ *
  * We assume that the data type is already supported in ES indices, but not in
  * ES|QL. Types that aren't yet enabled in ES will require some adjustments to
- * the process.
+ * the process, but should generally be a bit simpler as there are no existing
+ * queries using this type that could cause backwards compatibility issues.
  * <p>
  * Note: it is not expected that all the following steps be done in a single PR.
  * Use capabilities to gate tests as you go, and use as many PRs as you think
@@ -134,7 +152,7 @@ import static java.util.stream.Collectors.toMap;
  *         This will enable the type on non-SNAPSHOT builds as long as all nodes in the cluster
  *         (and remote clusters) support it.
  *         Use the under-construction transport version for the {@code createdVersion} here so that
- *         existing tests continue to run.
+ *         existing tests continue to pass.
  *         </li>
  *     <li>
  *         Fix new test failures related to declared function types.</li>
@@ -286,6 +304,10 @@ public enum DataType implements Writeable {
      */
     DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues().supportedOnAllNodes()),
     /**
+     * Represents a half-inclusive range between two dates.
+     */
+    DATE_RANGE(builder().esType("date_range").estimatedSize(2 * Long.BYTES).docValues().underConstruction(ESQL_LONG_RANGES)),
+    /**
      * IP addresses. IPv4 address are always
      * <a href="https://datatracker.ietf.org/doc/html/rfc4291#section-2.5.5">embedded</a>
      * in IPv6. These flow through the compute engine as fixed length, 16 byte
@@ -361,7 +383,7 @@ public enum DataType implements Writeable {
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
             .supportedSince(
-                DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION,
+                DataTypesTransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED,
                 DataTypesTransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION
             )
     ),
@@ -380,7 +402,7 @@ public enum DataType implements Writeable {
         builder().esType("tdigest")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction(DataTypesTransportVersions.ESQL_SERIALIZEABLE_TDIGEST)
+            .supportedSince(DataTypesTransportVersions.ESQL_SERIALIZEABLE_TDIGEST, DataTypesTransportVersions.ESQL_TDIGEST_TECH_PREVIEW)
 
     ),
 
@@ -391,7 +413,7 @@ public enum DataType implements Writeable {
         builder().esType("histogram")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
-            .underConstruction(DataTypesTransportVersions.ESQL_HISTOGRAM_DATATYPE)
+            .supportedSince(DataTypesTransportVersions.ESQL_HISTOGRAM_DATATYPE, DataTypesTransportVersions.ESQL_HISTOGRAM_DATATYPE_RELEASE)
     ),
 
     /**
@@ -401,7 +423,7 @@ public enum DataType implements Writeable {
         builder().esType("dense_vector")
             .estimatedSize(4096)
             .supportedSince(
-                DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION,
+                DataTypesTransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION,
                 DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION
             )
     );
@@ -582,6 +604,49 @@ public enum DataType implements Writeable {
 
     }
 
+    /**
+     * Infers the ES|QL DataType from a Java Class.
+     * This method mirrors the logic of {@link #fromJava(Object)} but operates on {@code Class<?>} types,
+     * handling both primitive and wrapper classes equivalently.
+     *
+     * @param classType The Java Class to infer the DataType from.
+     * @return The corresponding ES|QL DataType, or {@code null} if no direct mapping is found or can be reliably inferred.
+     */
+    public static DataType fromJavaType(Class<?> classType) {
+        if (classType == null || classType == Void.class) {
+            return NULL;
+        }
+
+        if (classType == int.class || classType == Integer.class) {
+            return INTEGER;
+        } else if (classType == long.class || classType == Long.class) {
+            return LONG;
+        } else if (classType == BigInteger.class) {
+            return UNSIGNED_LONG;
+        } else if (classType == boolean.class || classType == Boolean.class) {
+            return BOOLEAN;
+        } else if (classType == double.class || classType == Double.class) {
+            return DOUBLE;
+        } else if (classType == float.class || classType == Float.class) {
+            return FLOAT;
+        } else if (classType == byte.class || classType == Byte.class) {
+            return BYTE;
+        } else if (classType == short.class || classType == Short.class) {
+            return SHORT;
+        } else if (classType == ZonedDateTime.class) {
+            return DATETIME;
+        } else if (classType == String.class || classType == char.class || classType == Character.class || classType == BytesRef.class) {
+            // Note: BytesRef is an object, not a primitive or wrapper, so it's directly compared.
+            // char.class and Character.class map to KEYWORD
+            return KEYWORD;
+        } else if (List.class.isAssignableFrom(classType)) {
+            // Consistent with fromJava(Object) returning null for empty lists or lists with unknown element types.
+            return null;
+        }
+        // Fallback for any other Class<?> type not explicitly handled
+        return null;
+    }
+
     public static boolean isUnsupported(DataType from) {
         return from == UNSUPPORTED;
     }
@@ -650,7 +715,7 @@ public enum DataType implements Writeable {
         if (left == right) {
             return true;
         } else {
-            return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
+            return areTypesCompatible(left, right);
         }
     }
 
@@ -757,6 +822,13 @@ public enum DataType implements Writeable {
      */
     public boolean isNumeric() {
         return isWholeNumber || isRationalNumber;
+    }
+
+    /**
+     * {@code true} if the type represents any kind of histogram, {@code false} otherwise.
+     */
+    public boolean isHistogram() {
+        return this == HISTOGRAM || this == EXPONENTIAL_HISTOGRAM || this == TDIGEST;
     }
 
     /**
@@ -1045,22 +1117,36 @@ public enum DataType implements Writeable {
          */
         public static final TransportVersion INDEX_SOURCE = TransportVersion.fromName("index_source");
 
-        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(
-            "esql_dense_vector_created_version"
+        /**
+         * We retroactively need a suitable transport version as aggregate_metric_double's "created version".
+         * This type is supported on all snapshot builds that we run in bwc tests; at the time of writing,
+         * the oldest versions should be 8.19.x and 9.0.x.
+         * We can thus choose any transport version as long as it's on 9.0 and was backported to 8.18.
+         */
+        private static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
+            "cohere_bit_embedding_type_support_added"
         );
-
         public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_CREATED_VERSION = TransportVersion.fromName(
             "esql_aggregate_metric_double_created_version"
         );
 
         /**
-         * First transport version after the PR that introduced the exponential histogram data type which was NOT also backported to 9.2.
+         * The first version after dense_vector was supported in SNAPSHOT (but not in production)
+         */
+        public static final TransportVersion ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION = TransportVersion.fromName(
+            "ml_inference_sagemaker_chat_completion"
+        );
+        public static final TransportVersion ESQL_DENSE_VECTOR_CREATED_VERSION = TransportVersion.fromName(
+            "esql_dense_vector_created_version"
+        );
+
+        /**
+         * First transport version after the PR that introduced the exponential_histogram data type which was NOT also backported to 9.2.
          * (Exp. histogram was added as SNAPSHOT-only to 9.3.)
          */
         public static final TransportVersion TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS_VERSION = TransportVersion.fromName(
             "text_similarity_rank_docs_explain_chunks"
         );
-
         public static final TransportVersion ESQL_EXPONENTIAL_HISTOGRAM_SUPPORTED_VERSION = TransportVersion.fromName(
             "esql_exponential_histogram_supported_version"
         );
@@ -1071,5 +1157,14 @@ public enum DataType implements Writeable {
          */
         public static final TransportVersion ESQL_HISTOGRAM_DATATYPE = TransportVersion.fromName("esql_histogram_datatype");
 
+        /**
+         * Transport version for when the feature flag for the ESQL TDigest type was removed.
+         */
+        public static final TransportVersion ESQL_TDIGEST_TECH_PREVIEW = TransportVersion.fromName("esql_tdigest_tech_preview");
+
+        /**
+         * Release version for Histogram data type support
+         */
+        public static final TransportVersion ESQL_HISTOGRAM_DATATYPE_RELEASE = TransportVersion.fromName("esql_histogram_datatype_release");
     }
 }

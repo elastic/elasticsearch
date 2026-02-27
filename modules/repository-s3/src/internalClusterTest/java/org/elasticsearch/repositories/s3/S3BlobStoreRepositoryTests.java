@@ -36,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -73,7 +72,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -117,6 +115,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
+    private static final long MAX_COPY_SIZE_BEFORE_MULTIPART_MB = 5;
 
     private String region;
     private final AtomicBoolean shouldFailCompleteMultipartUploadRequest = new AtomicBoolean();
@@ -176,6 +175,12 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             .put(S3ClientSettings.ADD_PURPOSE_CUSTOM_QUERY_PARAMETER.getConcreteSettingForNamespace("test").getKey(), "true")
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .setSecureSettings(secureSettings);
+
+        // on my laptop 10K exercises this better but larger values should be fine for nightlies
+        builder.put(
+            S3ClientSettings.MAX_COPY_SIZE_BEFORE_MULTIPART.getConcreteSettingForNamespace("test").getKey(),
+            MAX_COPY_SIZE_BEFORE_MULTIPART_MB + "mb"
+        );
 
         if (randomBoolean()) {
             builder.put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), randomBoolean());
@@ -626,6 +631,32 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
     }
 
+    // Tests that max_copy_size_before_multipart, which was moved from a repository setting to a client setting, still honors
+    // repository-level overrides for backward compatibility
+    public void testRepositorySettingOverridesClient() {
+        final String repoName = randomRepositoryName();
+        createRepository(repoName, repositorySettings(repoName), true);
+        final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
+        BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        BlobStoreWrapper blobStore = asInstanceOf(BlobStoreWrapper.class, repository.blobStore());
+        S3BlobStore delegateBlobStore = asInstanceOf(S3BlobStore.class, blobStore.delegate());
+        assertEquals(ByteSizeUnit.MB.toBytes(MAX_COPY_SIZE_BEFORE_MULTIPART_MB), delegateBlobStore.maxCopySizeBeforeMultipart());
+
+        final long REPO_MAX_COPY_SIZE_BEFORE_MULTIPART_MB = 10;
+        createRepository(
+            repoName,
+            Settings.builder()
+                .put(repositorySettings(repoName))
+                .put("max_copy_size_before_multipart", REPO_MAX_COPY_SIZE_BEFORE_MULTIPART_MB + "mb")
+                .build(),
+            true
+        );
+        repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        blobStore = asInstanceOf(BlobStoreWrapper.class, repository.blobStore());
+        delegateBlobStore = asInstanceOf(S3BlobStore.class, blobStore.delegate());
+        assertEquals(ByteSizeUnit.MB.toBytes(REPO_MAX_COPY_SIZE_BEFORE_MULTIPART_MB), delegateBlobStore.maxCopySizeBeforeMultipart());
+    }
+
     private static byte[] getRandomData(BlobContainer container) {
         final byte[] data;
         if (randomBoolean()) {
@@ -646,13 +677,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         public TestS3RepositoryPlugin(final Settings settings) {
             super(settings);
-        }
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            final List<Setting<?>> settings = new ArrayList<>(super.getSettings());
-            settings.add(S3ClientSettings.DISABLE_CHUNKED_ENCODING);
-            return settings;
         }
 
         @Override
@@ -686,12 +710,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                             return new S3BlobContainer(path, (S3BlobStore) delegate()) {
                                 @Override
                                 long getLargeBlobThresholdInBytes() {
-                                    return ByteSizeUnit.MB.toBytes(1L);
-                                }
-
-                                @Override
-                                long getMaxCopySizeBeforeMultipart() {
-                                    // on my laptop 10K exercises this better but larger values should be fine for nightlies
                                     return ByteSizeUnit.MB.toBytes(1L);
                                 }
 

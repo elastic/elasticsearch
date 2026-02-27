@@ -212,7 +212,7 @@ public class InetAddressesTests extends ESTestCase {
         assertEquals("2001:db8::1:0:0:1", InetAddresses.toAddrString(InetAddresses.forString("2001:db8::1:0:0:1")));
     }
 
-    public void testWithOffsets() {
+    public void testWithOffsets() throws UnknownHostException {
         List<String> ipStrings = List.of(
             "1:2:3:4:5:6:7:8",
             "2001:0:0:4::8",
@@ -227,16 +227,20 @@ public class InetAddressesTests extends ESTestCase {
             "2001:658:22a:cafe::",
             "::102:304",
             "2001:db8::1:0:0:1",
-            "2001:db8::1:0:1:0"
+            "2001:db8::1:0:1:0",
+            // Addresses starting with "::" followed by exactly 7 hextets (max allowed 8).
+            "::1:2:3:4:5:6:7",
+            "::ffff:ffff:ffff:ffff:ffff:ffff:ffff"
         );
         for (String ipString : ipStrings) {
+            final InetAddress expected = InetAddress.getByName(ipString);
             byte[] bytes = ipString.getBytes(StandardCharsets.UTF_8);
             int extraLength = randomInt(8);
-            int offset = randomInt(extraLength);
+            int offset = randomIntBetween(0, extraLength);
             byte[] bytesWithPadding = new byte[bytes.length + extraLength];
             System.arraycopy(bytes, 0, bytesWithPadding, offset, bytes.length);
             InetAddress addr = InetAddresses.forString(bytesWithPadding, offset, bytes.length);
-            assertEquals(ipString, InetAddresses.toAddrString(addr));
+            assertEquals(expected, addr);
         }
     }
 

@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
 import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver
 
 pluginManagement {
   repositories {
@@ -42,6 +43,9 @@ toolchainManagement {
       }
       repository('archivedOracleJdks') {
         resolverClass = ArchivedOracleJdkToolchainResolver
+      }
+      repository('earlyAccessJdks') {
+        resolverClass = EarlyAccessCatalogJdkToolchainResolver
       }
     }
   }
@@ -91,6 +95,7 @@ List projects = [
   'distribution:tools:server-cli',
   'distribution:tools:windows-service-cli',
   'distribution:tools:plugin-cli',
+  'distribution:tools:plugin-cli:bc',
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',

@@ -4,6 +4,7 @@ mapped_pages:
 navigation_title: Mapping limit
 applies_to:
   stack: all
+  serverless: all
 ---
 
 # Mapping limit settings [mapping-settings-limit]
@@ -29,6 +30,156 @@ $$$total-fields-limit$$$
     If your field mappings contain a large, arbitrary set of keys, consider using the [flattened](/reference/elasticsearch/mapping-reference/flattened.md) data type, or setting the index setting `index.mapping.total_fields.ignore_dynamic_beyond_limit` to `true`.
 
     ::::
+
+### How fields are counted [mapping-fields-counting]
+
+The `index.mapping.total_fields.limit` setting counts **all mappers**, not just leaf fields. This includes:
+
+- **Object mappers**: Each level in a dotted field path counts separately
+- **Field mappers**: Leaf fields like `keyword`, `text`, `long`, etc.
+- **Multi-fields**: Each sub-field (e.g., `.keyword`, `.raw`) counts individually
+- **Field aliases**: Each alias counts as one mapper
+- **Runtime fields**: Each runtime field counts towards the limit
+
+Metadata fields (`_id`, `_source`, `_routing`, etc.) do **not** count towards this limit.
+
+#### Example: Counting a nested field path
+
+For a field path like `host.os.name`, Elasticsearch creates three mappers:
+
+- `host` (object mapper)
+- `host.os` (object mapper)
+- `host.os.name` (field mapper)
+
+A common mistake is counting only leaf fields (fields with a `type` property). This undercounts because object mappers have `properties` instead of `type`.
+
+#### Example: Full mapping count
+
+```json
+{
+  "mappings": {
+    "properties": {
+      "host": {
+        "properties": {
+          "name": { "type": "keyword" }
+        }
+      },
+      "message": {
+        "type": "text",
+        "fields": {
+          "keyword": { "type": "keyword" }
+        }
+      }
+    }
+  }
+}
+```
+
+This mapping counts as **4 mappers**:
+
+- `host` (object mapper)
+- `host.name` (field mapper)
+- `message` (field mapper)
+- `message.keyword` (multi-field)
+
+#### Example: Multi-fields
+
+Each multi-field counts separately. A text field with multiple sub-fields can quickly add up:
+
+```json
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "fields": {
+          "keyword": { "type": "keyword" },
+          "raw": { "type": "keyword", "index": false }
+        }
+      }
+    }
+  }
+}
+```
+
+This mapping counts as **3 mappers**:
+
+- `title` (field mapper)
+- `title.keyword` (multi-field)
+- `title.raw` (multi-field)
+
+#### Example: Runtime fields
+
+Runtime fields also count towards the limit:
+
+```json
+{
+  "mappings": {
+    "properties": {
+      "timestamp": { "type": "date" }
+    },
+    "runtime": {
+      "day_of_week": {
+        "type": "keyword",
+        "script": {
+          "source": "emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+        }
+      }
+    }
+  }
+}
+```
+
+This mapping counts as **2 mappers**:
+
+- `timestamp` (field mapper)
+- `day_of_week` (runtime field)
+
+#### Example: Field aliases
+
+Field aliases count towards the limit:
+
+```json
+{
+  "mappings": {
+    "properties": {
+      "user_id": { "type": "keyword" },
+      "user": {
+        "type": "alias",
+        "path": "user_id"
+      }
+    }
+  }
+}
+```
+
+This mapping counts as **2 mappers**:
+
+- `user_id` (field mapper)
+- `user` (field alias)
+
+### Reducing field count with `subobjects: false` [reducing-field-count]
+
+```{applies_to}
+stack: ga 8.3
+```
+
+The [`subobjects`](/reference/elasticsearch/mapping-reference/subobjects.md) setting prevents the creation of intermediate object mappers. With `subobjects: false`, dotted field names are stored as literal strings rather than creating nested objects.
+
+```json
+{
+  "mappings": {
+    "subobjects": false,
+    "properties": {
+      "host.os.name": { "type": "keyword" }
+    }
+  }
+}
+```
+
+This creates only **1 mapper** instead of 3, because `host.os.name` is treated as a literal field name rather than a nested path.
+
+For indices with deeply nested fields (such as ECS-style mappings), using `subobjects: false` can significantly reduce the mapper count.
 
 $$$ignore-dynamic-beyond-limit$$$
 `index.mapping.total_fields.ignore_dynamic_beyond_limit` {applies_to}`serverless: all`

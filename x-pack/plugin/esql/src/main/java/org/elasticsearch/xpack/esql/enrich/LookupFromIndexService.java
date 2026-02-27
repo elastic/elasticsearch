@@ -200,7 +200,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
         return new LookupResponse(pages, blockFactory);
     }
 

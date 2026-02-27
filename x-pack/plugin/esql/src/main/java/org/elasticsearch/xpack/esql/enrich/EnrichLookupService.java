@@ -130,7 +130,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) {
         if (pages.size() != 1) {
             throw new UnsupportedOperationException("ENRICH always makes a single page of output");
         }

@@ -218,18 +218,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Build the response.
      */
-    protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory) throws IOException;
+    protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory);
 
     /**
      * Helper to create a LookupResponse from pages and send it to the listener.
      * The response is released after sending via {@link ActionListener#respondAndRelease}.
      */
     protected final void respondWithPages(ActionListener<LookupResponse> listener, List<Page> pages) {
-        try {
-            ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory));
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
+        ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory));
     }
 
     /**

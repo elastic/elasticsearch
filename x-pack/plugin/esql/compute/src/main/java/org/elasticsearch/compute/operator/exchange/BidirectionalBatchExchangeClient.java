@@ -85,7 +85,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private final AtomicReference<Exception> primaryFailure = new AtomicReference<>();
     private final AtomicBoolean failureTriggered = new AtomicBoolean(false);
     private final Object sendFinishLock = new Object(); // Synchronizes finish() with transport callbacks
-    private ActionListener<Void> batchExchangeStatusListener; // Listener for batch exchange status completion
+    private final ActionListener<Void> batchExchangeStatusListener; // Listener for batch exchange status completion
     private volatile boolean closed = false; // Track if close() has been called (for idempotency)
     // Track batch counts to ensure all batches complete before closing
     private int startedBatchCount = 0;

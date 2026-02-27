@@ -2139,8 +2139,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       \_Limit[7300[INTEGER],true,false]
      *         \_MvExpand[b{r}#6,b{r}#16]
      *           \_Limit[7300[INTEGER],false,false]
-     *             \_LocalRelation[[a{r}#4, b{r}#6, c{r}#8],Page{blocks=[ConstantNullBlock[positions=1], IntVectorBlock[vector=ConstantIntVector[p
-     * ositions=1, value=123]], IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]}]
+     *             \_LocalRelation[[a{r}#4, b{r}#6, c{r}#8],Page{blocks=[ConstantNullBlock[positions=1],
+     *             IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
+     *             IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]}]
      * }</pre>
      */
     public void testLimitThenSortBeforeMvExpand() {

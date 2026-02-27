@@ -57,7 +57,7 @@ public class ListReindexResponse extends BaseTasksResponse implements ChunkedToX
             return builder;
         }), Iterators.map(tasks.iterator(), taskInfo -> (builder, p) -> {
             builder.startObject();
-            taskInfoToXContent(builder, p, taskInfo);
+            taskInfoToXContent(builder, p, taskInfo, null);
             builder.endObject();
             return builder;
         }), Iterators.single((builder, p) -> {

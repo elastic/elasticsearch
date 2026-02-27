@@ -98,7 +98,7 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
                         cancelListener.delegateFailureAndWrap(
                             (l, getResp) -> l.onResponse(
                                 // return cancelled=true. GET will return false since it's not *currently* cancelled.
-                                new CancelReindexTaskResponse(taskResultWithCancelledTrue(getResp.getTaskResult()))
+                                new CancelReindexTaskResponse(taskResultWithCancelledTrue(getResp.getOriginalTask()))
                             )
                         )
                     );

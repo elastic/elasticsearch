@@ -13,21 +13,42 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /** Reason for a task failing because it's been relocated to another node to continue execution. */
 public class TaskRelocatedException extends ElasticsearchException {
 
+    private static final String ORIGINAL_TASK_ID_KEY = "original_task_id";
+    private static final String ORIGINAL_TASK_ID_METADATA_KEY = "es." + ORIGINAL_TASK_ID_KEY;
+    private static final String RELOCATED_TASK_ID_KEY = "relocated_task_id";
+    private static final String RELOCATED_TASK_ID_METADATA_KEY = "es." + RELOCATED_TASK_ID_KEY;
+
     public TaskRelocatedException() {
         super("Task was relocated");
     }
 
+    /** Returns the relocated task ID if the map is a serialized {@link TaskRelocatedException}. */
+    public static Optional<TaskId> relocatedTaskIdFromErrorMap(final Map<String, Object> errorMap) {
+        if ("task_relocated_exception".equals(errorMap.get("type"))
+            && errorMap.get(RELOCATED_TASK_ID_KEY) instanceof String relocatedIdStr) {
+            final TaskId relocatedTaskId = new TaskId(relocatedIdStr);
+            assert relocatedTaskId.isSet() : "relocated task ID is not real ID";
+            return Optional.of(relocatedTaskId);
+        }
+        return Optional.empty();
+    }
+
     public void setOriginalAndRelocatedTaskIdMetadata(final TaskId originalTaskId, final TaskId relocatedTaskId) {
-        this.addMetadata("es.original_task_id", originalTaskId.toString()); // implicit nullchecks
-        this.addMetadata("es.relocated_task_id", relocatedTaskId.toString());
+        assert originalTaskId.isSet() : "original task ID is not real ID";
+        assert relocatedTaskId.isSet() : "relocated task ID is not real ID";
+        this.addMetadata(ORIGINAL_TASK_ID_METADATA_KEY, originalTaskId.toString()); // implicit nullchecks
+        this.addMetadata(RELOCATED_TASK_ID_METADATA_KEY, relocatedTaskId.toString());
     }
 
     public Optional<String> getRelocatedTaskId() {
-        return Optional.ofNullable(this.getMetadata("es.relocated_task_id")).filter(taskIds -> taskIds.size() == 1).map(List::getFirst);
+        final List<String> relocatedTaskIds = this.getMetadata(RELOCATED_TASK_ID_METADATA_KEY);
+        assert relocatedTaskIds == null || relocatedTaskIds.size() == 1 : "either not present or one value";
+        return Optional.ofNullable(relocatedTaskIds).filter(taskIds -> taskIds.size() == 1).map(List::getFirst);
     }
 }

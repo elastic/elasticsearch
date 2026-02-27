@@ -18,18 +18,21 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.reindex.TaskRelocatedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * Transport action for getting a reindex task. This validates that the task
- * is actually a reindex task before returning it.
+ * Transport action for getting a reindex task. Validates that the requested task is a reindex parent task,
+ * then follows any relocation chain so the caller transparently sees the current state of a relocated reindex.
  */
 public class TransportGetReindexAction extends HandledTransportAction<GetReindexRequest, GetReindexResponse> {
     public static final ActionType<GetReindexResponse> TYPE = new ActionType<>("cluster:monitor/reindex/get");
@@ -45,71 +48,112 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
     }
 
     @Override
-    protected void doExecute(Task thisTask, GetReindexRequest request, ActionListener<GetReindexResponse> listener) {
-        // We first issue a get task request with wait_for_completion=false to check if the task exists and is a reindex task, to avoid
-        // waiting for tasks that are not reindex. If the original request has wait_for_completion=true, we issue a second get task request
-        // with wait_for_completion=true to wait for the reindex task to complete.
+    protected void doExecute(Task thisTask, GetReindexRequest originalRequest, ActionListener<GetReindexResponse> listener) {
+        // 1. Get the task without completion-waiting to check if the task exists and is a reindex task,
+        // so later we don't wait if the request has `wait_for_completion=true` for a non-reindex task
+        // 2. If the task was relocated, follow the relocation chain to get the latest task status
+        // 3. Lastly, if the original request has wait_for_completion=true, issue another request to wait for reindex completion
         // Note that the underlying transport get task action is multi-project aware, so it will only return project specific tasks
-        TaskId taskId = request.getTaskId();
-        GetTaskRequest getTaskRequest = new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(false);
+        final TaskId taskId = originalRequest.getTaskId();
+        final GetTaskRequest getTaskRequest = new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(false);
 
-        // Look for reindex task on the node inferred from the task id for running reindex task,
+        getTask(getTaskRequest, taskId, listener.delegateFailureAndWrap((l, taskResult) -> {
+            // Found a matching task by id, but it's not a reindex task, treat it as not found to prevent leaking other tasks
+            if (ReindexAction.NAME.equals(taskResult.getTask().action()) == false) {
+                logger.debug("task [{}] requested as reindex but is [{}], returning not found", taskId, taskResult.getTask().action());
+                l.onFailure(notFoundException(taskId));
+                return;
+            }
+            // Found a matching reindex task by id, but it's a reindex subtask, treat it as not found to hide slicing implementation
+            // details
+            if (taskResult.getTask().parentTaskId().isSet()) {
+                logger.debug("reindex subtask [{}] requested directly, returning not found", taskId);
+                l.onFailure(notFoundException(taskId));
+                return;
+            }
+
+            final TaskId relocatedId = TaskRelocatedException.relocatedTaskIdFromErrorMap(taskResult.getErrorAsMap()).orElse(null);
+            if (relocatedId == null) {
+                buildResponse(taskResult, null, originalRequest, l);
+            } else {
+                logger.debug("task [{}] relocated to [{}], following", taskId, relocatedId);
+                followRelocations(taskResult, relocatedId, originalRequest, l);
+            }
+        }));
+    }
+
+    /**
+     * Follows a relocation chain starting from {@code relocatedTaskId}. The original task is preserved
+     * so the response can report the user-facing identity and start time. Relocated tasks found in
+     * {@code .tasks} are trusted as reindex tasks without re-validation.
+     */
+    private void followRelocations(
+        final TaskResult originalTask,
+        final TaskId relocatedTaskId,
+        final GetReindexRequest originalRequest,
+        final ActionListener<GetReindexResponse> listener
+    ) {
+        final GetTaskRequest getTaskRequest = new GetTaskRequest().setTaskId(relocatedTaskId).setWaitForCompletion(false);
+
+        getTask(getTaskRequest, originalRequest.getTaskId(), listener.delegateFailureAndWrap((l, relocatedTask) -> {
+            final TaskId nextRelocatedTaskId = TaskRelocatedException.relocatedTaskIdFromErrorMap(relocatedTask.getErrorAsMap())
+                .orElse(null);
+            if (nextRelocatedTaskId == null) {
+                buildResponse(originalTask, relocatedTask, originalRequest, l);
+            } else {
+                logger.debug("task [{}] relocated to [{}], following", nextRelocatedTaskId, nextRelocatedTaskId);
+                followRelocations(originalTask, nextRelocatedTaskId, originalRequest, l);
+            }
+        }));
+    }
+
+    /**
+     * Builds the final response. If {@code wait_for_completion} is requested and the active task is still
+     * running, re-fetches with {@code waitForCompletion=true} before responding.
+     */
+    private void buildResponse(
+        final TaskResult originalTaskResult,
+        final @Nullable TaskResult finalRelocatedTaskResult,
+        final GetReindexRequest originalRequest,
+        final ActionListener<GetReindexResponse> listener
+    ) {
+        final TaskResult finalTaskResult = finalRelocatedTaskResult == null ? originalTaskResult : finalRelocatedTaskResult;
+        if (finalTaskResult.isCompleted() || originalRequest.getWaitForCompletion() == false) {
+            listener.onResponse(new GetReindexResponse(originalTaskResult, finalRelocatedTaskResult));
+            return;
+        }
+
+        final TaskInfo finalTaskInfo = finalTaskResult.getTask();
+        final TaskId finalTaskId = new TaskId(finalTaskInfo.node(), finalTaskInfo.id());
+        // If waiting for an uncompleted task, we reissue the get request to wait for the reindex task to complete
+        final GetTaskRequest finalWaitGetRequest = new GetTaskRequest().setTaskId(finalTaskId)
+            .setWaitForCompletion(true)
+            .setTimeout(originalRequest.getTimeout());
+
+        getTask(finalWaitGetRequest, originalRequest.getTaskId(), listener.delegateFailureAndWrap((l, finalCompletedResult) -> {
+            if (finalRelocatedTaskResult == null) {
+                l.onResponse(new GetReindexResponse(finalCompletedResult));
+            } else {
+                l.onResponse(new GetReindexResponse(originalTaskResult, finalCompletedResult));
+            }
+        }));
+    }
+
+    /** Get a task, mapping {@link ResourceNotFoundException} into a reindex-specific error to avoid leaking internal task details. */
+    private void getTask(final GetTaskRequest request, final TaskId originalTaskId, final ActionListener<TaskResult> listener) {
+        // Look for the reindex task on the node inferred from the task id for running reindex task,
         // or from the ".tasks" system index for completed tasks
-        client.admin().cluster().getTask(getTaskRequest, new ActionListener<>() {
+        client.admin().cluster().getTask(request, new ActionListener<>() {
             @Override
-            public void onResponse(GetTaskResponse response) {
-                TaskResult taskResult = response.getTask();
-                // Found a matching task by id, but it's not a reindex task, treat it as not found to prevent leaking other tasks
-                if (ReindexAction.NAME.equals(taskResult.getTask().action()) == false) {
-                    logger.debug("task [{}] requested as reindex but is [{}], returning not found", taskId, taskResult.getTask().action());
-                    listener.onFailure(notFoundException(taskId));
-                    return;
-                }
-                // Found a matching reindex task by id, but it's a reindex subtask, treat it as not found to hide slicing implementation
-                // details
-                if (taskResult.getTask().parentTaskId().isSet()) {
-                    logger.debug("reindex subtask [{}] requested directly, returning not found", taskId);
-                    listener.onFailure(notFoundException(taskId));
-                    return;
-                }
-
-                if (taskResult.isCompleted() || request.getWaitForCompletion() == false) {
-                    listener.onResponse(new GetReindexResponse(taskResult));
-                    return;
-                }
-
-                // If waiting for uncompleted task, we reissue the get request to wait for the reindex task to complete
-                GetTaskRequest waitForTaskRequest = new GetTaskRequest().setTaskId(taskId)
-                    .setWaitForCompletion(true)
-                    .setTimeout(request.getTimeout());
-
-                client.admin().cluster().getTask(waitForTaskRequest, new ActionListener<>() {
-                    @Override
-                    public void onResponse(GetTaskResponse waitForTaskResponse) {
-                        listener.onResponse(new GetReindexResponse(waitForTaskResponse.getTask()));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (e instanceof ResourceNotFoundException) {
-                            // Wraps the task not found exception to hide task details
-                            logger.debug("task [{}] not found, returning as reindex not found", taskId);
-                            // TODO: Add searching for reallocated running reindex task on other nodes after relocation is added
-                            listener.onFailure(notFoundException(taskId));
-                        } else {
-                            listener.onFailure(e);
-                        }
-                    }
-                });
+            public void onResponse(final GetTaskResponse response) {
+                listener.onResponse(response.getTask());
             }
 
             @Override
-            public void onFailure(Exception e) {
+            public void onFailure(final Exception e) {
                 if (e instanceof ResourceNotFoundException) {
-                    // Wraps the task not found exception to hide task details
-                    logger.debug("task [{}] not found, returning as reindex not found", taskId);
-                    // TODO: Add searching for reallocated running reindex task on other nodes after relocation is added
-                    listener.onFailure(notFoundException(taskId));
+                    logger.debug("task [{}] not found, returning as reindex not found", originalTaskId);
+                    listener.onFailure(notFoundException(originalTaskId));
                 } else {
                     listener.onFailure(e);
                 }

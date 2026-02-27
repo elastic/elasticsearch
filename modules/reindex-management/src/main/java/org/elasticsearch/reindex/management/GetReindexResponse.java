@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
@@ -21,61 +22,96 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Objects.requireNonNull;
 
 public class GetReindexResponse extends ActionResponse implements ToXContentObject {
 
-    private final TaskResult task;
+    /** The original task the user submitted. Always present. */
+    private final TaskResult originalTask;
+    /** The final task after relocation, or {@code null} if the task was never relocated. */
+    @Nullable
+    private final TaskResult relocatedTask;
 
-    public GetReindexResponse(TaskResult task) {
-        this.task = requireNonNull(task, "task is required");
+    public GetReindexResponse(TaskResult originalTask) {
+        this(originalTask, null);
+    }
+
+    public GetReindexResponse(TaskResult originalTask, @Nullable TaskResult relocatedTask) {
+        this.originalTask = requireNonNull(originalTask, "task is required");
+        this.relocatedTask = relocatedTask;
     }
 
     public GetReindexResponse(StreamInput in) throws IOException {
-        task = in.readOptionalWriteable(TaskResult::new);
+        originalTask = in.readOptionalWriteable(TaskResult::new);
+        relocatedTask = in.readOptionalWriteable(TaskResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(task);
+        out.writeOptionalWriteable(originalTask);
+        out.writeOptionalWriteable(relocatedTask);
     }
 
-    public TaskResult getTaskResult() {
-        return task;
+    public TaskResult getOriginalTask() {
+        return originalTask;
+    }
+
+    public Optional<TaskResult> getRelocatedTask() {
+        return Optional.ofNullable(relocatedTask);
     }
 
     /**
-     * Only selected fields are exposed, to hide task related implementation details
+     * Only selected fields are exposed, to hide task related implementation details.
+     * When relocation occurred, ID and timing fields reflect the original task
+     * while the completion state comes from the relocated task.
      */
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        TaskInfo taskInfo = task.getTask();
+    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+        final TaskResult finalTask = relocatedTask == null ? originalTask : relocatedTask;
         builder.startObject();
-        builder.field("completed", task.isCompleted());
-        taskInfoToXContent(builder, params, taskInfo);
-        if (task.getError() != null) {
-            XContentHelper.writeRawField("error", task.getError(), builder.contentType(), builder, params);
+        builder.field("completed", finalTask.isCompleted());
+        taskInfoToXContent(builder, params, originalTask.getTask(), relocatedTask == null ? null : relocatedTask.getTask());
+        if (finalTask.getError() != null) {
+            XContentHelper.writeRawField("error", finalTask.getError(), builder.contentType(), builder, params);
         }
-        if (task.getResponse() != null) {
-            XContentHelper.writeRawField("response", task.getResponse(), builder.contentType(), builder, params);
+        if (finalTask.getResponse() != null) {
+            XContentHelper.writeRawField("response", finalTask.getResponse(), builder.contentType(), builder, params);
         }
         builder.endObject();
         return builder;
     }
 
-    // reindex specific TaskInfo serialization
-    static XContentBuilder taskInfoToXContent(XContentBuilder builder, Params params, TaskInfo taskInfo) throws IOException {
+    /**
+     * Renders reindex-specific task info fields.
+     * Always provides the user-facing id and start time.
+     * When {@code relocatedTaskInfo} is non-null, running time accounts for the gap between original and relocated
+     * start, and cancelled and status reflect the relocated task.
+     */
+    static XContentBuilder taskInfoToXContent(
+        final XContentBuilder builder,
+        final Params params,
+        final TaskInfo originalTaskInfo,
+        final @Nullable TaskInfo relocatedTaskInfo
+    ) throws IOException {
+        final TaskInfo finalTaskInfo = relocatedTaskInfo == null ? originalTaskInfo : relocatedTaskInfo;
+        final long reindexStartMillis = originalTaskInfo.startTime();
+        final long reindexRunningTimeNanos = relocatedTaskInfo == null
+            ? originalTaskInfo.runningTimeNanos()
+            : finalTaskInfo.runningTimeNanos() + TimeUnit.MILLISECONDS.toNanos(finalTaskInfo.startTime() - reindexStartMillis);
+
         // TODO: revisit if we should expose taskInfo.description, since it may contain sensitive information like ip and username
-        builder.field("id", taskInfo.node() + ":" + taskInfo.id());
-        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", taskInfo.startTime());
+        builder.field("id", originalTaskInfo.node() + ":" + originalTaskInfo.id());
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", reindexStartMillis);
         if (builder.humanReadable()) {
-            builder.field("running_time", TimeValue.timeValueNanos(taskInfo.runningTimeNanos()).toString());
+            builder.field("running_time", TimeValue.timeValueNanos(reindexRunningTimeNanos).toString());
         }
-        builder.field("running_time_in_nanos", taskInfo.runningTimeNanos());
-        builder.field("cancelled", taskInfo.cancelled());
-        if (taskInfo.status() != null) {
-            builder.field("status", taskInfo.status(), params);
+        builder.field("running_time_in_nanos", reindexRunningTimeNanos);
+        builder.field("cancelled", finalTaskInfo.cancelled());
+        if (finalTaskInfo.status() != null) {
+            builder.field("status", finalTaskInfo.status(), params);
         }
 
         return builder;
@@ -86,11 +122,11 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetReindexResponse that = (GetReindexResponse) o;
-        return Objects.equals(task, that.task);
+        return Objects.equals(originalTask, that.originalTask) && Objects.equals(relocatedTask, that.relocatedTask);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(task);
+        return Objects.hash(originalTask, relocatedTask);
     }
 }

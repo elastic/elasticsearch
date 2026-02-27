@@ -480,11 +480,11 @@ from books
 | sort book_no
 ;
 
-book_no:keyword | count:long
-2675            | 1
-2714            | 1
-4023            | 4
-7140            | 2
+   count:long  |    book_no:keyword
+1              |2675           
+1              |2714           
+4              |4023           
+2              |7140
 ;
 
 testMatchPhraseUnionAll

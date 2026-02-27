@@ -425,12 +425,12 @@ from books
 | limit 5
 ;
 
-book_no:keyword | count:long
-1463            | 1
-2130            | 2
-2301            | 1
-2675            | 1
-2714            | 1
+     count:long|    book_no:keyword
+1              |1463           
+2              |2130           
+1              |2301           
+1              |2675           
+1              |2714
 ;
 
 kqlWithMultipleOptions

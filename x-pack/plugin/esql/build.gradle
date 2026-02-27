@@ -83,6 +83,12 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
   internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
+  internalClusterTestImplementation project(xpackModule('analytics'))
+  internalClusterTestImplementation project(xpackModule('spatial'))
+  internalClusterTestImplementation project(xpackModule('mapper-unsigned-long'))
+  internalClusterTestImplementation project(xpackModule('wildcard'))
+  internalClusterTestImplementation project(xpackModule('mapper-version'))
+  internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
 }
 
 tasks.named('splitPackagesAudit').configure {
@@ -286,6 +292,10 @@ tasks.named("test").configure {
       }
     }
   }
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.ESTestCase'
 }
 
 // This is similar to the test task above, but needed for the LookupJoinTypesIT which runs in the internalClusterTest task

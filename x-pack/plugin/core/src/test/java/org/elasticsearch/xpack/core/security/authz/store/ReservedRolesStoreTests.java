@@ -452,6 +452,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/delete", request, authentication), is(true));
         assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/stats", request, authentication), is(true));
 
+        // Project Routing
+        assertTrue(kibanaRole.cluster().check("cluster:admin/project_routing/delete", request, authentication));
+
         // SAML and token
         assertThat(kibanaRole.cluster().check(SamlPrepareAuthenticationAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(SamlAuthenticateAction.NAME, request, authentication), is(true));
@@ -622,6 +625,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ReservedRolesStore.ALERTS_BACKING_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_BACKING_INDEX_REINDEXED + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ReservedRolesStore.ALERTING_V2_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_REINDEXED + randomAlphaOfLength(randomIntBetween(0, 13)),

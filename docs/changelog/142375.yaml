@@ -1,0 +1,5 @@
+pr: 142375
+summary: Add JSON_EXTRACT ES|QL scalar function
+area: ES|QL
+type: feature
+issues: []

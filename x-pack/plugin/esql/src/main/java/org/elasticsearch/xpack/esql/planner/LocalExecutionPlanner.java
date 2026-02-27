@@ -95,8 +95,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -1069,11 +1072,28 @@ public class LocalExecutionPlanner {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
         }
 
-        // Single path through OperatorFactoryRegistry — handles connectors, plugins, and storage+format
         StoragePath path = StoragePath.of(externalSource.sourcePath());
         List<String> projectedColumns = new ArrayList<>();
         for (Attribute attr : externalSource.output()) {
             projectedColumns.add(attr.name());
+        }
+
+        int splitCount = externalSource.splits().size();
+        ExternalSliceQueue sliceQueue = null;
+        int instanceCount = 1;
+
+        if (splitCount > 1) {
+            sliceQueue = new ExternalSliceQueue(externalSource.splits());
+            instanceCount = Math.min(splitCount, context.queryPragmas().taskConcurrency());
+        }
+
+        FileSet fileSet = externalSource.fileSet();
+        Set<String> partitionColumnNames = Set.of();
+        if (fileSet != null) {
+            PartitionMetadata pm = fileSet.partitionMetadata();
+            if (pm != null && pm.isEmpty() == false) {
+                partitionColumnNames = pm.partitionColumns().keySet();
+            }
         }
 
         SourceOperatorContext operatorContext = SourceOperatorContext.builder()
@@ -1087,11 +1107,13 @@ public class LocalExecutionPlanner {
             .config(externalSource.config())
             .sourceMetadata(externalSource.sourceMetadata())
             .pushedFilter(externalSource.pushedFilter())
-            .fileSet(externalSource.fileSet())
+            .fileSet(fileSet)
+            .partitionColumnNames(partitionColumnNames)
+            .sliceQueue(sliceQueue)
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 

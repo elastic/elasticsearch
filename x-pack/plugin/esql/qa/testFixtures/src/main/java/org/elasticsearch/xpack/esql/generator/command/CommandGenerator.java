@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.generator.FunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -33,7 +34,11 @@ public interface CommandGenerator {
      */
     record CommandDescription(String commandName, CommandGenerator generator, String commandString, Map<String, Object> context) {}
 
-    record QuerySchema(List<String> baseIndices, List<LookupIdx> lookupIndices, List<CsvTestsDataLoader.EnrichConfig> enrichPolicies) {}
+    record QuerySchema(
+        List<String> baseIndices,
+        List<LookupIdx> lookupIndices,
+        Collection<CsvTestsDataLoader.EnrichConfig> enrichPolicies
+    ) {}
 
     record ValidationResult(boolean success, String errorMessage) {}
 

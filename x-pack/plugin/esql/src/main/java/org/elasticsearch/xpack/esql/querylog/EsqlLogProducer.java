@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.querylog;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.activity.ActivityLogProducer;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.index.ActionLoggingFields;
 
 import java.util.Optional;
@@ -19,7 +20,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
     public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
         return Optional.of(
-            msg.field(ES_QUERY_FIELDS_PREFIX + "query", context.getQuery()).field(ES_QUERY_FIELDS_PREFIX + "hits", context.getHits())
+            msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery()).field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits())
         );
     }
 }

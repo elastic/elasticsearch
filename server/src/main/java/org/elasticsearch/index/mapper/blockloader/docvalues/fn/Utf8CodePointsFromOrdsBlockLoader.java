@@ -192,10 +192,10 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (ordinals.docValues().advanceExact(doc) == false) {
-                        ords[i] = -1;
+                        ords[i - offset] = -1;
                         continue;
                     }
-                    ords[i] = ordinals.docValues().ordValue();
+                    ords[i - offset] = ordinals.docValues().ordValue();
                 }
                 int[] result = ords;
                 ords = null;
@@ -606,15 +606,15 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             for (int i = offset; i < docs.count(); i++) {
                 int doc = docs.get(i);
                 if (ordinals.advanceExact(doc) == false) {
-                    ords[i] = -1;
+                    ords[i - offset] = -1;
                     continue;
                 }
                 if (ordinals.docValueCount() != 1) {
                     registerSingleValueWarning(warnings);
-                    ords[i] = -1;
+                    ords[i - offset] = -1;
                     continue;
                 }
-                ords[i] = Math.toIntExact(ordinals.nextOrd());
+                ords[i - offset] = Math.toIntExact(ordinals.nextOrd());
             }
             int[] result = ords;
             ords = null;

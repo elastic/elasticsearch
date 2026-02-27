@@ -85,4 +85,36 @@ public abstract class AbstractBlockLoaderTestCase extends ESTestCase {
 
     protected abstract void test(CircuitBreaker breaker, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrap)
         throws IOException;
+
+    protected final TestBlock read(BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
+        if (randomBoolean()) {
+            return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
+        }
+        List<Object> results = new ArrayList<>(docs.count());
+        int walk = randomBoolean() ? 1 : between(2, 100);
+        for (int offset = 0; offset < docs.count(); offset += walk) {
+            int finalOffset = offset;
+            BlockLoader.Docs subDocs = new BlockLoader.Docs() {
+                @Override
+                public int count() {
+                    return Math.min(walk, docs.count() - finalOffset) + finalOffset;
+                }
+
+                @Override
+                public int get(int i) {
+                    return docs.get(i);
+                }
+
+                @Override
+                public boolean mayContainDuplicates() {
+                    return docs.mayContainDuplicates();
+                }
+            };
+            TestBlock subResults = (TestBlock) reader.read(TestBlock.factory(), subDocs, offset, false);
+            for (int r = 0; r < subResults.size(); r++) {
+                results.add(subResults.get(r));
+            }
+        }
+        return new TestBlock(results);
+    }
 }

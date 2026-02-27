@@ -19,6 +19,7 @@ package org.elasticsearch.xpack.stateless;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -33,7 +34,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests that resharding operations are resilient in presence of failures.
  */
 public class StatelessReshardDisruptionIT extends AbstractStatelessPluginIntegTestCase {
-    public void testReshardWithDisruption() throws IOException, InterruptedException, ExecutionException {
+    public void testReshardWithDisruption() throws InterruptedException, ExecutionException {
         var masterNode = startMasterOnlyNode();
 
         int nodes = 2;
@@ -172,13 +172,13 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessPluginIntegTe
                     shardId = 0;
                     shardRoutingTable = clusterState.routingTable().index(index.getName()).shard(shardId);
                 }
-                var fromNode = clusterState.getNodes().get(shardRoutingTable.primaryShard().currentNodeId()).getName();
-                var eligibleNodes = clusterState.nodes()
-                    .getAllNodes()
-                    .stream()
-                    .filter(node -> node.getName().equals(fromNode) == false && node.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()))
-                    .map(DiscoveryNode::getName)
-                    .toList();
+                boolean relocatePrimary = randomBoolean();
+                // We run with one replica so there will only one unpromotable shard to relocate here.
+                String fromNode = relocatePrimary
+                    ? clusterState.getNodes().get(shardRoutingTable.primaryShard().currentNodeId()).getName()
+                    : clusterState.getNodes().get(shardRoutingTable.assignedUnpromotableShards().get(0).currentNodeId()).getName();
+                List<String> eligibleNodes = getRelocationEligibleNode(clusterState, fromNode, relocatePrimary);
+
                 if (eligibleNodes.isEmpty() == false) {
                     var toNode = randomFrom(eligibleNodes);
                     logger.info("--> relocating shard {} from {} to {}", shardId, fromNode, toNode);
@@ -219,5 +219,16 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessPluginIntegTe
 
     private void waitForReshardCompletion(String indexName) {
         awaitClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null);
+    }
+
+    private List<String> getRelocationEligibleNode(ClusterState clusterState, String fromNode, boolean primary) {
+        DiscoveryNodeRole requiredRole = primary ? DiscoveryNodeRole.INDEX_ROLE : DiscoveryNodeRole.SEARCH_ROLE;
+
+        return clusterState.nodes()
+            .getAllNodes()
+            .stream()
+            .filter(node -> node.getName().equals(fromNode) == false && node.hasRole(requiredRole.roleName()))
+            .map(DiscoveryNode::getName)
+            .toList();
     }
 }

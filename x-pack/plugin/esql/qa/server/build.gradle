@@ -15,6 +15,12 @@ dependencies {
 
   // GCS fixture infrastructure for external source tests
   api project(':test:fixtures:gcs-fixture')
+
+  // Azure fixture infrastructure for external source tests
+  api project(':test:fixtures:azure-fixture')
+
+  // Azure SDK for fixture blob loading - use repository-azure for complete dependency tree
+  api project(':modules:repository-azure')
   
   // Access to test utilities including IcebergS3FixtureUtils
   api(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))

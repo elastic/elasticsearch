@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.datageneration.matchers.source.FlattenedFieldMatcher;
-import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
+public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
 
     public FlattenedFieldRootBlockLoaderTests(Params params) {
         super("flattened", params);

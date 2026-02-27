@@ -14,7 +14,7 @@ import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
-import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
-public class FlattenedFieldKeyedBlockLoaderTests extends BlockLoaderTestCase {
+public class FlattenedFieldKeyedBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
 
     private static final DataSourceHandler FLATTENED_DATA_GENERATOR = new DataSourceHandler() {
         @Override

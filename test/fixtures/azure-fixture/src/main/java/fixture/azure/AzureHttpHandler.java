@@ -253,10 +253,7 @@ public class AzureHttpHandler implements HttpHandler {
                     responseContent = blobContents.slice(Math.toIntExact(start), Math.toIntExact(sliceLength));
                     successStatus = RestStatus.PARTIAL_CONTENT;
                     // Azure SDK expects Content-Range for 206 responses (RFC 7233: bytes start-end/total)
-                    exchange.getResponseHeaders().add(
-                        "Content-Range",
-                        "bytes " + start + "-" + end + "/" + blobContents.length()
-                    );
+                    exchange.getResponseHeaders().add("Content-Range", "bytes " + start + "-" + end + "/" + blobContents.length());
                 } else {
                     responseContent = blob.getContents();
                     successStatus = RestStatus.OK;

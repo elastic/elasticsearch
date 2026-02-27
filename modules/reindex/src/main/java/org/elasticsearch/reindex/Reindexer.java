@@ -237,8 +237,7 @@ public class Reindexer {
             threadPool,
             restClient,
             // TODO - Do we want to pass in a countRetry runnable here to count the number of times we retry?
-            // This would be similar to the behaviour in PaginatedHitSource, except they (unintentionally?)
-            // use a search counter, which is eventually reported in
+            // https://github.com/elastic/elasticsearch-team/issues/2382
             rejectAwareListener
         );
     }

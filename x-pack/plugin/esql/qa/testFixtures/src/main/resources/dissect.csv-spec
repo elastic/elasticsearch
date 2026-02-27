@@ -478,6 +478,7 @@ count:long | extracted_first:keyword
 
 pruneDissectWithInlineStats
 required_capability: inline_stats
+required_capability: inline_stats_drop_groupings_fix
 FROM employees
 | EVAL full_name = CONCAT(first_name, " ", last_name)
 | DISSECT full_name "%{extracted_first} %{extracted_last}"

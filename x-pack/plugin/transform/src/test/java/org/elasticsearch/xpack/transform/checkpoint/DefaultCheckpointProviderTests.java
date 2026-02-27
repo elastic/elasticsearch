@@ -33,6 +33,7 @@ import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor.AuditExpectation;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import java.time.Clock;
@@ -405,6 +407,111 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertThat(
             checkpointHolder.get().getIndicesCheckpoints().keySet(),
             containsInAnyOrder("remote-1:index-1", "remote-2:index-1", "remote-3:index-1")
+        );
+    }
+
+    public void testGetIndexCheckpointsQueryOmittedWhenRuntimeMappingsPresent() throws InterruptedException {
+        // Arrange: create a config with runtime_mappings and a query filter
+        String transformId = getTestName();
+        SourceConfig sourceWithRuntimeMappings = new SourceConfig(
+            new String[] { "source_index" },
+            QueryConfig.matchAll(),
+            Map.of("total_price_with_tax", Map.of("type", "double", "script", Map.of("source", "emit(1.0)"))),
+            null
+        );
+        TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSource(
+            sourceWithRuntimeMappings
+        ).build();
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(
+            Map.of("source_index", new long[] { 1L, 2L, 3L })
+        );
+        ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
+
+        RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
+        when(remoteClusterResolver.resolve(any(String[].class))).thenReturn(
+            new RemoteClusterResolver.ResolvedIndices(Map.of(), List.of("source_index"))
+        );
+
+        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
+            clock,
+            parentTaskClient,
+            remoteClusterResolver,
+            transformConfigManager,
+            transformAuditor,
+            transformConfig
+        );
+
+        // Act: trigger checkpoint creation which calls getIndexCheckpoints
+        SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(
+            null,
+            new LatchedActionListener<>(ActionListener.wrap(checkpointHolder::set, exceptionHolder::set), latch)
+        );
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+
+        // Assert: the query should be null because runtime_mappings are present
+        GetCheckpointAction.Request capturedRequest = requestCaptor.getValue();
+        assertNull(
+            "GetCheckpointAction.Request query should be null when runtime_mappings are present, "
+                + "because SearchShardsRequest does not support runtime_mappings",
+            capturedRequest.getQuery()
+        );
+    }
+
+    public void testGetIndexCheckpointsQuerySetWhenNoRuntimeMappings() throws InterruptedException {
+        // Arrange: create a config WITHOUT runtime_mappings but with a query filter
+        String transformId = getTestName();
+        SourceConfig sourceWithoutRuntimeMappings = new SourceConfig(
+            new String[] { "source_index" },
+            QueryConfig.matchAll(),
+            Collections.emptyMap(),
+            null
+        );
+        TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSource(
+            sourceWithoutRuntimeMappings
+        ).build();
+
+        GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(
+            Map.of("source_index", new long[] { 1L, 2L, 3L })
+        );
+        ArgumentCaptor<GetCheckpointAction.Request> requestCaptor = ArgumentCaptor.forClass(GetCheckpointAction.Request.class);
+        doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), requestCaptor.capture(), any());
+
+        RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
+        when(remoteClusterResolver.resolve(any(String[].class))).thenReturn(
+            new RemoteClusterResolver.ResolvedIndices(Map.of(), List.of("source_index"))
+        );
+
+        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
+            clock,
+            parentTaskClient,
+            remoteClusterResolver,
+            transformConfigManager,
+            transformAuditor,
+            transformConfig
+        );
+
+        // Act: trigger checkpoint creation which calls getIndexCheckpoints
+        SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.createNextCheckpoint(
+            null,
+            new LatchedActionListener<>(ActionListener.wrap(checkpointHolder::set, exceptionHolder::set), latch)
+        );
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+
+        // Assert: the query should be set when no runtime_mappings are present (for shard-skipping optimization)
+        GetCheckpointAction.Request capturedRequest = requestCaptor.getValue();
+        assertNotNull(
+            "GetCheckpointAction.Request query should be set when no runtime_mappings are present for shard-skipping optimization",
+            capturedRequest.getQuery()
         );
     }
 

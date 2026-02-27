@@ -1,6 +1,6 @@
 version: 9.3.1
 released: false
-generated: 2026-02-23T17:40:32.070092529Z
+generated: 2026-02-24T13:24:39.110009699Z
 changelogs:
   - pr: 140844
     summary: Evict old models from the cache before loading new
@@ -168,18 +168,41 @@ changelogs:
     area: Inference
     type: bug
     issues: []
+  - pr: 142328
+    summary: Fix NPE with null field parameter
+    area: ES|QL
+    type: bug
+    issues:
+      - 142281
   - pr: 142332
     summary: Fix bug with multiple spatial aggs filtering in ES|QL
     area: ES|QL
     type: bug
     issues:
       - 142329
+  - pr: 142386
+    summary: Fix `QlIllegalArgumentException` with non-foldable date range queries
+    area: SQL
+    type: bug
+    issues:
+      - 137365
   - pr: 142403
     summary: Fix transform validation to reject PUT and `_start` when user lacks remote index permissions
     area: Transform
     type: bug
     issues:
       - 95367
+  - pr: 142433
+    summary: Fix built-in roles sync to retry on lock contention instead of silently discarding pending updates
+    area: Security
+    type: bug
+    issues: []
+  - pr: 142450
+    summary: Fix transform producing empty dest index when source query references runtime fields
+    area: Transform
+    type: bug
+    issues:
+      - 113156
   - pr: 142479
     summary: Fixing for NPE when there is no query specified for the standard retriever
     area: Ranking

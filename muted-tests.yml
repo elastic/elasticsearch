@@ -458,6 +458,9 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
   method: testTSDBIndexUsesCorrectDocValuesFormat
   issue: https://github.com/elastic/elasticsearch/issues/143198
+- class: org.elasticsearch.snapshots.SnapshotStressTestsIT
+  method: testRandomActivities
+  issue: https://github.com/elastic/elasticsearch/issues/143199
 
 # Examples:
 #

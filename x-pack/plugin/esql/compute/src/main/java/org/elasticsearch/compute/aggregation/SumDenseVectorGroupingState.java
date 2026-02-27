@@ -68,7 +68,7 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 int groupIndex = group * dimensions;
-                if (group < sums.size() / dimensions && hasValue(group)) {
+                if (groupIndex < sums.size() && hasValue(group)) {
                     builder.beginPositionEntry();
                     for (int j = 0; j < dimensions; j++) {
                         builder.appendFloat(sums.get(groupIndex + j));
@@ -90,7 +90,7 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 int groupIndex = group * dimensions;
-                if (group < sums.size() / dimensions && hasValue(group)) {
+                if (groupIndex < sums.size() && hasValue(group)) {
                     builder.beginPositionEntry();
                     for (int j = 0; j < dimensions; j++) {
                         builder.appendFloat(sums.get(groupIndex + j));

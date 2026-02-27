@@ -1,0 +1,6 @@
+area: Search
+issues: []
+pr: 143220
+summary: Prevent creating too many nested boolean clauses while creating the lucene
+  query to avoid query explosion
+type: enhancement

@@ -40,16 +40,12 @@ import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -154,45 +150,25 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         RestClient restClient = getRestClient();
 
         for (String indexName : indexNames) {
-            CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET_MAP.get(indexName);
+            CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET.get(indexName);
             if (dataset == null) {
                 throw new IllegalArgumentException("No definition found for index: " + indexName);
             }
 
             if (indexExists(indexName) == false) {
-                // Read mapping file
-                URL mappingResource = CsvTestsDataLoader.class.getResource("/" + dataset.mappingFileName());
-                if (mappingResource == null) {
-                    throw new IllegalArgumentException("Cannot find mapping resource for " + indexName + ": " + dataset.mappingFileName());
-                }
-                String mappingContent = CsvTestsDataLoader.readTextFile(mappingResource);
-
-                // Read settings file (same logic as TestDataset.readSettingsFile())
-                Settings indexSettings = Settings.EMPTY;
-                String settingFileName = dataset.settingFileName();
-                if (settingFileName != null) {
-                    String settingName = "/" + settingFileName;
-                    indexSettings = Settings.builder()
-                        .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
-                        .build();
-                }
                 // Ensure standard settings for test indices
-                indexSettings = Settings.builder()
-                    .put(indexSettings)
+                var indexSettings = Settings.builder()
+                    .put(dataset.loadSettings())
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
                     .build();
 
                 // Create index - let exceptions propagate so test fails immediately
-                ESRestTestCase.createIndex(restClient, indexName, indexSettings, mappingContent, null);
+                ESRestTestCase.createIndex(restClient, indexName, indexSettings, dataset.loadMappings(), null);
 
                 // Load CSV data if available
                 if (dataset.dataFileName() != null) {
-                    URL csvResource = CsvTestsDataLoader.class.getResource("/data/" + dataset.dataFileName());
-                    if (csvResource == null) {
-                        throw new IllegalArgumentException("Cannot find CSV resource for " + indexName + ": " + dataset.dataFileName());
-                    }
-                    CsvTestsDataLoader.loadCsvData(restClient, indexName, csvResource, dataset.allowSubFields(), logger);
+                    CsvTestsDataLoader.loadCsvData(restClient, indexName, dataset.streamData(), dataset.allowSubFields());
                 }
 
                 refresh(indexName);
@@ -212,12 +188,8 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     private void ensureEnrichPolicies(List<String> policyNames) throws IOException {
         RestClient restClient = getRestClient();
 
-        // Build a map of policy name to EnrichConfig for quick lookup
-        Map<String, CsvTestsDataLoader.EnrichConfig> policyMap = CsvTestsDataLoader.ENRICH_POLICIES.stream()
-            .collect(Collectors.toMap(CsvTestsDataLoader.EnrichConfig::policyName, Function.identity()));
-
         for (String policyName : policyNames) {
-            CsvTestsDataLoader.EnrichConfig config = policyMap.get(policyName);
+            CsvTestsDataLoader.EnrichConfig config = CsvTestsDataLoader.ENRICH_POLICIES.get(policyName);
             if (config == null) {
                 throw new IllegalArgumentException("No definition found for enrich policy: " + policyName);
             }
@@ -235,7 +207,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
 
             if (policyExists == false) {
                 // Use CsvTestsDataLoader to load the enrich policy (it handles both creation and execution)
-                CsvTestsDataLoader.loadEnrichPolicy(restClient, policyName, config.policyFileName(), logger);
+                CsvTestsDataLoader.loadEnrichPolicy(restClient, config);
                 ensureGreen(); // Wait for enrich index to be ready
             }
             if (enrichIndexExists == false) {

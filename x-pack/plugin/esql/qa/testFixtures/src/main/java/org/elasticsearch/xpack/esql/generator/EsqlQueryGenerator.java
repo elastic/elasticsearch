@@ -22,19 +22,23 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RegisteredDomainGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.SampleGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.TimeSeriesStatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -93,7 +97,7 @@ public class EsqlQueryGenerator {
     /**
      * These are downstream commands, ie. that cannot appear as the first command in a query
      */
-    static List<CommandGenerator> PIPE_COMMANDS = List.of(
+    public static List<CommandGenerator> PIPE_COMMANDS = List.of(
         ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
         DropGenerator.INSTANCE,
@@ -111,6 +115,8 @@ public class EsqlQueryGenerator {
         SampleGenerator.INSTANCE,
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
+        UriPartsGenerator.INSTANCE,
+        RegisteredDomainGenerator.INSTANCE,
         WhereGenerator.INSTANCE
     );
 
@@ -262,9 +268,9 @@ public class EsqlQueryGenerator {
         };
     }
 
-    public static List<CsvTestsDataLoader.EnrichConfig> policiesOnKeyword(List<CsvTestsDataLoader.EnrichConfig> policies) {
+    public static List<CsvTestsDataLoader.EnrichConfig> policiesOnKeyword(Collection<CsvTestsDataLoader.EnrichConfig> policies) {
         // TODO make it smarter and extend it to other types
-        return policies.stream().filter(x -> Set.of("languages_policy").contains(x.policyName())).toList();
+        return policies.stream().filter(x -> Objects.equals("languages_policy", x.policyName())).toList();
     }
 
     public static String randomName(List<Column> previousOutput) {

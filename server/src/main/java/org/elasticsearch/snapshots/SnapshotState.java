@@ -10,7 +10,11 @@
 package org.elasticsearch.snapshots;
 
 /**
- * Represents the state that a snapshot can be in
+ * Represents the state of a snapshot.
+ * <p>
+ * The state is determined during snapshot finalization and stored in the {@link SnapshotInfo} object in the repository, and this is also
+ * duplicated in {@link org.elasticsearch.repositories.RepositoryData.SnapshotDetails}. These values can be read back by the get-snapshots
+ * and restore-snapshots APIs.
  */
 public enum SnapshotState {
     /**
@@ -22,11 +26,20 @@ public enum SnapshotState {
      */
     SUCCESS((byte) 1, true, true),
     /**
-     * Snapshot failed
+     * Snapshots stored in the repository are only in state {@code FAILED} if they were aborted because deletion was requested while they
+     * were running. The existence of such a snapshot is usually temporary since the deletion of the now-finalized snapshot is enqueued at
+     * the same time, and (unless the deletion fails) will remove the {@code FAILED} snapshot from the repository once all running snapshots
+     * have finished.
+     * <p>
+     * This enum value appears in {@link SnapshotInfo} only for snapshots and not for clones: aborted clones are removed from the cluster
+     * state without being finalized, so they are never seen as {@code FAILED} in get-snapshot responses.
+     * <p>
+     * {@code FAILED} snapshots are not available for restore; see {@link #PARTIAL} for partial backups that are retained.
      */
     FAILED((byte) 2, true, false),
     /**
-     * Snapshot was partial successful
+     * Snapshot completed with at least one shard failure (e.g. because a node left the cluster) but was not aborted. The snapshot remains
+     * in the repository and successful shards may be restored.
      */
     PARTIAL((byte) 3, true, true),
     /**

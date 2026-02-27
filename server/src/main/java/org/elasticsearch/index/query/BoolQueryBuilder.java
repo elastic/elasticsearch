@@ -300,7 +300,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context, QueryVisitor queryVisitor) throws IOException {
-        // NOCOMMIT: This doesn't fully work because lucene deduplicate mustNot and filter clauses. It is not trivial
+        // This doesn't fully work because lucene deduplicate mustNot and filter clauses. It is not trivial
         // to deduplicate at this level because it seems that two "distinct" query builders can produce the same
         // lucene query.
         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();

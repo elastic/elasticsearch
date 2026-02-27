@@ -534,7 +534,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         }
     }
 
-    public static final class DfsKnnTimeoutQuery extends AbstractQueryBuilder<DfsKnnTimeoutQuery> {
+    public static final class DfsKnnTimeoutQuery extends LeafQueryBuilder<DfsKnnTimeoutQuery> {
 
         DfsKnnTimeoutQuery() {}
 

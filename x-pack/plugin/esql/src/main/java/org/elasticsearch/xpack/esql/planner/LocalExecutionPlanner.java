@@ -95,8 +95,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -586,7 +589,8 @@ public class LocalExecutionPlanner {
                 asList(encoders),
                 orders,
                 context.pageSize(topNExec, rowSize),
-                topNExec.inputOrdering()
+                topNExec.inputOrdering(),
+                topNExec.minCompetitive()
             ),
             source.layout
         );
@@ -1056,51 +1060,60 @@ public class LocalExecutionPlanner {
      * @return the physical operation
      */
     private PhysicalOperation planExternalSource(ExternalSourceExec externalSource, LocalExecutionPlannerContext context) {
-        // Create layout with output attributes
         Layout.Builder layout = new Layout.Builder();
         layout.append(externalSource.output());
 
-        // Determine page size based on estimated row size
         Integer estimatedRowSize = externalSource.estimatedRowSize();
         int pageSize = (estimatedRowSize != null && estimatedRowSize > 0)
             ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
             : 1000;
 
-        // Parse the storage path
-        StoragePath path = StoragePath.of(externalSource.sourcePath());
+        if (operatorFactoryRegistry == null) {
+            throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
+        }
 
-        // Extract column names from attributes
+        StoragePath path = StoragePath.of(externalSource.sourcePath());
         List<String> projectedColumns = new ArrayList<>();
         for (Attribute attr : externalSource.output()) {
             projectedColumns.add(attr.name());
         }
 
-        // Create the operator factory using the registry
-        SourceOperator.SourceOperatorFactory factory;
-        if (operatorFactoryRegistry != null) {
-            // Build the operator context with all available metadata
-            SourceOperatorContext operatorContext = SourceOperatorContext.builder()
-                .sourceType(externalSource.sourceType())
-                .path(path)
-                .projectedColumns(projectedColumns)
-                .attributes(externalSource.output())
-                .batchSize(pageSize)
-                .maxBufferSize(10)
-                .executor(operatorFactoryRegistry.executor())
-                .config(externalSource.config())
-                .sourceMetadata(externalSource.sourceMetadata())
-                .pushedFilter(externalSource.pushedFilter())
-                .fileSet(externalSource.fileSet())
-                .build();
+        int splitCount = externalSource.splits().size();
+        ExternalSliceQueue sliceQueue = null;
+        int instanceCount = 1;
 
-            factory = operatorFactoryRegistry.factory(operatorContext);
-        } else {
-            throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
+        if (splitCount > 1) {
+            sliceQueue = new ExternalSliceQueue(externalSource.splits());
+            instanceCount = Math.min(splitCount, context.queryPragmas().taskConcurrency());
         }
 
-        // Set driver parallelism to 1 for now (can be optimized later with file splitting)
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
+        FileSet fileSet = externalSource.fileSet();
+        Set<String> partitionColumnNames = Set.of();
+        if (fileSet != null) {
+            PartitionMetadata pm = fileSet.partitionMetadata();
+            if (pm != null && pm.isEmpty() == false) {
+                partitionColumnNames = pm.partitionColumns().keySet();
+            }
+        }
 
+        SourceOperatorContext operatorContext = SourceOperatorContext.builder()
+            .sourceType(externalSource.sourceType())
+            .path(path)
+            .projectedColumns(projectedColumns)
+            .attributes(externalSource.output())
+            .batchSize(pageSize)
+            .maxBufferSize(10)
+            .executor(operatorFactoryRegistry.executor())
+            .config(externalSource.config())
+            .sourceMetadata(externalSource.sourceMetadata())
+            .pushedFilter(externalSource.pushedFilter())
+            .fileSet(fileSet)
+            .partitionColumnNames(partitionColumnNames)
+            .sliceQueue(sliceQueue)
+            .build();
+
+        SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 

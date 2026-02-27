@@ -68,6 +68,7 @@ record TestConfiguration(
     int numMergeWorkers,
     boolean doPrecondition,
     int preconditioningBlockDims,
+    int flatVectorThreshold,
     int secondaryClusterSize
 ) {
 
@@ -108,6 +109,7 @@ record TestConfiguration(
     static final ParseField PRECONDITIONING_BLOCK_DIMS = new ParseField("preconditioning_block_dims");
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
+    static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -170,6 +172,7 @@ record TestConfiguration(
         PARSER.declareFieldArray(Builder::setFilterCached, (p, c) -> p.booleanValue(), FILTER_CACHED, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
+        PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
     }
 
@@ -298,6 +301,7 @@ record TestConfiguration(
         private List<Boolean> filterCached = List.of(Boolean.TRUE);
         private List<SearchParameters.Builder> searchParams = null;
         private int numMergeWorkers = 1;
+        private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
 
         /**
@@ -327,6 +331,11 @@ record TestConfiguration(
 
         public Builder setMergeWorkers(int numMergeWorkers) {
             this.numMergeWorkers = numMergeWorkers;
+            return this;
+        }
+
+        public Builder setFlatVectorThreshold(int flatVectorThreshold) {
+            this.flatVectorThreshold = flatVectorThreshold;
             return this;
         }
 
@@ -510,17 +519,18 @@ record TestConfiguration(
            }
          */
         private void resolveDataset() throws Exception {
-            final String datasetBucketRoot = "gs://knnindextester";
+            final String cloudProjectId = "benchmarking";
+            final String datasetBucket = "knnindextester";
 
             Path dataDir = PathUtils.get(this.dataDir).toAbsolutePath();
             Map<?, ?> dsData;
             List<Path> data;
             Path queries;
 
-            try (Storage storage = StorageOptions.newBuilder().setProjectId("benchmarking").build().getService()) {
+            try (Storage storage = StorageOptions.newBuilder().setProjectId(cloudProjectId).build().getService()) {
                 // get the dataset descriptor file
-                BlobId id = BlobId.fromGsUtilUri(Strings.format("%s/%s/%2$s.json", datasetBucketRoot, dataset));
-                System.out.printf("Loading dataset descriptor %s...%n", id.toGsUtilUri());
+                BlobId id = BlobId.fromGsUtilUri(Strings.format("gs://%s/%s/%2$s.json", datasetBucket, dataset));
+                KnnIndexTester.logger.info("Loading dataset descriptor {}...", id.toGsUtilUri());
                 Blob blob = storage.get(id);
                 if (blob == null) {
                     throw new IllegalArgumentException("Dataset descriptor " + id.toGsUtilUri() + " not found");
@@ -534,12 +544,12 @@ record TestConfiguration(
 
                 // grab the data files from storage if needed
                 List<String> dsFiles = ((List<?>) dsData.get("data")).stream()
-                    .map(f -> Strings.format("%s/%s/%s", datasetBucketRoot, dataset, f))
+                    .map(f -> Strings.format("gs://%s/%s/%s", datasetBucket, dataset, f))
                     .toList();
                 data = downloadFromGoogleCloud(storage, dsFiles, dataDir);
                 queries = downloadFromGoogleCloud(
                     storage,
-                    List.of(Strings.format("%s/%s/%s", datasetBucketRoot, dataset, dsData.get("queries"))),
+                    List.of(Strings.format("gs://%s/%s/%s", datasetBucket, dataset, dsData.get("queries"))),
                     dataDir
                 ).getFirst();
             }
@@ -551,13 +561,16 @@ record TestConfiguration(
             if (numDocs > numDocVectors) {
                 throw new IllegalArgumentException(numDocs + " docs requested, but only " + numDocVectors + " available");
             }
+            KnnIndexTester.logger.info("Using {}/{} docs", numDocs, numDocVectors);
             if (numQueries > numQueryVectors) {
                 throw new IllegalArgumentException(numQueries + " queries requested, but only " + numQueryVectors + " available");
             }
+            KnnIndexTester.logger.info("Using {}/{} queries", numQueries, numQueryVectors);
 
             docVectors = data;
             queryVectors = queries;
             setDimensions(-1);  // dataset dimensions is documentation, the tester reads the dimensions from the fvec files
+            // vector space might already be set explicitly from the config file
             if (this.vectorSpace == null) {
                 setVectorSpace(vectorSpace);
             }
@@ -579,23 +592,25 @@ record TestConfiguration(
                 Path destFile = dest.resolve(id.getName());
                 dataFiles.add(destFile);
                 if (!Files.exists(destFile)) {
-                    System.out.printf("Downloading %s to %s...%n", gsFile, destFile);
+                    KnnIndexTester.logger.info("Downloading {} to {}...", gsFile, destFile);
 
                     // may need to create a subdirectory
                     Files.createDirectories(destFile.getParent());
                     blob.downloadTo(destFile);
                 } else {
-                    System.out.printf("Checking CRC32C for %s...%n", destFile.getFileName());
+                    KnnIndexTester.logger.info("Checking CRC32C for {}...", destFile.getFileName());
                     // check CRC32
-                    final String blobCrc32c = blob.getCrc32c();
+                    String blobCrc32c = blob.getCrc32c();
                     if (blobCrc32c == null) {
-                        System.out.printf("Skipping CRC32C check for %s (blob CRC32C not available)%n", gsFile);
+                        KnnIndexTester.logger.warn("Skipping CRC32C check for {} (blob CRC32C not available)", gsFile);
                         continue;
                     }
 
-                    final String localCrc32c = computeFileCrc32cBase64(destFile);
+                    String localCrc32c = computeFileCrc32cBase64(destFile);
                     if (!blobCrc32c.equals(localCrc32c)) {
-                        throw new IllegalArgumentException("CRC32C mismatch on local file " + destFile + ". Delete file to re-download");
+                        throw new IllegalArgumentException(
+                            "CRC32C mismatch on local file " + destFile + ". Check file, then delete to re-download"
+                        );
                     }
                 }
             }
@@ -705,6 +720,7 @@ record TestConfiguration(
                 numMergeWorkers,
                 doPrecondition,
                 preconditioningBlockDims,
+                flatVectorThreshold,
                 secondaryClusterSize
             );
         }
@@ -740,7 +756,9 @@ record TestConfiguration(
             builder.field(INDEX_THREADS_FIELD.getPreferredName(), indexThreads);
             builder.field(REINDEX_FIELD.getPreferredName(), reindex);
             builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
-            builder.field(VECTOR_SPACE_FIELD.getPreferredName(), vectorSpace.name().toLowerCase(Locale.ROOT));
+            if (vectorSpace != null) {
+                builder.field(VECTOR_SPACE_FIELD.getPreferredName(), vectorSpace.name().toLowerCase(Locale.ROOT));
+            }
             if (quantizeBits != null) {
                 builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
             }
@@ -760,6 +778,7 @@ record TestConfiguration(
             if (searchParams != null) {
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
+            builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
             return builder.endObject();
         }
 

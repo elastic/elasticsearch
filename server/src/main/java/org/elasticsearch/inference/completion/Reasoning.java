@@ -9,7 +9,6 @@
 
 package org.elasticsearch.inference.completion;
 
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

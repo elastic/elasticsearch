@@ -455,6 +455,9 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
   method: testStandardIndexWithTSDBDocValuesFormatSetting
   issue: https://github.com/elastic/elasticsearch/issues/143197
+- class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
+  method: testTSDBIndexUsesCorrectDocValuesFormat
+  issue: https://github.com/elastic/elasticsearch/issues/143198
 
 # Examples:
 #

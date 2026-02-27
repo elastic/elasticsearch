@@ -278,9 +278,18 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             );
         }
 
-        // Get all shard explanations
-        final Function<ShardRouting, ShardAllocationDecision> allocationExplainFunction = allocationService
-            .explainAssignedShardAllocationFunction(allocation);
+        // Get all shard explanations -- create a function that lazily creates an allocationExplainFunction on demand
+        final Function<ShardRouting, ShardAllocationDecision> allocationExplainFunction = new Function<>() {
+            private Function<ShardRouting, ShardAllocationDecision> allocationExplainFunctionInternal = null;
+
+            @Override
+            public ShardAllocationDecision apply(ShardRouting shardRouting) {
+                if (this.allocationExplainFunctionInternal == null) {
+                    this.allocationExplainFunctionInternal = allocationService.explainAssignedShardAllocationFunction(allocation);
+                }
+                return this.allocationExplainFunctionInternal.apply(shardRouting);
+            }
+        };
 
         var unmovableShards = currentState.getRoutingNodes()
             .node(nodeId)

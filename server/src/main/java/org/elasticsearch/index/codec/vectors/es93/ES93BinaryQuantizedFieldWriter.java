@@ -22,10 +22,9 @@ import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 
 /**
- * BQ field writer that wraps an {@link ES93FlatFieldVectorsWriter} directly.
- * When the flat writer migrates to MemorySegment-backed storage, this class
- * is the single place that needs to adapt (e.g. reading/normalizing vectors
- * via the segment rather than through {@code List<float[]>}).
+ * BQ field writer that wraps an {@link ES93FlatFieldVectorsWriter}.
+ * Normalization is delegated to the underlying off-heap vector store
+ * so that mutations happen in place on MemorySegments.
  */
 class ES93BinaryQuantizedFieldWriter extends BinaryQuantizedVectorsFieldWriter {
 
@@ -55,13 +54,7 @@ class ES93BinaryQuantizedFieldWriter extends BinaryQuantizedVectorsFieldWriter {
 
     @Override
     public void normalizeVectors() {
-        for (int i = 0; i < flatFieldVectorsWriter.getVectors().size(); i++) {
-            float[] vector = flatFieldVectorsWriter.getVectors().get(i);
-            float magnitude = magnitudes.get(i);
-            for (int j = 0; j < vector.length; j++) {
-                vector[j] /= magnitude;
-            }
-        }
+        flatFieldVectorsWriter.normalizeByMagnitudes(magnitudes.buffer, 0, magnitudes.size());
     }
 
     @Override

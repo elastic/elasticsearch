@@ -23,18 +23,19 @@ package org.elasticsearch.index.codec.vectors.es93;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.simdvec.OffHeapByteVectorStore;
+import org.elasticsearch.simdvec.OffHeapFloatVectorStore;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.AbstractList;
 import java.util.List;
 
 /**
- * Per-field vector writer that manages its own in-memory vector storage.
- * This mirrors Lucene's {@code Lucene99FlatVectorsWriter.FieldWriter} but is
- * owned by Elasticsearch, enabling future replacement of the storage backend
- * (e.g. with a contiguous MemorySegment for bulk native operations).
+ * Per-field vector writer that stores vectors off-heap via
+ * {@link OffHeapFloatVectorStore} / {@link OffHeapByteVectorStore}.
+ * This keeps vector data out of the Java heap, reducing GC pressure
+ * during indexing.
  */
 abstract class ES93FlatFieldVectorsWriter<T> extends FlatFieldVectorsWriter<T> {
 
@@ -43,24 +44,13 @@ abstract class ES93FlatFieldVectorsWriter<T> extends FlatFieldVectorsWriter<T> {
     final FieldInfo fieldInfo;
     final int dim;
     final DocsWithFieldSet docsWithField;
-    final List<T> vectors;
     private boolean finished;
     private int lastDocID = -1;
 
     static ES93FlatFieldVectorsWriter<?> create(FieldInfo fieldInfo) {
         return switch (fieldInfo.getVectorEncoding()) {
-            case BYTE -> new ES93FlatFieldVectorsWriter<byte[]>(fieldInfo) {
-                @Override
-                public byte[] copyValue(byte[] value) {
-                    return ArrayUtil.copyOfSubArray(value, 0, dim);
-                }
-            };
-            case FLOAT32 -> new ES93FlatFieldVectorsWriter<float[]>(fieldInfo) {
-                @Override
-                public float[] copyValue(float[] value) {
-                    return ArrayUtil.copyOfSubArray(value, 0, dim);
-                }
-            };
+            case BYTE -> new ByteWriter(fieldInfo);
+            case FLOAT32 -> new FloatWriter(fieldInfo);
         };
     }
 
@@ -69,7 +59,18 @@ abstract class ES93FlatFieldVectorsWriter<T> extends FlatFieldVectorsWriter<T> {
         this.fieldInfo = fieldInfo;
         this.dim = fieldInfo.getVectorDimension();
         this.docsWithField = new DocsWithFieldSet();
-        this.vectors = new ArrayList<>();
+    }
+
+    protected abstract void storeVector(T vectorValue);
+
+    protected abstract T getStoredVector(int i);
+
+    protected abstract int storedVectorCount();
+
+    protected abstract void closeStore();
+
+    void normalizeByMagnitudes(float[] magnitudes, int offset, int length) {
+        throw new UnsupportedOperationException("only supported for float vector writers");
     }
 
     @Override
@@ -83,24 +84,24 @@ abstract class ES93FlatFieldVectorsWriter<T> extends FlatFieldVectorsWriter<T> {
             );
         }
         assert docID > lastDocID;
-        T copy = copyValue(vectorValue);
+        storeVector(vectorValue);
         docsWithField.add(docID);
-        vectors.add(copy);
         lastDocID = docID;
     }
 
     @Override
-    public long ramBytesUsed() {
-        long size = SHALLOW_RAM_BYTES_USED;
-        if (vectors.isEmpty()) return size;
-        return size + docsWithField.ramBytesUsed() + (long) vectors.size() * (RamUsageEstimator.NUM_BYTES_OBJECT_REF
-            + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) + (long) vectors.size() * fieldInfo.getVectorDimension() * fieldInfo
-                .getVectorEncoding().byteSize;
-    }
-
-    @Override
     public List<T> getVectors() {
-        return vectors;
+        return new AbstractList<>() {
+            @Override
+            public T get(int index) {
+                return getStoredVector(index);
+            }
+
+            @Override
+            public int size() {
+                return storedVectorCount();
+            }
+        };
     }
 
     @Override
@@ -119,5 +120,87 @@ abstract class ES93FlatFieldVectorsWriter<T> extends FlatFieldVectorsWriter<T> {
     @Override
     public boolean isFinished() {
         return finished;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_RAM_BYTES_USED;
+        int count = storedVectorCount();
+        if (count == 0) return size;
+        return size + docsWithField.ramBytesUsed() + (long) count * RamUsageEstimator.NUM_BYTES_OBJECT_REF + (long) count * dim * fieldInfo
+            .getVectorEncoding().byteSize;
+    }
+
+    static final class FloatWriter extends ES93FlatFieldVectorsWriter<float[]> {
+        final OffHeapFloatVectorStore store;
+
+        FloatWriter(FieldInfo fieldInfo) {
+            super(fieldInfo);
+            this.store = new OffHeapFloatVectorStore(fieldInfo.getVectorDimension());
+        }
+
+        @Override
+        protected void storeVector(float[] v) {
+            store.addVector(v);
+        }
+
+        @Override
+        protected float[] getStoredVector(int i) {
+            return store.getVector(i);
+        }
+
+        @Override
+        protected int storedVectorCount() {
+            return store.size();
+        }
+
+        @Override
+        protected void closeStore() {
+            store.close();
+        }
+
+        @Override
+        void normalizeByMagnitudes(float[] magnitudes, int offset, int length) {
+            store.normalizeByMagnitudes(magnitudes, offset, length);
+        }
+
+        @Override
+        public float[] copyValue(float[] vectorValue) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    static final class ByteWriter extends ES93FlatFieldVectorsWriter<byte[]> {
+        final OffHeapByteVectorStore store;
+
+        ByteWriter(FieldInfo fieldInfo) {
+            super(fieldInfo);
+            this.store = new OffHeapByteVectorStore(fieldInfo.getVectorDimension());
+        }
+
+        @Override
+        protected void storeVector(byte[] v) {
+            store.addVector(v);
+        }
+
+        @Override
+        protected byte[] getStoredVector(int i) {
+            return store.getVector(i);
+        }
+
+        @Override
+        protected int storedVectorCount() {
+            return store.size();
+        }
+
+        @Override
+        protected void closeStore() {
+            store.close();
+        }
+
+        @Override
+        public byte[] copyValue(byte[] vectorValue) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

@@ -119,14 +119,14 @@ class ES93FlatVectorsWriter extends FlatVectorsWriter {
 
     private static void writeFloat32Vectors(ES93FlatFieldVectorsWriter<?> fieldData, IndexOutput vectorData) throws IOException {
         final ByteBuffer buffer = ByteBuffer.allocate(fieldData.dim * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        for (Object v : fieldData.vectors) {
+        for (Object v : fieldData.getVectors()) {
             buffer.asFloatBuffer().put((float[]) v);
             vectorData.writeBytes(buffer.array(), buffer.array().length);
         }
     }
 
     private static void writeByteVectors(ES93FlatFieldVectorsWriter<?> fieldData, IndexOutput vectorData) throws IOException {
-        for (Object v : fieldData.vectors) {
+        for (Object v : fieldData.getVectors()) {
             byte[] vector = (byte[]) v;
             vectorData.writeBytes(vector, vector.length);
         }
@@ -155,9 +155,9 @@ class ES93FlatVectorsWriter extends FlatVectorsWriter {
         throws IOException {
         long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
         final ByteBuffer buffer = ByteBuffer.allocate(fieldData.dim * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        List<?> vectors = fieldData.getVectors();
         for (int ordinal : ordMap) {
-            float[] vector = (float[]) fieldData.vectors.get(ordinal);
-            buffer.asFloatBuffer().put(vector);
+            buffer.asFloatBuffer().put((float[]) vectors.get(ordinal));
             vectorData.writeBytes(buffer.array(), buffer.array().length);
         }
         return vectorDataOffset;
@@ -166,8 +166,9 @@ class ES93FlatVectorsWriter extends FlatVectorsWriter {
     private static long writeSortedByteVectors(ES93FlatFieldVectorsWriter<?> fieldData, int[] ordMap, IndexOutput vectorData)
         throws IOException {
         long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
+        List<?> vectors = fieldData.getVectors();
         for (int ordinal : ordMap) {
-            byte[] vector = (byte[]) fieldData.vectors.get(ordinal);
+            byte[] vector = (byte[]) vectors.get(ordinal);
             vectorData.writeBytes(vector, vector.length);
         }
         return vectorDataOffset;
@@ -211,6 +212,9 @@ class ES93FlatVectorsWriter extends FlatVectorsWriter {
 
     @Override
     public void close() throws IOException {
+        for (ES93FlatFieldVectorsWriter<?> field : fields) {
+            field.closeStore();
+        }
         delegate.close();
     }
 

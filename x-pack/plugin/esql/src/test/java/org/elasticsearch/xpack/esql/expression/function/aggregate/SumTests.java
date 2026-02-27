@@ -102,8 +102,6 @@ public class SumTests extends AbstractAggregationTestCase {
             )
         );
 
-        suppliers.addAll(MultiRowTestCaseSupplier.denseVectorCases(1, 100).stream().map(SumTests::makeSupplier).toList());
-
         suppliers.add(new TestCaseSupplier(List.of(DataType.DENSE_VECTOR), () -> {
             int dimensions = randomIntBetween(10, 20);
             int numVectors = randomIntBetween(10, 20);

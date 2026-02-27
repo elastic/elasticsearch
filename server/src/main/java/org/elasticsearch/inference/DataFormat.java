@@ -15,33 +15,23 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * Describes the type of data to perform inference on
+ * Describes the format of data to perform inference on
  */
-public enum DataType {
-    TEXT(DataFormat.TEXT),
-    IMAGE(DataFormat.BASE64);
-
-    private final DataFormat defaultFormat;
-
-    DataType(DataFormat defaultFormat) {
-        this.defaultFormat = defaultFormat;
-    }
-
-    public DataFormat getDefaultFormat() {
-        return defaultFormat;
-    }
+public enum DataFormat {
+    TEXT,
+    BASE64;
 
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    public static DataType fromString(String name) {
+    public static DataFormat fromString(String name) {
         try {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException(
-                Strings.format("Unrecognized type [%s], must be one of %s", name, Arrays.toString(DataType.values()))
+                Strings.format("Unrecognized format [%s], must be one of %s", name, Arrays.toString(DataFormat.values()))
             );
         }
     }

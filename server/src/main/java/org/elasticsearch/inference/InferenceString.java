@@ -20,10 +20,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -37,32 +35,9 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     static final String FORMAT_FIELD = "format";
     static final String VALUE_FIELD = "value";
 
-    /**
-     * Describes the format of data represented by an {@link InferenceString}
-     */
-    public enum DataFormat {
-        TEXT,
-        BASE64;
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-
-        public static DataFormat fromString(String name) {
-            try {
-                return valueOf(name.trim().toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                throw new IllegalArgumentException(
-                    Strings.format("Unrecognized format [%s], must be one of %s", name, Arrays.toString(DataFormat.values()))
-                );
-            }
-        }
-    }
-
     static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),
-        args -> new InferenceString((DataType) args[0], (InferenceString.DataFormat) args[1], (String) args[2])
+        args -> new InferenceString((DataType) args[0], (DataFormat) args[1], (String) args[2])
     );
     static {
         PARSER.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));

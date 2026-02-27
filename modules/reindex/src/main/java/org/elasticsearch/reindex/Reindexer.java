@@ -19,6 +19,7 @@ import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteRequest;
@@ -53,11 +54,13 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.reindex.remote.RemoteReindexingUtils;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.ReindexMetadata;
@@ -83,12 +86,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
+import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.index.VersionType.INTERNAL;
+import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED;
 
 public class Reindexer {
 
@@ -102,7 +108,6 @@ public class Reindexer {
     private final ReindexSslConfig reindexSslConfig;
     private final ReindexMetrics reindexMetrics;
     private final TransportService transportService;
-    @Nullable // might be null for modules which use reindex but don't currently have relocations, as of writing: enrich module
     private final ReindexRelocationNodePicker relocationNodePicker;
 
     Reindexer(
@@ -114,7 +119,7 @@ public class Reindexer {
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
         TransportService transportService,
-        @Nullable ReindexRelocationNodePicker relocationNodePicker
+        ReindexRelocationNodePicker relocationNodePicker
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
@@ -124,7 +129,7 @@ public class Reindexer {
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
         this.transportService = Objects.requireNonNull(transportService);
-        this.relocationNodePicker = relocationNodePicker;
+        this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -144,31 +149,111 @@ public class Reindexer {
         // for update-by-query and delete-by-query
         final ActionListener<BulkByScrollResponse> listenerWithRelocations = listenerWithRelocations(task, request, listener);
 
-        BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
-            task,
-            request,
-            ReindexAction.INSTANCE,
-            listenerWithRelocations,
-            client,
-            clusterService.localNode(),
-            () -> {
-                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
-                ParentTaskAssigningClient assigningBulkClient = new ParentTaskAssigningClient(bulkClient, clusterService.localNode(), task);
-                AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(
-                    task,
-                    logger,
-                    assigningClient,
-                    assigningBulkClient,
-                    threadPool,
-                    scriptService,
-                    projectResolver.getProjectState(clusterService.state()),
-                    reindexSslConfig,
-                    request,
-                    workerListenerWithRelocationAndMetrics(listenerWithRelocations, startTime, request.getRemoteInfo() != null)
+        Consumer<Version> workerAction = remoteVersion -> {
+            ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
+            ParentTaskAssigningClient assigningBulkClient = new ParentTaskAssigningClient(bulkClient, clusterService.localNode(), task);
+            AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(
+                task,
+                logger,
+                assigningClient,
+                assigningBulkClient,
+                threadPool,
+                scriptService,
+                projectResolver.getProjectState(clusterService.state()),
+                reindexSslConfig,
+                request,
+                workerListenerWithRelocationAndMetrics(listenerWithRelocations, startTime, request.getRemoteInfo() != null),
+                remoteVersion
+            );
+            searchAction.start();
+        };
+
+        /**
+         * If this is a request to reindex from remote, then we need to determine the remote version prior to execution
+         * NB {@link ReindexRequest} forbids remote requests and slices > 1, so we're guaranteed to be running on the only slice
+         */
+        if (REINDEX_PIT_SEARCH_ENABLED && request.getRemoteInfo() != null) {
+            lookupRemoteVersionAndExecute(task, request, listenerWithRelocations, workerAction);
+        } else {
+            BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
+                task,
+                request,
+                ReindexAction.INSTANCE,
+                listenerWithRelocations,
+                client,
+                clusterService.localNode(),
+                null,
+                workerAction
+            );
+        }
+    }
+
+    /**
+     * Looks up the remote cluster version when reindexing from a remote source, then runs the sliced action with that version.
+     * The RestClient used for the lookup is closed after the callback; closing must happen on a thread other than the
+     * RestClient's own thread pool to avoid shutdown failures.
+     */
+    private void lookupRemoteVersionAndExecute(
+        BulkByScrollTask task,
+        ReindexRequest request,
+        ActionListener<BulkByScrollResponse> listenerWithRelocations,
+        Consumer<Version> workerAction
+    ) {
+        RemoteInfo remoteInfo = request.getRemoteInfo();
+        assert reindexSslConfig != null : "Reindex ssl config must be set";
+        RestClient restClient = buildRestClient(remoteInfo, reindexSslConfig, task.getId(), synchronizedList(new ArrayList<>()));
+        RejectAwareActionListener<Version> rejectAwareListener = new RejectAwareActionListener<>() {
+            @Override
+            public void onResponse(Version version) {
+                closeRestClientAndRun(
+                    restClient,
+                    () -> BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
+                        task,
+                        request,
+                        ReindexAction.INSTANCE,
+                        listenerWithRelocations,
+                        client,
+                        clusterService.localNode(),
+                        version,
+                        workerAction
+                    )
                 );
-                searchAction.start();
             }
+
+            @Override
+            public void onFailure(Exception e) {
+                closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e));
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e));
+            }
+        };
+        RemoteReindexingUtils.lookupRemoteVersionWithRetries(
+            logger,
+            exponentialBackoff(request.getRetryBackoffInitialTime(), request.getMaxRetries()),
+            threadPool,
+            restClient,
+            // TODO - Do we want to pass in a countRetry runnable here to count the number of times we retry?
+            // https://github.com/elastic/elasticsearch-team/issues/2382
+            rejectAwareListener
         );
+    }
+
+    /**
+     * Closes the RestClient on the generic thread pool (to avoid closing from the client's own thread), then runs the given action.
+     */
+    private void closeRestClientAndRun(RestClient restClient, Runnable onCompletion) {
+        threadPool.generic().submit(() -> {
+            try {
+                restClient.close();
+            } catch (IOException e) {
+                logger.warn("Failed to close RestClient after version lookup", e);
+            } finally {
+                onCompletion.run();
+            }
+        });
     }
 
     /** Wraps the listener with metrics tracking and relocation handling (if applicable). Visible for testing. */
@@ -296,7 +381,7 @@ public class Reindexer {
     private void initTaskForRelocationIfEnabled(final BulkByScrollTask task) {
         // todo: move initialization to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
-        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false || relocationNodePicker == null) {
+        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false) {
             return;
         }
         final boolean nonSlicedThereforeSetupRelocation = task.isWorker() && task.getParentTaskId().isSet() == false;
@@ -414,6 +499,11 @@ public class Reindexer {
          */
         private List<Thread> createdThreads = emptyList();
 
+        /**
+         * Version of the remote cluster when reindexing from remote, or null when reindexing locally.
+         */
+        private final Version remoteVersion;
+
         AsyncIndexBySearchAction(
             BulkByScrollTask task,
             Logger logger,
@@ -424,7 +514,8 @@ public class Reindexer {
             ProjectState state,
             ReindexSslConfig sslConfig,
             ReindexRequest request,
-            ActionListener<BulkByScrollResponse> listener
+            ActionListener<BulkByScrollResponse> listener,
+            @Nullable Version remoteVersion
         ) {
             super(
                 task,
@@ -445,6 +536,7 @@ public class Reindexer {
                 sslConfig
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
+            this.remoteVersion = remoteVersion;
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {
@@ -478,7 +570,8 @@ public class Reindexer {
                     this::finishHim,
                     restClient,
                     remoteInfo,
-                    searchRequest
+                    searchRequest,
+                    remoteVersion
                 );
             }
             return super.buildScrollableResultSource(backoffPolicy, searchRequest);

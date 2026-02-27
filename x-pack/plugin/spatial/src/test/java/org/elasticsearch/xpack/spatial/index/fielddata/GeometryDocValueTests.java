@@ -498,25 +498,10 @@ public class GeometryDocValueTests extends ESTestCase {
 
             @Override
             public String visit(Rectangle expected) {
-                // Reconstructed geometries produce Polygons, not Rectangles
-                if (actual instanceof Polygon a) {
-                    Polygon poly = new Polygon(
-                        new LinearRing(
-                            new double[] {
-                                expected.getMinX(),
-                                expected.getMaxX(),
-                                expected.getMaxX(),
-                                expected.getMinX(),
-                                expected.getMinX() },
-                            new double[] {
-                                expected.getMinY(),
-                                expected.getMinY(),
-                                expected.getMaxY(),
-                                expected.getMaxY(),
-                                expected.getMinY() }
-                        )
-                    );
-                    return checkEquivalent(poly, a, path);
+                if (actual instanceof Rectangle a) {
+                    String r = compareCoord(path + ".min", expected.getMinX(), expected.getMinY(), a.getMinX(), a.getMinY());
+                    if (r != null) return r;
+                    return compareCoord(path + ".max", expected.getMaxX(), expected.getMaxY(), a.getMaxX(), a.getMaxY());
                 }
                 return typeMismatch(expected);
             }

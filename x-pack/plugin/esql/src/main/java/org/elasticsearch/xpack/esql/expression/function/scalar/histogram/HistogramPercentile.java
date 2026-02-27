@@ -142,7 +142,7 @@ public class HistogramPercentile extends EsqlScalarFunction {
         checkPercentileRange(percentile);
         // TODO: add a way of clearing a TDigestState, so that we can reuse it via @Fixed across calls
         try (TDigestState scratch = TDigestState.createOfType(breaker, TDigestState.Type.MERGING, TDigestStates.COMPRESSION)) {
-            value.addTo(scratch);
+            scratch.add(value);
             double result = scratch.quantile(percentile / 100.0);
             if (Double.isNaN(result)) { // can happen if the histogram is empty
                 resultBuilder.appendNull();

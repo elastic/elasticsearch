@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -329,14 +330,11 @@ public final class BlockUtils {
             case TDIGEST -> {
                 TDigestBlock tDigestBlock = (TDigestBlock) block;
                 // return a copy so that the returned value is not bound to the lifetime of the block
-                TDigestHolder blockBacked = tDigestBlock.getTDigestHolder(offset);
-                yield new TDigestHolder(
-                    BytesRef.deepCopyOf(blockBacked.getEncodedDigest()),
-                    blockBacked.getMin(),
-                    blockBacked.getMax(),
-                    blockBacked.getSum(),
-                    blockBacked.getValueCount()
-                );
+                TDigestHolder blockBacked = new TDigestHolder();
+                blockBacked = tDigestBlock.getTDigestHolder(offset, blockBacked);
+                BreakingTDigestHolder copy = BreakingTDigestHolder.create(new NoopCircuitBreaker("literal_noop_breaker"));
+                copy.set(blockBacked);
+                yield copy.holderView();
             }
             case LONG_RANGE -> {
                 LongRangeBlock b = (LongRangeBlock) block;

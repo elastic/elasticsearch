@@ -63,7 +63,7 @@ public class TDigestBlockTests extends ComputeTestCase {
                         case COUNT -> {
                             assertThat(componentBlock.getValueCount(i), equalTo(1));
                             int valueIndex = componentBlock.getFirstValueIndex(i);
-                            assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo((double) histo.getValueCount()));
+                            assertThat(((DoubleBlock) componentBlock).getDouble(valueIndex), equalTo((double) histo.size()));
                         }
                     }
                 }

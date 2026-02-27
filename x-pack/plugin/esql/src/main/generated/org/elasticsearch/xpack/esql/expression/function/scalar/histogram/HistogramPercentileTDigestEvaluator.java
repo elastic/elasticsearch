@@ -8,9 +8,7 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
@@ -35,19 +33,15 @@ public final class HistogramPercentileTDigestEvaluator implements EvalOperator.E
 
   private final EvalOperator.ExpressionEvaluator percentile;
 
-  private final CircuitBreaker breaker;
-
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public HistogramPercentileTDigestEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      EvalOperator.ExpressionEvaluator percentile, CircuitBreaker breaker,
-      DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator percentile, DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.percentile = percentile;
-    this.breaker = breaker;
     this.driverContext = driverContext;
   }
 
@@ -70,6 +64,7 @@ public final class HistogramPercentileTDigestEvaluator implements EvalOperator.E
 
   public DoubleBlock eval(int positionCount, TDigestBlock valueBlock, DoubleBlock percentileBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      TDigestHolder valueScratch = new TDigestHolder();
       position: for (int p = 0; p < positionCount; p++) {
         switch (valueBlock.getValueCount(p)) {
           case 0:
@@ -93,10 +88,10 @@ public final class HistogramPercentileTDigestEvaluator implements EvalOperator.E
               result.appendNull();
               continue position;
         }
-        TDigestHolder value = valueBlock.getTDigestHolder(valueBlock.getFirstValueIndex(p));
+        TDigestHolder value = valueBlock.getTDigestHolder(valueBlock.getFirstValueIndex(p), valueScratch);
         double percentile = percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p));
         try {
-          HistogramPercentile.process(result, value, percentile, this.breaker);
+          HistogramPercentile.process(result, value, percentile);
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -108,7 +103,7 @@ public final class HistogramPercentileTDigestEvaluator implements EvalOperator.E
 
   @Override
   public String toString() {
-    return "HistogramPercentileTDigestEvaluator[" + "value=" + value + ", percentile=" + percentile + ", breaker=" + breaker + "]";
+    return "HistogramPercentileTDigestEvaluator[" + "value=" + value + ", percentile=" + percentile + "]";
   }
 
   @Override
@@ -130,25 +125,21 @@ public final class HistogramPercentileTDigestEvaluator implements EvalOperator.E
 
     private final EvalOperator.ExpressionEvaluator.Factory percentile;
 
-    private final Function<DriverContext, CircuitBreaker> breaker;
-
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
-        EvalOperator.ExpressionEvaluator.Factory percentile,
-        Function<DriverContext, CircuitBreaker> breaker) {
+        EvalOperator.ExpressionEvaluator.Factory percentile) {
       this.source = source;
       this.value = value;
       this.percentile = percentile;
-      this.breaker = breaker;
     }
 
     @Override
     public HistogramPercentileTDigestEvaluator get(DriverContext context) {
-      return new HistogramPercentileTDigestEvaluator(source, value.get(context), percentile.get(context), breaker.apply(context), context);
+      return new HistogramPercentileTDigestEvaluator(source, value.get(context), percentile.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "HistogramPercentileTDigestEvaluator[" + "value=" + value + ", percentile=" + percentile + ", breaker=" + breaker + "]";
+      return "HistogramPercentileTDigestEvaluator[" + "value=" + value + ", percentile=" + percentile + "]";
     }
   }
 }

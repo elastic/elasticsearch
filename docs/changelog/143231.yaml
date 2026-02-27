@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 142705
+pr: 143231
+summary: Fix full text functions with nullify
+type: bug

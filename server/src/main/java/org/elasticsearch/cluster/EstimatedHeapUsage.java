@@ -14,23 +14,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Represents an estimate of the heap used by allocated shards and ongoing merges on a particular node
  */
-public class EstimatedHeapUsage implements Writeable {
+public record EstimatedHeapUsage(String nodeId, long totalBytes, long estimatedUsageBytes) implements Writeable {
 
-    private String nodeId;
-    private long totalBytes;
-    private long estimatedUsageBytes;
-
-    public EstimatedHeapUsage(String nodeId, long totalBytes, long estimatedUsageBytes) {
+    public EstimatedHeapUsage {
         assert totalBytes >= 0;
         assert estimatedUsageBytes >= 0;
-        this.nodeId = nodeId;
-        this.totalBytes = totalBytes;
-        this.estimatedUsageBytes = estimatedUsageBytes;
     }
 
     public EstimatedHeapUsage(StreamInput in) throws IOException {
@@ -60,41 +52,7 @@ public class EstimatedHeapUsage implements Writeable {
         return estimatedUsageBytes / (double) totalBytes;
     }
 
-    public void updateEstimatedUsage(long bytes) {
-        estimatedUsageBytes += bytes;
-    }
-
-    // Visible for testing
-    public String getNodeId() {
-        return nodeId;
-    }
-
-    // Visible for testing
-    public long getTotalBytes() {
-        return totalBytes;
-    }
-
-    // Visible for testing
-    public long getEstimatedUsageBytes() {
-        return estimatedUsageBytes;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(nodeId, totalBytes, estimatedUsageBytes);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (obj.getClass() != getClass()) {
-            return false;
-        }
-
-        EstimatedHeapUsage other = (EstimatedHeapUsage) obj;
-        return nodeId.equals(other.nodeId) && totalBytes == other.totalBytes && estimatedUsageBytes == other.estimatedUsageBytes;
-
+    public EstimatedHeapUsage updateEstimatedUsage(long bytes) {
+        return new EstimatedHeapUsage(nodeId, totalBytes, estimatedUsageBytes + bytes);
     }
 }

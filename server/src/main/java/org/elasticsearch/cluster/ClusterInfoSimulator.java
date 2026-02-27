@@ -163,20 +163,23 @@ public class ClusterInfoSimulator {
         var numberOfShardsForIndex = routingNode.numberOfOwningShardsForIndex(shardId.getIndex());
         switch (modification) {
             case ADD: {
-                nodeHeap.updateEstimatedUsage(shardAndIndexHeap.shardHeapUsageBytes());
+                estimatedHeapUsages.put(routingNode.nodeId(), nodeHeap.updateEstimatedUsage(shardAndIndexHeap.shardHeapUsageBytes()));
                 if (numberOfShardsForIndex == 1) {
                     // This node's index only has the initializing shard, which is now being added in simulation. This is the node's first
                     // shard for the index, and the index-level heap usage overhead must be added.
-                    nodeHeap.updateEstimatedUsage(shardAndIndexHeap.indexHeapUsageBytes());
+                    estimatedHeapUsages.put(routingNode.nodeId(), nodeHeap.updateEstimatedUsage(shardAndIndexHeap.indexHeapUsageBytes()));
                 }
                 break;
             }
             case REMOVE: {
-                nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.shardHeapUsageBytes());
+                estimatedHeapUsages.put(routingNode.nodeId(), nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.shardHeapUsageBytes()));
                 if (numberOfShardsForIndex == 0) {
                     // This node only had one shard of the index, which is now being relocated away in simulation. The index-level heap
                     // usage overhead must be subtracted, since the node will no longer have the index.
-                    nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.indexHeapUsageBytes());
+                    estimatedHeapUsages.put(
+                        routingNode.nodeId(),
+                        nodeHeap.updateEstimatedUsage(-1 * shardAndIndexHeap.indexHeapUsageBytes())
+                    );
                 }
                 break;
             }

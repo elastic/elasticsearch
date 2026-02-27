@@ -134,13 +134,15 @@ import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
@@ -195,6 +197,10 @@ import static org.mockito.Mockito.mock;
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
+
+    private static final Set<String> ALL_ESQL_CAPABILITIES = Stream.of(EsqlCapabilities.Cap.values())
+        .map(EsqlCapabilities.Cap::capabilityName)
+        .collect(toSet());
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
 
@@ -278,6 +284,9 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
+            for (String capability : testCase.requiredCapabilities) {
+                assertTrue("Requested capability does not exist: " + capability, ALL_ESQL_CAPABILITIES.contains(capability));
+            }
             assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
             /*
              * The csv tests support all but a few features. The unsupported features
@@ -549,7 +558,7 @@ public class CsvTests extends ESTestCase {
             .stream()
             .filter(e -> e.getValue().size() < numberOfIndices)
             .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+            .collect(toSet());
         var mappings = columnNamesToFieldByIndices.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
@@ -572,9 +581,9 @@ public class CsvTests extends ESTestCase {
 
     private static EnrichResolution loadEnrichPolicies() {
         EnrichResolution enrichResolution = new EnrichResolution();
-        for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES) {
+        for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES.values()) {
             EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig);
-            CsvTestsDataLoader.TestDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
+            CsvTestsDataLoader.TestDataset sourceIndex = CSV_DATASET.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
             EsIndex esIndex = loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset.of(sourceIndex.withTypeMapping(Map.of()))).get();
@@ -643,7 +652,7 @@ public class CsvTests extends ESTestCase {
             return parsed;
         }
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            for (var viewConfig : VIEW_CONFIGS) {
+            for (var viewConfig : VIEW_CONFIGS.values()) {
                 loadView(viewService, viewConfig);
             }
             return viewService.getViewResolver().replaceViews(parsed, this::parseView).plan();
@@ -677,7 +686,7 @@ public class CsvTests extends ESTestCase {
             // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
             return Map.of(
                 new IndexPattern(Source.EMPTY, "employees"),
-                CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET_MAP.get("employees"))
+                CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET.get("employees"))
             );
         }
 
@@ -688,14 +697,14 @@ public class CsvTests extends ESTestCase {
             String indexName = indexPattern.indexPattern();
             if (indexName.endsWith("*")) {
                 String indexPrefix = indexName.substring(0, indexName.length() - 1);
-                for (var entry : CSV_DATASET_MAP.entrySet()) {
+                for (var entry : CSV_DATASET.entrySet()) {
                     if (entry.getKey().startsWith(indexPrefix)) {
                         datasets.add(entry.getValue());
                     }
                 }
             } else {
                 for (String index : indexName.split(",")) {
-                    var dataset = CSV_DATASET_MAP.get(index);
+                    var dataset = CSV_DATASET.get(index);
                     if (dataset == null) {
                         throw new IllegalArgumentException("unknown CSV dataset for table [" + index + "]");
                     }
@@ -792,7 +801,7 @@ public class CsvTests extends ESTestCase {
                     // Wrap so we can capture the warnings in the calling thread
                     (next, result) -> next.onResponse(
                         new ActualResults(
-                            configuration,
+                            configuration.zoneId(),
                             result.schema().stream().map(Attribute::name).toList(),
                             result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
                             result.schema().stream().map(Attribute::dataType).toList(),

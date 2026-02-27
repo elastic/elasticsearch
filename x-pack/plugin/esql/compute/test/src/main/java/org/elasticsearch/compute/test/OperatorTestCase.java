@@ -20,7 +20,6 @@ import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -264,8 +263,8 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 }
             }
             operator.finish();
-            // for async operator, we need to wait for async actions to finish.
-            if (operator instanceof AsyncOperator<?> || randomBoolean()) {
+            // for operators with async actions, we need to wait for them to finish.
+            if (driverContext.hasPendingAsyncActions() || randomBoolean()) {
                 driverContext.finish();
                 PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();
                 driverContext.waitForAsyncActions(waitForAsync);

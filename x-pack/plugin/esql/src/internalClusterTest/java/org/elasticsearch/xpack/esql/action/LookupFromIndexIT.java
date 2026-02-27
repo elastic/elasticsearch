@@ -361,6 +361,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 0
             );
             CancellableTask parentTask = new EsqlQueryTask(
+                "test-session",
                 1,
                 "test",
                 "test",
@@ -421,7 +422,10 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 ),
                 Source.EMPTY,
                 pushedDownFilter,
-                Predicates.combineAnd(joinOnConditions)
+                Predicates.combineAnd(joinOnConditions),
+                true,  // useStreamingOperator
+                QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY),
+                false  // profile
             );
             DriverContext driverContext = driverContext();
             try (

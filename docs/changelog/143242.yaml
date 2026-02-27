@@ -1,0 +1,6 @@
+pr: 143242
+summary: Added Reasoning support for Chat Completion in the Inference Plugin
+area: Inference
+type: enhancement
+issues:
+  - 13060

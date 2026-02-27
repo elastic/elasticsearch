@@ -2209,6 +2209,12 @@ public class EsqlCapabilities {
         FN_JSON_EXTRACT,
 
         /**
+         * Fix for an ArrayIndexOutOfBoundsException in the aggregation framework when the same field is passed twice.
+         * https://github.com/elastic/elasticsearch/issues/142180
+         */
+        FIX_AGGREGATION_FRAMEWORK_CHANNELS,
+
+        /**
          * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
          */
         TS_INFO_COMMAND,

@@ -9,8 +9,8 @@
 
 package org.elasticsearch.benchmark.indices.common;
 
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -40,8 +40,7 @@ import java.util.function.Supplier;
 public class RoundingBenchmark {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging();
+        Utils.configureBenchmarkLogging();
     }
 
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("date_optional_time");

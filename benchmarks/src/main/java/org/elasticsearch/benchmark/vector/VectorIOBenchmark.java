@@ -24,7 +24,7 @@ import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -66,8 +66,7 @@ import java.util.concurrent.TimeUnit;
 public class VectorIOBenchmark {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     private static final String TEST_DIR = "/home/esbench/.rally/benchmarks/races/index";

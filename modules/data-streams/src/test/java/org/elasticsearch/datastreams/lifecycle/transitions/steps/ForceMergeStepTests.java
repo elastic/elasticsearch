@@ -152,6 +152,15 @@ public class ForceMergeStepTests extends ESTestCase {
         assertThat(capturedForceMergeRequest.get().maxNumSegments(), is(1));
     }
 
+    public void testMaybeForceMergeSkipsWhenAlreadyComplete() {
+        ProjectState projectState = createProjectStateWithSetting(true);
+        DlmStepContext stepContext = createStepContext(projectState);
+
+        forceMergeStep.maybeForceMerge(indexName, stepContext);
+
+        assertThat(capturedForceMergeRequest.get(), is(nullValue()));
+    }
+
     public void testMaybeForceMergeSuccessClearsErrorRecord() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);

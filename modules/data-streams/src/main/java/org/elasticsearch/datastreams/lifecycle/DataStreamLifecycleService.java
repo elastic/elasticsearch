@@ -39,6 +39,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
@@ -74,6 +75,7 @@ import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmActionContext;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
+import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -185,6 +187,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> forceMergeClusterStateUpdateTaskQueue;
     private final MasterServiceTaskQueue<DeleteSourceAndAddDownsampleToDS> swapSourceWithDownsampleIndexQueue;
+    private final MasterServiceTaskQueue<MarkIndexForDlmForceMergeTask> markIndexForDlmForceMergeQueue;
     private volatile ByteSizeValue targetMergePolicyFloorSegment;
     private volatile int targetMergePolicyFactor;
     /**
@@ -252,6 +255,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             "data-stream-lifecycle-swap-source-with-downsample",
             Priority.URGENT, // urgent priority as this deletes indices
             new DeleteSourceAndAddDownsampleIndexExecutor(allocationService)
+        );
+        this.markIndexForDlmForceMergeQueue = clusterService.createTaskQueue(
+            "dlm-mark-index-for-force-merge",
+            Priority.LOW,
+            new MarkIndexForDLMForceMergeExecutor()
         );
         this.dslHealthInfoPublisher = dataStreamLifecycleHealthInfoPublisher;
         this.actions = actions;
@@ -513,7 +521,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             transportActionsDeduplicator,
             errorStore,
             signallingErrorRetryInterval,
-            client
+            client,
+            Clock.systemUTC()
         );
         for (DlmAction action : actions) {
 
@@ -1759,6 +1768,47 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * MarkIndexForDLMForceMergeExecutor for the MarkIndexForDlmForceMergeTask.
+     * Public for testing.
+     */
+    public static class MarkIndexForDLMForceMergeExecutor implements ClusterStateTaskExecutor<MarkIndexForDlmForceMergeTask> {
+        @Override
+        public ClusterState execute(BatchExecutionContext<MarkIndexForDlmForceMergeTask> batchExecutionContext) {
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try {
+                    final MarkIndexForDlmForceMergeTask task = taskContext.getTask();
+                    state = task.execute(state);
+                    taskContext.success(task);
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
+            }
+            return state;
+        }
+    }
+
+    /**
+     * Marks the given index to be force merged for DLM by updating the cluster state with the name of the index to be force merged in the
+     * custom metadata of the source index. This method returns immediately, but the update to the cluster state happens asynchronously and
+     * the listener is notified on success or failure of the cluster state update.
+     * @param projectId the id of the project the index belongs to
+     * @param request the request
+     * @param listener the listener to be notified on success or failure of the cluster state update.
+     */
+    public void markIndexForDlmForceMerge(
+        ProjectId projectId,
+        MarkIndexForDLMForceMergeAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        markIndexForDlmForceMergeQueue.submitTask(
+            Strings.format("DLM marking index [%s] to be force merged for DLM", request.getIndexToBeForceMerged()),
+            new MarkIndexForDlmForceMergeTask(listener, projectId, request),
+            null
+        );
     }
 
     /**

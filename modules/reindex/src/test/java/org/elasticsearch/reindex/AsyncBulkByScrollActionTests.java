@@ -916,7 +916,28 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
 
         final String expectedScrollId = scrollId();
-        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        final AtomicBoolean cleanedUp = new AtomicBoolean();
+        final DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
+            @Override
+            protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+                return new ClientScrollablePaginatedHitSource(
+                    logger,
+                    backoffPolicy,
+                    threadPool,
+                    worker::countSearchRetry,
+                    this::onScrollResponse,
+                    this::finishHim,
+                    new ParentTaskAssigningClient(client, localNode, testTask),
+                    searchRequest
+                ) {
+                    @Override
+                    protected void cleanup(Runnable onCompletion) {
+                        cleanedUp.set(true);
+                        super.cleanup(onCompletion);
+                    }
+                };
+            }
+        };
         action.setScroll(expectedScrollId);
 
         final var asyncResponse = new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
@@ -944,6 +965,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertNull(scrollResumeInfo.remoteVersion());
         // scroll should NOT be cleared - we need it for the relocated task
         assertThat(client.scrollsCleared, empty());
+        // local resources (e.g. remote REST client) should be cleaned up
+        assertTrue("local resources should be cleaned up during relocation", cleanedUp.get());
     }
 
     public void testNotifyDoneContinuesWhenRelocationRequestedButNoNode() throws Exception {

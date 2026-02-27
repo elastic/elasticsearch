@@ -85,7 +85,7 @@ public class VectorScorerTestUtils {
             floatVectorValues,
             scratch,
             quantizationScratch,
-            ESVectorUtilSupport.B_QUERY,
+            (byte) ESVectorUtilSupport.B_QUERY,
             centroid
         );
 

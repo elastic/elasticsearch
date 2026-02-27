@@ -371,6 +371,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         addPragmas(builder);
 
+        // TODO we should implement more generic randomization for SET parameters
+        if (randomBoolean() && query.startsWith("SET") == false) {
+            query = "SET unmapped_fields=\"nullify\"; " + query;
+        }
+
         Map<String, Object> answer = RestEsqlTestCase.runEsql(
             builder.query(query),
             testCase.assertWarnings(deduplicateExactWarnings()),

@@ -73,6 +73,10 @@ public class AfterPredicatesTests extends ESTestCase {
         assertEquals(expectInfo2Included, predicates.test(info2));
     }
 
+    public void testMatchAll() {
+        verifyPredicates(null, true, true);
+    }
+
     public void testAfterFirst() {
         verifyPredicates(after1, false, true);
     }

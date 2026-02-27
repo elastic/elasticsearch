@@ -17,6 +17,7 @@ import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -79,6 +80,8 @@ public class FromSortValuePredicatesTests extends ESTestCase {
 
     private RepositoryData repositoryData1;
     private RepositoryData repositoryData2;
+    private FromSortValuePredicates predicates1;
+    private FromSortValuePredicates predicates2;
 
     public FromSortValuePredicatesTests(SnapshotSortKey sortBy, SortOrder order) {
         this.sortBy = sortBy;
@@ -109,16 +112,22 @@ public class FromSortValuePredicatesTests extends ESTestCase {
         assertNotEquals(0, comparison);
         info1 = comparison < 0 ? infoA : infoB;
         info2 = comparison < 0 ? infoB : infoA;
+
         sortValue1 = fromSnapshotInfo(info1, sortBy).value();
         sortValue2 = fromSnapshotInfo(info2, sortBy).value();
+
+        predicates1 = getPredicates(sortValue1);
+        predicates2 = getPredicates(sortValue2);
+
         repositoryData1NoDetails = buildRepositoryDataNoDetails(info1);
         repositoryData2NoDetails = buildRepositoryDataNoDetails(info2);
-        repositoryData1 = repositoryData1NoDetails.withExtraDetails(
-            Map.of(info1.snapshotId(), RepositoryData.SnapshotDetails.fromSnapshotInfo(info1))
-        );
-        repositoryData2 = repositoryData2NoDetails.withExtraDetails(
-            Map.of(info2.snapshotId(), RepositoryData.SnapshotDetails.fromSnapshotInfo(info2))
-        );
+
+        repositoryData1 = repositoryData1NoDetails.withExtraDetails(extraDetailsMap(info1));
+        repositoryData2 = repositoryData2NoDetails.withExtraDetails(extraDetailsMap(info2));
+    }
+
+    private Map<SnapshotId, RepositoryData.SnapshotDetails> extraDetailsMap(SnapshotInfo info1) {
+        return Map.of(info1.snapshotId(), RepositoryData.SnapshotDetails.fromSnapshotInfo(info1));
     }
 
     private RepositoryData buildRepositoryDataNoDetails(SnapshotInfo snapshotInfo) {
@@ -127,9 +136,16 @@ public class FromSortValuePredicatesTests extends ESTestCase {
             randomNonNegativeLong(),
             Map.of(snapshotInfo.snapshotId().getUUID(), snapshotInfo.snapshotId()),
             randomFrom(Map.of(), Map.of(snapshotInfo.snapshotId().getUUID(), RepositoryData.SnapshotDetails.EMPTY)),
-            IntStream.range(0, snapshotInfo.indices().size())
+            IntStream.range(0, snapshotInfo.indices().size() + 1)
                 .boxed()
-                .collect(Collectors.toMap(i -> new IndexId("idx-" + i, UUIDs.randomBase64UUID()), i -> List.of(snapshotInfo.snapshotId()))),
+                .collect(
+                    Collectors.toMap(
+                        i -> new IndexId("idx-" + i, UUIDs.randomBase64UUID()),
+                        i -> i < snapshotInfo.indices().size()
+                            ? List.of(snapshotInfo.snapshotId())
+                            : List.of(new SnapshotId(randomSnapshotName(), randomUUID()))
+                    )
+                ),
             ShardGenerations.EMPTY,
             IndexMetaDataGenerations.EMPTY,
             randomUUID()
@@ -141,41 +157,46 @@ public class FromSortValuePredicatesTests extends ESTestCase {
     }
 
     public void testSnapshotInfoPredicate() {
-        assertTrue(getPredicates(sortValue1).test(info1));
-        assertTrue(getPredicates(sortValue1).test(info2));
-        assertEquals(SNAPSHOT_INFO_TEST_KEYS.contains(sortBy) == false, getPredicates(sortValue2).test(info1));
-        assertTrue(getPredicates(sortValue2).test(info2));
+        assertTrue(predicates1.test(info1));
+        assertTrue(predicates1.test(info2));
+        assertEquals(SNAPSHOT_INFO_TEST_KEYS.contains(sortBy) == false, predicates2.test(info1));
+        assertTrue(predicates2.test(info2));
     }
 
     public void testPreflightConclusive() {
         if (PREFLIGHT_TEST_KEYS.contains(sortBy)) {
-            assertEquals(INCLUDE, getPredicates(sortValue1).test(info1.snapshotId(), repositoryData1));
-            assertEquals(INCLUDE, getPredicates(sortValue1).test(info2.snapshotId(), repositoryData2));
-            assertEquals(EXCLUDE, getPredicates(sortValue2).test(info1.snapshotId(), repositoryData1));
-            assertEquals(INCLUDE, getPredicates(sortValue2).test(info2.snapshotId(), repositoryData2));
+            assertFalse(predicates1.isMatchAll());
+            assertFalse(predicates2.isMatchAll());
+
+            assertEquals(INCLUDE, predicates1.test(info1.snapshotId(), repositoryData1));
+            assertEquals(INCLUDE, predicates1.test(info2.snapshotId(), repositoryData2));
+            assertEquals(EXCLUDE, predicates2.test(info1.snapshotId(), repositoryData1));
+            assertEquals(INCLUDE, predicates2.test(info2.snapshotId(), repositoryData2));
 
             if (PREFLIGHT_UNRELIABLE_TEST_KEYS.contains(sortBy) == false) {
-                assertEquals(INCLUDE, getPredicates(sortValue1).test(info1.snapshotId(), repositoryData1NoDetails));
-                assertEquals(INCLUDE, getPredicates(sortValue1).test(info2.snapshotId(), repositoryData2NoDetails));
-                assertEquals(EXCLUDE, getPredicates(sortValue2).test(info1.snapshotId(), repositoryData1NoDetails));
-                assertEquals(INCLUDE, getPredicates(sortValue2).test(info2.snapshotId(), repositoryData2NoDetails));
+                assertEquals(INCLUDE, predicates1.test(info1.snapshotId(), repositoryData1NoDetails));
+                assertEquals(INCLUDE, predicates1.test(info2.snapshotId(), repositoryData2NoDetails));
+                assertEquals(EXCLUDE, predicates2.test(info1.snapshotId(), repositoryData1NoDetails));
+                assertEquals(INCLUDE, predicates2.test(info2.snapshotId(), repositoryData2NoDetails));
             }
         }
     }
 
     public void testPreflightInconclusive() {
         if (PREFLIGHT_UNRELIABLE_TEST_KEYS.contains(sortBy) || PREFLIGHT_INCONCLUSIVE_TEST_KEYS.contains(sortBy)) {
-            assertEquals(INCONCLUSIVE, getPredicates(sortValue1).test(info1.snapshotId(), repositoryData1NoDetails));
-            assertEquals(INCONCLUSIVE, getPredicates(sortValue1).test(info2.snapshotId(), repositoryData2NoDetails));
-            assertEquals(INCONCLUSIVE, getPredicates(sortValue2).test(info1.snapshotId(), repositoryData1NoDetails));
-            assertEquals(INCONCLUSIVE, getPredicates(sortValue2).test(info2.snapshotId(), repositoryData2NoDetails));
+            assertFalse(predicates1.isMatchAll());
+            assertFalse(predicates2.isMatchAll());
+            assertEquals(INCONCLUSIVE, predicates1.test(info1.snapshotId(), repositoryData1NoDetails));
+            assertEquals(INCONCLUSIVE, predicates1.test(info2.snapshotId(), repositoryData2NoDetails));
+            assertEquals(INCONCLUSIVE, predicates2.test(info1.snapshotId(), repositoryData1NoDetails));
+            assertEquals(INCONCLUSIVE, predicates2.test(info2.snapshotId(), repositoryData2NoDetails));
         }
 
         if (PREFLIGHT_INCONCLUSIVE_TEST_KEYS.contains(sortBy)) {
-            assertEquals(INCONCLUSIVE, getPredicates(sortValue1).test(info1.snapshotId(), repositoryData1));
-            assertEquals(INCONCLUSIVE, getPredicates(sortValue1).test(info2.snapshotId(), repositoryData2));
-            assertEquals(INCONCLUSIVE, getPredicates(sortValue2).test(info1.snapshotId(), repositoryData1));
-            assertEquals(INCONCLUSIVE, getPredicates(sortValue2).test(info2.snapshotId(), repositoryData2));
+            assertEquals(INCONCLUSIVE, predicates1.test(info1.snapshotId(), repositoryData1));
+            assertEquals(INCONCLUSIVE, predicates1.test(info2.snapshotId(), repositoryData2));
+            assertEquals(INCONCLUSIVE, predicates2.test(info1.snapshotId(), repositoryData1));
+            assertEquals(INCONCLUSIVE, predicates2.test(info2.snapshotId(), repositoryData2));
         }
     }
 
@@ -183,6 +204,7 @@ public class FromSortValuePredicatesTests extends ESTestCase {
         final var predicates = getPredicates(
             sortBy == SnapshotSortKey.REPOSITORY ? randomFrom(sortValue1, sortValue2, randomRepoName()) : null
         );
+        assertTrue(predicates.isMatchAll());
         assertEquals(INCLUDE, predicates.test(info1.snapshotId(), randomFrom(repositoryData1, repositoryData1NoDetails)));
         assertEquals(INCLUDE, predicates.test(info2.snapshotId(), randomFrom(repositoryData2, repositoryData2NoDetails)));
         assertTrue(predicates.test(info1));

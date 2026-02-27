@@ -72,7 +72,7 @@ final class FromSortValuePredicates {
     }
 
     boolean isMatchAll() {
-        return snapshotPredicate == null;
+        return this == MATCH_ALL;
     }
 
     /**

@@ -7,52 +7,58 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
-import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
-import org.elasticsearch.xpack.core.analytics.mapper.TDigestFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Class that produces the last value of a label field for downsampling.
+ * Class that downsamples a label field for downsampling by keeping the last value.
  * Important note: This class assumes that field values are collected and sorted by descending order by time
  */
-class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDocValues> {
+class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocValues> {
+
+    private final MappedFieldType fieldType;
     Object lastValue = null;
 
-    LastValueFieldProducer(String name) {
-        super(name);
+    LastValueFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+        super(name, fieldData);
+        this.fieldType = fieldType;
     }
 
     /**
      * Creates a producer that can be used for downsampling labels.
      */
-    static LastValueFieldProducer create(String name, String fieldType) {
-        assert AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(fieldType) == false
-            : "field type cannot be aggregate metric double: " + fieldType + " for field " + name;
-        assert ExponentialHistogramFieldProducer.TYPE.equals(fieldType) == false
-            : "field type cannot be exponential histogram: " + fieldType + " for field " + name;
-        assert HistogramFieldMapper.CONTENT_TYPE.equals(fieldType) == false
-            : "field type cannot be histogram: " + fieldType + " for field " + name;
-        assert TDigestFieldMapper.CONTENT_TYPE.equals(fieldType) == false
-            : "field type cannot be histogram: " + fieldType + " for field " + name;
-        if ("flattened".equals(fieldType)) {
-            return new LastValueFieldProducer.FlattenedFieldProducer(name);
+    static LastValueFieldDownsampler create(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+        assert AggregateMetricDoubleFieldDownsampler.supportsFieldType(fieldType) == false
+            && ExponentialHistogramFieldDownsampler.supportsFieldType(fieldType) == false
+            && TDigestHistogramFieldDownsampler.supportsFieldType(fieldType) == false
+            : "field '" + name + "' of type '" + fieldType.typeName() + "' should be processed by a dedicated downsampler";
+        if ("flattened".equals(fieldType.typeName())) {
+            return new LastValueFieldDownsampler.FlattenedFieldProducer(name, fieldType, fieldData);
         }
-        return new LastValueFieldProducer(name);
+        return new LastValueFieldDownsampler(name, fieldType, fieldData);
     }
 
     @Override
     public void reset() {
         isEmpty = true;
         lastValue = null;
+    }
+
+    @Override
+    public FormattedDocValues getLeaf(LeafReaderContext context) {
+        DocValueFormat format = fieldType.docValueFormat(null, null);
+        return fieldData.load(context).getFormattedValues(format);
     }
 
     /**
@@ -101,10 +107,10 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDo
         return lastValue;
     }
 
-    static final class FlattenedFieldProducer extends LastValueFieldProducer {
+    static final class FlattenedFieldProducer extends LastValueFieldDownsampler {
 
-        private FlattenedFieldProducer(String name) {
-            super(name);
+        private FlattenedFieldProducer(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+            super(name, fieldType, fieldData);
         }
 
         @Override
@@ -136,5 +142,4 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDo
             }
         }
     }
-
 }

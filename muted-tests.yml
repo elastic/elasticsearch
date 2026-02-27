@@ -479,6 +479,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:eval.DocsByteLength}
   issue: https://github.com/elastic/elasticsearch/issues/143223
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:eval.DocsLength}
+  issue: https://github.com/elastic/elasticsearch/issues/143224
 
 # Examples:
 #

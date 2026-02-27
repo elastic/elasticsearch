@@ -27,6 +27,7 @@ import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +35,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
@@ -172,7 +173,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     @Before
     public void setup() throws IOException {
-        if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
+        if (indexExists(CSV_DATASET.keySet().iterator().next()) == false) {
             loadDataSetIntoEs(client(), true, supportsSourceFieldMapping(), false);
         }
     }
@@ -198,7 +199,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     public void test() throws IOException {
         List<String> indices = availableIndices();
         List<LookupIdx> lookupIndices = lookupIndices();
-        List<CsvTestsDataLoader.EnrichConfig> policies = availableEnrichPolicies();
+        Collection<CsvTestsDataLoader.EnrichConfig> policies = ENRICH_POLICIES.values();
         CommandGenerator.QuerySchema mappingInfo = new CommandGenerator.QuerySchema(indices, lookupIndices, policies);
 
         for (int i = 0; i < ITERATIONS; i++) {
@@ -500,9 +501,5 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         );
         result.add(new LookupIdx("multi_column_joinable_lookup", multiColumnJoinableLookupKeys));
         return result;
-    }
-
-    List<CsvTestsDataLoader.EnrichConfig> availableEnrichPolicies() {
-        return ENRICH_POLICIES;
     }
 }

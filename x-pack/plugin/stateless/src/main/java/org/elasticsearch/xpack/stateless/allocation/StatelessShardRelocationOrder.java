@@ -98,17 +98,15 @@ public class StatelessShardRelocationOrder extends ShardRelocationOrder.DefaultO
         }
 
         // Interleave shardsToSpread with firstHalfRest so that the former are spread out evenly.
-        int toInterleave = Math.max(firstHalfRest.size() / shardsToSpread.size(), 1);
+        int toInterleave = Math.ceilDiv(firstHalfRest.size(), shardsToSpread.size());
         var firstHalfRestIterator = firstHalfRest.iterator();
         for (ShardRouting shardRouting : shardsToSpread) {
-            result.addFirst(shardRouting);
             for (int k = 0; k < toInterleave && firstHalfRestIterator.hasNext(); k++) {
                 result.addFirst(firstHalfRestIterator.next());
             }
+            result.addFirst(shardRouting);
         }
-        while (firstHalfRestIterator.hasNext()) {
-            result.addFirst(firstHalfRestIterator.next());
-        }
+        assert firstHalfRestIterator.hasNext() == false;
 
         return result.iterator();
     }

@@ -39,9 +39,13 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
     private static final Headers HEADERS = new Headers(StatefulValue.of(HEADERS_MAP));
 
     public T createRandom() {
-        var user = randomBoolean() ? null : randomAlphaOfLength(15);
+        var user = randomUser();
         var headers = HeadersTests.createRandom();
         return create(user, headers);
+    }
+
+    private String randomUser() {
+        return randomBoolean() ? null : randomAlphaOfLength(15);
     }
 
     public T createRandomWithUser() {
@@ -134,14 +138,14 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
         var taskSettings = createFromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST);
-        assertTrue(taskSettings.user().isAbsent());
+        assertTrue(taskSettings.user().isUndefined());
     }
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapDoesNotContainTheFields() {
         // The HashMap is missing the headers key
         var settings = createFromMap(new HashMap<>(HEADERS_MAP), ConfigurationParseContext.PERSISTENT);
-        assertTrue(settings.user().isAbsent());
-        assertThat(settings.headers(), sameInstance(Headers.ABSENT_INSTANCE));
+        assertTrue(settings.user().isUndefined());
+        assertThat(settings.headers(), sameInstance(Headers.UNDEFINED_INSTANCE));
     }
 
     public void testFromMap_ParsesCorrectly_WhenUserIsMissing() {
@@ -150,7 +154,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
             ConfigurationParseContext.REQUEST
         );
 
-        assertTrue(settings.user().isAbsent());
+        assertTrue(settings.user().isUndefined());
         assertThat(settings.headers(), is(HEADERS));
     }
 
@@ -159,7 +163,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
         assertTrue(settings.user().isPresent());
         assertThat(settings.user().get(), is(USER));
-        assertThat(settings.headers(), is(Headers.ABSENT_INSTANCE));
+        assertThat(settings.headers(), is(Headers.UNDEFINED_INSTANCE));
     }
 
     public void testFromMap_ParsesCorrectly_WhenHeadersIsEmptyMap() {
@@ -215,8 +219,8 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
     public void testFromMap_WithRequestContext_ReturnsEmptySettings_WhenMapIsEmpty() {
         var settings = createFromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST);
         assertTrue(settings.isEmpty());
-        assertTrue(settings.user().isAbsent());
-        assertThat(settings.headers(), sameInstance(Headers.ABSENT_INSTANCE));
+        assertTrue(settings.user().isUndefined());
+        assertThat(settings.headers(), sameInstance(Headers.UNDEFINED_INSTANCE));
         assertThat(settings, sameInstance(emptySettings()));
     }
 
@@ -231,7 +235,13 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
     }
 
     public void testToXContent_RoundTrip() throws IOException {
-        var original = createRandom();
+        var user = randomUser();
+        // The reason we don't allow null here is that when a Headers::NULL_INSTANCE is serialized to xContent
+        // it is not written (aka would look like this {}) instead of it being written {"headers": null}.
+        // This is because it's only used for the update API to indicate that the existing headers should be removed.
+        var headers = HeadersTests.createRandomNonNull();
+        var original = create(user, headers);
+
         String json;
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
             original.toXContent(builder, ToXContent.EMPTY_PARAMS);

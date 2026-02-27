@@ -32,8 +32,15 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
 
     public static Headers createRandom() {
         return randomFrom(
-            Headers.ABSENT_INSTANCE,
+            Headers.UNDEFINED_INSTANCE,
             Headers.NULL_INSTANCE,
+            new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))))
+        );
+    }
+
+    public static Headers createRandomNonNull() {
+        return randomFrom(
+            Headers.UNDEFINED_INSTANCE,
             new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))))
         );
     }
@@ -59,11 +66,11 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
             var newHeaders = new HashMap<>(statefulValue.get());
             newHeaders.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
             var withNewKey = new Headers(StatefulValue.of(newHeaders));
-            return randomFrom(withNewKey, Headers.NULL_INSTANCE, Headers.ABSENT_INSTANCE);
+            return randomFrom(withNewKey, Headers.NULL_INSTANCE, Headers.UNDEFINED_INSTANCE);
         }
         if (statefulValue.isNull()) {
             var withValue = new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))));
-            return randomFrom(withValue, Headers.ABSENT_INSTANCE);
+            return randomFrom(withValue, Headers.UNDEFINED_INSTANCE);
         }
         var withValue = new Headers(StatefulValue.of(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15))));
         return randomFrom(withValue, Headers.NULL_INSTANCE);
@@ -87,7 +94,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
     }
 
     public void testIsPresent_WhenAbsent() {
-        assertFalse(Headers.ABSENT_INSTANCE.isPresent());
+        assertFalse(Headers.UNDEFINED_INSTANCE.isPresent());
     }
 
     public void testIsPresent_WhenNull() {
@@ -102,7 +109,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
     }
 
     public void testIsNull_WhenAbsent() {
-        assertFalse(Headers.ABSENT_INSTANCE.isNull());
+        assertFalse(Headers.UNDEFINED_INSTANCE.isNull());
     }
 
     public void testIsNull_WhenNull() {
@@ -114,7 +121,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
     }
 
     public void testIsEmpty_WhenAbsent() {
-        assertTrue(Headers.ABSENT_INSTANCE.isEmpty());
+        assertTrue(Headers.UNDEFINED_INSTANCE.isEmpty());
     }
 
     public void testIsEmpty_WhenNull() {
@@ -169,7 +176,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
             {
             }
             """;
-        parseJson(json, parsed -> assertThat(parsed, sameInstance(Headers.ABSENT_INSTANCE)));
+        parseJson(json, parsed -> assertThat(parsed, sameInstance(Headers.UNDEFINED_INSTANCE)));
     }
 
     public void testParse_WhenHeadersEmptyMap() throws IOException {
@@ -178,7 +185,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
               "headers": {}
             }
             """;
-        parseJson(json, parsed -> assertThat(parsed, sameInstance(Headers.ABSENT_INSTANCE)));
+        parseJson(json, parsed -> assertThat(parsed, sameInstance(Headers.UNDEFINED_INSTANCE)));
     }
 
     public void testParse_WhenHeadersIsSetToNull() throws IOException {
@@ -229,7 +236,10 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
     }
 
     public void testParse_Roundtrip() throws IOException {
-        var original = randomValueOtherThan(Headers.NULL_INSTANCE, HeadersTests::createRandom);
+        // The reason we don't allow null here is that when a Headers::NULL_INSTANCE is serialized to xContent
+        // it is not written (aka would look like this {}) instead of it being written {"headers": null}.
+        // This is because it's only used for the update API to indicate that the existing headers should be removed.
+        var original = createRandomNonNull();
         var json = toXContentString(original);
         parseJson(json, parsedHeaders -> assertThat(parsedHeaders, is(original)));
     }

@@ -15,10 +15,10 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * This class holds a value of type {@param T} that can be in one of three states: absent, null, or present with a non-null value.
+ * This class holds a value of type {@param T} that can be in one of three states: undefined, null, or defined with a non-null value.
  * It provides methods to check the state and retrieve the value if present.
  * <p>
- * Absent means that the value is not defined
+ * Undefined means that the value is not defined aka it was absent in the input
  * Null means that the value is defined but explicitly set to null
  * Present means that the value is defined and not null
  * @param <T> the type of the value
@@ -27,12 +27,12 @@ public final class StatefulValue<T> {
 
     static final IllegalStateException NO_VALUE_PRESENT = new IllegalStateException("No value present");
 
-    private static final StatefulValue<?> ABSENT_INSTANCE = new StatefulValue<>(null, false);
+    private static final StatefulValue<?> UNDEFINED_INSTANCE = new StatefulValue<>(null, false);
     private static final StatefulValue<?> NULL_INSTANCE = new StatefulValue<>(null, true);
 
-    public static <T> StatefulValue<T> absent() {
+    public static <T> StatefulValue<T> undefined() {
         @SuppressWarnings("unchecked")
-        var absent = (StatefulValue<T>) ABSENT_INSTANCE;
+        var absent = (StatefulValue<T>) UNDEFINED_INSTANCE;
         return absent;
     }
 
@@ -49,7 +49,7 @@ public final class StatefulValue<T> {
     public static <T> StatefulValue<T> read(StreamInput in, Writeable.Reader<T> reader) throws IOException {
         var isDefined = in.readBoolean();
         if (isDefined == false) {
-            return absent();
+            return undefined();
         }
 
         var isNull = in.readBoolean();
@@ -79,14 +79,23 @@ public final class StatefulValue<T> {
         this.isDefined = isDefined;
     }
 
-    public boolean isAbsent() {
+    /**
+     * Returns true if the value is not defined, meaning it is absent.
+     */
+    public boolean isUndefined() {
         return isDefined == false;
     }
 
+    /**
+     * Returns true if the value is defined and explicitly set to null.
+     */
     public boolean isNull() {
         return isDefined && value == null;
     }
 
+    /**
+     * Returns true if the value is defined and not null.
+     */
     public boolean isPresent() {
         return isDefined && value != null;
     }

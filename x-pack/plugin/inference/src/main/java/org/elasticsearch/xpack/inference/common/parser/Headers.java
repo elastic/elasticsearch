@@ -31,7 +31,7 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
     // public for testing
     public static final String HEADERS_FIELD = "headers";
     // public for testing
-    public static final Headers ABSENT_INSTANCE = new Headers(StatefulValue.absent());
+    public static final Headers UNDEFINED_INSTANCE = new Headers(StatefulValue.undefined());
     static final Headers NULL_INSTANCE = new Headers(StatefulValue.nullInstance());
 
     /**
@@ -49,7 +49,7 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
     public static Headers create(Object arg, String path) {
         // We will get null here if the headers field was not present in the json
         if (arg == null) {
-            return ABSENT_INSTANCE;
+            return UNDEFINED_INSTANCE;
         }
 
         if (arg == PARSER_NULL_SENTINEL) {
@@ -78,7 +78,7 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
         }
 
         if (stringHeaders.isEmpty()) {
-            return ABSENT_INSTANCE;
+            return UNDEFINED_INSTANCE;
         }
 
         return new Headers(StatefulValue.of(stringHeaders));
@@ -89,11 +89,7 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
     }
 
     public Headers(StreamInput in) throws IOException {
-        this(read(in));
-    }
-
-    private static StatefulValue<Map<String, String>> read(StreamInput in) throws IOException {
-        return StatefulValue.read(in, input -> input.readImmutableMap(StreamInput::readString, StreamInput::readString));
+        this(StatefulValue.read(in, input -> input.readImmutableMap(StreamInput::readString, StreamInput::readString)));
     }
 
     public boolean isEmpty() {

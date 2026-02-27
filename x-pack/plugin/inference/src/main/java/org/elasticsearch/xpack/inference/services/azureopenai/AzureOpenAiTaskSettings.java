@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.inference.common.parser.Headers.ABSENT_INSTANCE;
+import static org.elasticsearch.xpack.inference.common.parser.Headers.UNDEFINED_INSTANCE;
 import static org.elasticsearch.xpack.inference.common.parser.ParseExceptionUtils.unwrapXContentParseException;
 
 /**
@@ -52,7 +52,7 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
         }
 
         public boolean isEmpty() {
-            return user.isAbsent() && headers.isEmpty();
+            return user.isUndefined() && headers.isEmpty();
         }
     }
 
@@ -84,7 +84,7 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
     private static Settings createSettings(Object userArg, Object headersArg) {
         StatefulValue<String> user;
         if (userArg == null) {
-            user = StatefulValue.absent();
+            user = StatefulValue.undefined();
         } else if (userArg == USER_PARSER_NULL_SENTINEL) {
             user = StatefulValue.nullInstance();
         } else {
@@ -179,13 +179,13 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
             var user = StatefulValue.read(in, StreamInput::readString);
             return new Settings(user, new Headers(in));
         } else {
-            var user = StatefulValue.<String>absent();
+            var user = StatefulValue.<String>undefined();
             var userString = in.readOptionalString();
             if (Strings.isNullOrEmpty(userString) == false) {
                 user = StatefulValue.of(userString);
             }
 
-            return new Settings(user, ABSENT_INSTANCE);
+            return new Settings(user, UNDEFINED_INSTANCE);
         }
     }
 
@@ -199,7 +199,7 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
 
     @Override
     public boolean isEmpty() {
-        return taskSettings.user().isAbsent() && taskSettings.headers().isEmpty();
+        return taskSettings.user().isUndefined() && taskSettings.headers().isEmpty();
     }
 
     @Override
@@ -237,14 +237,14 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
         if (updated.user().isPresent()) {
             userToUse = updated.user();
         } else if (updated.user().isNull()) {
-            userToUse = StatefulValue.absent();
+            userToUse = StatefulValue.undefined();
         }
 
         var headersToUse = taskSettings.headers();
         if (updated.headers().isPresent()) {
             headersToUse = updated.headers();
         } else if (updated.headers().isNull()) {
-            headersToUse = Headers.ABSENT_INSTANCE;
+            headersToUse = Headers.UNDEFINED_INSTANCE;
         }
 
         return factory.create(new Settings(userToUse, headersToUse));

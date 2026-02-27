@@ -22,8 +22,8 @@ public class StatefulValueTests extends ESTestCase {
 
     private static final String VALUE = "value";
 
-    public void testAbsent_ReturnsSingleton() {
-        assertThat(StatefulValue.absent(), sameInstance(StatefulValue.absent()));
+    public void testUndefined_ReturnsSingleton() {
+        assertThat(StatefulValue.undefined(), sameInstance(StatefulValue.undefined()));
     }
 
     public void testNullInstance_ReturnsSingleton() {
@@ -41,20 +41,20 @@ public class StatefulValueTests extends ESTestCase {
         assertThat(statefulValue.get(), is(value));
     }
 
-    public void testIsAbsent_WhenAbsent() {
-        assertTrue(StatefulValue.<String>absent().isAbsent());
+    public void testIsUndefined_WhenUndefined() {
+        assertTrue(StatefulValue.<String>undefined().isUndefined());
     }
 
-    public void testIsAbsent_WhenNull() {
-        assertFalse(StatefulValue.<String>nullInstance().isAbsent());
+    public void testIsUndefined_WhenNull() {
+        assertFalse(StatefulValue.<String>nullInstance().isUndefined());
     }
 
-    public void testIsAbsent_WhenWithValue() {
-        assertFalse(StatefulValue.of(VALUE).isAbsent());
+    public void testIsUndefined_WhenWithValue() {
+        assertFalse(StatefulValue.of(VALUE).isUndefined());
     }
 
-    public void testIsNull_WhenAbsent() {
-        assertFalse(StatefulValue.<String>absent().isNull());
+    public void testIsNull_WhenUndefined() {
+        assertFalse(StatefulValue.<String>undefined().isNull());
     }
 
     public void testIsNull_WhenNull() {
@@ -65,8 +65,8 @@ public class StatefulValueTests extends ESTestCase {
         assertFalse(StatefulValue.of(VALUE).isNull());
     }
 
-    public void testIsPresent_WhenAbsent() {
-        assertFalse(StatefulValue.<String>absent().isPresent());
+    public void testIsPresent_WhenUndefined() {
+        assertFalse(StatefulValue.<String>undefined().isPresent());
     }
 
     public void testIsPresent_WhenNull() {
@@ -82,8 +82,8 @@ public class StatefulValueTests extends ESTestCase {
         assertThat(StatefulValue.of(value).get(), is(value));
     }
 
-    public void testGet_ThrowsWhenAbsent() {
-        var e = expectThrows(IllegalStateException.class, () -> StatefulValue.<String>absent().get());
+    public void testGet_ThrowsWhenUndefined() {
+        var e = expectThrows(IllegalStateException.class, () -> StatefulValue.<String>undefined().get());
         assertThat(e.getMessage(), is(NO_VALUE_PRESENT.getMessage()));
     }
 
@@ -98,9 +98,9 @@ public class StatefulValueTests extends ESTestCase {
         assertThat(StatefulValue.of(value).orElse(other), is(value));
     }
 
-    public void testOrElse_ReturnsOtherWhenAbsent() {
+    public void testOrElse_ReturnsOtherWhenUndefined() {
         var other = randomAlphaOfLength(10);
-        assertThat(StatefulValue.<String>absent().orElse(other), is(other));
+        assertThat(StatefulValue.<String>undefined().orElse(other), is(other));
     }
 
     public void testOrElse_ReturnsOtherWhenNull() {
@@ -118,20 +118,20 @@ public class StatefulValueTests extends ESTestCase {
     }
 
     public void testEquals_WhenDifferentStates() {
-        assertNotEquals(StatefulValue.<String>absent(), StatefulValue.nullInstance());
-        assertNotEquals(StatefulValue.<String>absent(), StatefulValue.of(VALUE));
+        assertNotEquals(StatefulValue.<String>undefined(), StatefulValue.nullInstance());
+        assertNotEquals(StatefulValue.<String>undefined(), StatefulValue.of(VALUE));
         assertNotEquals(StatefulValue.<String>nullInstance(), StatefulValue.of(VALUE));
     }
 
     public void testHashCode_ConsistentWithEquals() {
         var value = randomAlphaOfLength(10);
-        assertEquals(StatefulValue.absent().hashCode(), StatefulValue.absent().hashCode());
+        assertEquals(StatefulValue.undefined().hashCode(), StatefulValue.undefined().hashCode());
         assertEquals(StatefulValue.nullInstance().hashCode(), StatefulValue.nullInstance().hashCode());
         assertEquals(StatefulValue.of(value).hashCode(), StatefulValue.of(value).hashCode());
     }
 
-    public void testSerializationRoundtrip_WhenAbsent() throws IOException {
-        var original = StatefulValue.<String>absent();
+    public void testSerializationRoundtrip_WhenUndefined() throws IOException {
+        var original = StatefulValue.<String>undefined();
         var copy = roundtrip(original);
         assertThat(copy, sameInstance(original));
     }

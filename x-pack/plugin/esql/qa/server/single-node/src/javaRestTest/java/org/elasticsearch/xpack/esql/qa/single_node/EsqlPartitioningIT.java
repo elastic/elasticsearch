@@ -63,7 +63,7 @@ public class EsqlPartitioningIT extends ESRestTestCase {
             for (String index : new String[] { "idx", "small_idx" }) {
                 for (Case c : new Case[] {
                     new Case("", "SHARD"),
-                    new Case("| SORT @timestamp ASC", "DOC"),
+                    new Case("| SORT @timestamp ASC", "SEGMENT"),
                     new Case("| WHERE ABS(a) == 1", "DOC"),
                     new Case("| WHERE a == 1", "SHARD"),
                     new Case("| STATS SUM(a)", "DOC"),

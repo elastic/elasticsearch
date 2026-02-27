@@ -404,8 +404,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private static AutoStrategy topNAutoStrategy() {
         return unusedLimit -> {
             if (EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled()) {
-                // Use high speed strategy for TopN - we want to parallelize searches as much as possible given the query structure
-                return LuceneSourceOperator.Factory::highSpeedAutoStrategy;
+                return query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
             }
             return query -> LuceneSliceQueue.PartitioningStrategy.SHARD;
         };

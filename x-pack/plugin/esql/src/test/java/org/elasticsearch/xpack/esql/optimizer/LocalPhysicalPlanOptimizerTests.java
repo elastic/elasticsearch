@@ -892,19 +892,23 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var source = as(eval.child(), EsQueryExec.class);
     }
 
-    /*
-     * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[language_code{r}#7],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#7],FINAL,[language_code{r}#7, $
-     *      $c$count{r}#32, $$c$seen{r}#33],12]
-     *   \_ExchangeExec[[language_code{r}#7, $$c$count{r}#32, $$c$seen{r}#33],true]
-     *     \_AggregateExec[[language_code{r}#7],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#7],INITIAL,[language_code{r}#7,
-     *          $$c$count{r}#34, $$c$seen{r}#35],12]
-     *       \_GrokExec[first_name{f}#19,Parser[pattern=%{WORD:foo}, grok=org.elasticsearch.grok.Grok@75389ac1],[foo{r}#12]]
-     *         \_MvExpandExec[emp_no{f}#18,emp_no{r}#31]
-     *           \_ProjectExec[[emp_no{f}#18, languages{r}#21 AS language_code#7, first_name{f}#19]]
-     *             \_FieldExtractExec[emp_no{f}#18, first_name{f}#19]<[],[]>
-     *               \_EvalExec[[null[INTEGER] AS languages#21]]
-     *                 \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#36], limit[], sort[] estimatedRowSize[112]
+    /**
+     * Expects
+     * <pre>{@code
+     * LimitExec[1000[INTEGER],12]
+     * \_AggregateExec[[languages{f}#22],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, languages{f}#22 AS language_c
+     * ode#8],FINAL,[languages{f}#22, $$c$count{r}#33, $$c$seen{r}#34],12]
+     *   \_ExchangeExec[[languages{f}#22, $$c$count{r}#33, $$c$seen{r}#34],true]
+     *     \_AggregateExec[[languages{r}#22],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, languages{r}#22 AS language_c
+     * ode#8],INITIAL,[languages{r}#22, $$c$count{r}#35, $$c$seen{r}#36],12]
+     *       \_GrokExec[first_name{f}#20,Parser[pattern=%{WORD:foo}, grok=org.elasticsearch.grok.Grok@1f6c7c53],[foo{r}#13]]
+     *         \_FieldExtractExec[first_name{f}#20]<[],[]>
+     *           \_MvExpandExec[emp_no{f}#19,emp_no{r}#32]
+     *             \_FieldExtractExec[emp_no{f}#19]<[],[]>
+     *               \_EvalExec[[null[INTEGER] AS languages#22]]
+     *                 \_EsQueryExec[test], indexMode[standard], [_doc{f}#37], limit[], sort[] estimatedRowSize[112] queryBuilderAndTags
+     *                 [[QueryBuilderAndTags[query=null, tags=[]]]]
+     * }</pre>
      */
     public void testMissingFieldsPurgesTheJoinLocallyThroughCommands() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
@@ -926,14 +930,16 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
         var grok = as(agg.child(), GrokExec.class);
-        var mvexpand = as(grok.child(), MvExpandExec.class);
-        var project = as(mvexpand.child(), ProjectExec.class);
-        var extract = as(project.child(), FieldExtractExec.class);
-        var eval = as(extract.child(), EvalExec.class);
+        var extract1 = as(grok.child(), FieldExtractExec.class);
+        var mvExpand = as(extract1.child(), MvExpandExec.class);
+        var extract2 = as(mvExpand.child(), FieldExtractExec.class);
+        var eval = as(extract2.child(), EvalExec.class);
         var source = as(eval.child(), EsQueryExec.class);
     }
 
-    /*
+    /**
+     * Expects
+     * <pre>{@code
      * LimitExec[1000[INTEGER],12]
      * \_AggregateExec[[language_code{r}#13],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#13],FINAL,
      * [language_code{r}#13, $$c$count{r}#33, $$c$seen{r}#34],12]
@@ -941,15 +947,16 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *     \_AggregateExec[[language_code{r}#13],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#13],INITI
      * AL,[language_code{r}#13, $$c$count{r}#35, $$c$seen{r}#36],12]
      *       \_LookupJoinExec[[language_code{r}#13],[language_code{f}#30],[],null]
-     *         |_GrokExec[first_name{f}#20,Parser[pattern=%{NUMBER:language_code:int}, grok=org.elasticsearch.grok.Grok@33b1c803],[languag
+     *         |_GrokExec[first_name{f}#20,Parser[pattern=%{NUMBER:language_code:int}, grok=org.elasticsearch.grok.Grok@271441f4],[languag
      * e_code{r}#13]]
-     *         | \_MvExpandExec[emp_no{f}#19,emp_no{r}#32]
-     *         |   \_ProjectExec[[emp_no{f}#19, first_name{f}#20]]
-     *         |     \_FieldExtractExec[emp_no{f}#19, first_name{f}#20]<[],[]>
+     *         | \_FieldExtractExec[first_name{f}#20]<[],[]>
+     *         |   \_MvExpandExec[emp_no{f}#19,emp_no{r}#32]
+     *         |     \_FieldExtractExec[emp_no{f}#19]<[],[]>
      *         |       \_EsQueryExec[test], indexMode[standard], [_doc{f}#37], limit[], sort[] estimatedRowSize[62] queryBuilderAndTags
-     *  [[QueryBuilderAndTags[query=null, tags=[]]]]
+     *                  [[QueryBuilderAndTags[query=null, tags=[]]]]
      *         \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
      * EsRelation[languages_lookup][LOOKUP][language_code{f}#30]<>]]
+     * }</pre>
      */
     public void testMissingFieldsNotPurgingTheJoinLocally() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
@@ -972,10 +979,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         agg = as(exchange.child(), AggregateExec.class);
         var join = as(agg.child(), LookupJoinExec.class);
         var grok = as(join.left(), GrokExec.class);
-        var mvexpand = as(grok.child(), MvExpandExec.class);
-        var project = as(mvexpand.child(), ProjectExec.class);
-        var extract = as(project.child(), FieldExtractExec.class);
-        var source = as(extract.child(), EsQueryExec.class);
+        var extract1 = as(grok.child(), FieldExtractExec.class);
+        var mvExpand = as(extract1.child(), MvExpandExec.class);
+        var extract2 = as(mvExpand.child(), FieldExtractExec.class);
+        var source = as(extract2.child(), EsQueryExec.class);
         var right = as(join.right(), FragmentExec.class);
         var relation = as(right.fragment(), EsRelation.class);
     }

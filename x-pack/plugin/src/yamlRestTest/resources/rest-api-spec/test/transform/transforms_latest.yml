@@ -1,0 +1,121 @@
+setup:
+  - do:
+      indices.create:
+        index: latest-test-data
+        body:
+          mappings:
+            properties:
+              order_id:
+                type: keyword
+              region:
+                type: keyword
+              status:
+                type: keyword
+              updated_at:
+                type: date
+              event_ingested:
+                type: date
+
+  - do:
+      bulk:
+        index: latest-test-data
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"order_id": "order-1", "region": "US", "status": "accepted", "updated_at": "2024-01-01T00:00:05Z", "event_ingested": "2024-01-01T00:00:10Z"}'
+          - '{"index": {}}'
+          - '{"order_id": "order-1", "region": "US", "status": "pending", "updated_at": "2024-01-01T00:00:03Z", "event_ingested": "2024-01-01T00:00:20Z"}'
+          - '{"index": {}}'
+          - '{"order_id": "order-2", "region": "EU", "status": "shipped", "updated_at": "2024-01-01T00:00:08Z", "event_ingested": "2024-01-01T00:00:15Z"}'
+          - '{"index": {}}'
+          - '{"order_id": "order-2", "region": "EU", "status": "processing", "updated_at": "2024-01-01T00:00:01Z", "event_ingested": "2024-01-01T00:00:25Z"}'
+          - '{"index": {}}'
+          - '{"order_id": "order-3", "region": "US", "status": "delivered", "updated_at": "2024-01-01T00:00:02Z", "event_ingested": "2024-01-01T00:00:05Z"}'
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: latest-test-data
+        ignore: 404
+
+---
+"Test latest preview picks correct document when sort and sync fields are non-monotonic":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "latest-test-data" },
+            "latest": {
+              "unique_key": [ "order_id" ],
+              "sort": "updated_at"
+            }
+          }
+
+  - length: { preview: 3 }
+
+  # Composite agg returns results sorted by unique_key lexicographically.
+  # order-1 should pick status=accepted (updated_at T+5s) over status=pending (updated_at T+3s)
+  # even though pending has a later event_ingested.
+  - match: { preview.0.order_id: "order-1" }
+  - match: { preview.0.status: "accepted" }
+  - match: { preview.1.order_id: "order-2" }
+  - match: { preview.1.status: "shipped" }
+  - match: { preview.2.order_id: "order-3" }
+  - match: { preview.2.status: "delivered" }
+
+---
+"Test latest preview with multi-field unique key":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "latest-test-data" },
+            "latest": {
+              "unique_key": [ "order_id", "region" ],
+              "sort": "updated_at"
+            }
+          }
+
+  - length: { preview: 3 }
+
+  # With multi-field unique key [order_id, region], each combination should pick highest updated_at.
+  # Results sorted lexicographically by [order_id, region].
+  - match: { preview.0.order_id: "order-1" }
+  - match: { preview.0.region: "US" }
+  - match: { preview.0.status: "accepted" }
+  - match: { preview.1.order_id: "order-2" }
+  - match: { preview.1.region: "EU" }
+  - match: { preview.1.status: "shipped" }
+  - match: { preview.2.order_id: "order-3" }
+  - match: { preview.2.region: "US" }
+  - match: { preview.2.status: "delivered" }
+
+---
+"Test latest preview includes document IDs":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "latest-test-data" },
+            "latest": {
+              "unique_key": [ "order_id" ],
+              "sort": "updated_at"
+            }
+          }
+
+  - length: { preview: 3 }
+
+  # Verify all expected fields are present with correct values.
+  - match: { preview.0.order_id: "order-1" }
+  - match: { preview.0.region: "US" }
+  - match: { preview.0.status: "accepted" }
+  - is_true: preview.0.updated_at
+  - match: { preview.1.order_id: "order-2" }
+  - match: { preview.1.region: "EU" }
+  - match: { preview.1.status: "shipped" }
+  - is_true: preview.1.updated_at
+  - match: { preview.2.order_id: "order-3" }
+  - match: { preview.2.region: "US" }
+  - match: { preview.2.status: "delivered" }
+  - is_true: preview.2.updated_at

@@ -590,130 +590,114 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         record GapFillInfo(SparseFileTracker.Gap gap, SharedBytes.IO ioRef, int channelPos, int relativePos, int length, Releasable ref) {}
 
         final var gapFillInfos = new ArrayList<GapFillInfo>();
-        try {
-            final var overallRefs = new RefCountingRunnable(() -> listener.onResponse(null));
-            try {
-                for (int region = firstRegion; region <= lastRegion; region++) {
-                    if (freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
-                        logger.info("No free regions available, stopping multi-region fetch at region [{}]", region);
-                        break;
-                    }
+        try (var overallRefs = new RefCountingRunnable(() -> listener.onResponse(null))) {
+            for (int region = firstRegion; region <= lastRegion; region++) {
+                if (freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
+                    logger.info("No free regions available, stopping multi-region fetch at region [{}]", region);
+                    break;
+                }
 
-                    final int effectiveRegionSize = computeCacheFileRegionSize(blobLength, region);
-                    final ByteRange regionRange = ByteRange.of(0, effectiveRegionSize);
-                    if (regionRange.isEmpty()) {
+                final int effectiveRegionSize = computeCacheFileRegionSize(blobLength, region);
+                final ByteRange regionRange = ByteRange.of(0, effectiveRegionSize);
+                if (regionRange.isEmpty()) {
+                    continue;
+                }
+
+                final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region);
+                try {
+                    entry.incRefEnsureOpen();
+                } catch (AlreadyClosedException e) {
+                    continue;
+                }
+
+                try (var entryRefs = new RefCountingRunnable(entry::decRef)) {
+                    final List<SparseFileTracker.Gap> gaps = entry.tracker.waitForRange(
+                        regionRange,
+                        regionRange,
+                        entryRefs.acquireListener()
+                    );
+
+                    if (gaps.isEmpty()) {
                         continue;
                     }
 
-                    final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region);
-                    try {
-                        entry.incRefEnsureOpen();
-                    } catch (AlreadyClosedException e) {
-                        continue;
-                    }
+                    final int regionOffset = Math.toIntExact(getRegionStart(region));
+                    final SharedBytes.IO ioRef = entry.nonVolatileIO();
 
-                    final var entryRefs = new RefCountingRunnable(entry::decRef);
-                    try {
-                        final List<SparseFileTracker.Gap> gaps = entry.tracker.waitForRange(
-                            regionRange,
-                            regionRange,
-                            entryRefs.acquireListener()
-                        );
-
-                        if (gaps.isEmpty()) {
-                            continue;
-                        }
-
-                        final int regionOffset = Math.toIntExact(getRegionStart(region));
-                        final SharedBytes.IO ioRef = entry.nonVolatileIO();
-
-                        for (SparseFileTracker.Gap gap : gaps) {
-                            final int start = Math.toIntExact(gap.start());
-                            final int length = Math.toIntExact(gap.end() - start);
-                            gapFillInfos.add(
-                                new GapFillInfo(
-                                    gap,
-                                    ioRef,
-                                    start,
-                                    regionOffset + start,
-                                    length,
-                                    Releasables.wrap(overallRefs.acquire(), entryRefs.acquire())
-                                )
-                            );
-                        }
-                    } finally {
-                        entryRefs.close();
-                    }
-                }
-
-                if (gapFillInfos.isEmpty()) {
-                    return;
-                }
-
-                final int numGaps = gapFillInfos.size();
-                final int firstRelPos = gapFillInfos.get(0).relativePos;
-                final int lastEnd = gapFillInfos.get(numGaps - 1).relativePos + gapFillInfos.get(numGaps - 1).length;
-                final int totalGapSpan = lastEnd - firstRelPos;
-
-                final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(numGaps, totalGapSpan);
-                logger.trace(
-                    () -> Strings.format(
-                        "fill %d gaps across regions [%d-%d] %s shared input stream factory",
-                        numGaps,
-                        firstRegion,
-                        lastRegion,
-                        streamFactory == null ? "without" : "with"
-                    )
-                );
-
-                if (streamFactory != null) {
-                    final var gapFillingTasks = gapFillInfos.stream()
-                        .map(
-                            gi -> multiRegionFillGapRunnable(
-                                gi.gap,
-                                gi.ioRef,
-                                writer,
-                                streamFactory,
-                                gi.channelPos,
-                                gi.relativePos,
-                                ActionListener.releasing(gi.ref)
+                    for (SparseFileTracker.Gap gap : gaps) {
+                        final int start = Math.toIntExact(gap.start());
+                        final int length = Math.toIntExact(gap.end() - start);
+                        gapFillInfos.add(
+                            new GapFillInfo(
+                                gap,
+                                ioRef,
+                                start,
+                                regionOffset + start,
+                                length,
+                                Releasables.wrap(overallRefs.acquire(), entryRefs.acquire())
                             )
+                        );
+                    }
+                }
+            }
+
+            if (gapFillInfos.isEmpty()) {
+                return;
+            }
+
+            final int numGaps = gapFillInfos.size();
+            final int firstRelPos = gapFillInfos.get(0).relativePos;
+            final int lastEnd = gapFillInfos.get(numGaps - 1).relativePos + gapFillInfos.get(numGaps - 1).length;
+            final int totalGapSpan = lastEnd - firstRelPos;
+
+            final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(numGaps, totalGapSpan);
+            logger.trace(
+                () -> Strings.format(
+                    "fill %d gaps across regions [%d-%d] %s shared input stream factory",
+                    numGaps,
+                    firstRegion,
+                    lastRegion,
+                    streamFactory == null ? "without" : "with"
+                )
+            );
+
+            if (streamFactory != null) {
+                final var gapFillingTasks = gapFillInfos.stream()
+                    .map(
+                        gi -> multiRegionFillGapRunnable(
+                            gi.gap,
+                            gi.ioRef,
+                            writer,
+                            streamFactory,
+                            gi.channelPos,
+                            gi.relativePos,
+                            ActionListener.releasing(gi.ref)
                         )
-                        .toList();
-                    fetchExecutor.execute(() -> {
-                        try {
-                            gapFillingTasks.forEach(Runnable::run);
-                        } finally {
-                            streamFactory.close();
-                        }
-                    });
-                } else {
-                    for (GapFillInfo gi : gapFillInfos) {
-                        fetchExecutor.execute(
-                            multiRegionFillGapRunnable(
-                                gi.gap,
-                                gi.ioRef,
-                                writer,
-                                null,
-                                gi.channelPos,
-                                gi.relativePos,
-                                ActionListener.releasing(gi.ref)
-                            )
-                        );
+                    )
+                    .toList();
+                fetchExecutor.execute(() -> {
+                    try {
+                        gapFillingTasks.forEach(Runnable::run);
+                    } finally {
+                        streamFactory.close();
                     }
+                });
+            } else {
+                for (GapFillInfo gi : gapFillInfos) {
+                    fetchExecutor.execute(
+                        multiRegionFillGapRunnable(
+                            gi.gap,
+                            gi.ioRef,
+                            writer,
+                            null,
+                            gi.channelPos,
+                            gi.relativePos,
+                            ActionListener.releasing(gi.ref)
+                        )
+                    );
                 }
-            } finally {
-                overallRefs.close();
             }
         } catch (Exception e) {
-            for (GapFillInfo gi : gapFillInfos) {
-                try {
-                    gi.gap.onFailure(e);
-                } catch (Exception ex) {
-                    e.addSuppressed(ex);
-                }
-                Releasables.closeExpectNoException(gi.ref);
-            }
             listener.onFailure(e);
         }
     }

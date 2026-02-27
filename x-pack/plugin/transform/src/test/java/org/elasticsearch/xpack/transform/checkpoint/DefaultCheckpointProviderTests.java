@@ -471,8 +471,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         SourceConfig sourceWithRuntimeMappings = new SourceConfig(
             new String[] { "source_index" },
             QueryConfig.matchAll(),
-            Map.of("total_price_with_tax", Map.of("type", "double", "script", Map.of("source", "emit(1.0)"))),
-            null
+            Map.of("total_price_with_tax", Map.of("type", "double", "script", Map.of("source", "emit(1.0)")))
         );
         TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSource(
             sourceWithRuntimeMappings
@@ -524,8 +523,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         SourceConfig sourceWithoutRuntimeMappings = new SourceConfig(
             new String[] { "source_index" },
             QueryConfig.matchAll(),
-            Collections.emptyMap(),
-            null
+            Collections.emptyMap()
         );
         TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSource(
             sourceWithoutRuntimeMappings

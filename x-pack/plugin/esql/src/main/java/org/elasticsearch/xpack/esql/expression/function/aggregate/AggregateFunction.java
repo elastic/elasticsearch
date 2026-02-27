@@ -12,9 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -26,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -182,14 +181,16 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     }
 
     /**
-     * Returns the set of input attributes required by this aggregate function, excluding those referenced by the filter.
+     * Returns the ordered list of input attributes required by this aggregate function, excluding those referenced by the filter.
+     * The order must align with the input channels expected by the aggregator.
      */
-    public AttributeSet aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
-        if (hasFilter()) {
-            return Expressions.references(CollectionUtils.combine(List.of(field), parameters));
-        } else {
-            return references();
+    public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+        List<Attribute> attributes = new ArrayList<>(1 + parameters.size());
+        attributes.addAll(field.references());
+        for (Expression p : parameters) {
+            attributes.addAll(p.references());
         }
+        return attributes;
     }
 
     @Override

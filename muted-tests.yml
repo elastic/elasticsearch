@@ -479,6 +479,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:eval.DocsLength}
   issue: https://github.com/elastic/elasticsearch/issues/143224
+- class: org.elasticsearch.index.mapper.HalfFloatFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/143259
+- class: org.elasticsearch.index.mapper.DoubleFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/143259
+- class: org.elasticsearch.index.mapper.FloatFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/143259
 
 # Examples:
 #

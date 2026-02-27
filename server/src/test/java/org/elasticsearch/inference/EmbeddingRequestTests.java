@@ -46,7 +46,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
     }
 
     public void testParser_withSingleContentObject() throws IOException {
-        var imageFormat = randomFrom(InferenceString.supportedFormatsForType(DataType.IMAGE));
+        var imageFormat = randomFrom(DataType.IMAGE.getSupportedFormats());
         var requestJson = Strings.format("""
             {
                 "input": {
@@ -86,7 +86,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
     }
 
     public void testParser_withSingleContentObjectWithMultipleEntries() throws IOException {
-        var imageFormat = randomFrom(InferenceString.supportedFormatsForType(DataType.IMAGE));
+        var imageFormat = randomFrom(DataType.IMAGE.getSupportedFormats());
         var requestJson = Strings.format("""
             {
                 "input": {
@@ -115,7 +115,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
     }
 
     public void testParser_withMultipleContentObjects() throws IOException {
-        var imageFormat = randomFrom(InferenceString.supportedFormatsForType(DataType.IMAGE));
+        var imageFormat = randomFrom(DataType.IMAGE.getSupportedFormats());
         var requestJson = Strings.format("""
             {
                 "input": [

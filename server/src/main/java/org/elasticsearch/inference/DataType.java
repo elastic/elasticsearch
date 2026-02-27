@@ -12,23 +12,30 @@ package org.elasticsearch.inference;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Locale;
 
 /**
  * Describes the type of data to perform inference on
  */
 public enum DataType {
-    TEXT(DataFormat.TEXT),
-    IMAGE(DataFormat.BASE64);
+    TEXT(DataFormat.TEXT, EnumSet.of(DataFormat.TEXT)),
+    IMAGE(DataFormat.BASE64, EnumSet.of(DataFormat.BASE64));
 
     private final DataFormat defaultFormat;
+    private final EnumSet<DataFormat> supportedFormats;
 
-    DataType(DataFormat defaultFormat) {
+    DataType(DataFormat defaultFormat, EnumSet<DataFormat> supportedFormats) {
         this.defaultFormat = defaultFormat;
+        this.supportedFormats = supportedFormats;
     }
 
     public DataFormat getDefaultFormat() {
         return defaultFormat;
+    }
+
+    public EnumSet<DataFormat> getSupportedFormats() {
+        return supportedFormats;
     }
 
     @Override

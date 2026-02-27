@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -71,13 +70,13 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     private void validateTypeAndFormat() {
-        if (supportedFormatsForType(dataType).contains(dataFormat) == false) {
+        if (dataType.getSupportedFormats().contains(dataFormat) == false) {
             throw new IllegalArgumentException(
                 Strings.format(
                     "Data type [%s] does not support data format [%s], supported formats are %s",
                     dataType,
                     dataFormat,
-                    supportedFormatsForType(dataType)
+                    dataType.getSupportedFormats()
                 )
             );
         }
@@ -93,13 +92,6 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
 
     public boolean isText() {
         return DataType.TEXT.equals(dataType);
-    }
-
-    public static EnumSet<DataFormat> supportedFormatsForType(DataType type) {
-        return switch (type) {
-            case TEXT -> EnumSet.of(DataFormat.TEXT);
-            case IMAGE -> EnumSet.of(DataFormat.BASE64);
-        };
     }
 
     /**

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Configuration for Azure Blob Storage access including credentials and endpoint settings.

@@ -119,48 +119,33 @@ public sealed interface StageSpec {
         }
     }
 
-    record FpcStage(int tableSize, double maxError) implements StageSpec {
-        public FpcStage() {
+    record FpcDoubleStage(int tableSize, double maxError) implements StageSpec {
+        public FpcDoubleStage() {
             this(0, -1);
         }
 
-        public FpcStage(int tableSize) {
+        public FpcDoubleStage(int tableSize) {
             this(tableSize, -1);
         }
 
         @Override
         public StageId stageId() {
-            return StageId.FPC_STAGE;
+            return StageId.FPC_DOUBLE_STAGE;
         }
     }
 
-    record ChimpDoubleStage(int groupSize, double maxError) implements StageSpec {
-        public ChimpDoubleStage() {
-            this(16, -1);
+    record FpcFloatStage(int tableSize, double maxError) implements StageSpec {
+        public FpcFloatStage() {
+            this(0, -1);
         }
 
-        public ChimpDoubleStage(int groupSize) {
-            this(groupSize, -1);
+        public FpcFloatStage(int tableSize) {
+            this(tableSize, -1);
         }
 
         @Override
         public StageId stageId() {
-            return StageId.CHIMP_DOUBLE_STAGE;
-        }
-    }
-
-    record ChimpFloatStage(int groupSize, double maxError) implements StageSpec {
-        public ChimpFloatStage() {
-            this(16, -1);
-        }
-
-        public ChimpFloatStage(int groupSize) {
-            this(groupSize, -1);
-        }
-
-        @Override
-        public StageId stageId() {
-            return StageId.CHIMP_FLOAT_STAGE;
+            return StageId.FPC_FLOAT_STAGE;
         }
     }
 

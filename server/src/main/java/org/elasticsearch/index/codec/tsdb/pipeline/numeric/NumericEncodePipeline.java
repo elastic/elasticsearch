@@ -21,11 +21,10 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpDoubleTrans
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdDoubleTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatTransformEncodeStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformEncodeStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaDeltaCodecStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcTransformEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcDoubleTransformEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.PatchedPForEncodeStage;
@@ -190,20 +189,14 @@ public final class NumericEncodePipeline {
                     context.valueCount(),
                     context
                 );
-                case FPC_STAGE -> FpcTransformEncodeStage.encodeStatic(
-                    (FpcTransformEncodeStage) stages[pos],
+                case FPC_DOUBLE_STAGE -> FpcDoubleTransformEncodeStage.encodeStatic(
+                    (FpcDoubleTransformEncodeStage) stages[pos],
                     values,
                     context.valueCount(),
                     context
                 );
-                case CHIMP_DOUBLE_STAGE -> ChimpDoubleTransformEncodeStage.encodeStatic(
-                    (ChimpDoubleTransformEncodeStage) stages[pos],
-                    values,
-                    context.valueCount(),
-                    context
-                );
-                case CHIMP_FLOAT_STAGE -> ChimpFloatTransformEncodeStage.encodeStatic(
-                    (ChimpFloatTransformEncodeStage) stages[pos],
+                case FPC_FLOAT_STAGE -> FpcFloatTransformEncodeStage.encodeStatic(
+                    (FpcFloatTransformEncodeStage) stages[pos],
                     values,
                     context.valueCount(),
                     context
@@ -244,7 +237,7 @@ public final class NumericEncodePipeline {
     private static boolean isDoubleOnly(final StageSpec s) {
         return s instanceof StageSpec.AlpDoubleStage
             || s instanceof StageSpec.AlpRdDoubleStage
-            || s instanceof StageSpec.ChimpDoubleStage
+            || s instanceof StageSpec.FpcDoubleStage
             || s instanceof StageSpec.AlpDouble
             || s instanceof StageSpec.AlpRdDouble
             || s instanceof StageSpec.ChimpPayload
@@ -254,7 +247,7 @@ public final class NumericEncodePipeline {
     private static boolean isFloatOnly(final StageSpec s) {
         return s instanceof StageSpec.AlpFloatStage
             || s instanceof StageSpec.AlpRdFloatStage
-            || s instanceof StageSpec.ChimpFloatStage
+            || s instanceof StageSpec.FpcFloatStage
             || s instanceof StageSpec.GorillaFloat
             || s instanceof StageSpec.AlpFloat
             || s instanceof StageSpec.AlpRdFloat

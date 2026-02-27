@@ -83,9 +83,8 @@ public final class OptimalPipelines {
         Map.entry("alp_double_stage-offset-gcd-lz4", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage().offset().gcd().lz4()),
         Map.entry("fpc-lz4", bs -> PipelineConfig.forDoubles(bs).fpcStage().lz4()),
         Map.entry("fpc-offset-gcd-lz4", bs -> PipelineConfig.forDoubles(bs).fpcStage().offset().gcd().lz4()),
-        // Chimp transform pipelines
-        Map.entry("chimp-double-offset-gcd-bitpack", bs -> PipelineConfig.forDoubles(bs).chimpDoubleStage().offset().gcd().bitPack()),
-        Map.entry("chimp-double-bitpack", bs -> PipelineConfig.forDoubles(bs).chimpDoubleStage().bitPack())
+        // Chimp128 payload pipelines
+        Map.entry("chimp128-double", bs -> PipelineConfig.forDoubles(bs).chimp128())
     );
 
     private static final Map<String, IntFunction<PipelineConfig>> ALL;

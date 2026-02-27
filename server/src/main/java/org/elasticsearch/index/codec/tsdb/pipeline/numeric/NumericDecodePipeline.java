@@ -21,11 +21,10 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpDoubleTrans
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpFloatTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdDoubleTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatTransformDecodeStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformDecodeStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaDeltaCodecStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcTransformDecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcDoubleTransformDecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcFloatTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.PatchedPForDecodeStage;
@@ -136,20 +135,14 @@ public final class NumericDecodePipeline {
                         valueCount,
                         context
                     );
-                    case FPC_STAGE -> FpcTransformDecodeStage.decodeStatic(
-                        (FpcTransformDecodeStage) stages[pos],
+                    case FPC_DOUBLE_STAGE -> FpcDoubleTransformDecodeStage.decodeStatic(
+                        (FpcDoubleTransformDecodeStage) stages[pos],
                         values,
                         valueCount,
                         context
                     );
-                    case CHIMP_DOUBLE_STAGE -> ChimpDoubleTransformDecodeStage.decodeStatic(
-                        (ChimpDoubleTransformDecodeStage) stages[pos],
-                        values,
-                        valueCount,
-                        context
-                    );
-                    case CHIMP_FLOAT_STAGE -> ChimpFloatTransformDecodeStage.decodeStatic(
-                        (ChimpFloatTransformDecodeStage) stages[pos],
+                    case FPC_FLOAT_STAGE -> FpcFloatTransformDecodeStage.decodeStatic(
+                        (FpcFloatTransformDecodeStage) stages[pos],
                         values,
                         valueCount,
                         context

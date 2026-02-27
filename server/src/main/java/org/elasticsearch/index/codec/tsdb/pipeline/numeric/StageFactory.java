@@ -34,16 +34,14 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.Chimp128FloatD
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.Chimp128FloatEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleEncodeStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformDecodeStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatEncodeStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformDecodeStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaDeltaCodecStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcTransformDecodeStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcTransformEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcDoubleTransformDecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcDoubleTransformEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcFloatTransformDecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GorillaDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GorillaEncodeStage;
@@ -92,15 +90,12 @@ public final class StageFactory {
             case StageSpec.AlpRdFloatStage(double maxError) -> maxError > 0
                 ? new AlpRdFloatTransformEncodeStage(blockSize, maxError)
                 : new AlpRdFloatTransformEncodeStage(blockSize);
-            case StageSpec.FpcStage(int ts, double me) -> me > 0
-                ? new FpcTransformEncodeStage(blockSize, ts > 0 ? ts : 1024, me, isFloat)
-                : new FpcTransformEncodeStage(blockSize, ts > 0 ? ts : FpcTransformEncodeStage.DEFAULT_TABLE_SIZE, 0.0, isFloat);
-            case StageSpec.ChimpDoubleStage(int gs, double me) -> me > 0
-                ? new ChimpDoubleTransformEncodeStage(blockSize, gs, me)
-                : new ChimpDoubleTransformEncodeStage(blockSize, gs);
-            case StageSpec.ChimpFloatStage(int gs, double me) -> me > 0
-                ? new ChimpFloatTransformEncodeStage(blockSize, gs, me)
-                : new ChimpFloatTransformEncodeStage(blockSize, gs);
+            case StageSpec.FpcDoubleStage(int ts, double me) -> me > 0
+                ? new FpcDoubleTransformEncodeStage(blockSize, ts > 0 ? ts : FpcDoubleTransformEncodeStage.DEFAULT_TABLE_SIZE, me)
+                : new FpcDoubleTransformEncodeStage(blockSize, ts > 0 ? ts : FpcDoubleTransformEncodeStage.DEFAULT_TABLE_SIZE);
+            case StageSpec.FpcFloatStage(int ts, double me) -> me > 0
+                ? new FpcFloatTransformEncodeStage(blockSize, ts > 0 ? ts : FpcFloatTransformEncodeStage.DEFAULT_TABLE_SIZE, me)
+                : new FpcFloatTransformEncodeStage(blockSize, ts > 0 ? ts : FpcFloatTransformEncodeStage.DEFAULT_TABLE_SIZE);
             default -> throw new IllegalArgumentException("Not a transform stage: " + spec);
         };
     }
@@ -123,11 +118,12 @@ public final class StageFactory {
             case StageSpec.AlpRdDoubleStage alpRdDoubleStage -> new AlpRdDoubleTransformDecodeStage();
             case StageSpec.AlpFloatStage alpFloatStage -> new AlpFloatTransformDecodeStage();
             case StageSpec.AlpRdFloatStage alpRdFloatStage -> new AlpRdFloatTransformDecodeStage();
-            case StageSpec.FpcStage(int ts, double me) -> ts > 0
-                ? new FpcTransformDecodeStage(blockSize, ts, isFloat)
-                : new FpcTransformDecodeStage(blockSize, FpcTransformEncodeStage.DEFAULT_TABLE_SIZE, isFloat);
-            case StageSpec.ChimpDoubleStage chimpDoubleStage -> new ChimpDoubleTransformDecodeStage();
-            case StageSpec.ChimpFloatStage chimpFloatStage -> new ChimpFloatTransformDecodeStage();
+            case StageSpec.FpcDoubleStage(int ts, double me) -> ts > 0
+                ? new FpcDoubleTransformDecodeStage(blockSize, ts)
+                : new FpcDoubleTransformDecodeStage(blockSize);
+            case StageSpec.FpcFloatStage(int ts, double me) -> ts > 0
+                ? new FpcFloatTransformDecodeStage(blockSize, ts)
+                : new FpcFloatTransformDecodeStage(blockSize);
             default -> throw new IllegalArgumentException("Not a transform stage: " + spec);
         };
     }
@@ -197,9 +193,8 @@ public final class StageFactory {
             case ALP_RD_DOUBLE_STAGE -> new StageSpec.AlpRdDoubleStage();
             case ALP_FLOAT_STAGE -> new StageSpec.AlpFloatStage();
             case ALP_RD_FLOAT_STAGE -> new StageSpec.AlpRdFloatStage();
-            case FPC_STAGE -> new StageSpec.FpcStage();
-            case CHIMP_DOUBLE_STAGE -> new StageSpec.ChimpDoubleStage();
-            case CHIMP_FLOAT_STAGE -> new StageSpec.ChimpFloatStage();
+            case FPC_DOUBLE_STAGE -> new StageSpec.FpcDoubleStage();
+            case FPC_FLOAT_STAGE -> new StageSpec.FpcFloatStage();
             case BIT_PACK -> new StageSpec.BitPack();
             case ZSTD -> new StageSpec.Zstd();
             case LZ4 -> new StageSpec.Lz4();

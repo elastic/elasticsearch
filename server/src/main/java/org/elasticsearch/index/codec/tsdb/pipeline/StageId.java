@@ -27,9 +27,8 @@ public enum StageId {
     ALP_FLOAT_STAGE((byte) 0x0D, "alp"),
     ALP_RD_DOUBLE_STAGE((byte) 0x0E, "alpRd"),
     ALP_RD_FLOAT_STAGE((byte) 0x0F, "alpRd"),
-    FPC_STAGE((byte) 0x10, "fpc"),
-    CHIMP_DOUBLE_STAGE((byte) 0x11, "chimp"),
-    CHIMP_FLOAT_STAGE((byte) 0x12, "chimp"),
+    FPC_DOUBLE_STAGE((byte) 0x10, "fpcDouble"),
+    FPC_FLOAT_STAGE((byte) 0x13, "fpcFloat"),
 
     // Terminal stages - write final encoded payload
     BIT_PACK((byte) 0xA1, "bitPack"),
@@ -69,9 +68,8 @@ public enum StageId {
             case (byte) 0x0D -> ALP_FLOAT_STAGE;
             case (byte) 0x0E -> ALP_RD_DOUBLE_STAGE;
             case (byte) 0x0F -> ALP_RD_FLOAT_STAGE;
-            case (byte) 0x10 -> FPC_STAGE;
-            case (byte) 0x11 -> CHIMP_DOUBLE_STAGE;
-            case (byte) 0x12 -> CHIMP_FLOAT_STAGE;
+            case (byte) 0x10 -> FPC_DOUBLE_STAGE;
+            case (byte) 0x13 -> FPC_FLOAT_STAGE;
             case (byte) 0xA1 -> BIT_PACK;
             case (byte) 0xA2 -> ZSTD;
             case (byte) 0xA3 -> GORILLA_PAYLOAD;

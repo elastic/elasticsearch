@@ -25,9 +25,9 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformDecoder;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class FpcTransformStageTests extends NumericCodecStageTestCase {
+public class FpcDoubleTransformStageTests extends NumericCodecStageTestCase {
 
-    private static final TransformDecoder DECODER = new FpcTransformDecodeStage(128 << 7);
+    private static final TransformDecoder DECODER = new FpcDoubleTransformDecodeStage(128 << 7);
     private static final int EXTRA_BUFFER_PER_VALUE = 2;
 
     public void testRoundTripConstantValues() throws IOException {
@@ -38,8 +38,8 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(
             values,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
@@ -54,8 +54,8 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(
             values,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
@@ -72,8 +72,8 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(
             values,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
@@ -88,8 +88,8 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(
             values,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
@@ -101,8 +101,8 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(
             values,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
@@ -115,8 +115,8 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(
             values,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
@@ -131,8 +131,8 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(
             values,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize, 512),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize, 512),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
@@ -148,8 +148,8 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
             assertRoundTrip(
                 values,
                 blockSize,
-                StageId.FPC_STAGE.id,
-                new FpcTransformEncodeStage(blockSize),
+                StageId.FPC_DOUBLE_STAGE.id,
+                new FpcDoubleTransformEncodeStage(blockSize),
                 DECODER,
                 blockSize * EXTRA_BUFFER_PER_VALUE
             );
@@ -176,125 +176,6 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertFullPipelineRoundTrip(values, encoder);
     }
 
-    public void testFloatRoundTripConstantValues() throws IOException {
-        final int blockSize = randomBlockSize();
-        final long[] values = new long[blockSize];
-        final long constant = NumericUtils.floatToSortableInt(42.5f);
-        Arrays.fill(values, constant);
-        assertRoundTrip(
-            values,
-            blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
-            DECODER,
-            blockSize * EXTRA_BUFFER_PER_VALUE
-        );
-    }
-
-    public void testFloatRoundTripLinearSequence() throws IOException {
-        final int blockSize = randomBlockSize();
-        final long[] values = new long[blockSize];
-        for (int i = 0; i < blockSize; i++) {
-            values[i] = NumericUtils.floatToSortableInt(1.0f + i * 0.5f);
-        }
-        assertRoundTrip(
-            values,
-            blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
-            DECODER,
-            blockSize * EXTRA_BUFFER_PER_VALUE
-        );
-    }
-
-    public void testFloatRoundTripSensorLikeData() throws IOException {
-        final int blockSize = randomBlockSize();
-        final long[] values = new long[blockSize];
-        for (int i = 0; i < blockSize; i++) {
-            float v = 22.5f + Math.round(randomFloat() * 10.0f - 5.0f) / 10.0f;
-            values[i] = NumericUtils.floatToSortableInt(v);
-        }
-        assertRoundTrip(
-            values,
-            blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
-            DECODER,
-            blockSize * EXTRA_BUFFER_PER_VALUE
-        );
-    }
-
-    public void testFloatRoundTripRandomValues() throws IOException {
-        final int blockSize = randomBlockSize();
-        final long[] values = new long[blockSize];
-        for (int i = 0; i < blockSize; i++) {
-            values[i] = NumericUtils.floatToSortableInt(randomFloat() * 2e6f - 1e6f);
-        }
-        assertRoundTrip(
-            values,
-            blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
-            DECODER,
-            blockSize * EXTRA_BUFFER_PER_VALUE
-        );
-    }
-
-    public void testFloatRoundTripMixedPositiveNegative() throws IOException {
-        final int blockSize = randomBlockSize();
-        final long[] values = new long[blockSize];
-        for (int i = 0; i < blockSize; i++) {
-            float v = Math.round((randomFloat() * 200.0f - 100.0f) * 100.0f) / 100.0f;
-            values[i] = NumericUtils.floatToSortableInt(v);
-        }
-        assertRoundTrip(
-            values,
-            blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
-            DECODER,
-            blockSize * EXTRA_BUFFER_PER_VALUE
-        );
-    }
-
-    public void testFloatRepeatedFuzz() throws IOException {
-        for (int iter = 0; iter < 50; iter++) {
-            final int blockSize = randomBlockSize();
-            final long[] values = new long[blockSize];
-            for (int i = 0; i < blockSize; i++) {
-                values[i] = NumericUtils.floatToSortableInt(randomFloat() * 2e6f - 1e6f);
-            }
-            assertRoundTrip(
-                values,
-                blockSize,
-                StageId.FPC_STAGE.id,
-                new FpcTransformEncodeStage(blockSize),
-                DECODER,
-                blockSize * EXTRA_BUFFER_PER_VALUE
-            );
-        }
-    }
-
-    public void testFloatFullPipelineRoundTrip() throws IOException {
-        final int blockSize = randomBlockSize();
-        final long[] values = new long[blockSize];
-        for (int i = 0; i < blockSize; i++) {
-            values[i] = NumericUtils.floatToSortableInt(Math.round(randomFloat() * 10000.0f) / 100.0f);
-        }
-        final NumericEncoder encoder = NumericEncoder.fromConfig(PipelineConfig.forFloats(blockSize).fpcStage().offset().gcd().bitPack());
-        assertFullPipelineRoundTrip(values, encoder);
-    }
-
-    public void testFloatFullPipelineRoundTripLinear() throws IOException {
-        final int blockSize = randomBlockSize();
-        final long[] values = new long[blockSize];
-        for (int i = 0; i < blockSize; i++) {
-            values[i] = NumericUtils.floatToSortableInt(1.0f + i * 0.25f);
-        }
-        final NumericEncoder encoder = NumericEncoder.fromConfig(PipelineConfig.forFloats(blockSize).fpcStage().offset().gcd().bitPack());
-        assertFullPipelineRoundTrip(values, encoder);
-    }
-
     public void testRoundTripWithQuantization() throws IOException {
         final int blockSize = randomBlockSize();
         final double maxError = 0.01;
@@ -302,14 +183,14 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         for (int i = 0; i < blockSize; i++) {
             values[i] = NumericUtils.doubleToSortableLong(22.5 + randomDoubleBetween(-0.5, 0.5, true));
         }
-        final FpcTransformEncodeStage encoder = new FpcTransformEncodeStage(
+        final FpcDoubleTransformEncodeStage encoder = new FpcDoubleTransformEncodeStage(
             blockSize,
-            FpcTransformEncodeStage.DEFAULT_TABLE_SIZE,
+            FpcDoubleTransformEncodeStage.DEFAULT_TABLE_SIZE,
             maxError
         );
         final long[] encoded = values.clone();
         final PipelineDescriptor pipeline = new PipelineDescriptor(
-            new byte[] { StageId.FPC_STAGE.id, TestPayloadCodecStage.TEST_STAGE_ID },
+            new byte[] { StageId.FPC_DOUBLE_STAGE.id, TestPayloadCodecStage.TEST_STAGE_ID },
             blockSize
         );
         final EncodingContext context = new EncodingContext(blockSize, pipeline.pipelineLength());
@@ -368,8 +249,8 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(
             values,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
@@ -384,8 +265,8 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(
             values,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
@@ -404,8 +285,8 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(
             values,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
@@ -420,47 +301,55 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(
             values,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
     }
 
-    public void testFloatRoundTripSpecialValues() throws IOException {
-        final int blockSize = randomBlockSize();
+    // NOTE: Build values with a truly constant stride in IEEE-754 bit-space.
+    // Using doubleToSortableLong(20.5 + i*0.1) doesn't work because FP rounding
+    // makes the bit-level stride vary (e.g. 5*0.1 = 0.5 exact, but 4*0.1 is not).
+    // Instead, construct raw IEEE-754 bits directly: base + i * stride.
+    public void testDfcmStridesPrediction() throws IOException {
+        final int blockSize = 128;
+        final long rawBase = Double.doubleToRawLongBits(100.0);
+        final long rawStride = 0x100;
         final long[] values = new long[blockSize];
         for (int i = 0; i < blockSize; i++) {
-            values[i] = NumericUtils.floatToSortableInt(randomFloat() * 100.0f);
+            values[i] = NumericUtils.doubleToSortableLong(Double.longBitsToDouble(rawBase + (long) i * rawStride));
         }
-        values[0] = NumericUtils.floatToSortableInt(Float.MAX_VALUE);
-        values[1] = NumericUtils.floatToSortableInt(Float.MIN_VALUE);
-        values[2] = NumericUtils.floatToSortableInt(-0.0f);
-        values[3] = NumericUtils.floatToSortableInt(Float.MIN_NORMAL);
+        final long[] original = values.clone();
+        final FpcDoubleTransformEncodeStage encoder = new FpcDoubleTransformEncodeStage(blockSize);
+        final PipelineDescriptor pipeline = new PipelineDescriptor(
+            new byte[] { StageId.FPC_DOUBLE_STAGE.id, TestPayloadCodecStage.TEST_STAGE_ID },
+            blockSize
+        );
+        final EncodingContext context = new EncodingContext(blockSize, pipeline.pipelineLength());
+        context.setValueCount(values.length);
+        context.setCurrentPosition(0);
+        encoder.encode(values, values.length, context);
+
+        // NOTE: after encoding, values[0] should be 0 (first value stored in metadata).
+        // From i=3 onward, DFCM should predict the constant stride correctly,
+        // producing near-zero residuals (< 8 bits).
+        assertEquals(0L, values[0]);
+        for (int i = 3; i < blockSize; i++) {
+            assertTrue(
+                "residual at i=" + i + " should be small (< 8 bits), got " + Long.toBinaryString(values[i]),
+                Long.numberOfLeadingZeros(values[i]) >= 56
+            );
+        }
+
+        // Verify round-trip
         assertRoundTrip(
-            values,
+            original,
             blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
+            StageId.FPC_DOUBLE_STAGE.id,
+            new FpcDoubleTransformEncodeStage(blockSize),
             DECODER,
             blockSize * EXTRA_BUFFER_PER_VALUE
         );
     }
-
-    public void testFloatRoundTripIntegerLikeValues() throws IOException {
-        final int blockSize = randomBlockSize();
-        final long[] values = new long[blockSize];
-        for (int i = 0; i < blockSize; i++) {
-            values[i] = NumericUtils.floatToSortableInt((float) randomIntBetween(0, 10000));
-        }
-        assertRoundTrip(
-            values,
-            blockSize,
-            StageId.FPC_STAGE.id,
-            new FpcTransformEncodeStage(blockSize),
-            DECODER,
-            blockSize * EXTRA_BUFFER_PER_VALUE
-        );
-    }
-
 }

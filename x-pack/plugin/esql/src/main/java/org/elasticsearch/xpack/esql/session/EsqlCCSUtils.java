@@ -273,11 +273,14 @@ public class EsqlCCSUtils {
             if (indexResolution.isValid()
                 && indexResolution.resolvedIndices().isEmpty()
                 && concreteIndexRequested(indexResolution.get().name())) {
-                String error = Strings.format("Unknown index [%s]", indexResolution.get().name());
-                if (fatalErrorMessage == null) {
-                    fatalErrorMessage = new StringBuilder(error);
-                } else {
-                    fatalErrorMessage.append("; ").append(error);
+                String clusterAlias = RemoteClusterAware.parseClusterAlias(indexResolution.get().name());
+                if (executionInfo.shouldSkipOnFailure(clusterAlias) == false || usedFilter) {
+                    String error = Strings.format("Unknown index [%s]", indexResolution.get().name());
+                    if (fatalErrorMessage == null) {
+                        fatalErrorMessage = new StringBuilder(error);
+                    } else {
+                        fatalErrorMessage.append("; ").append(error);
+                    }
                 }
             }
         }

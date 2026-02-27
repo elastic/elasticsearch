@@ -243,8 +243,8 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
         boolean useBatched = randomBoolean();
         try {
-            if (useBatched == false) { // It's true by default
-                updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
+            if (useBatched) { // It's false by default
+                updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), true));
             }
             // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
             // are limited to 1
@@ -335,7 +335,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                 searchShardBlockingPlugins.forEach(plugin -> plugin.setRunOnPreQueryPhase((SearchContext c) -> {}));
             }
         } finally {
-            if (useBatched == false) {
+            if (useBatched) {
                 updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
             }
         }

@@ -12,9 +12,13 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PointInSetQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.compute.data.Block;
@@ -36,7 +40,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -135,38 +138,49 @@ public class LuceneSourceOperator extends LuceneOperator {
             return SHARD;
         }
 
-    }
+        /**
+         * Select the {@link PartitioningStrategy} based on the {@link Query}.
+         * <ul>
+         *     <li>
+         *         If the {@linkplain Query} matches <strong>no</strong> documents then this will
+         *         use the {@link PartitioningStrategy#SHARD} strategy so we minimize the overhead
+         *         of finding nothing.
+         *     </li>
+         *     <li>
+         *         If the {@linkplain Query} matches <strong>all</strong> documents then this will
+         *         use the {@link PartitioningStrategy#DOC} strategy because the overhead of using
+         *         that strategy for {@link MatchAllDocsQuery} is very low, and we need as many CPUs
+         *         as we can get to process all the documents.
+         *     </li>
+         *     <li>
+         *         Otherwise use the {@link PartitioningStrategy#SEGMENT} strategy because it's
+         *         overhead is generally low.
+         *     </li>
+         * </ul>
+         */
+        private static PartitioningStrategy highSpeedAutoStrategy(Query query) {
+            Query unwrapped = unwrap(query);
+            log.trace("highSpeedAutoStrategy {} {}", query, unwrapped);
+            return switch (unwrapped) {
+                case BooleanQuery bq -> highSpeedAutoStrategyForBoolean(bq);
+                case MatchAllDocsQuery q -> DOC;
+                case MatchNoDocsQuery q -> SHARD;
+                case IndexOrDocValuesQuery q -> highSpeedAutoStrategy(q.getIndexQuery());
+                default -> costlyToBuildScorer(unwrapped) ? SEGMENT : DOC;
+            };
+        }
 
-    /**
-     * Select the {@link PartitioningStrategy} based on the {@link Query}.
-     * <ul>
-     *     <li>
-     *         If the {@linkplain Query} matches <strong>no</strong> documents then this will
-     *         use the {@link PartitioningStrategy#SHARD} strategy so we minimize the overhead
-     *         of finding nothing.
-     *     </li>
-     *     <li>
-     *         If the {@linkplain Query} matches <strong>all</strong> documents then this will
-     *         use the {@link PartitioningStrategy#DOC} strategy because the overhead of using
-     *         that strategy for {@link MatchAllDocsQuery} is very low, and we need as many CPUs
-     *         as we can get to process all the documents.
-     *     </li>
-     *     <li>
-     *         Otherwise use the {@link PartitioningStrategy#SEGMENT} strategy because it's
-     *         overhead is generally low.
-     *     </li>
-     * </ul>
-     */
-    public static PartitioningStrategy highSpeedAutoStrategy(Query query) {
-        Query unwrapped = unwrap(query);
-        log.trace("highSpeedAutoStrategy {} {}", query, unwrapped);
-        return switch (unwrapped) {
-            case BooleanQuery q -> highSpeedAutoStrategyForBoolean(q);
-            case MatchAllDocsQuery q -> DOC;
-            case MatchNoDocsQuery q -> SHARD;
-            default -> SEGMENT;
-        };
-    }
+        // copied from UsageTrackingQueryCachingPolicy
+        private static boolean costlyToBuildScorer(Query query) {
+            if (query instanceof MultiTermQuery || query instanceof PointRangeQuery || query instanceof PointInSetQuery) {
+                return true;
+            }
+            final String clazzName = query.getClass().getSimpleName();
+            if (clazzName.equals("MultiTermQueryConstantScoreBlendedWrapper") || clazzName.equals("MultiTermQueryConstantScoreWrapper")) {
+                return true;
+            }
+            return false;
+        }
 
     private static Query unwrap(Query query) {
         while (true) {
@@ -185,41 +199,18 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
-    /**
-     * Select the {@link PartitioningStrategy} for a {@link BooleanQuery}.
-     * <ul>
-     *     <li>
-     *         If the query can't match anything, returns {@link PartitioningStrategy#SEGMENT}.
-     *     </li>
-     *
-     * </ul>
-     */
-    private static PartitioningStrategy highSpeedAutoStrategyForBoolean(BooleanQuery query) {
-        List<PartitioningStrategy> clauses = new ArrayList<>(query.clauses().size());
-        boolean allRequired = true;
-        for (BooleanClause c : query) {
-            Query clauseQuery = unwrap(c.query());
-            log.trace("highSpeedAutoStrategyForBooleanClause {} {}", c.occur(), clauseQuery);
-            if ((c.isProhibited() && clauseQuery instanceof MatchAllDocsQuery)
-                || (c.isRequired() && clauseQuery instanceof MatchNoDocsQuery)) {
-                // Can't match anything
-                return SHARD;
+        /**
+         * Select the {@link PartitioningStrategy} for a {@link BooleanQuery}.
+         */
+        private static PartitioningStrategy highSpeedAutoStrategyForBoolean(BooleanQuery query) {
+            for (BooleanClause c : query) {
+                var strategy = highSpeedAutoStrategy(c.query());
+                if (strategy != DOC) {
+                    return strategy;
+                }
             }
-            allRequired &= c.isRequired();
-            clauses.add(highSpeedAutoStrategy(clauseQuery));
+            return DOC;
         }
-        log.trace("highSpeedAutoStrategyForBooleanClause {} {}", allRequired, clauses);
-        if (allRequired == false) {
-            return SEGMENT;
-        }
-        if (clauses.stream().anyMatch(s -> s == SHARD)) {
-            return SHARD;
-        }
-        if (clauses.stream().anyMatch(s -> s == SEGMENT)) {
-            return SEGMENT;
-        }
-        assert clauses.stream().allMatch(s -> s == DOC);
-        return DOC;
     }
 
     @SuppressWarnings("this-escape")

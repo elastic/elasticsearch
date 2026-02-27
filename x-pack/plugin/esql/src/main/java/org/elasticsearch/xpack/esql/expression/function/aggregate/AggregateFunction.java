@@ -146,6 +146,17 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
      */
     public abstract AggregateFunction withFilter(Expression filter);
 
+    public static Expression withFilter(Expression expression, Expression filter) {
+        return expression.transformDown(AggregateFunction.class, af -> af.withFilter(filter));
+    }
+
+    public static List<? extends Expression> withFilter(List<? extends Expression> expression, Expression filter) {
+        if (filter == null) {
+            return expression;
+        }
+        return expression.stream().map(e -> withFilter(e, filter)).toList();
+    }
+
     public AggregateFunction withParameters(List<? extends Expression> parameters) {
         if (parameters == this.parameters) {
             return this;

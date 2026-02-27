@@ -111,12 +111,13 @@ public class FileSplitProvider implements SplitProvider {
                 Object partitionValue = partitionValues.get(columnName);
                 Boolean found = false;
                 for (Expression listItem : in.list()) {
-                    if (listItem instanceof Literal lit == false) {
+                    if (listItem instanceof Literal lit) {
+                        if (compareEquals(partitionValue, lit.value())) {
+                            found = true;
+                            break;
+                        }
+                    } else {
                         yield null;
-                    }
-                    if (compareEquals(partitionValue, ((Literal) listItem).value())) {
-                        found = true;
-                        break;
                     }
                 }
                 yield found;

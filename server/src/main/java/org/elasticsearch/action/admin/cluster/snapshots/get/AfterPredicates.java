@@ -20,7 +20,7 @@ import java.util.function.ToLongFunction;
  * Predicate for the {@code ?after} filter of the get-snapshots action. The {@link #test(SnapshotInfo)} predicate is applied to
  * {@link SnapshotInfo} instances to filter out those that sort before the cursor value (i.e. were returned on earlier pages of results).
  */
-public final class AfterPredicates {
+final class AfterPredicates {
 
     private static final AfterPredicates MATCH_ALL = new AfterPredicates(null);
 

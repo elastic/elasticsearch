@@ -449,6 +449,9 @@ tests:
 - class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
   method: testSyntheticSourceInObject
   issue: https://github.com/elastic/elasticsearch/issues/143176
+- class: org.elasticsearch.index.mapper.ShortFieldMapperTests
+  method: testSyntheticSourceWithTranslogSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/143196
 
 # Examples:
 #

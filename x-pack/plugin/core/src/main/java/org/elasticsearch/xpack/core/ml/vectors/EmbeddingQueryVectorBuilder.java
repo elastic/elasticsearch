@@ -15,11 +15,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     public static final String NAME = "embedding";
@@ -28,6 +33,27 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField FORMAT_FIELD = new ParseField("format");
     public static final ParseField VALUE_FIELD = new ParseField("value");
+
+    public static final ConstructingObjectParser<EmbeddingQueryVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new EmbeddingQueryVectorBuilder(
+            (String) args[0],
+            (InferenceString.DataType) args[1],
+            (InferenceString.DataFormat) args[2],
+            (String) args[3]
+        )
+    );
+
+    static {
+        PARSER.declareString(optionalConstructorArg(), INFERENCE_ID_FIELD);
+        PARSER.declareString(constructorArg(), InferenceString.DataType::fromString, TYPE_FIELD);
+        PARSER.declareString(optionalConstructorArg(), InferenceString.DataFormat::fromString, FORMAT_FIELD);
+        PARSER.declareString(constructorArg(), VALUE_FIELD);
+    }
+
+    public static EmbeddingQueryVectorBuilder fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
 
     private static final TransportVersion EMBEDDING_QUERY_VECTOR_BUILDER = TransportVersion.fromName("embedding_query_vector_builder");
 

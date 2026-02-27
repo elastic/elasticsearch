@@ -93,6 +93,7 @@ import java.util.stream.IntStream;
 @State(Scope.Thread)
 @Fork(1)
 public class ValuesSourceReaderBenchmark {
+
     static {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();

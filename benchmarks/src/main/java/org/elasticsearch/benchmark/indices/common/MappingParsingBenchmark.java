@@ -62,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
 public class MappingParsingBenchmark {
+
     static {
         // For Elasticsearch900Lucene101Codec:
         LogConfigurator.loadLog4jPlugins();

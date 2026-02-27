@@ -35,10 +35,12 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 5, time = 1)
 @Fork(value = 3)
 public class OptimizedScalarQuantizerBenchmark {
+
     static {
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
+
     @Param({ "384", "702", "1024" })
     int dims;
 

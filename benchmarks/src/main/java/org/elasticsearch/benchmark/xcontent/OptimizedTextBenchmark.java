@@ -51,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 1)
 @Measurement(iterations = 5)
 public class OptimizedTextBenchmark {
+
     static {
         // For Elasticsearch900Lucene101Codec:
         LogConfigurator.loadLog4jPlugins();

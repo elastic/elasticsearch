@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec.internal;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 
 /**
@@ -21,6 +22,18 @@ public interface MemorySegmentAccessor {
     MemorySegment entireSegmentOrNull() throws IOException;
 
     MemorySegment segmentForEntryOrNull(int ordinal) throws IOException;
+
+    /**
+     * Returns a {@link MemorySegment} containing an array of native pointers,
+     * one for each ordinal, suitable for passing to native scatter-style functions.
+     * The segment is allocated from the provided {@link Arena}, so the caller
+     * controls its lifecycle.
+     * Returns {@code null} if the backing storage does not support this operation
+     * (e.g. heap-backed segments whose addresses cannot be captured as native pointers).
+     */
+    default MemorySegment segmentForEntriesOrNull(int[] ordinals, Arena arena) throws IOException {
+        return null;
+    }
 
     MemorySegmentAccessor clone();
 }

@@ -25,6 +25,21 @@ static inline int64_t array_mapper(const int32_t i, const int32_t* offsets) {
    return offsets[i];
 }
 
+template <typename T>
+static inline const T* identity_mapper_2(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+   return data + i * pitch;
+}
+
+template <typename T>
+static inline const T* array_mapper_2(const T* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+   return data + offsets[i] * pitch;
+}
+
+template <typename T>
+static inline const T* sparse_mapper_2(T* const* data, const int32_t i, const int32_t* offsets, const int32_t pitch) {
+   return data[i];
+}
+
 template <typename T, int offset, int64_t(*mapper)(const int32_t, const int32_t*)>
 static inline const T* safe_mapper_offset(
     const T* a,

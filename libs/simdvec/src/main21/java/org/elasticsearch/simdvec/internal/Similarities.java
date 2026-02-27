@@ -104,6 +104,7 @@ public class Similarities {
         DataType.FLOAT32,
         Operation.BULK_OFFSETS
     );
+    static final MethodHandle SQUARE_DISTANCE_F32_BULK_SPARSE = DISTANCE_FUNCS.squareDistanceF32BulkSparse();
 
     private static RuntimeException rethrow(Throwable t) {
         if (t instanceof Error err) {
@@ -427,6 +428,14 @@ public class Similarities {
     ) {
         try {
             SQUARE_DISTANCE_F32_BULK_WITH_OFFSETS.invokeExact(a, b, length, pitch, offsets, count, scores);
+        } catch (Throwable e) {
+            throw rethrow(e);
+        }
+    }
+
+    static void squareDistanceF32BulkSparse(MemorySegment a, MemorySegment b, int dimensions, int count, MemorySegment results) {
+        try {
+            SQUARE_DISTANCE_F32_BULK_SPARSE.invokeExact(a, b, dimensions, count, results);
         } catch (Throwable e) {
             throw rethrow(e);
         }

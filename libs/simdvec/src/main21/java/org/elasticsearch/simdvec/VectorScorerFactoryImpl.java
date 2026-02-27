@@ -28,7 +28,9 @@ import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.MemorySegmentAccessor;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier.SUPPORTS_HEAP_SEGMENTS;
@@ -110,6 +112,15 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         @Override
         public MemorySegment segmentForEntryOrNull(int ordinal) {
             return store.getVectorSegment(ordinal);
+        }
+
+        @Override
+        public MemorySegment segmentForEntriesOrNull(int[] ordinals, Arena arena) {
+            var pointers = ArenaUtil.allocate(arena, ValueLayout.ADDRESS, ordinals.length);
+            for (int i = 0; i < ordinals.length; i++) {
+                pointers.setAtIndex(ValueLayout.ADDRESS, i, store.getVectorSegment(ordinals[i]));
+            }
+            return pointers;
         }
 
         @Override

@@ -512,21 +512,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final Releasable cleanUpStatelessCommitService = () -> {
             try {
                 statelessCommitService.setTrackedSearchNodesPerCommitOnRelocationTarget(request.shardId(), null);
-                statelessCommitService.clearSourceBlobsEntry(request.shardId());
             } catch (AlreadyClosedException ignored) {
                 // engine is closed
             }
         };
-
-        final var latestBccBlob = request.latestBccBlob();
-        if (latestBccBlob != null) {
-            statelessCommitService.putSourceBlobsEntry(
-                request.shardId(),
-                latestBccBlob.blobFile(),
-                latestBccBlob.length(),
-                request.otherBlobFiles()
-            );
-        }
 
         ActionListener.run(
             ActionListener.releaseAfter(

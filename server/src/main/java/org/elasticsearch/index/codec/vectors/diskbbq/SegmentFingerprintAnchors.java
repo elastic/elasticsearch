@@ -14,6 +14,7 @@ import org.apache.lucene.util.VectorUtil;
 
 import java.io.IOException;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Fixed set of anchor vectors used to compute segment and query fingerprints for IVF
@@ -26,16 +27,30 @@ public final class SegmentFingerprintAnchors {
 
     private static final long SEED = 0x9E3779B97F4A7C15L;
 
+    /** Cache of anchor vectors by dimension to avoid per-query allocation and RNG work. */
+    private static final ConcurrentHashMap<Integer, float[][]> ANCHOR_CACHE = new ConcurrentHashMap<>();
+
+    /** Max cached dimensions; beyond this the cache is cleared to bound memory. */
+    private static final int MAX_CACHED_ANCHOR_DIMENSIONS = 64;
+
     private SegmentFingerprintAnchors() {}
 
     /**
      * Returns K unit-norm anchor vectors for the given dimension (deterministic).
+     * Results are cached by dimension to reduce allocation and CPU per query.
      */
     public static float[][] getAnchors(int dimension) {
-        int ancoraDirections = ancoraDirections(dimension);
+        if (ANCHOR_CACHE.size() >= MAX_CACHED_ANCHOR_DIMENSIONS) {
+            ANCHOR_CACHE.clear();
+        }
+        return ANCHOR_CACHE.computeIfAbsent(dimension, SegmentFingerprintAnchors::computeAnchors);
+    }
+
+    private static float[][] computeAnchors(int dimension) {
+        int k = ancoraDirections(dimension);
         Random rng = new Random(SEED + dimension * 31L);
-        float[][] anchors = new float[ancoraDirections][dimension];
-        for (int j = 0; j < ancoraDirections; j++) {
+        float[][] anchors = new float[k][dimension];
+        for (int j = 0; j < k; j++) {
             for (int d = 0; d < dimension; d++) {
                 anchors[j][d] = (float) (rng.nextGaussian());
             }
@@ -118,7 +133,14 @@ public final class SegmentFingerprintAnchors {
         return Math.max(0f, dot);
     }
 
+    /** Minimum anchor directions for discriminative affinity (avoids QPS regression at low visit %). */
+    private static final int MIN_ANCHOR_DIRECTIONS = 8;
+
+    /**
+     * Number of anchor directions for the given dimension. At least {@link #MIN_ANCHOR_DIRECTIONS}
+     * for discriminative segment affinity; at least 1 for edge case dim=1.
+     */
     public static int ancoraDirections(int vectorDimension) {
-        return (int) Math.log(vectorDimension);
+        return Math.max(MIN_ANCHOR_DIRECTIONS, Math.max(1, (int) Math.log(vectorDimension)));
     }
 }

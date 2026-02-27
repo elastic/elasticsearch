@@ -46,6 +46,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -60,6 +61,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     // Cap for cluster-size weight to avoid one segment dominating (safety bound, not a recall tunable)
     private static final float CLUSTER_SIZE_WEIGHT_CAP = 2f;
+
+    /** Power for affinity when distributing budget; > 1 concentrates more on best segments. */
+    private static final float AFFINITY_POWER = 1.5f;
 
     protected final String field;
     protected final float providedVisitRatio;
@@ -154,14 +158,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
         assert this instanceof IVFKnnFloatVectorQuery;
-        int totalVectors = 0;
-        for (LeafReaderContext leafReaderContext : leafReaderContexts) {
-            LeafReader leafReader = leafReaderContext.reader();
-            FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
-            if (floatVectorValues != null) {
-                totalVectors += floatVectorValues.size();
-            }
-        }
+        SegmentMetadataResult result = collectSegmentMetadata(leafReaderContexts, field);
+        int totalVectors = result.totalVectors();
 
         final float visitRatio;
         if (providedVisitRatio == 0.0f) {
@@ -174,10 +172,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             visitRatio = providedVisitRatio;
         }
 
-        List<SegmentMetadata> segmentMetadata = collectSegmentMetadata(leafReaderContexts, field);
-
         // allocate segment-specific visit ratios based on segment metadata/statistics
-        float[] segmentVisitRatios = allocateVisitedRatio(segmentMetadata, visitRatio, totalVectors, enableProximityBasedAllocation);
+        float[] segmentVisitRatios = allocateVisitedRatio(result.metadata(), visitRatio, totalVectors, enableProximityBasedAllocation);
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (int i = 0; i < leafReaderContexts.size(); i++) {
@@ -278,6 +274,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         boolean isValid
     ) {}
 
+    /** Result of collecting segment metadata in a single pass; includes totalVectors for visitRatio and allocation. */
+    private record SegmentMetadataResult(List<SegmentMetadata> metadata, int totalVectors) {}
+
     /**
      * Calculate segment affinity from query-segment relevance only.
      * Uses fingerprint score when available (max similarity of anchors to any centroid), else global centroid score.
@@ -314,12 +313,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     /**
-     * collect metadata for all segments to enable budget allocation.
+     * Collect metadata for all segments in a single pass; also accumulates totalVectors for visitRatio and allocation.
      * Uses segment fingerprint for affinity when present (no per-segment centroid scoring);
      * otherwise falls back to global-centroid score only.
      */
-    private List<SegmentMetadata> collectSegmentMetadata(List<LeafReaderContext> leafReaderContexts, String field) throws IOException {
+    private SegmentMetadataResult collectSegmentMetadata(List<LeafReaderContext> leafReaderContexts, String field) throws IOException {
         List<SegmentMetadata> segmentMetadata = new ArrayList<>(leafReaderContexts.size());
+        int totalVectors = 0;
         float[] queryVector = getQuery();
         float[] queryFingerprint = null;
         float[][] anchors = null;
@@ -328,6 +328,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             LeafReader leafReader = context.reader();
             FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
 
+            if (floatVectorValues != null) {
+                totalVectors += floatVectorValues.size();
+            }
             if (floatVectorValues == null || floatVectorValues.size() == 0) {
                 segmentMetadata.add(new SegmentMetadata(context, Float.NaN, Float.NaN, null, 0, 0, 0f, null, null, false));
                 continue;
@@ -394,7 +397,40 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                                 true
                             )
                         );
+                    } else {
+                        // One entry per leaf so segmentVisitRatios[i] aligns with leafReaderContexts.get(i)
+                        int vectorCount = floatVectorValues.size();
+                        segmentMetadata.add(
+                            new SegmentMetadata(
+                                context,
+                                Float.NaN,
+                                Float.NaN,
+                                null,
+                                vectorCount,
+                                0,
+                                0f,
+                                null,
+                                null,
+                                false
+                            )
+                        );
                     }
+                } else {
+                    // Leaf reader not SegmentReader but has vectors; add invalid so one entry per leaf
+                    segmentMetadata.add(
+                        new SegmentMetadata(
+                            context,
+                            Float.NaN,
+                            Float.NaN,
+                            null,
+                            floatVectorValues.size(),
+                            0,
+                            0f,
+                            null,
+                            null,
+                            false
+                        )
+                    );
                 }
             } else {
                 segmentMetadata.add(
@@ -403,7 +439,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             }
         }
 
-        return segmentMetadata;
+        return new SegmentMetadataResult(segmentMetadata, totalVectors);
     }
 
     /**
@@ -419,13 +455,32 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (enableProximityAllocation == false || segmentMetadata.isEmpty()) {
             return new float[segmentMetadata.size()];
         }
+        if (baseVisitRatio >= 1.0f) {
+            float[] ratios = new float[segmentMetadata.size()];
+            Arrays.fill(ratios, 1.0f);
+            return ratios;
+        }
 
         int validSegments = 0;
         int totalNumCentroids = 0;
+        float maxAffinityScore = Float.NEGATIVE_INFINITY;
+        float minRadius = Float.POSITIVE_INFINITY;
+        float maxRadius = Float.NEGATIVE_INFINITY;
+        int segmentsWithRadius = 0;
         for (SegmentMetadata m : segmentMetadata) {
             if (m.isValid() && m.vectorCount() > 0) {
                 validSegments++;
                 totalNumCentroids += m.numCentroids();
+                float s = Float.isNaN(m.fingerprintScore()) ? m.globalCentroidScore() : m.fingerprintScore();
+                if (Float.isNaN(s) == false && s > maxAffinityScore) {
+                    maxAffinityScore = s;
+                }
+                if (m.maxClusterRadius() != null) {
+                    float r = m.maxClusterRadius();
+                    if (r < minRadius) minRadius = r;
+                    if (r > maxRadius) maxRadius = r;
+                    segmentsWithRadius++;
+                }
             }
         }
         if (validSegments == 0) {
@@ -435,33 +490,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         float totalBudget = baseVisitRatio * totalVectors;
         float minRatio = baseVisitRatio / validSegments;
         float remainingBudget = totalBudget * (validSegments - 1) / validSegments;
-
-        float maxAffinityScore = Float.NEGATIVE_INFINITY;
-        for (SegmentMetadata m : segmentMetadata) {
-            if (m.isValid()) {
-                float s = Float.isNaN(m.fingerprintScore()) ? m.globalCentroidScore() : m.fingerprintScore();
-                if (Float.isNaN(s) == false && s > maxAffinityScore) {
-                    maxAffinityScore = s;
-                }
-            }
-        }
         if (maxAffinityScore <= 0f) {
             maxAffinityScore = 1f;
         }
-
         float globalAvgClusterSize = totalNumCentroids > 0 ? (float) totalVectors / totalNumCentroids : 1f;
-
-        float minRadius = Float.POSITIVE_INFINITY;
-        float maxRadius = Float.NEGATIVE_INFINITY;
-        int segmentsWithRadius = 0;
-        for (SegmentMetadata m : segmentMetadata) {
-            if (m.isValid() && m.vectorCount() > 0 && m.maxClusterRadius() != null) {
-                float r = m.maxClusterRadius();
-                if (r < minRadius) minRadius = r;
-                if (r > maxRadius) maxRadius = r;
-                segmentsWithRadius++;
-            }
-        }
         float radiusRange = maxRadius > minRadius ? maxRadius - minRadius : 1f;
 
         float[] affinityScores = new float[segmentMetadata.size()];
@@ -489,6 +521,18 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             }
         }
 
+        // Power-weight affinity so best segments get a larger share of the variable budget
+        float[] weightedScores = new float[segmentMetadata.size()];
+        float totWeighted = 0f;
+        for (int i = 0; i < segmentMetadata.size(); i++) {
+            if (affinityScores[i] > 0f) {
+                weightedScores[i] = (float) Math.pow(affinityScores[i], AFFINITY_POWER);
+                totWeighted += weightedScores[i];
+            } else {
+                weightedScores[i] = 0f;
+            }
+        }
+
         float[] segmentVisitRatios = new float[segmentMetadata.size()];
         for (int i = 0; i < segmentMetadata.size(); i++) {
             int size = segmentMetadata.get(i).vectorCount();
@@ -497,8 +541,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 continue;
             }
             segmentVisitRatios[i] = minRatio;
-            if (affinityScores[i] > 0f && totAffinity > 0f) {
-                segmentVisitRatios[i] += (affinityScores[i] / totAffinity) * remainingBudget / size;
+            if (weightedScores[i] > 0f && totWeighted > 0f) {
+                segmentVisitRatios[i] += (weightedScores[i] / totWeighted) * remainingBudget / size;
                 segmentVisitRatios[i] = Math.min(1f, segmentVisitRatios[i]);
             }
         }

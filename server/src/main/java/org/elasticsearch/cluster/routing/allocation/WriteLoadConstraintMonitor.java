@@ -104,7 +104,7 @@ public class WriteLoadConstraintMonitor {
 
     public static boolean nodeIsHotspotEligible(DiscoveryNode node) {
         final var nodeRoles = node.getRoles();
-        return nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE) || nodeRoles.contains(DiscoveryNodeRole.DATA_ROLE);
+        return nodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE);
     }
 
     /**

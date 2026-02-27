@@ -292,6 +292,9 @@ public class MatchQueryParser {
     }
 
     protected boolean assertBooleanClauses(Query query, int numClauses) {
+        if (query == null) {
+            return numClauses == 0;
+        }
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(Integer.MAX_VALUE);
         query.visit(visitor);
         return visitor.getNumClauses() == numClauses;

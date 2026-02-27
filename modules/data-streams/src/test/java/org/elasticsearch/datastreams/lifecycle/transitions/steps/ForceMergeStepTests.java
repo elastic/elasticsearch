@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.datastreams.lifecycle.transitions.steps.ForceMergeStep.DLM_FORCE_MERGE_COMPLETE_SETTING;
@@ -158,6 +159,6 @@ public class ForceMergeStepTests extends ESTestCase {
     }
 
     private DlmStepContext createStepContext(ProjectState projectState) {
-        return new DlmStepContext(index, projectState, deduplicator, errorStore, randomIntBetween(1, 10), client);
+        return new DlmStepContext(index, projectState, deduplicator, errorStore, randomIntBetween(1, 10), client, Clock.systemUTC());
     }
 }

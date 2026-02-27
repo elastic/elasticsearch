@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.HistogramValue;
@@ -87,9 +88,11 @@ public class HistogramFieldMapper extends FieldMapper {
          * Only the metric type histogram is supported.
          */
         private final Parameter<TimeSeriesParams.MetricType> metric;
+        private final IndexVersion indexCreatedVersion;
 
-        public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
+        public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault, IndexVersion indexCreatedVersion) {
             super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
@@ -127,7 +130,12 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), COERCE_SETTING.get(c.getSettings())),
+        (n, c) -> new Builder(
+            n,
+            IGNORE_MALFORMED_SETTING.get(c.getSettings()),
+            COERCE_SETTING.get(c.getSettings()),
+            c.getIndexSettings().getIndexVersionCreated()
+        ),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -137,11 +145,13 @@ public class HistogramFieldMapper extends FieldMapper {
     private final Explicit<Boolean> coerce;
     private final boolean coerceByDefault;
     private final TimeSeriesParams.MetricType metricType;
+    private final IndexVersion indexCreatedVersion;
 
     public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
         this.coerce = builder.coerce.getValue();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.metricType = builder.metric.get();
@@ -163,7 +173,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault).metric(metricType).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion).metric(metricType).init(this);
     }
 
     @Override
@@ -401,7 +411,7 @@ public class HistogramFieldMapper extends FieldMapper {
             }
 
             if (malformedDataForSyntheticSource != null) {
-                context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), malformedDataForSyntheticSource));
+                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
             }
 
             context.addIgnoredField(fieldType().name());
@@ -479,7 +489,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new HistogramSyntheticFieldLoader(),
-                new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
+                CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion)
             )
         );
     }

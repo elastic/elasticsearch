@@ -401,35 +401,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                         // One entry per leaf so segmentVisitRatios[i] aligns with leafReaderContexts.get(i)
                         int vectorCount = floatVectorValues.size();
                         segmentMetadata.add(
-                            new SegmentMetadata(
-                                context,
-                                Float.NaN,
-                                Float.NaN,
-                                null,
-                                vectorCount,
-                                0,
-                                0f,
-                                null,
-                                null,
-                                false
-                            )
+                            new SegmentMetadata(context, Float.NaN, Float.NaN, null, vectorCount, 0, 0f, null, null, false)
                         );
                     }
                 } else {
                     // Leaf reader not SegmentReader but has vectors; add invalid so one entry per leaf
                     segmentMetadata.add(
-                        new SegmentMetadata(
-                            context,
-                            Float.NaN,
-                            Float.NaN,
-                            null,
-                            floatVectorValues.size(),
-                            0,
-                            0f,
-                            null,
-                            null,
-                            false
-                        )
+                        new SegmentMetadata(context, Float.NaN, Float.NaN, null, floatVectorValues.size(), 0, 0f, null, null, false)
                     );
                 }
             } else {

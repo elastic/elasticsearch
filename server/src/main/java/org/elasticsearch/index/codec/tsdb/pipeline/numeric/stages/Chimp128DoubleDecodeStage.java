@@ -76,7 +76,7 @@ public final class Chimp128DoubleDecodeStage implements PayloadDecoder {
                     xor = windowBits << prevTrailingZeros;
                 } else {
                     final int bucketIndex = (int) readBits(BUCKET_BITS, in, bits);
-                    final int leadingZeros = ChimpDoubleEncodeStage.LEADING_ZERO_BUCKETS[bucketIndex];
+                    final int leadingZeros = Chimp128DoubleEncodeStage.LEADING_ZERO_BUCKETS[bucketIndex];
                     final int meaningfulBits = (int) readBits(MEANINGFUL_BITS_BITS, in, bits) + 1;
                     final int trailingZeros = 64 - leadingZeros - meaningfulBits;
 

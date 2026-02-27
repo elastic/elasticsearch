@@ -20,6 +20,7 @@ import java.io.IOException;
 public final class Chimp128FloatEncodeStage implements PayloadEncoder {
 
     private static final int BIT_STATE_SIZE = 16;
+    static final int[] LEADING_ZERO_BUCKETS = { 0, 4, 6, 8, 10, 12, 14, 16 };
     private static final int BUCKET_BITS = 3;
     private static final int MEANINGFUL_BITS_BITS = 5;
     private static final int BIT_BUFFER_OFFSET = 0;
@@ -123,8 +124,8 @@ public final class Chimp128FloatEncodeStage implements PayloadEncoder {
                         writeBits(bestIndex, indexBits, out, bits);
                     }
 
-                    final int bucketIndex = ChimpFloatEncodeStage.findBucketIndex(leadingZeros);
-                    final int roundedLeadingZeros = ChimpFloatEncodeStage.LEADING_ZERO_BUCKETS[bucketIndex];
+                    final int bucketIndex = findBucketIndex(leadingZeros);
+                    final int roundedLeadingZeros = LEADING_ZERO_BUCKETS[bucketIndex];
                     final int meaningfulBits = 32 - roundedLeadingZeros - trailingZeros;
 
                     writeBits(bucketIndex, BUCKET_BITS, out, bits);
@@ -144,6 +145,15 @@ public final class Chimp128FloatEncodeStage implements PayloadEncoder {
         }
 
         flushBits(out, bits);
+    }
+
+    static int findBucketIndex(int leadingZeros) {
+        for (int i = LEADING_ZERO_BUCKETS.length - 1; i > 0; i--) {
+            if (LEADING_ZERO_BUCKETS[i] <= leadingZeros) {
+                return i;
+            }
+        }
+        return 0;
     }
 
     private static void initBitBuffer(byte[] bits) {

@@ -35,6 +35,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     private final CharacterRunAutomaton automaton;
     private final String pattern;
     // string representation without backquotes
+    // cannot just use NamedExpression.name() because the superclass gives this a constant value of "<unresolved>"
     private final String name;
 
     public UnresolvedNamePattern(Source source, CharacterRunAutomaton automaton, String patternString, String name) {
@@ -58,6 +59,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
         return automaton.run(string);
     }
 
+    // override because the super class throws
     @Override
     public String name() {
         return name;
@@ -105,7 +107,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnresolvedNamePattern) o;
-        return super.innerEquals(other, true) && Objects.equals(pattern, other.pattern);
+        return super.innerEquals(other, true) && Objects.equals(pattern, other.pattern) && Objects.equals(name, other.name);
     }
 
     @Override

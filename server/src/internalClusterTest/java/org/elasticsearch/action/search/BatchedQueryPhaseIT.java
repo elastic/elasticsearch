@@ -32,46 +32,45 @@ import static org.hamcrest.Matchers.equalTo;
 public class BatchedQueryPhaseIT extends ESIntegTestCase {
 
     public void testNumReducePhases() {
-        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), true));
-        try {
-            String indexName = "test-idx";
-            assertAcked(
-                prepareCreate(indexName).setMapping("title", "type=keyword")
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-            );
-            for (int i = 0; i < 100; i++) {
-                prepareIndex(indexName).setId(Integer.toString(i)).setSource("title", "testing" + i).get();
-            }
-            refresh();
-
-            final String coordinatorNode = internalCluster().getRandomNodeName();
-            final String coordinatorNodeId = getNodeId(coordinatorNode);
-            assertNoFailuresAndResponse(
-                client(coordinatorNode).prepareSearch(indexName)
-                    .setBatchedReduceSize(2)
-                    .addAggregation(terms("terms").field("title"))
-                    .setSearchType(QUERY_THEN_FETCH),
-                response -> {
-                    Map<String, Integer> shardsPerNode = getNodeToShardCountMap(indexName);
-                    // Shards are not batched if they are already on the coordinating node or if there is only one per data node.
-                    final int coordinatorShards = shardsPerNode.getOrDefault(coordinatorNodeId, 0);
-                    final long otherSingleShardNodes = shardsPerNode.entrySet()
-                        .stream()
-                        .filter(entry -> entry.getKey().equals(coordinatorNodeId) == false)
-                        .filter(entry -> entry.getValue() == 1)
-                        .count();
-                    final int numNotBatchedShards = coordinatorShards + (int) otherSingleShardNodes;
-
-                    // Because batched_reduce_size = 2, whenever two or more shard results exist on the coordinating node, they will be
-                    // partially reduced (batched queries do not count towards num_reduce_phases).
-                    // Hence, the formula: (# of NOT batched shards) - 1.
-                    final int expectedNumReducePhases = Math.max(1, numNotBatchedShards - 1);
-                    assertThat(response.getNumReducePhases(), equalTo(expectedNumReducePhases));
-                }
-            );
-        } finally {
-            updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
+        assumeTrue(
+            "test skipped because batched query execution disabled by feature flag",
+            SearchService.BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled()
+        );
+        String indexName = "test-idx";
+        assertAcked(
+            prepareCreate(indexName).setMapping("title", "type=keyword")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+        );
+        for (int i = 0; i < 100; i++) {
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource("title", "testing" + i).get();
         }
+        refresh();
+
+        final String coordinatorNode = internalCluster().getRandomNodeName();
+        final String coordinatorNodeId = getNodeId(coordinatorNode);
+        assertNoFailuresAndResponse(
+            client(coordinatorNode).prepareSearch(indexName)
+                .setBatchedReduceSize(2)
+                .addAggregation(terms("terms").field("title"))
+                .setSearchType(QUERY_THEN_FETCH),
+            response -> {
+                Map<String, Integer> shardsPerNode = getNodeToShardCountMap(indexName);
+                // Shards are not batched if they are already on the coordinating node or if there is only one per data node.
+                final int coordinatorShards = shardsPerNode.getOrDefault(coordinatorNodeId, 0);
+                final long otherSingleShardNodes = shardsPerNode.entrySet()
+                    .stream()
+                    .filter(entry -> entry.getKey().equals(coordinatorNodeId) == false)
+                    .filter(entry -> entry.getValue() == 1)
+                    .count();
+                final int numNotBatchedShards = coordinatorShards + (int) otherSingleShardNodes;
+
+                // Because batched_reduce_size = 2, whenever two or more shard results exist on the coordinating node, they will be
+                // partially reduced (batched queries do not count towards num_reduce_phases).
+                // Hence, the formula: (# of NOT batched shards) - 1.
+                final int expectedNumReducePhases = Math.max(1, numNotBatchedShards - 1);
+                assertThat(response.getNumReducePhases(), equalTo(expectedNumReducePhases));
+            }
+        );
     }
 
     private Map<String, Integer> getNodeToShardCountMap(String indexName) {

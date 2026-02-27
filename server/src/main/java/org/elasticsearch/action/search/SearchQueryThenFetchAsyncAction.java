@@ -584,8 +584,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
 
                     /**
-                     * This code is strictly for _snapshot_ backwards compatibility. The batched query phase
-                     * was not yet enabled when the transport version
+                     * This code is strictly for _snapshot_ backwards compatibility. The feature flag
+                     * {@link SearchService#BATCHED_QUERY_PHASE_FEATURE_FLAG} was not turned on when the transport version
                      * {@link SearchQueryThenFetchAsyncAction#BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE} was introduced.
                      */
                     private void bwcHandleException(TransportException e) {
@@ -959,8 +959,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
 
         /**
-         * This code is strictly for _snapshot_ backwards compatibility. The batched query phase
-         * was not yet enabled when the transport version
+         * This code is strictly for _snapshot_ backwards compatibility. The feature flag
+         * {@link SearchService#BATCHED_QUERY_PHASE_FEATURE_FLAG} was not turned on when the transport version
          * {@link SearchQueryThenFetchAsyncAction#BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE} was introduced.
          */
         void bwcRespond() {

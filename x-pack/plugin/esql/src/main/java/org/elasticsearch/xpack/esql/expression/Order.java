@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -42,7 +44,7 @@ public class Order extends Expression {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readEnum(OrderDirection.class),
-            in.readEnum(NullsPosition.class)
+            NullsPosition.readFrom(in)
         );
     }
 
@@ -51,7 +53,7 @@ public class Order extends Expression {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child);
         out.writeEnum(direction);
-        out.writeEnum(nulls);
+        nulls.writeTo(out);
     }
 
     @Override
@@ -123,9 +125,33 @@ public class Order extends Expression {
         DESC
     }
 
-    public enum NullsPosition {
+    private static final TransportVersion DROP_ALL = TransportVersion.fromName("esql_nulls_position_drop_all");
+
+    public enum NullsPosition implements Writeable {
         FIRST,
-        LAST,
+        LAST;
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(switch (this) {
+                case FIRST -> 0;
+                case LAST -> 1;
+            });
+        }
+
+        public static NullsPosition readFrom(StreamInput in) throws IOException {
+            int ord = in.readVInt();
+            if (DROP_ALL.supports(in.getTransportVersion()) == false) {
+                if (ord == 2) {
+                    return NullsPosition.LAST;
+                }
+            }
+            return switch (ord) {
+                case 0 -> FIRST;
+                case 1 -> LAST;
+                default -> throw new IOException("unknown NullsPosition: " + ord);
+            };
+        }
     }
 
 }

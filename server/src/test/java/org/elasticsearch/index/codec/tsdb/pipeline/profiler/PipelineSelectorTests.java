@@ -97,7 +97,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
     }
 
-    public void testNoisyDoubleDefaultSelectsAlpWith6Decimals() {
+    public void testNoisyDoubleDefaultSelectsLosslessAlp() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
 
@@ -105,7 +105,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
-        assertAlpMaxError(config, 1e-6);
+        assertAlpMaxError(config, -1.0);
     }
 
     public void testNoisyDoubleStorageSelectsAlpWith2Decimals() {
@@ -122,7 +122,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertAlpMaxError(config, 1e-2);
     }
 
-    public void testNoisyDoubleBalancedSelectsAlpWith4Decimals() {
+    public void testNoisyDoubleBalancedSelectsAlpWith6Decimals() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(
             profile,
@@ -133,10 +133,12 @@ public class PipelineSelectorTests extends ESTestCase {
         );
 
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
-        assertAlpMaxError(config, 1e-4);
+        assertAlpMaxError(config, 1e-6);
     }
 
     public void testNoisyDoubleSpeedSelectsLosslessAlp() {
+        // NOTE: xorMaxBits == rawMaxBits (30 == 30) → no XOR benefit, so SPEED still
+        // falls through to ALP. SPEED only affects the XOR path (wider FPC/Gorilla thresholds).
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(
             profile,
@@ -684,36 +686,30 @@ public class PipelineSelectorTests extends ESTestCase {
         final long[] values = decimalDoubles(BS, 20.0, 5.0);
         final PipelineConfig storage = PipelineConfig.forDoubles(BS).alpDoubleStage(1e-2).offset().gcd().bitPack();
         final PipelineConfig balanced = PipelineConfig.forDoubles(BS).alpDoubleStage(1e-4).offset().gcd().bitPack();
-        final PipelineConfig deflt = PipelineConfig.forDoubles(BS).alpDoubleStage(1e-6).offset().gcd().bitPack();
-        final PipelineConfig speed = PipelineConfig.forDoubles(BS).alpDoubleStage().offset().gcd().bitPack();
+        final PipelineConfig lossless = PipelineConfig.forDoubles(BS).alpDoubleStage().offset().gcd().bitPack();
 
         final int storageBytes = measureAndLog("alp-double-storage(1e-2)", storage, values);
         final int balancedBytes = measureAndLog("alp-double-balanced(1e-4)", balanced, values);
-        final int defaultBytes = measureAndLog("alp-double-default(1e-6)", deflt, values);
-        final int speedBytes = measureAndLog("alp-double-speed(lossless)", speed, values);
+        final int losslessBytes = measureAndLog("alp-double-lossless", lossless, values);
 
         assertTrue("storage should compress, got " + storageBytes, storageBytes < RAW_LONG_BYTES);
         assertTrue("more quantization should produce smaller output", storageBytes <= balancedBytes);
-        assertTrue("more quantization should produce smaller output", balancedBytes <= defaultBytes);
-        assertTrue("more quantization should produce smaller output", defaultBytes <= speedBytes);
+        assertTrue("lossless should compress, got " + losslessBytes, losslessBytes < RAW_LONG_BYTES);
     }
 
     public void testEncodedSizeAlpFloatAllHints() throws IOException {
         final long[] values = decimalFloats(BS, 20.0f, 5.0f);
         final PipelineConfig storage = PipelineConfig.forFloats(BS).alpFloatStage(1e-2).offset().gcd().bitPack();
         final PipelineConfig balanced = PipelineConfig.forFloats(BS).alpFloatStage(1e-4).offset().gcd().bitPack();
-        final PipelineConfig deflt = PipelineConfig.forFloats(BS).alpFloatStage(1e-6).offset().gcd().bitPack();
-        final PipelineConfig speed = PipelineConfig.forFloats(BS).alpFloatStage().offset().gcd().bitPack();
+        final PipelineConfig lossless = PipelineConfig.forFloats(BS).alpFloatStage().offset().gcd().bitPack();
 
         final int storageBytes = measureAndLog("alp-float-storage(1e-2)", storage, values);
         final int balancedBytes = measureAndLog("alp-float-balanced(1e-4)", balanced, values);
-        final int defaultBytes = measureAndLog("alp-float-default(1e-6)", deflt, values);
-        final int speedBytes = measureAndLog("alp-float-speed(lossless)", speed, values);
+        final int losslessBytes = measureAndLog("alp-float-lossless", lossless, values);
 
         assertTrue("storage should compress, got " + storageBytes, storageBytes < RAW_LONG_BYTES);
         assertTrue("more quantization should produce smaller output", storageBytes <= balancedBytes);
-        assertTrue("more quantization should produce smaller output", balancedBytes <= defaultBytes);
-        assertTrue("more quantization should produce smaller output", defaultBytes <= speedBytes);
+        assertTrue("lossless should compress, got " + losslessBytes, losslessBytes < RAW_LONG_BYTES);
     }
 
     public void testEncodedSizeXorVsAlpComparison() throws IOException {

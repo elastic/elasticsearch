@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 public final class PipelineSelector {
 
     private static final double QUANTIZE_2_DECIMALS = 1e-2;
-    private static final double QUANTIZE_4_DECIMALS = 1e-4;
     private static final double QUANTIZE_6_DECIMALS = 1e-6;
 
     private static final int FPC_THRESHOLD_DEFAULT = 16;
@@ -85,7 +84,9 @@ public final class PipelineSelector {
         // exponent/factor pairs (e,f) that convert doubles to integers with minimal
         // exceptions. This works regardless of XOR statistics and is the right choice
         // when data originates from decimal sources (sensor readings, prices, percentages).
-        // Quantization aggressiveness is graduated by the optimize_for hint.
+        // Quantization aggressiveness is graduated by the optimize_for hint. SPEED does not
+        // bypass ALP here — we already know XOR reduction is insufficient (< 25% of raw bits),
+        // so an XOR-integer pipeline would compress worse than ALP's decimal transform.
         return selectAlpDouble(blockSize, hint);
     }
 
@@ -94,12 +95,9 @@ public final class PipelineSelector {
             return PipelineConfig.forDoubles(blockSize).alpDoubleStage(QUANTIZE_2_DECIMALS).delta().offset().gcd().patchedPFor().bitPack();
         }
         if (hint == OptimizeFor.BALANCED) {
-            return PipelineConfig.forDoubles(blockSize).alpDoubleStage(QUANTIZE_4_DECIMALS).delta().offset().gcd().patchedPFor().bitPack();
+            return PipelineConfig.forDoubles(blockSize).alpDoubleStage(QUANTIZE_6_DECIMALS).delta().offset().gcd().patchedPFor().bitPack();
         }
-        if (hint == OptimizeFor.SPEED) {
-            return PipelineConfig.forDoubles(blockSize).alpDoubleStage().delta().offset().gcd().patchedPFor().bitPack();
-        }
-        return PipelineConfig.forDoubles(blockSize).alpDoubleStage(QUANTIZE_6_DECIMALS).delta().offset().gcd().patchedPFor().bitPack();
+        return PipelineConfig.forDoubles(blockSize).alpDoubleStage().delta().offset().gcd().patchedPFor().bitPack();
     }
 
     private static PipelineConfig selectXorDouble(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
@@ -167,12 +165,9 @@ public final class PipelineSelector {
             return PipelineConfig.forFloats(blockSize).alpFloatStage(QUANTIZE_2_DECIMALS).delta().offset().gcd().patchedPFor().bitPack();
         }
         if (hint == OptimizeFor.BALANCED) {
-            return PipelineConfig.forFloats(blockSize).alpFloatStage(QUANTIZE_4_DECIMALS).delta().offset().gcd().patchedPFor().bitPack();
+            return PipelineConfig.forFloats(blockSize).alpFloatStage(QUANTIZE_6_DECIMALS).delta().offset().gcd().patchedPFor().bitPack();
         }
-        if (hint == OptimizeFor.SPEED) {
-            return PipelineConfig.forFloats(blockSize).alpFloatStage().delta().offset().gcd().patchedPFor().bitPack();
-        }
-        return PipelineConfig.forFloats(blockSize).alpFloatStage(QUANTIZE_6_DECIMALS).delta().offset().gcd().patchedPFor().bitPack();
+        return PipelineConfig.forFloats(blockSize).alpFloatStage().delta().offset().gcd().patchedPFor().bitPack();
     }
 
     private static PipelineConfig selectXorFloat(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {

@@ -233,10 +233,6 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this.expandedModelIdsWithAliases;
             }
 
-            /**
-             * Sets the model size stats map. Keys are deployment IDs for deployed PyTorch models (per-deployment stats),
-             * otherwise model IDs for undeployed or non-PyTorch models.
-             */
             public Builder setModelSizeStatsByModelId(Map<String, TrainedModelSizeStats> modelSizeStatsByModelId) {
                 this.modelSizeStatsMap = modelSizeStatsByModelId;
                 return this;

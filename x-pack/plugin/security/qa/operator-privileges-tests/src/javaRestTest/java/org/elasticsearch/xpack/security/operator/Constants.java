@@ -532,6 +532,7 @@ public class Constants {
         "indices:admin/data_stream/lifecycle/get",
         "indices:admin/data_stream/lifecycle/put",
         "indices:admin/data_stream/lifecycle/explain",
+        "indices:admin/dlm/mark_index_for_force_merge",
         "indices:admin/data_stream/options/delete",
         "indices:admin/data_stream/options/get",
         "indices:admin/data_stream/options/put",

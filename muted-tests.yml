@@ -470,6 +470,9 @@ tests:
 - class: org.elasticsearch.index.mapper.IpFieldMapperTests
   method: testSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/143204
+- class: org.elasticsearch.index.mapper.IpFieldMapperTests
+  method: testSyntheticSourceInObject
+  issue: https://github.com/elastic/elasticsearch/issues/143212
 
 # Examples:
 #

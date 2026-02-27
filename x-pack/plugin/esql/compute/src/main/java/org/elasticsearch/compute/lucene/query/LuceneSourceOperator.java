@@ -123,7 +123,7 @@ public class LuceneSourceOperator extends LuceneOperator {
          * Pick a strategy for the {@link DataPartitioning#AUTO} partitioning.
          */
         public static Function<Query, PartitioningStrategy> autoStrategy(int limit) {
-            return limit == NO_LIMIT ? LuceneSourceOperator::highSpeedAutoStrategy : Factory::lowOverheadAutoStrategy;
+            return limit == NO_LIMIT ? Factory::highSpeedAutoStrategy : Factory::lowOverheadAutoStrategy;
         }
 
         /**
@@ -158,7 +158,7 @@ public class LuceneSourceOperator extends LuceneOperator {
          *     </li>
          * </ul>
          */
-        private static PartitioningStrategy highSpeedAutoStrategy(Query query) {
+        public static PartitioningStrategy highSpeedAutoStrategy(Query query) {
             Query unwrapped = unwrap(query);
             log.trace("highSpeedAutoStrategy {} {}", query, unwrapped);
             return switch (unwrapped) {

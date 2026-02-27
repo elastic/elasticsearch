@@ -16,6 +16,7 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
@@ -30,6 +31,7 @@ import java.io.File;
 
 import javax.inject.Inject;
 
+@CacheableTask
 public abstract class GenerateNamedComponentsTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(GenerateNamedComponentsTask.class);
     private static final String NAMED_COMPONENTS_DIR = "generated-named-components/";

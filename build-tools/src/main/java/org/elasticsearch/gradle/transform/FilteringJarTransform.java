@@ -19,6 +19,9 @@ import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.FileSystemLocation;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.work.DisableCachingByDefault;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -36,9 +39,11 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
+@DisableCachingByDefault(because = "we need to revisit if caching is safe here")
 public abstract class FilteringJarTransform implements TransformAction<FilteringJarTransform.Parameters> {
     public static final String FILTERED_JAR_TYPE = "filtered-jar";
 
+    @PathSensitive(PathSensitivity.RELATIVE)
     @InputArtifact
     public abstract Provider<FileSystemLocation> getInputArtifact();
 

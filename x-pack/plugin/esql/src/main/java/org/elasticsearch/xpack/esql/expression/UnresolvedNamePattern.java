@@ -101,7 +101,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     @Override
     protected int innerHashCode(boolean ignoreIds) {
-        return Objects.hash(super.innerHashCode(true), pattern);
+        return Objects.hash(super.innerHashCode(true), pattern, name);
     }
 
     @Override

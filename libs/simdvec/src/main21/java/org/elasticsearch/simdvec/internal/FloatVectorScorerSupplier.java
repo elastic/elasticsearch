@@ -83,7 +83,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         }
     }
 
-    void scoreSeparately(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
+    private void scoreSeparately(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
         final int length = dims * Float.BYTES;
         long firstByteOffset = (long) firstOrd * length;
         float[] firstVector = null;

@@ -21,10 +21,7 @@ import org.apache.lucene.store.MMapDirectory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
-import java.util.Random;
 import java.util.function.IntFunction;
 import java.util.stream.IntStream;
 
@@ -187,7 +184,15 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
         return fa;
     }
 
-    private static void scoreOneVector(int dims, int size, IndexInput in, float[][] vectors, int idx0, int idx1, VectorScorerFactory factory) throws IOException {
+    private static void scoreOneVector(
+        int dims,
+        int size,
+        IndexInput in,
+        float[][] vectors,
+        int idx0,
+        int idx1,
+        VectorScorerFactory factory
+    ) throws IOException {
         // not COSINE, as we normalize vectors to always use dot product
         for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
             var values = vectorValues(dims, size, in, sim.function());
@@ -203,7 +208,8 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    private static void scoreBulkVectors(int dims, int size, IndexInput in, float[][] vectors, int idx0, VectorScorerFactory factory) throws IOException {
+    private static void scoreBulkVectors(int dims, int size, IndexInput in, float[][] vectors, int idx0, VectorScorerFactory factory)
+        throws IOException {
         int[] nodes = IntStream.range(0, size).toArray();
 
         // not COSINE, as we normalize vectors to always use dot product
@@ -218,14 +224,20 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
             var scorer = supplier.scorer();
             scorer.setScoringOrdinal(idx0);
 
-
             float[] actual = new float[size];
-            scorer.bulkScore(nodes,  actual, nodes.length);
+            scorer.bulkScore(nodes, actual, nodes.length);
             assertArrayEqualsPercent(sim.toString(), expected, actual, 1, DEFAULT_DELTA);
         }
     }
 
-    private static void writeTestDataFile(IntFunction<float[]> floatsSupplier, Directory dir, String fileName, int size, int dims, float[][] vectors) throws IOException {
+    private static void writeTestDataFile(
+        IntFunction<float[]> floatsSupplier,
+        Directory dir,
+        String fileName,
+        int size,
+        int dims,
+        float[][] vectors
+    ) throws IOException {
         ByteBuffer buffer = ByteBuffer.allocate(dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
             for (int i = 0; i < size; i++) {

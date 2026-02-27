@@ -66,6 +66,9 @@ dependencies {
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
   testImplementation project(path: xpackModule('esql-datasource-gzip'))
+  testImplementation project(path: xpackModule('esql-datasource-zstd'))
+  testImplementation project(path: xpackModule('esql-datasource-bzip2'))
+  testImplementation "org.apache.commons:commons-compress:1.26.1"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
@@ -83,6 +86,12 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
   internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
+  internalClusterTestImplementation project(xpackModule('analytics'))
+  internalClusterTestImplementation project(xpackModule('spatial'))
+  internalClusterTestImplementation project(xpackModule('mapper-unsigned-long'))
+  internalClusterTestImplementation project(xpackModule('wildcard'))
+  internalClusterTestImplementation project(xpackModule('mapper-version'))
+  internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
 }
 
 tasks.named('splitPackagesAudit').configure {
@@ -286,6 +295,10 @@ tasks.named("test").configure {
       }
     }
   }
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.ESTestCase'
 }
 
 // This is similar to the test task above, but needed for the LookupJoinTypesIT which runs in the internalClusterTest task

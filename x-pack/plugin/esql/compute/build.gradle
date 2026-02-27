@@ -507,7 +507,7 @@ tasks.named('stringTemplates').configure {
     }
 
     if (includeInteger) {
-      // Generate the two-state classes for the boolean type
+      // Generate the two-state classes for the integer type
       v1Props << intProperties
     }
 
@@ -979,15 +979,20 @@ tasks.named('stringTemplates').configure {
   }
 
   // TODO: add {value}_over_time for other types: boolean, bytes_refs
-  def generateTimestampAggregatorClasses = { inputFilename, includeBoolean = false, prefix = "" ->
+  def generateTimestampAggregatorClasses = { inputFilename, includeBooleanV1 = false, includeIntegerV2 = false, prefix = "" ->
     def inputFile = file(inputFilename)
 
     def v1Props = [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties]
     def v2Props = [longProperties]
 
-    if (includeBoolean) {
-      // Generate aggregators for the boolean type
+    if (includeBooleanV1) {
+      // Generate aggregators "for" the boolean type
       v1Props << booleanProperties
+    }
+
+    if (includeIntegerV2) {
+      // Generate the aggregator "on" the integer type
+       v2Props << intProperties
     }
 
     ["First", "Last"].forEach { Occurrence ->
@@ -1005,7 +1010,11 @@ tasks.named('stringTemplates').configure {
             template {
               it.properties = addOccurrence(properties, Occurrence) + [Prefix: prefix]
               it.inputFile = inputFile
-              it.outputFile = "org/elasticsearch/compute/aggregation/${prefix}${Occurrence}${v1.Type}ByTimestampAggregator.java"
+              it.outputFile = (prefix == "")
+                // These aggregators are still used by functions like FIRST_OVER_TIME/LAST_OVER_TIME
+                ? "org/elasticsearch/compute/aggregation/${prefix}${Occurrence}${v1.Type}ByTimestampAggregator.java"
+                // These aggregators are used by FIRST/LAST
+                : "org/elasticsearch/compute/aggregation/${prefix}${Occurrence}${v1.Type}By${v2.Type}Aggregator.java"
             }
           }
         }
@@ -1014,7 +1023,7 @@ tasks.named('stringTemplates').configure {
   }
 
   generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st")
-  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-AllValueByTimestampAggregator.java.st", true, "All")
+  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-AllValueByTimestampAggregator.java.st", true, true, "All")
 
   File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateGroupingAggregatorFunction.java.st")
   template {

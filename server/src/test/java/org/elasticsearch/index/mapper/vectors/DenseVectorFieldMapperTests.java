@@ -1989,7 +1989,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.endObject();
         }));
         assertWarnings(
-            "Parameter [confidence_interval] in [index_options] for dense_vector field [field] is deprecated and will be removed in a future version"
+            "Parameter [confidence_interval] in [index_options] for dense_vector field "
+                + "[field] is deprecated and will be removed in a future version"
         );
     }
 

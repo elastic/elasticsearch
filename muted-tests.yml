@@ -377,9 +377,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
   method: testTsIndexConflictingTypes {null}
   issue: https://github.com/elastic/elasticsearch/issues/142410
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/142739
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField
   issue: https://github.com/elastic/elasticsearch/issues/141202
@@ -473,6 +470,15 @@ tests:
 - class: org.elasticsearch.index.mapper.IpFieldMapperTests
   method: testSyntheticSourceInObject
   issue: https://github.com/elastic/elasticsearch/issues/143212
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:docs.DocsBitLength}
+  issue: https://github.com/elastic/elasticsearch/issues/143222
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:eval.DocsByteLength}
+  issue: https://github.com/elastic/elasticsearch/issues/143223
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:eval.DocsLength}
+  issue: https://github.com/elastic/elasticsearch/issues/143224
 
 # Examples:
 #

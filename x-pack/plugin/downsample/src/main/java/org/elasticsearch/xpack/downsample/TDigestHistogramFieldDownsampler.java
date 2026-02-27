@@ -7,14 +7,20 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,53 +31,56 @@ import java.util.List;
  * Class that collects all raw values for a (tdigest) histogram metric field and computes its aggregate (downsampled)
  * values.
  */
-abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProducer<HistogramValues> {
+abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler<HistogramValues> {
 
     static final double DEFAULT_COMPRESSION = 100;
     // MergingDigest is the best fit because we have pre-constructed histograms
     static final TDigestState.Type DEFAULT_TYPE = TDigestState.Type.MERGING;
-    static final String VALUES_FIELD = "values";
-    static final String CENTROIDS_FIELD = "centroids";
+    private static final String VALUES_FIELD = "values";
+    private static final String CENTROIDS_FIELD = "centroids";
     protected final String valueLabel;
 
-    TDigestHistogramFieldProducer(String name, String valueLabel) {
-        super(name);
-        this.valueLabel = valueLabel;
+    TDigestHistogramFieldDownsampler(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+        super(name, fieldData);
+        valueLabel = TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName()) ? CENTROIDS_FIELD : VALUES_FIELD;
     }
 
-    /**
-     * @return the requested produces based on the sampling method for metric of type legacy histogram
-     */
-    public static TDigestHistogramFieldProducer createForLegacyHistogram(String name, DownsampleConfig.SamplingMethod samplingMethod) {
-        return switch (samplingMethod) {
-            case AGGREGATE -> new Aggregate(name, VALUES_FIELD);
-            case LAST_VALUE -> new LastValue(name, VALUES_FIELD);
-        };
+    @Override
+    public HistogramValues getLeaf(LeafReaderContext context) throws IOException {
+        LeafHistogramFieldData histogramFieldData = (LeafHistogramFieldData) fieldData.load(context);
+        return histogramFieldData.getHistogramValues();
+    }
+
+    public static boolean supportsFieldType(MappedFieldType fieldType) {
+        return TDigestFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())
+            || HistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName());
     }
 
     /**
      * @return the requested produces based on the sampling method for metric of type tdigest histogram
      */
-    public static TDigestHistogramFieldProducer createForTDigest(String name, DownsampleConfig.SamplingMethod samplingMethod) {
+    public static TDigestHistogramFieldDownsampler create(
+        String name,
+        MappedFieldType fieldType,
+        IndexFieldData<?> fieldData,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) {
         return switch (samplingMethod) {
-            case AGGREGATE -> new Aggregate(name, CENTROIDS_FIELD);
-            case LAST_VALUE -> new LastValue(name, CENTROIDS_FIELD);
+            case AGGREGATE -> new Aggregate(name, fieldType, fieldData);
+            case LAST_VALUE -> new LastValue(name, fieldType, fieldData);
         };
     }
 
-    private static class Aggregate extends TDigestHistogramFieldProducer {
+    private static class Aggregate extends TDigestHistogramFieldDownsampler {
+
         private final TDigestState.Type type;
         private final double compression;
         private TDigestState tDigestState = null;
 
-        Aggregate(String name, String valueLabel) {
-            this(name, valueLabel, DEFAULT_TYPE, DEFAULT_COMPRESSION);
-        }
-
-        Aggregate(String name, String valueLabel, TDigestState.Type type, double compression) {
-            super(name, valueLabel);
-            this.type = type;
-            this.compression = compression;
+        Aggregate(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+            super(name, fieldType, fieldData);
+            this.type = DEFAULT_TYPE;
+            this.compression = DEFAULT_COMPRESSION;
         }
 
         public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {
@@ -115,12 +124,12 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
         }
     }
 
-    private static class LastValue extends TDigestHistogramFieldProducer {
+    private static class LastValue extends TDigestHistogramFieldDownsampler {
 
         private HistogramValue lastValue = null;
 
-        LastValue(String name, String valueLabel) {
-            super(name, valueLabel);
+        LastValue(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+            super(name, fieldType, fieldData);
         }
 
         public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {

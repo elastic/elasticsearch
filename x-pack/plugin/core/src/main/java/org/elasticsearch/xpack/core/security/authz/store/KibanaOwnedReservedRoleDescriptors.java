@@ -107,7 +107,9 @@ class KibanaOwnedReservedRoleDescriptors {
                 // To facilitate using the file uploader functionality
                 "monitor_text_structure",
                 // To cancel tasks and delete async searches
-                "cancel_task" },
+                "cancel_task",
+                // To toggle logs streams activation
+                "cluster:admin/streams/logs/toggle" },
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -342,7 +344,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "indices:admin/forcemerge*"
                     )
                     .build(),
-
+                // Kibana logs streams
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs", "logs.*").privileges("read", "manage").build(),
                 // Kibana Security Solution EDR workflows team
                 // - `.endpoint-script-file*`:
                 // indexes are used internally within Kibana in support of Elastic Defend scripts library.

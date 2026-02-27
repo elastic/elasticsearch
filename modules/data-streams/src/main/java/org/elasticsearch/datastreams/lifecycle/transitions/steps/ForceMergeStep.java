@@ -138,7 +138,7 @@ public class ForceMergeStep implements DlmStep {
      * Helper method to execute the force merge request for the given index. This method forms the request and uses the
      * step context to execute it in a deduplicated manner. The actual execution of the force merge request is
      * delegated to the {@link #forceMerge} method. Checks if the force merge has already been completed for the
-     * index before executing and skips execution if so.
+     * index before executing and skips execution if so. Also skips if the index does not exist in the project metadata.
      */
     void maybeForceMerge(String index, DlmStepContext stepContext) {
         IndexMetadata indexMetadata = Optional.ofNullable(stepContext.projectState())

@@ -488,6 +488,9 @@ tests:
 - class: org.elasticsearch.index.mapper.FloatFieldMapperTests
   method: testSyntheticSourceWithTranslogSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/143259
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_aggregate_metric_double_implicit_casting}
+  issue: https://github.com/elastic/elasticsearch/issues/143292
 
 # Examples:
 #

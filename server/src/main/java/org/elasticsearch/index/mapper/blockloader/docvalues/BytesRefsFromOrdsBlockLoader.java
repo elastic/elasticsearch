@@ -12,7 +12,10 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.SortedDvSingletonOrSet;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedSetDocValues;
 
@@ -29,12 +32,12 @@ public class BytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlock
     }
 
     @Override
-    protected AllReader singletonReader(TrackingSortedDocValues docValues) {
+    protected ColumnAtATimeReader singletonReader(TrackingSortedDocValues docValues) {
         return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedSetReader(TrackingSortedSetDocValues docValues) {
+    protected ColumnAtATimeReader sortedSetReader(TrackingSortedSetDocValues docValues) {
         return new SortedSet(docValues);
     }
 
@@ -51,5 +54,45 @@ public class BytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlock
     @Override
     public String toString() {
         return "BytesRefsFromOrds[" + fieldName + "]";
+    }
+
+    @Override
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        SortedDvSingletonOrSet dv = SortedDvSingletonOrSet.get(breaker, size, context, fieldName);
+        if (dv == null) {
+            return ConstantNull.ROW_READER;
+        }
+        return new RowStride(dv.forceSet(), Thread.currentThread());
+    }
+
+    private record RowStride(TrackingSortedSetDocValues ordinals, Thread creationThread) implements RowStrideReader {
+        @Override
+        public void read(int docId, StoredFields storedFields, Builder b) throws IOException {
+            BytesRefBuilder builder = (BytesRefBuilder) b;
+            if (ordinals.docValues().advanceExact(docId) == false) {
+                builder.appendNull();
+                return;
+            }
+            int count = ordinals.docValues().docValueCount();
+            if (count == 1) {
+                builder.appendBytesRef(ordinals.docValues().lookupOrd(ordinals.docValues().nextOrd()));
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                builder.appendBytesRef(ordinals.docValues().lookupOrd(ordinals.docValues().nextOrd()));
+            }
+            builder.endPositionEntry();
+        }
+
+        @Override
+        public boolean canReuse(int startingDocID) {
+            return creationThread == Thread.currentThread() && ordinals.docValues().docID() <= startingDocID;
+        }
+
+        @Override
+        public void close() {
+            ordinals.close();
+        }
     }
 }

@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
@@ -59,7 +60,7 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
 public class VectorScorerOSQBenchmark {
 
     static {
-        BenchmarkUtils.configureBenchmarkLogging();
+        Utils.configureBenchmarkLogging();
     }
 
     public enum DirectoryType {

@@ -25,6 +25,8 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 
 import java.io.IOException;
@@ -33,6 +35,14 @@ import java.nio.ByteOrder;
 import java.util.concurrent.ThreadLocalRandom;
 
 class BenchmarkUtils {
+
+    static void configureBenchmarkLogging() {
+        // native access logs things, so logging needs to be configured
+        LogConfigurator.loadLog4jPlugins();
+        NodeNamePatternConverter.setGlobalNodeName("benchmark");
+        LogConfigurator.configureESLogging();
+    }
+
     // Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;

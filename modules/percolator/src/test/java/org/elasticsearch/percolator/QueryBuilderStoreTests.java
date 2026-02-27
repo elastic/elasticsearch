@@ -19,17 +19,24 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
+import org.elasticsearch.index.query.FilteredSearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.field.BinaryDocValuesField;
@@ -37,13 +44,13 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.mockito.Mockito;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.BiFunction;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.elasticsearch.index.query.SearchExecutionContextHelper.SHARD_SEARCH_STATS;
 
 public class QueryBuilderStoreTests extends ESTestCase {
 
@@ -67,7 +74,6 @@ public class QueryBuilderStoreTests extends ESTestCase {
             BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(
                 MapperBuilderContext.root(false, false)
             );
-            MappedFieldType.FielddataOperation fielddataOperation = MappedFieldType.FielddataOperation.SEARCH;
 
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
                 for (int i = 0; i < queryBuilders.length; i++) {
@@ -84,18 +90,53 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 }
             }
 
-            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-            when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
-            when(searchExecutionContext.getWriteableRegistry()).thenReturn(writableRegistry());
-            when(searchExecutionContext.getParserConfig()).thenReturn(parserConfig());
-            when(searchExecutionContext.getForField(fieldMapper.fieldType(), fielddataOperation)).thenReturn(
-                new BytesBinaryIndexFieldData(fieldMapper.fullPath(), CoreValuesSourceType.KEYWORD, BinaryDocValuesField::new)
+            IndexVersion indexVersion = IndexVersion.current();
+            NamedWriteableRegistry writeableRegistry = writableRegistry();
+            XContentParserConfiguration parserConfig = parserConfig();
+            BytesBinaryIndexFieldData fieldData = new BytesBinaryIndexFieldData(
+                fieldMapper.fullPath(),
+                CoreValuesSourceType.KEYWORD,
+                BinaryDocValuesField::new
             );
-            when(searchExecutionContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {
-                final String fieldName = (String) invocation.getArguments()[0];
-                return new KeywordFieldMapper.KeywordFieldType(fieldName);
-            });
-            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), searchExecutionContext);
+            BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (mft, fdc) -> fieldData;
+            Settings indexSettingsSettings = indexSettings(indexVersion, 1, 1).build();
+            IndexSettings indexSettings = new IndexSettings(
+                IndexMetadata.builder("test").settings(indexSettingsSettings).build(),
+                Settings.EMPTY
+            );
+            SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
+                0,
+                0,
+                indexSettings,
+                null,
+                indexFieldDataLookup,
+                null,
+                MappingLookup.EMPTY,
+                null,
+                null,
+                parserConfig,
+                writeableRegistry,
+                null,
+                null,
+                System::currentTimeMillis,
+                null,
+                null,
+                () -> true,
+                null,
+                Collections.emptyMap(),
+                null,
+                MapperMetrics.NOOP,
+                SHARD_SEARCH_STATS
+            );
+
+            var filteredSEC = new FilteredSearchExecutionContext(searchExecutionContext) {
+                @Override
+                public MappedFieldType getFieldType(String name) {
+                    return new KeywordFieldMapper.KeywordFieldType(name);
+                }
+            };
+
+            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), filteredSEC);
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 LeafReaderContext leafContext = indexReader.leaves().get(0);

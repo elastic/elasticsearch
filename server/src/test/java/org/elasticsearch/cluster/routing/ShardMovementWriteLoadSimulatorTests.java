@@ -89,6 +89,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         assertThat(calculatedNodeUsageStats, Matchers.aMapWithSize(3));
 
         final var shardWriteLoad = allocation.clusterInfo().getShardWriteLoads().get(randomShard.shardId());
+        assertNotNull("Looked up shard [" + randomShard.shardId() + "]. Shard write loads: " + allocation.clusterInfo().getShardWriteLoads(), shardWriteLoad);
         final var expectedUtilisationReductionAtSource = shardWriteLoad / originalNode0ThreadPoolStats.totalThreadPoolThreads();
         final var expectedUtilisationIncreaseAtDestination = shardWriteLoad / originalNode1ThreadPoolStats.totalThreadPoolThreads();
 
@@ -246,7 +247,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             .getProject(ProjectId.DEFAULT)
             .stream()
             .filter(index -> indicesWithNoWriteLoad.contains(index.getIndex().getName()) == false)
-            .flatMap(index -> IntStream.range(0, 2).mapToObj(shardNum -> new ShardId(index.getIndex(), shardNum)))
+            .flatMap(index -> IntStream.range(0, 3).mapToObj(shardNum -> new ShardId(index.getIndex(), shardNum)))
             .collect(
                 Collectors.toUnmodifiableMap(shardId -> shardId, shardId -> randomBoolean() ? 0.0f : randomDoubleBetween(0.1, 5.0, true))
             );

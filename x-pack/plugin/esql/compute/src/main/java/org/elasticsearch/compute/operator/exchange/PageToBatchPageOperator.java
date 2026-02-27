@@ -49,19 +49,11 @@ final class PageToBatchPageOperator extends SinkOperator {
 
     @Override
     public boolean needsInput() {
-        boolean result = delegate.needsInput();
-        logger.trace("[PageToBatchPageOperator] needsInput() = {}, hasBufferedPage={}", result, bufferedPage != null);
-        return result;
+        return delegate.needsInput();
     }
 
     @Override
     protected void doAddInput(Page page) {
-        logger.trace(
-            "[PageToBatchPageOperator] doAddInput called: pagePositions={}, hasExistingBuffer={}",
-            page.getPositionCount(),
-            bufferedPage != null
-        );
-
         if (page.batchMetadata() != null) {
             throw new IllegalArgumentException("PageToBatchPageOperator received a page with BatchMetadata - this should not happen");
         }
@@ -77,14 +69,12 @@ final class PageToBatchPageOperator extends SinkOperator {
 
         // If we have a buffered page, send it now (with isLastPageInBatch=false)
         if (bufferedPage != null) {
-            logger.trace("[PageToBatchPageOperator] Sending previously buffered page before buffering new one");
             sendBufferedPage(false);
         }
 
         // Buffer the new page
         bufferedPage = page;
         bufferedBatchId = batchId;
-        logger.trace("[PageToBatchPageOperator] Buffered new page for batchId={}", batchId);
     }
 
     /**
@@ -160,9 +150,7 @@ final class PageToBatchPageOperator extends SinkOperator {
 
     @Override
     public boolean isFinished() {
-        boolean result = delegate.isFinished();
-        logger.trace("[PageToBatchPageOperator] isFinished() = {}, hasBufferedPage={}", result, bufferedPage != null);
-        return result;
+        return delegate.isFinished();
     }
 
     @Override

@@ -69,11 +69,11 @@ public class ForceMergeStep implements DlmStep {
      * This method determines how to execute the step and performs the necessary operations to update the index
      * so that {@link #stepCompleted(Index, ProjectState)} will return true after successful execution.
      *
-     * @param dlmStepContext The context and resources for executing the step.
+     * @param stepContext The context and resources for executing the step.
      */
     @Override
-    public void execute(DlmStepContext dlmStepContext) {
-        // Todo: Implement the force merge logic here.
+    public void execute(DlmStepContext stepContext) {
+        maybeForceMerge(stepContext.indexName(), stepContext);
     }
 
     /**
@@ -136,9 +136,15 @@ public class ForceMergeStep implements DlmStep {
     /**
      * Helper method to execute the force merge request for the given index. This method forms the request and uses the
      * step context to execute it in a deduplicated manner. The actual execution of the force merge request is
-     * delegated to the {@link #forceMerge} method.
+     * delegated to the {@link #forceMerge} method. Checks if the force merge has already been completed for the
+     * index before executing and skips execution if so.
      */
     void maybeForceMerge(String index, DlmStepContext stepContext) {
+        if (isDLMForceMergeComplete(stepContext.index(), stepContext.projectState())) {
+            logger.info("DLM force merge step is already completed for index [{}], skipping execution", stepContext.indexName());
+            return;
+        }
+
         ForceMergeRequest forceMergeRequest = formForceMergeRequest(index);
         stepContext.executeDeduplicatedRequest(
             ForceMergeAction.NAME,
@@ -161,6 +167,7 @@ public class ForceMergeStep implements DlmStep {
         DlmStepContext stepContext
     ) {
         assert forceMergeRequest.indices() != null && forceMergeRequest.indices().length == 1 : "DLM force merges one index at a time";
+
         final String targetIndex = forceMergeRequest.indices()[0];
         logger.info("DLM is issuing a request to force merge index [{}]", targetIndex);
         stepContext.client()

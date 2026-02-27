@@ -351,7 +351,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .withNode(nodeId0, new DiskUsageBuilder(1000, 1000))
             .withNode(nodeId1, new DiskUsageBuilder(1000, 1000))
             .build();
-        var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder().withShard(snapshot, indexId, shard.shardId(), shardSize).build();
+        var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder() //
+            .withShard(snapshot, indexId, shard.shardId(), shardSize)
+            .build();
 
         var allocation = createRoutingAllocation(state, initialClusterInfo, snapshotShardSizeInfo);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -375,10 +377,10 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var nodeId1 = "node-1";
 
         var shardSize = 100;
-        var indexSettings = indexSettings(IndexVersion.current(), 1, 0).put(
-            INDEX_STORE_TYPE_SETTING.getKey(),
-            SEARCHABLE_SNAPSHOT_STORE_TYPE
-        ).put(SNAPSHOT_PARTIAL_SETTING.getKey(), true).put(SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
+        var indexSettings = indexSettings(IndexVersion.current(), 1, 0) //
+            .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
+            .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+            .put(SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
 
         final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings).build();
         final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -403,7 +405,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .withNode(nodeId0, new DiskUsageBuilder(1000, 1000))
             .withNode(nodeId1, new DiskUsageBuilder(1000, 1000))
             .build();
-        var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder().withShard(snapshot, indexId, shard.shardId(), shardSize).build();
+        var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder() //
+            .withShard(snapshot, indexId, shard.shardId(), shardSize)
+            .build();
 
         var allocation = createRoutingAllocation(state, initialClusterInfo, snapshotShardSizeInfo);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -427,10 +431,10 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
         var toNodeId = "node-1";
 
         var shardSize = 100;
-        var indexSettings = indexSettings(IndexVersion.current(), 1, 0).put(
-            INDEX_STORE_TYPE_SETTING.getKey(),
-            SEARCHABLE_SNAPSHOT_STORE_TYPE
-        ).put(SNAPSHOT_PARTIAL_SETTING.getKey(), true).put(SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
+        var indexSettings = indexSettings(IndexVersion.current(), 1, 0) //
+            .put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE)
+            .put(SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+            .put(SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
 
         final IndexMetadata index = IndexMetadata.builder("my-index").settings(indexSettings).build();
         final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -454,7 +458,9 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             .withNode(toNodeId, new DiskUsageBuilder(1000, 1000))
             .withShard(shard, 0)
             .build();
-        var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder().withShard(snapshot, indexId, shard.shardId(), shardSize).build();
+        var snapshotShardSizeInfo = new SnapshotShardSizeInfoTestBuilder() //
+            .withShard(snapshot, indexId, shard.shardId(), shardSize)
+            .build();
 
         var allocation = createRoutingAllocation(state, initialClusterInfo, snapshotShardSizeInfo);
         var simulator = new ClusterInfoSimulator(allocation);
@@ -489,7 +495,8 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
                     .put(
                         IndexMetadata.builder("target")
                             .settings(
-                                indexSettings(IndexVersion.current(), 1, 0).put(INDEX_RESIZE_SOURCE_NAME_KEY, "source")
+                                indexSettings(IndexVersion.current(), 1, 0) //
+                                    .put(INDEX_RESIZE_SOURCE_NAME_KEY, "source")
                                     .put(INDEX_RESIZE_SOURCE_UUID_KEY, "_na_")
                             )
                     )

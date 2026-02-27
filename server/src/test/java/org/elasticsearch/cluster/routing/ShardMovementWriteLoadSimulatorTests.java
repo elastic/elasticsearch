@@ -89,7 +89,10 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         assertThat(calculatedNodeUsageStats, Matchers.aMapWithSize(3));
 
         final var shardWriteLoad = allocation.clusterInfo().getShardWriteLoads().get(randomShard.shardId());
-        assertNotNull("Looked up shard [" + randomShard.shardId() + "]. Shard write loads: " + allocation.clusterInfo().getShardWriteLoads(), shardWriteLoad);
+        assertNotNull(
+            "Looked up shard [" + randomShard.shardId() + "]. Shard write loads: " + allocation.clusterInfo().getShardWriteLoads(),
+            shardWriteLoad
+        );
         final var expectedUtilisationReductionAtSource = shardWriteLoad / originalNode0ThreadPoolStats.totalThreadPoolThreads();
         final var expectedUtilisationIncreaseAtDestination = shardWriteLoad / originalNode1ThreadPoolStats.totalThreadPoolThreads();
 

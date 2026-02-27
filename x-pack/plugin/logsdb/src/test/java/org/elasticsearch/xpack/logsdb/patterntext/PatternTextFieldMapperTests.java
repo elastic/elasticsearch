@@ -11,8 +11,13 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.queries.intervals.IntervalQuery;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
@@ -21,6 +26,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -129,6 +135,27 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
                 assertThat(docs.totalHits.value(), equalTo(1L));
                 assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
                 assertThat(docs.scoreDocs[0].doc, equalTo(0));
+            }
+        }
+    }
+
+    public void testIntervalsQueryWithDisabledTemplating() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", true))
+        );
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "the quick brown fox 1"))).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                PatternTextFieldType ft = (PatternTextFieldType) mapperService.fieldType("field");
+                IntervalsSource intervalsSource = ft.termIntervals(new BytesRef("brown"), context);
+                Query query = new IntervalQuery("field", intervalsSource);
+                TopDocs docs = context.searcher().search(query, 1);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             }
         }
     }
@@ -469,6 +496,205 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    public void testValueFetcherWithMissingFieldSegment() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "pattern_text")));
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        try (Directory dir = newDirectory()) {
+            indexDocPerSegment(
+                dir,
+                mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc(),
+                mapperService.documentMapper().parse(source(b -> {})).rootDoc()
+            );
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(2, reader.leaves().size());
+
+                SearchExecutionContext ctx = createSearchExecutionContext(mapperService, newSearcher(reader));
+                ValueFetcher fetcher = ft.valueFetcher(ctx, null);
+
+                fetcher.setNextReader(reader.leaves().get(0));
+                List<Object> values = fetcher.fetchValues(null, 0, new ArrayList<>());
+                assertEquals(1, values.size());
+                assertEquals("abc 123", values.get(0));
+
+                fetcher.setNextReader(reader.leaves().get(1));
+                List<Object> emptyValues = fetcher.fetchValues(null, 0, new ArrayList<>());
+                assertEquals(0, emptyValues.size());
+            }
+        }
+    }
+
+    public void testFieldDataWithMissingFieldSegment() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "pattern_text")));
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        try (Directory dir = newDirectory()) {
+            indexDocPerSegment(
+                dir,
+                mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc(),
+                mapperService.documentMapper().parse(source(b -> {})).rootDoc()
+            );
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(2, reader.leaves().size());
+
+                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldData = ft.fielddataBuilder(fieldDataContext)
+                    .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+
+                var leafData0 = fieldData.load(reader.leaves().get(0));
+                var bytesValues0 = leafData0.getBytesValues();
+                assertTrue(bytesValues0.advanceExact(0));
+                assertEquals("abc 123", bytesValues0.nextValue().utf8ToString());
+
+                var leafData1 = fieldData.load(reader.leaves().get(1));
+                var bytesValues1 = leafData1.getBytesValues();
+                assertFalse(bytesValues1.advanceExact(0));
+            }
+        }
+    }
+
+    public void testValueFetcherWithDisabledTemplating() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put("index.mapping.pattern_text.disable_templating", true).build(),
+            fieldMapping(b -> b.field("type", "pattern_text"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        try (Directory dir = newDirectory()) {
+            indexDocPerSegment(
+                dir,
+                mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc(),
+                mapperService.documentMapper().parse(source(b -> b.field("field", "foo 12"))).rootDoc()
+            );
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(2, reader.leaves().size());
+
+                SearchExecutionContext ctx = createSearchExecutionContext(mapperService, newSearcher(reader));
+                ValueFetcher fetcher = ft.valueFetcher(ctx, null);
+
+                fetcher.setNextReader(reader.leaves().get(0));
+                List<Object> values0 = fetcher.fetchValues(null, 0, new ArrayList<>());
+                assertEquals(1, values0.size());
+                assertEquals("abc 123", values0.get(0));
+
+                fetcher.setNextReader(reader.leaves().get(1));
+                List<Object> values1 = fetcher.fetchValues(null, 0, new ArrayList<>());
+                assertEquals(1, values1.size());
+                assertEquals("foo 12", values1.get(0));
+            }
+        }
+    }
+
+    public void testValueFetcherWithDisabledTemplatingAndMissingFieldSegment() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put("index.mapping.pattern_text.disable_templating", true).build(),
+            fieldMapping(b -> b.field("type", "pattern_text"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        try (Directory dir = newDirectory()) {
+            indexDocPerSegment(
+                dir,
+                mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc(),
+                mapperService.documentMapper().parse(source(b -> {})).rootDoc()
+            );
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(2, reader.leaves().size());
+
+                SearchExecutionContext ctx = createSearchExecutionContext(mapperService, newSearcher(reader));
+                ValueFetcher fetcher = ft.valueFetcher(ctx, null);
+
+                fetcher.setNextReader(reader.leaves().get(0));
+                List<Object> values = fetcher.fetchValues(null, 0, new ArrayList<>());
+                assertEquals(1, values.size());
+                assertEquals("abc 123", values.get(0));
+
+                fetcher.setNextReader(reader.leaves().get(1));
+                List<Object> emptyValues = fetcher.fetchValues(null, 0, new ArrayList<>());
+                assertEquals(0, emptyValues.size());
+            }
+        }
+    }
+
+    public void testFieldDataWithDisabledTemplating() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put("index.mapping.pattern_text.disable_templating", true).build(),
+            fieldMapping(b -> b.field("type", "pattern_text"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        try (Directory dir = newDirectory()) {
+            indexDocPerSegment(
+                dir,
+                mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc(),
+                mapperService.documentMapper().parse(source(b -> {})).rootDoc()
+            );
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(2, reader.leaves().size());
+
+                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldData = ft.fielddataBuilder(fieldDataContext)
+                    .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+
+                var leafData0 = fieldData.load(reader.leaves().get(0));
+                var bytesValues0 = leafData0.getBytesValues();
+                assertTrue(bytesValues0.advanceExact(0));
+                assertEquals("abc 123", bytesValues0.nextValue().utf8ToString());
+
+                var leafData1 = fieldData.load(reader.leaves().get(1));
+                var bytesValues1 = leafData1.getBytesValues();
+                assertFalse(bytesValues1.advanceExact(0));
+            }
+        }
+    }
+
+    public void testFieldDataWithDisabledTemplatingAllDocsHaveField() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put("index.mapping.pattern_text.disable_templating", true).build(),
+            fieldMapping(b -> b.field("type", "pattern_text"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        try (Directory dir = newDirectory()) {
+            indexDocPerSegment(
+                dir,
+                mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc(),
+                mapperService.documentMapper().parse(source(b -> b.field("field", "foo 12"))).rootDoc()
+            );
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(2, reader.leaves().size());
+
+                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldData = ft.fielddataBuilder(fieldDataContext)
+                    .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+
+                var leafData0 = fieldData.load(reader.leaves().get(0));
+                var bytesValues0 = leafData0.getBytesValues();
+                assertTrue(bytesValues0.advanceExact(0));
+                assertEquals("abc 123", bytesValues0.nextValue().utf8ToString());
+
+                var leafData1 = fieldData.load(reader.leaves().get(1));
+                var bytesValues1 = leafData1.getBytesValues();
+                assertTrue(bytesValues1.advanceExact(0));
+                assertEquals("foo 12", bytesValues1.nextValue().utf8ToString());
+            }
+        }
+    }
+
+    /**
+     * Writes each document into its own segment with no merging, guaranteeing one leaf per doc.
+     */
+    private static void indexDocPerSegment(Directory dir, LuceneDocument... docs) throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig();
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        try (IndexWriter iw = new IndexWriter(dir, iwc)) {
+            for (LuceneDocument doc : docs) {
+                iw.addDocument(doc);
+                iw.commit();
+            }
+        }
     }
 
     @Override

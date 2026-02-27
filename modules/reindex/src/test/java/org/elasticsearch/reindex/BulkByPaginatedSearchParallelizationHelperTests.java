@@ -58,7 +58,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         terminate(threadPool);
     }
 
-    public void testSliceIntoSubRequests() throws IOException {
+    public void testSliceIntoSubRequests() {
         SearchRequest searchRequest = randomSearchRequest(
             () -> randomSearchSourceBuilder(() -> null, () -> null, () -> null, Collections::emptyList, () -> null, () -> null)
         );

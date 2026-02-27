@@ -12,11 +12,14 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest;
 import org.gradle.testkit.runner.TaskOutcome;
 
-class StringTemplatePluginTest extends AbstractGradleFuncTest {
+class StringTemplatePluginFuncTest extends AbstractGradleFuncTest {
+
+    def setup() {
+        internalBuild()
+    }
 
     def "test substitution"() {
         given:
-        internalBuild()
         file('src/main/p/X-Box.java.st') << """
           public class \$Type\$Box {
             final \$type\$ value;
@@ -77,7 +80,6 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
 
     def "test basic conditional"() {
         given:
-        internalBuild()
         file('src/main/Color.txt.st') << """
           \$if(Red)\$1 Red\$endif\$
           \$if(Blue)\$2 Blue\$endif\$
@@ -112,7 +114,6 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
 
     def "test if then else"() {
         given:
-        internalBuild()
         file('src/main/Token.txt.st') << """
           \$if(Foo)\$1 Foo
           \$elseif(Bar)\$2 Bar
@@ -147,7 +148,6 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
 
     def "output file already present and up to date"() {
         given:
-        internalBuild()
         file('src/main/UpToDate.txt.st') << """
           Hello World!
         """.stripIndent().stripTrailing()
@@ -183,7 +183,6 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
 
     def "output file already present but not up to date"() {
         given:
-        internalBuild()
         file('src/main/Message.txt.st') << """
           Hello World!
         """.stripIndent().stripTrailing()
@@ -219,7 +218,6 @@ class StringTemplatePluginTest extends AbstractGradleFuncTest {
 
     def "cleanup delete files"() {
         given:
-        internalBuild()
         file('src/main/generated-src/someFile.txt') << """
           Just some random data
         """

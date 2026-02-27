@@ -37,7 +37,7 @@ import java.util.List;
  * -----------------------------------------------
  * |   Triangle Tree (ordinal-based)             |
  * -----------------------------------------------
- * |   Connectivity Length (4 bytes)               |
+ * |   Connectivity Length (VInt)                  |
  * -----------------------------------------------
  * |   Vertex Connectivity                       |
  * -----------------------------------------------
@@ -66,10 +66,14 @@ import java.util.List;
  * <p>The vertex lookup table is placed last because the connectivity writer may add
  * vertices not present in the tessellated triangles (e.g. for degenerate geometries).
  * Writing the table after connectivity ensures it includes all vertices. The connectivity
- * length is written as a fixed 4-byte int (with the actual value patched in after
- * writing the connectivity data) to avoid buffering. The reader uses the tree length
- * and connectivity length to skip to the vertex table. Reading just the centroid
- * and/or extent (common for analytics) does not require loading the vertex table.
+ * is buffered first to determine its length, then written with a VInt length prefix.
+ * The reader uses the tree length and connectivity length to skip to the vertex table.
+ * Reading just the centroid and/or extent (common for analytics) does not require
+ * loading the vertex table.
+ *
+ * <p>The vertex lookup table uses adaptive encoding: the writer computes both bit-packed
+ * (extent-relative) and delta-encoded (zigzag VLong) sizes and picks the smaller one.
+ * A flag byte distinguishes the formats. See {@link VertexLookupTable} for details.
  *
  * <p>The {@link #write} method automatically selects the optimal format: point-only
  * geometries (Point, MultiPoint) use the legacy format since vertex ordering is irrelevant
@@ -130,14 +134,12 @@ public class GeometryDocValueWriter {
         V2TriangleTreeWriter.writeTo(out, fields, vertexTableBuilder);
 
         // 3. Write connectivity (may add vertices to the builder for coordinates in the original geometry
-        // that don't appear in any tessellated triangle). We write a dummy length before the data, which we fill in later.
-        long connectivityPosition = out.position();
-        out.writeInt(0); // placeholder for connectivity length
-        GeometryConnectivityWriter.writeTo(out, geometries, coordinateEncoder, vertexTableBuilder);
-        long vertexTablePosition = out.position();
-        out.seek(connectivityPosition);
-        out.writeInt((int) (vertexTablePosition - connectivityPosition) - 4);
-        out.seek(vertexTablePosition);
+        // that don't appear in any tessellated triangle). Buffer first to get length, then write VInt length + data.
+        final BytesStreamOutput connectivityBuffer = new BytesStreamOutput();
+        GeometryConnectivityWriter.writeTo(connectivityBuffer, geometries, coordinateEncoder, vertexTableBuilder);
+        BytesRef connectivityBytes = connectivityBuffer.bytes().toBytesRef();
+        out.writeVInt(connectivityBytes.length);
+        out.writeBytes(connectivityBytes.bytes, connectivityBytes.offset, connectivityBytes.length);
 
         // 5. Write vertex lookup table last (includes all vertices from both tree and connectivity)
         vertexTableBuilder.writeTo(out);

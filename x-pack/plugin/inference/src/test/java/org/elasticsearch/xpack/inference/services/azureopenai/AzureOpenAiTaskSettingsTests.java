@@ -212,10 +212,12 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         );
 
         assertThat(exception.getMessage(), containsString("failed to parse field [headers]"));
-        assertThat(exception.getCause().getMessage(), containsString(
-            "Map field [headers] has an entry that is not "
-                + "valid, [key => 1]. Value type of [Integer] is not one of [String].;"
-        ));
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                "Map field [headers] has an entry that is not " + "valid, [key => 1]. Value type of [Integer] is not one of [String].;"
+            )
+        );
     }
 
     public void testFromMap_ThrowsException_WhenUserIsAnInteger() {

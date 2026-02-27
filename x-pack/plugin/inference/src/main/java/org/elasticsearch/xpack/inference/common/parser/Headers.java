@@ -56,13 +56,7 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
     private static Map<String, String> doValidation(Map<String, Object> map, ValidationException validationException) {
         removeNullValues(map);
 
-        var stringHeaders = validateMapStringValues(
-            map,
-            HEADERS.getPreferredName(),
-            validationException,
-            false,
-            Map.of()
-        );
+        var stringHeaders = validateMapStringValues(map, HEADERS.getPreferredName(), validationException, false, Map.of());
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

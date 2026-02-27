@@ -34,5 +34,8 @@ tasks.named("javadoc").configure {
 
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
+  // ASM bundled with forbidden-apis cannot parse JDK 25+ class files;
+  // exclude MRJAR classes compiled for those versions.
+  exclude 'org/elasticsearch/entitlement/qa/test/StructuredTaskScopeActions.class'
 }
 

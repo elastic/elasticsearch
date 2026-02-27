@@ -509,6 +509,68 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
+    public void testCircularViewSelfReference() {
+        addView("view_a", "FROM view_a");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a")));
+        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+    }
+
+    public void testCircularViewMutualReference() {
+        addView("view_a", "FROM view_b");
+        addView("view_b", "FROM view_a");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a")));
+        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+        assertThat(e.getMessage(), containsString("view_a -> view_b"));
+    }
+
+    public void testCircularViewChain() {
+        addView("chain_a", "FROM chain_b");
+        addView("chain_b", "FROM chain_c");
+        addView("chain_c", "FROM chain_a");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM chain_a")));
+        assertThat(e.getMessage(), containsString("circular view reference 'chain_a'"));
+        assertThat(e.getMessage(), containsString("chain_a -> chain_b -> chain_c"));
+    }
+
+    public void testCircularViewViaWildcard() {
+        addView("v_1", "FROM v_*");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM v_*")));
+        assertThat(e.getMessage(), containsString("circular view reference 'v_1'"));
+    }
+
+    public void testCircularViewViaWildcardWithIndex() {
+        addIndex("v_idx");
+        addView("v_1", "FROM v_*");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM v_*")));
+        assertThat(e.getMessage(), containsString("circular view reference 'v_1'"));
+    }
+
+    public void testCircularViewInMultiSource() {
+        addView("view_a", "FROM emp");
+        addView("view_b", "FROM view_c");
+        addView("view_c", "FROM view_a");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a, view_b")));
+        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+    }
+
+    public void testCircularViewWithPipes() {
+        addView("view_a", "FROM view_b | WHERE emp.age > 30");
+        addView("view_b", "FROM view_a | WHERE emp.salary > 50000");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a")));
+        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+        assertThat(e.getMessage(), containsString("view_a -> view_b"));
+    }
+
+    public void testCircularViewInFork() {
+        addView("view_a", "FROM view_b");
+        addView("view_b", "FROM view_a");
+        Exception e = expectThrows(
+            VerificationException.class,
+            () -> replaceViews(query("FROM view_a | FORK (WHERE emp.age > 30) (WHERE emp.age < 50)"))
+        );
+        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+    }
+
     public void testModifiedViewDepth() {
         try (
             InMemoryViewService customViewService = viewService.withSettings(

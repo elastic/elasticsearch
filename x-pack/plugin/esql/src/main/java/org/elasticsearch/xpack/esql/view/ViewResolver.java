@@ -122,7 +122,6 @@ public class ViewResolver {
             plan,
             parser,
             new LinkedHashSet<>(),
-            new HashSet<>(),
             viewQueries,
             0,
             listener.delegateFailureAndWrap((l, rewritten) -> listener.onResponse(new ViewResolutionResult(rewritten, viewQueries)))
@@ -133,13 +132,13 @@ public class ViewResolver {
         LogicalPlan plan,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
-        HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
         LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
-        HashSet<String> seenWildcardsInner = new HashSet<>(seenWildcards);
+        // Tracks wildcard patterns already resolved within this transformDown traversal to prevent duplicate processing
+        HashSet<String> seenWildcards = new HashSet<>();
 
         plan.transformDown((p, planListener) -> {
             switch (p) {
@@ -150,11 +149,11 @@ public class ViewResolver {
                     return;
                 }
                 case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, seenWildcardsInner, viewQueries, depth, planListener);
+                    replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener);
                     return;
                 }
                 case UnresolvedRelation ur -> {
-                    replaceViewsUnresolvedRelation(ur, parser, seenInner, seenWildcardsInner, viewQueries, depth, planListener);
+                    replaceViewsUnresolvedRelation(ur, parser, seenInner, seenWildcards, viewQueries, depth, planListener);
                     return;
                 }
                 default -> {
@@ -168,7 +167,6 @@ public class ViewResolver {
         Fork fork,
         BiFunction<String, String, LogicalPlan> parser,
         LinkedHashSet<String> seenViews,
-        HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
         int depth,
         ActionListener<LogicalPlan> listener
@@ -183,7 +181,6 @@ public class ViewResolver {
                     subplan,
                     parser,
                     seenViews,
-                    seenWildcards,
                     viewQueries,
                     depth + 1,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
@@ -218,6 +215,8 @@ public class ViewResolver {
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
+        // Avoid re-resolving wildcards preserved for non-view matches, and deduplicate duplicate wildcard patterns to match how wildcard
+        // resolving for indices handle duplicates.
         var patterns = Arrays.stream(unresolvedRelation.indexPattern().indexPattern().split(","))
             .filter(pattern -> Regex.isSimpleMatchPattern(pattern) == false || seenWildcards.add(pattern))
             .toArray(String[]::new);
@@ -240,7 +239,6 @@ public class ViewResolver {
                         resolve(view, parser, viewQueries),
                         parser,
                         seenViews,
-                        seenWildcards,
                         viewQueries,
                         depth + 1,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {

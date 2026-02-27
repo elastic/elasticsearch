@@ -35,8 +35,8 @@ public final class PipelineSelector {
     ) {
         return switch (dataType) {
             case LONG -> selectLong(blockSize);
-            case DOUBLE -> selectDouble(profile, blockSize, hint, metricType);
-            case FLOAT -> selectFloat(profile, blockSize, hint, metricType);
+            case DOUBLE -> selectDouble(profile, blockSize, hint);
+            case FLOAT -> selectFloat(profile, blockSize, hint);
         };
     }
 
@@ -49,12 +49,7 @@ public final class PipelineSelector {
         return PipelineConfig.forLongs(blockSize).delta().delta().offset().gcd().patchedPFor().bitPack();
     }
 
-    private static PipelineConfig selectDouble(
-        final BlockProfile profile,
-        int blockSize,
-        @Nullable OptimizeFor hint,
-        @Nullable MetricType metricType
-    ) {
+    private static PipelineConfig selectDouble(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
         // NOTE: constant data has no decimal structure for ALP, no trends for FPC,
         // and no XOR variation for Gorilla/Chimp128. The wide integer pipeline handles
         // it trivially: delta produces zeros, offset stores the base, everything else skips.
@@ -62,11 +57,12 @@ public final class PipelineSelector {
             return PipelineConfig.forDoubles(blockSize).delta().delta().offset().gcd().patchedPFor().bitPack();
         }
 
-        // NOTE: counters are monotonic numeric sequences (e.g. bytes_sent, request_count).
-        // They never have decimal structure — ALP's (e,f) search would waste time and
-        // fall back to raw encoding. XOR-based prediction (especially FPC's DFCM) is
-        // the right family because counters have constant or near-constant strides.
-        if (metricType == MetricType.COUNTER) {
+        // NOTE: monotonic data (e.g. counters, cumulative metrics) has constant or
+        // near-constant strides with no decimal structure — ALP's (e,f) search would waste
+        // time and fall back to raw encoding. XOR-based prediction (especially FPC's DFCM)
+        // is the right family because it learns the stride and produces near-zero residuals.
+        // This is purely data-driven: we trust the profile, not the metric type annotation.
+        if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
             return selectXorDouble(profile, blockSize, hint);
         }
 
@@ -137,17 +133,12 @@ public final class PipelineSelector {
 
     // NOTE: mirrors selectDouble with float-specific builder and stage types.
     // See selectDouble for detailed rationale on each decision point.
-    private static PipelineConfig selectFloat(
-        final BlockProfile profile,
-        int blockSize,
-        @Nullable OptimizeFor hint,
-        @Nullable MetricType metricType
-    ) {
+    private static PipelineConfig selectFloat(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
         if (profile.range() == 0) {
             return PipelineConfig.forFloats(blockSize).delta().delta().offset().gcd().patchedPFor().bitPack();
         }
 
-        if (metricType == MetricType.COUNTER) {
+        if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
             return selectXorFloat(profile, blockSize, hint);
         }
 

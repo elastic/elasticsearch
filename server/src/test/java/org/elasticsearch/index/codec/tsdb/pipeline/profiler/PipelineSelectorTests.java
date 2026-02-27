@@ -153,7 +153,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testDoubleCounterDefaultSelectsFpc() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 10);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 10, 12, 10);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
@@ -161,7 +161,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testDoubleCounterHighRepeatSelectsGorilla() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 250, 30);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 10, 250, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
@@ -170,7 +170,7 @@ public class PipelineSelectorTests extends ESTestCase {
 
     public void testDoubleCounterLowXorSelectsChimp() {
         // NOTE: xorMaxBits=10 <= rawMaxBits/2=15, so streaming Chimp saves index overhead
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 30);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 10, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
@@ -178,7 +178,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testDoubleCounterHighXorSelectsChimp128() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 20, 10, 30);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
@@ -206,7 +206,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testFloatCounterDefaultSelectsFpc() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 10);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 10, 12, 10);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
@@ -214,7 +214,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testFloatCounterHighRepeatSelectsGorilla() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 250, 30);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 10, 250, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
@@ -222,7 +222,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testFloatCounterLowXorSelectsChimp() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 30);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 10, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
@@ -230,7 +230,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testFloatCounterHighXorSelectsChimp128() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 20, 10, 30);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
@@ -351,24 +351,48 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
     }
 
-    public void testDoubleGaugeCounterDistinction() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 10);
+    public void testMonotonicDoubleSelectsXorRegardlessOfMetricType() {
+        // NOTE: routing is purely data-driven — monotonic data goes to XOR path
+        // regardless of whether the mapping says COUNTER, GAUGE, or nothing.
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 30, 12, 10);
 
         final PipelineConfig gauge = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.GAUGE);
-        assertThat(gauge.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
-
         final PipelineConfig counter = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
-        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
+        final PipelineConfig noType = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
+        assertEquals(gauge, counter);
+        assertEquals(gauge, noType);
+        assertThat(gauge.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
     }
 
-    public void testFloatGaugeCounterDistinction() {
+    public void testNonMonotonicDoubleCounterFallsThroughToNormalProfiling() {
+        // NOTE: non-monotonic data falls through to the normal XOR gate / ALP profiling
+        // regardless of the metric type annotation — the profile data is the ground truth.
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 10);
 
+        final PipelineConfig counter = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
+        final PipelineConfig gauge = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.GAUGE);
+        assertEquals(counter, gauge);
+        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
+    }
+
+    public void testMonotonicFloatSelectsXorRegardlessOfMetricType() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 30, 12, 10);
+
         final PipelineConfig gauge = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.GAUGE);
-        assertThat(gauge.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
+        final PipelineConfig counter = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
+        final PipelineConfig noType = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
+        assertEquals(gauge, counter);
+        assertEquals(gauge, noType);
+        assertThat(gauge.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
+    }
+
+    public void testNonMonotonicFloatCounterFallsThroughToNormalProfiling() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 10);
 
         final PipelineConfig counter = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
-        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
+        final PipelineConfig gauge = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.GAUGE);
+        assertEquals(counter, gauge);
+        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
     }
 
     public void testHighRepeatDoubleSelectsGorilla() {

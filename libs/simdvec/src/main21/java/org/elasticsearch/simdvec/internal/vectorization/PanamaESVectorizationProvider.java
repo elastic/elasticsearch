@@ -47,8 +47,7 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         int dataLength,
         int bulkSize
     ) throws IOException {
-        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
-        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+        final var unwrappedInput = MemorySegmentAccessInputAccess.unwrap(FilterIndexInput.unwrapOnlyTest(input));
         if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS
             && unwrappedInput instanceof MemorySegmentAccessInput msai
             && queryBits == 4
@@ -63,8 +62,7 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
 
     @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
-        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+        final var unwrappedInput = MemorySegmentAccessInputAccess.unwrap(FilterIndexInput.unwrapOnlyTest(input));
         if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS && unwrappedInput instanceof MemorySegmentAccessInput msai) {
             MemorySegment ms = msai.segmentSliceOrNull(0, unwrappedInput.length());
             if (ms != null) {
@@ -76,8 +74,7 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
 
     @Override
     public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
-        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+        final var unwrappedInput = MemorySegmentAccessInputAccess.unwrap(FilterIndexInput.unwrapOnlyTest(input));
         if (unwrappedInput instanceof MemorySegmentAccessInput msai) {
             MemorySegment ms = msai.segmentSliceOrNull(0, unwrappedInput.length());
             if (ms != null) {
@@ -90,8 +87,9 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
     @Override
     public ES93BinaryQuantizedVectorScorer newES93BinaryQuantizedVectorScorer(IndexInput input, int dimensions, int vectorLengthInBytes)
         throws IOException {
-        if (input instanceof MemorySegmentAccessInput msai && NATIVE_SUPPORTED) {
-            return new NativeBinaryQuantizedVectorScorer(input, dimensions, vectorLengthInBytes, msai);
+        final var unwrappedInput = MemorySegmentAccessInputAccess.unwrap(FilterIndexInput.unwrapOnlyTest(input));
+        if (unwrappedInput instanceof MemorySegmentAccessInput msai && NATIVE_SUPPORTED) {
+            return new NativeBinaryQuantizedVectorScorer(unwrappedInput, dimensions, vectorLengthInBytes, msai);
         }
         return new DefaultES93BinaryQuantizedVectorScorer(input, dimensions, vectorLengthInBytes);
     }

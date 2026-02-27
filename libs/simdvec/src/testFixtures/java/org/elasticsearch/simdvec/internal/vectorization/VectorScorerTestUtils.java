@@ -38,8 +38,6 @@ public class VectorScorerTestUtils {
         int quantizedComponentSum
     ) {}
 
-    private static final byte queryBits = 4;
-
     private VectorScorerTestUtils() {}
 
     public static VectorData createBinarizedIndexData(
@@ -79,7 +77,7 @@ public class VectorScorerTestUtils {
         int discretizedDimension = BQVectorUtils.discretize(dimension, 64);
 
         int[] quantizationScratch = new int[dimension];
-        byte[] toQuery = new byte[(discretizedDimension / 8) * queryBits];
+        byte[] toQuery = new byte[(discretizedDimension / 8) * ESVectorUtilSupport.B_QUERY];
 
         float[] scratch = new float[dimension];
 
@@ -87,7 +85,7 @@ public class VectorScorerTestUtils {
             floatVectorValues,
             scratch,
             quantizationScratch,
-            queryBits,
+            ESVectorUtilSupport.B_QUERY,
             centroid
         );
 

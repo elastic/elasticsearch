@@ -36,6 +36,9 @@ The repository is organized into several key directories:
 - Debugging: append `--debug-jvm` to the Gradle test task and attach a debugger on port 5005.
 - CI reproductions: copy the `REPRODUCE WITH` line from CI logs; it includes project path, seed, and JVM flags.
 - Yaml REST tests: `./gradlew ":rest-api-spec:yamlRestTest" --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=<relative_test_file_path>}"`
+- CSV spec tests (ESQL): run via `EsqlSpecIT` in the single-node QA project. Test names in csv-spec files are auto-capitalized (e.g. `vector_matching_on` becomes `Vector_matching_on`). Example:
+  `./gradlew :x-pack:plugin:esql:qa:server:single-node:javaRestTest --tests "org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT" -Dtests.method="test {csv-spec:<file>.<Test_name>}"`
+  To run all tests from a csv-spec file: `-Dtests.method="test {csv-spec:k8s-timeseries-promql.*}"`
 - Use the Elasticsearch testing framework where possible for unit and yaml tests and be consistent in style with other elasticsearch tests.
 - Use real classes over mocks or stubs for unit tests, unless the real class is complex then either a simplified subclass should be created within the test or, as a last resort, a mock or stub can be used. Unit tests must be as close to real-world scenarios as possible.
 - Ensure mocks or stubs are well-documented and clearly indicate why they were necessary. 

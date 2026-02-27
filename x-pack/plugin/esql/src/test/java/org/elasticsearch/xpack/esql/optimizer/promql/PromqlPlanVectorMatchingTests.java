@@ -15,8 +15,12 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -140,6 +144,7 @@ public class PromqlPlanVectorMatchingTests extends AbstractPromqlPlanOptimizerTe
             var optimized = logicalOptimizer.optimize(analyzed);
             logger.info("optimized plan:\n{}", optimized);
             assertThat(outputColumns(optimized), equalTo(List.of("r", "step", "cluster", "pod")));
+            assertSelfContainedInlineJoin(optimized, Set.of("step", "cluster"));
         } catch (Exception e) {
             logger.info("optimization failed", e);
             throw e;
@@ -155,10 +160,27 @@ public class PromqlPlanVectorMatchingTests extends AbstractPromqlPlanOptimizerTe
             var optimized = logicalOptimizer.optimize(analyzed);
             logger.info("optimized plan:\n{}", optimized);
             assertThat(outputColumns(optimized), equalTo(List.of("r", "step", "cluster", "pod")));
+            assertSelfContainedInlineJoin(optimized, Set.of("step", "cluster"));
         } catch (Exception e) {
             logger.info("optimization failed", e);
             throw e;
         }
+    }
+
+    public void testGroupLeftWithInlineSideNestedFunctionLayering() {
+        var query = "PROMQL index=k8s step=1m r=(sum by (cluster, pod)(network.bytes_in)"
+            + " / ignoring(pod) group_left ceil(sum by (cluster)(network.bytes_in)))";
+        var optimized = logicalOptimizer.optimize(tsAnalyzer.analyze(parser.parseQuery(query)));
+        assertThat(outputColumns(optimized), equalTo(List.of("r", "step", "cluster", "pod")));
+        assertSelfContainedInlineJoin(optimized, Set.of("step", "cluster"));
+    }
+
+    public void testGroupRightWithInlineSideNestedFunctionLayering() {
+        var query = "PROMQL index=k8s step=1m r=(ceil(sum by (cluster)(network.bytes_in))"
+            + " / on(cluster) group_right sum by (cluster, pod)(network.bytes_in))";
+        var optimized = logicalOptimizer.optimize(tsAnalyzer.analyze(parser.parseQuery(query)));
+        assertThat(outputColumns(optimized), equalTo(List.of("r", "step", "cluster", "pod")));
+        assertSelfContainedInlineJoin(optimized, Set.of("step", "cluster"));
     }
 
     // TODO: Phase 3 — extra labels from group_left(region) should project 'region' from the inline side
@@ -231,6 +253,17 @@ public class PromqlPlanVectorMatchingTests extends AbstractPromqlPlanOptimizerTe
 
     private static List<Aggregate> outerAggregates(LogicalPlan plan) {
         return plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+    }
+
+    private static void assertSelfContainedInlineJoin(LogicalPlan plan, Set<String> expectedKeys) {
+        var joins = plan.collect(InlineJoin.class);
+        assertThat(joins, hasSize(1));
+        InlineJoin join = joins.getFirst();
+        assertFalse(join.right().anyMatch(p -> p instanceof StubRelation));
+        assertThat(plan.collect(StubRelation.class), hasSize(0));
+
+        Set<String> keyNames = new HashSet<>(join.config().leftFields().stream().map(a -> a.name()).toList());
+        assertThat(keyNames, equalTo(expectedKeys));
     }
 
     private static long countAggFunctions(LogicalPlan plan, Class<?> aggType) {

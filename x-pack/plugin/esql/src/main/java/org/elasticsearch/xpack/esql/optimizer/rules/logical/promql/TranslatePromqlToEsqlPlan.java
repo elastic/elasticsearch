@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
@@ -466,7 +467,85 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             throw new QlIllegalArgumentException("binary expressions with different grouping keys not supported yet");
         }
 
-        return buildInlineJoinPlan(left, right, leftAgg, rightAgg, match, ctx);
+        boolean isGroupLeft = match.grouping() == VectorMatch.Joining.LEFT;
+        TranslationResult drivingSide = isGroupLeft ? left : right;
+        TranslationResult inlineSide = isGroupLeft ? right : left;
+        Aggregate drivingAgg = isGroupLeft ? leftAgg : rightAgg;
+        Aggregate inlineAgg = isGroupLeft ? rightAgg : leftAgg;
+
+        Source source = ctx.promqlCommand().source();
+
+        Set<String> matchingKeyNames = computeMatchingKeyNames(match, leftAgg, rightAgg);
+        if (matchingKeyNames.isEmpty()) {
+            throw new QlIllegalArgumentException("group modifier join requires at least one matching key");
+        }
+
+        LogicalPlan drivingPlan = replaceAggregate(
+            drivingSide.plan(),
+            drivingAgg,
+            withFilteredAggregates(drivingAgg, drivingSide.selectorFilter())
+        );
+        LogicalPlan inlinePlan = replaceAggregate(
+            inlineSide.plan(),
+            inlineAgg,
+            withFilteredAggregates(inlineAgg, inlineSide.selectorFilter())
+        );
+
+        // Give the inline side a fresh EsRelation copy so its FieldAttributes have distinct
+        // NameIds and don't collide with the driving side when TranslateTimeSeriesAggregate
+        // adds _tsid to both independently.
+        inlinePlan = copyEsRelation(inlinePlan);
+
+        // PromQL vector matching InlineJoin should be self-contained; do not depend on
+        // eval propagation from a stubbed right side.
+        if (inlinePlan.anyMatch(p -> p instanceof StubRelation)) {
+            throw new QlIllegalArgumentException(
+                "promql vector matching inline side must not contain [{}]",
+                StubRelation.class.getSimpleName()
+            );
+        }
+
+        Attribute inlineValue = findOutputAttribute(inlinePlan, inlineSide.expression());
+
+        // Rename the inline value column to avoid shadowing the driving value in
+        // mergeOutputExpressions (which drops left-side attributes with same name as right-side).
+        if (containsOutputName(drivingPlan, inlineValue.name())) {
+            String uniqueName = uniqueOutputName(drivingPlan, "inline_" + inlineValue.name());
+            inlinePlan = renameOutputAttribute(inlinePlan, inlineValue, uniqueName);
+            inlineValue = findOutputAttribute(inlinePlan, inlineValue);
+        }
+
+        // Build JoinConfig: match keys by name between left and right outputs
+        List<Attribute> leftJoinFields = new ArrayList<>();
+        List<Attribute> rightJoinFields = new ArrayList<>();
+        Map<String, Attribute> leftKeysByName = keyAttributesByName(drivingPlan.output(), matchingKeyNames, "driving");
+        Map<String, Attribute> rightKeysByName = keyAttributesByName(Join.makeReference(inlinePlan.output()), matchingKeyNames, "inline");
+        List<String> missingKeys = new ArrayList<>();
+        for (String key : matchingKeyNames) {
+            Attribute leftKey = leftKeysByName.get(key);
+            Attribute rightKey = rightKeysByName.get(key);
+            if (leftKey == null || rightKey == null) {
+                missingKeys.add(key);
+                continue;
+            }
+            leftJoinFields.add(leftKey);
+            rightJoinFields.add(rightKey);
+        }
+
+        if (missingKeys.isEmpty() == false) {
+            throw new QlIllegalArgumentException(
+                "could not resolve matching keys [{}] in both sides of group modifier join",
+                missingKeys
+            );
+        }
+
+        InlineJoin inlineJoin = new InlineJoin(source, drivingPlan, inlinePlan, JoinTypes.LEFT, leftJoinFields, rightJoinFields);
+
+        // Find inline value attribute in InlineJoin output
+        Attribute inlineValueAttr = findOutputAttribute(inlineJoin, inlineValue);
+
+        // NOT NULL filter enforces INNER JOIN semantics (Prometheus drops unmatched rows)
+        return new Filter(source, inlineJoin, new IsNotNull(source, inlineValueAttr));
     }
 
     /**
@@ -532,95 +611,6 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     }
 
     /**
-     * Builds an InlineJoin plan for binary operations with incompatible groupings (group_left/group_right).
-     * <p>
-     * group_left: left drives (many), right is inline (one).
-     * group_right: swap — right drives, left is inline.
-     * <p>
-     * Resulting plan (before subplan materialization):
-     * <pre>
-     * Filter[inlineValue IS NOT NULL]
-     *   InlineJoin[LEFT, keys=matchingKeys]
-     *     ├─ drivingPlan  (translated independently)
-     *     └─ inlinePlan   (translated independently)
-     * </pre>
-     */
-    private LogicalPlan buildInlineJoinPlan(
-        TranslationResult left,
-        TranslationResult right,
-        Aggregate leftAgg,
-        Aggregate rightAgg,
-        VectorMatch match,
-        TranslationContext ctx
-    ) {
-        boolean isGroupLeft = match.grouping() == VectorMatch.Joining.LEFT;
-
-        TranslationResult drivingSide = isGroupLeft ? left : right;
-        TranslationResult inlineSide = isGroupLeft ? right : left;
-        Aggregate drivingAgg = isGroupLeft ? leftAgg : rightAgg;
-        Aggregate inlineAgg = isGroupLeft ? rightAgg : leftAgg;
-
-        Source source = ctx.promqlCommand().source();
-
-        Set<String> matchingKeyNames = computeMatchingKeyNames(match, leftAgg, rightAgg);
-
-        LogicalPlan drivingPlan = replaceAggregate(
-            drivingSide.plan(),
-            drivingAgg,
-            withFilteredAggregates(drivingAgg, drivingSide.selectorFilter())
-        );
-        LogicalPlan inlinePlan = replaceAggregate(
-            inlineSide.plan(),
-            inlineAgg,
-            withFilteredAggregates(inlineAgg, inlineSide.selectorFilter())
-        );
-
-        // Give the inline side a fresh EsRelation copy so its FieldAttributes have distinct
-        // NameIds and don't collide with the driving side when TranslateTimeSeriesAggregate
-        // adds _tsid to both independently.
-        inlinePlan = copyEsRelation(inlinePlan);
-
-        // Rename the inline value column to avoid shadowing the driving value in
-        // mergeOutputExpressions (which drops left-side attributes with same name as right-side).
-        Attribute inlineValue = Expressions.attribute(inlineSide.expression());
-        if (inlineValue != null && containsOutputName(drivingPlan, inlineValue.name())) {
-            String uniqueName = uniqueOutputName(drivingPlan, "inline_" + inlineValue.name());
-            inlinePlan = renameOutputAttribute(inlinePlan, inlineValue, uniqueName);
-        }
-
-        // Build JoinConfig: match keys by name between left and right outputs
-        List<Attribute> leftJoinFields = new ArrayList<>();
-        List<Attribute> rightJoinFields = new ArrayList<>();
-        List<Attribute> rhsOutput = Join.makeReference(inlinePlan.output());
-        for (Attribute lhs : drivingPlan.output()) {
-            if (matchingKeyNames.contains(lhs.name())) {
-                for (Attribute rhs : rhsOutput) {
-                    if (lhs.name().equals(rhs.name())) {
-                        leftJoinFields.add(lhs);
-                        rightJoinFields.add(rhs);
-                        break;
-                    }
-                }
-            }
-        }
-
-        if (leftJoinFields.size() != matchingKeyNames.size()) {
-            throw new QlIllegalArgumentException(
-                "could not resolve matching keys [{}] in both sides of group modifier join",
-                matchingKeyNames
-            );
-        }
-
-        InlineJoin inlineJoin = new InlineJoin(source, drivingPlan, inlinePlan, JoinTypes.LEFT, leftJoinFields, rightJoinFields);
-
-        // Find inline value attribute in InlineJoin output
-        Attribute inlineValueAttr = findOutputAttribute(inlineJoin, inlineSide.expression());
-
-        // NOT NULL filter enforces INNER JOIN semantics (Prometheus drops unmatched rows)
-        return new Filter(source, inlineJoin, new IsNotNull(source, inlineValueAttr));
-    }
-
-    /**
      * Creates a copy of the plan where the EsRelation's field attributes have fresh NameIds.
      * Updates all attribute references throughout the plan tree to use the new NameIds.
      * This prevents NameId collisions when both sides of an InlineJoin share the same source.
@@ -658,6 +648,20 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
     private static LogicalPlan replaceAggregate(LogicalPlan plan, Aggregate target, Aggregate replacement) {
         return plan.transformDown(Aggregate.class, agg -> agg == target ? replacement : agg);
+    }
+
+    private static Map<String, Attribute> keyAttributesByName(List<Attribute> output, Set<String> keyNames, String sideName) {
+        Map<String, Attribute> byName = new LinkedHashMap<>();
+        for (Attribute attr : output) {
+            if (keyNames.contains(attr.name()) == false) {
+                continue;
+            }
+            Attribute existing = byName.putIfAbsent(attr.name(), attr);
+            if (existing != null && existing.id().equals(attr.id()) == false) {
+                throw new QlIllegalArgumentException("ambiguous join key [{}] in [{}] plan output", attr.name(), sideName);
+            }
+        }
+        return byName;
     }
 
     private static boolean containsOutputName(LogicalPlan plan, String name) {
@@ -705,13 +709,20 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
                     return attr;
                 }
             }
+            List<Attribute> matchesByName = new ArrayList<>();
             for (Attribute attr : plan.output()) {
                 if (attr.name().equals(ne.name())) {
-                    return attr;
+                    matchesByName.add(attr);
                 }
             }
+            if (matchesByName.size() == 1) {
+                return matchesByName.getFirst();
+            }
+            if (matchesByName.size() > 1) {
+                throw new QlIllegalArgumentException("ambiguous inline value in join output for [{}]", ne.name());
+            }
         }
-        throw new QlIllegalArgumentException("could not resolve inline value in join output: {}", expr);
+        throw new QlIllegalArgumentException("could not resolve [{}] in plan output [{}]", expr, plan.output());
     }
 
     /**

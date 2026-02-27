@@ -275,3 +275,51 @@ FROM voyager
 x:datetime                                                                     | y:long
 [2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | 21190910706
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test aggregating on integers
+
+required_capability: first_last_agg_on_ints
+
+FROM voyager
+| STATS 
+    x = FIRST(ack_station_ip, active_instruments),
+    y = LAST(collision_risk, active_instruments)
+;
+
+x:ip        | y:double
+173.21.3.13 | 0.0014
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test retrieval of first timestamp by int
+required_capability: first_last_agg_on_ints
+
+ROW row = [
+  #       @timestamp        |  name   | number
+  "2025-11-25T00:00:00.000Z | alpha   | ",
+  "2025-11-25T00:00:01.000Z | alpha   | 2",
+  "2025-11-25T00:00:02.000Z | bravo   | ",
+  "2025-11-25T00:00:03.000Z | alpha   | 4",
+  "2025-11-25T00:00:04.000Z | bravo   | 5",
+  "2025-11-25T00:00:05.000Z | charlie | 6",
+  "2025-11-25T00:00:06.000Z | delta   | "
+]
+| MV_EXPAND row
+| DISSECT row """%{@timestamp} | %{name} | %{number}"""
+| KEEP @timestamp, name, number
+| EVAL @timestamp = TO_DATETIME(@timestamp), 
+       name = TRIM(name), 
+       number = TO_LONG(number)
+| STATS first_val = FIRST(@timestamp, number),
+        last_val = LAST(@timestamp, number)
+;
+
+warning:Line 15:10: evaluation of [TO_LONG(number)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 15:10: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number []
+
+first_val:datetime       | last_val:datetime
+2025-11-25T00:00:01.000Z | 2025-11-25T00:00:05.000Z
+;

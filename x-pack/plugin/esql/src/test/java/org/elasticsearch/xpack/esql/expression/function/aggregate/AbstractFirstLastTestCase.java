@@ -42,7 +42,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
 
         for (DataType valueType : types) {
             for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(valueType, rows, rows)) {
-                for (DataType sortType : List.of(DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS)) {
+                for (DataType sortType : List.of(DataType.INTEGER, DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS)) {
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : unlimitedSuppliers(sortType, rows, rows)) {
                         suppliers.add(makeSupplier(valueSupplier, sortSupplier, isFirst));
                     }
@@ -70,7 +70,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                 List<?> sortsList = (List<?>) sorts.data();
 
                 for (int p = 0; p < valuesList.size(); p++) {
-                    Long s = (Long) sortsList.get(p);
+                    Long s = ((Number) sortsList.get(p)).longValue();
                     if (firstSort == null || (first ? s < firstSort : s > firstSort)) {
                         firstSort = s;
                         expected.clear();

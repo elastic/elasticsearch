@@ -2220,6 +2220,11 @@ public class EsqlCapabilities {
          */
         FIX_AGGREGATION_FRAMEWORK_CHANNELS,
 
+        /**
+         * Support aggregating on integers in FIRST/LAST.
+         */
+        FIRST_LAST_AGG_ON_INTS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -2,6 +2,8 @@
 * [`AVG`](../../functions-operators/aggregation-functions/avg.md)
 * [`COUNT`](../../functions-operators/aggregation-functions/count.md)
 * [`COUNT_DISTINCT`](../../functions-operators/aggregation-functions/count_distinct.md)
+* [`FIRST`](../../functions-operators/aggregation-functions/first.md)
+* [`LAST`](../../functions-operators/aggregation-functions/last.md)
 * [`MAX`](../../functions-operators/aggregation-functions/max.md)
 * [`MEDIAN`](../../functions-operators/aggregation-functions/median.md)
 * [`MEDIAN_ABSOLUTE_DEVIATION`](../../functions-operators/aggregation-functions/median_absolute_deviation.md)
@@ -17,5 +19,3 @@
 * [`VALUES`](../../functions-operators/aggregation-functions/values.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`VARIANCE`](../../functions-operators/aggregation-functions/variance.md)
 * [`WEIGHTED_AVG`](../../functions-operators/aggregation-functions/weighted_avg.md)
-* [`FIRST`](../../functions-operators/aggregation-functions/first.md)
-* [`LAST`](../../functions-operators/aggregation-functions/last.md)

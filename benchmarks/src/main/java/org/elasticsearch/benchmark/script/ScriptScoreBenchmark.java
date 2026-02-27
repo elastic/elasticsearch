@@ -21,6 +21,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -78,6 +79,11 @@ import java.util.concurrent.TimeUnit;
 @OperationsPerInvocation(1_000_000)   // The index has a million documents in it.
 @State(Scope.Benchmark)
 public class ScriptScoreBenchmark {
+
+    static {
+        Utils.configureBenchmarkLogging();
+    }
+
     private final PluginsService pluginsService = new PluginsService(
         Settings.EMPTY,
         null,

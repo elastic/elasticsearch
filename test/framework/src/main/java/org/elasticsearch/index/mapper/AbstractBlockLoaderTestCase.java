@@ -86,18 +86,28 @@ public abstract class AbstractBlockLoaderTestCase extends ESTestCase {
     protected abstract void test(CircuitBreaker breaker, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrap)
         throws IOException;
 
+    /**
+     * Read from the reader.
+     * <p>
+     *     About half the time this just calls {@link BlockLoader.ColumnAtATimeReader#read}
+     *     to read the entire block at once. That's the "fast path". The path that's most
+     *     common for loading before an agg. The other half the time it reads in smaller
+     *     chunks to similar loading from jumbled segments. That's the path that's common
+     *     to load after a TopN.
+     * </p>
+     */
     protected final TestBlock read(BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
         if (randomBoolean()) {
             return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
         }
         List<Object> results = new ArrayList<>(docs.count());
-        int walk = randomBoolean() ? 1 : between(2, 100);
-        for (int offset = 0; offset < docs.count(); offset += walk) {
+        int step = randomBoolean() ? 1 : between(2, 100);
+        for (int offset = 0; offset < docs.count(); offset += step) {
             int finalOffset = offset;
             BlockLoader.Docs subDocs = new BlockLoader.Docs() {
                 @Override
                 public int count() {
-                    return Math.min(walk, docs.count() - finalOffset) + finalOffset;
+                    return Math.min(step, docs.count() - finalOffset) + finalOffset;
                 }
 
                 @Override

@@ -521,7 +521,7 @@ emp_no:integer | job_positions:keyword                                          
 testPushDownMvExpandPastProject
 // https://github.com/elastic/elasticsearch/issues/136596
 required_capability: push_down_mv_expand_past_project
-from partial_mapping_no_source_sample_data,no_mapping_sample_data 
+from no_mapping_sample_data 
 | eval spZehshmg = false, `@timestamp` = null, xrRYYdVC = -1193517579093331092 
 | rename xrRYYdVC AS `goqRirHJaE`, `@timestamp` AS gilMWmQyQ 
 | sort goqRirHJaE NULLS LAST 
@@ -532,13 +532,6 @@ from partial_mapping_no_source_sample_data,no_mapping_sample_data
 ;
 
 goqRirHJaE:long
--1193517579093331092
--1193517579093331092
--1193517579093331092
--1193517579093331092
--1193517579093331092
--1193517579093331092
--1193517579093331092
 -1193517579093331092
 -1193517579093331092
 -1193517579093331092

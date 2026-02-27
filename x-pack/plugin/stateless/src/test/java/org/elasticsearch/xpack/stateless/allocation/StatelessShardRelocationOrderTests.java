@@ -164,6 +164,7 @@ public class StatelessShardRelocationOrderTests extends OrderedShardsIteratorTes
         }
 
         // Create normal indices, each with 1-5 shards
+        int normalShardsWithNoWriteLoad = 0;
         for (int i = 0; i < numNormalIndices; i++) {
             int numShards = randomIntBetween(1, 5);
             String indexName = randomIndexName() + "-" + i;
@@ -178,6 +179,8 @@ public class StatelessShardRelocationOrderTests extends OrderedShardsIteratorTes
                 writeLoads.put(shardId, writeLoad);
                 if (writeLoad > 0.0) {
                     shardsToSpread.add(shardId);
+                } else {
+                    normalShardsWithNoWriteLoad++;
                 }
             }
             routingTableBuilder.add(irtBuilder.build());
@@ -208,19 +211,30 @@ public class StatelessShardRelocationOrderTests extends OrderedShardsIteratorTes
         assertThat(orderedShards, containsInAnyOrder(allocation.routingNodes().node("node-1").copyShards()));
 
         // 3. Tail of the ordered list should consist entirely of DS read shards (the "second half")
-        int expectedTailSize = Math.ceilDiv(dsReadShardIds.size(), 2); // ceil(N/2) — addToSecondHalf starts true
-        for (int i = orderedShards.size() - 1; i >= orderedShards.size() - expectedTailSize; i--) {
+        int expectedSecondHalfSize = Math.ceilDiv(dsReadShardIds.size(), 2); // ceil(N/2) — addToSecondHalf starts true
+        for (int i = orderedShards.size() - 1; i >= orderedShards.size() - expectedSecondHalfSize; i--) {
             assertTrue("tail should contain half of the read shards", dsReadShardIds.contains(orderedShards.get(i).shardId()));
         }
 
-        // 4. Make sure the shards with potential write are spread out in the head (not all at the top).
-        List<ShardRouting> head = orderedShards.subList(0, orderedShards.size() - expectedTailSize);
-        int n = shardsToSpread.size();
-        // Only check when there are enough spread shards to observe ordering (>=2) and
-        // the head contains other shards too (n < head.size), otherwise there is nothing to interleave with.
-        if (n >= 2 && n < head.size()) {
-            long spreadInTopN = head.subList(0, n).stream().filter(s -> shardsToSpread.contains(s.shardId())).count();
-            assertThat("write shards should not all be clustered at the start", spreadInTopN, lessThan((long) n));
+        // 4. Make sure the shards with potential write are spread out in the firstHalf (not all at the top).
+        List<ShardRouting> firstHalf = orderedShards.subList(0, orderedShards.size() - expectedSecondHalfSize);
+        int toSpread = shardsToSpread.size();
+        // Only check when there are enough spread shards to observe ordering (>1) and
+        // the firstHalf contains enough other shards too, otherwise there is nothing to interleave with.
+        if (firstHalf.size() > toSpread + 1 && toSpread > 1) { // at least 2 non-spread and 2 to spread
+            long spreadInTopN = firstHalf.subList(0, toSpread).stream().filter(s -> shardsToSpread.contains(s.shardId())).count();
+            assertThat("write shards should not all be clustered at the start", spreadInTopN, lessThan((long) toSpread));
+        }
+
+        // 5. Check the max number of non writes that can be at the front
+        if (shardsToSpread.isEmpty() == false) {
+            final int nonWriteShardsInFirstHalf = Math.ceilDiv(dsReadShardIds.size(), 2) + normalShardsWithNoWriteLoad;
+            final int maxNonWrites = Math.ceilDiv(nonWriteShardsInFirstHalf, shardsToSpread.size()); // same as how many we interleave
+            assertTrue(
+                "there should be at least one write shard in the first " + (maxNonWrites + 1) + " elements",
+                orderedShards.subList(0, maxNonWrites + 1).stream().anyMatch(s -> shardsToSpread.contains(s.shardId()))
+            );
+            assertTrue(shardsToSpread.contains(orderedShards.getFirst().shardId()));
         }
     }
 

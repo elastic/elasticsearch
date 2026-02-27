@@ -349,6 +349,8 @@ BkQXJRMeAM:long
 
 
 nullInputRow
+required_capability: str_commands_accept_null
+
 ROW n = null
 | GROK n "%{WORD:abc}"
 ;
@@ -358,6 +360,8 @@ n:null | abc:keyword
 ;
 
 nullInput
+required_capability: str_commands_accept_null
+
 FROM employees
 | EVAL n = null
 | GROK n "%{WORD:abc}"

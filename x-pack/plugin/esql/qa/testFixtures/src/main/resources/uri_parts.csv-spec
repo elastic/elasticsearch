@@ -322,6 +322,8 @@ www.elastic.co       | 443                | https
 
 
 nullInputRow
+required_capability: str_commands_accept_null
+
 ROW n = null
 | URI_PARTS parts=n
 ;
@@ -331,6 +333,8 @@ null   | null                 | null                   | null               | nu
 ;
 
 nullInput
+required_capability: str_commands_accept_null
+
 FROM employees
 | EVAL n = null
 | URI_PARTS parts=n

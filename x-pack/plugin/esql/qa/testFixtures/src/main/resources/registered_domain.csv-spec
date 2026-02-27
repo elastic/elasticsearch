@@ -172,6 +172,8 @@ com               | null                         | com                         |
 
 
 nullInputRow
+required_capability: str_commands_accept_null
+
 ROW n = null
 | REGISTERED_DOMAIN rd=n
 ;
@@ -181,6 +183,8 @@ n:null | rd.domain:keyword | rd.registered_domain:keyword | rd.top_level_domain:
 ;
 
 nullInput
+required_capability: str_commands_accept_null
+
 FROM employees
 | EVAL n = null
 | REGISTERED_DOMAIN rd=n

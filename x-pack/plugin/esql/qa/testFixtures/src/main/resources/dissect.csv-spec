@@ -373,6 +373,8 @@ Disconnected
 ;
 
 nullInputRow
+required_capability: str_commands_accept_null
+
 ROW n = null
 | DISSECT n "%{abc}"
 ;
@@ -382,6 +384,8 @@ n:null | abc:keyword
 ;
 
 nullInput
+required_capability: str_commands_accept_null
+
 FROM employees
 | EVAL n = null
 | DISSECT n "%{abc}"

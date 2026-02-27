@@ -25,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
-public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder {
+public class SpanFirstQueryBuilder extends LeafQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_first";
 
     private static final ParseField MATCH_FIELD = new ParseField("match");

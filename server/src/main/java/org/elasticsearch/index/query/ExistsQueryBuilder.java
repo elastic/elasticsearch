@@ -32,7 +32,7 @@ import java.util.Set;
 /**
  * Constructs a query that only match on documents that the field has a value in them.
  */
-public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> {
+public class ExistsQueryBuilder extends LeafQueryBuilder<ExistsQueryBuilder> {
     public static final String NAME = "exists";
 
     public static final ParseField FIELD_FIELD = new ParseField("field");

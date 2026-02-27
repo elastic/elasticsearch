@@ -10,6 +10,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
@@ -60,6 +61,11 @@ public class InterceptedQueryBuilderWrapper implements QueryBuilder {
     @Override
     public Query toQuery(SearchExecutionContext context) throws IOException {
         return queryBuilder.toQuery(context);
+    }
+
+    @Override
+    public Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException {
+        return queryBuilder.toQuery(context, visitor);
     }
 
     @Override

@@ -18,6 +18,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
@@ -117,7 +118,7 @@ public final class Queries {
         return clauses.isEmpty() == false && clauses.stream().allMatch(BooleanClause::isProhibited);
     }
 
-    public static Query fixNegativeQueryIfNeeded(Query q) {
+    public static Query fixNegativeQueryIfNeeded(Query q, QueryVisitor queryVisitor) {
         if (isNegativeQuery(q)) {
             BooleanQuery bq = (BooleanQuery) q;
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -125,6 +126,7 @@ public final class Queries {
                 builder.add(clause);
             }
             builder.add(ALL_DOCS_INSTANCE, BooleanClause.Occur.FILTER);
+            ALL_DOCS_INSTANCE.visit(queryVisitor);
             return builder.build();
         }
         return q;

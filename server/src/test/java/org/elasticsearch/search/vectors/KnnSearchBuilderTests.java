@@ -10,6 +10,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -367,7 +368,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         }
 
         @Override
-        protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        protected Query doToQuery(SearchExecutionContext context, QueryVisitor queryVisitor) throws IOException {
             throw new UnsupportedOperationException();
         }
 

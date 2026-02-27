@@ -23,6 +23,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.store.Directory;
@@ -118,6 +119,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         @Override
         public Query toQuery(SearchExecutionContext context) throws IOException {
             return new TermQuery(new Term("foo", "bar"));
+        }
+
+        @Override
+        public Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException {
+            return toQuery(context);
         }
 
         @Override

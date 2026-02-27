@@ -36,7 +36,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -404,7 +404,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
      * This helps make this test not time dependent, otherwise it would be unpredictable when exactly the timeout happens, which is
      * rather important if we want to test that we are able to return partial results on timeout.
      */
-    public static final class BulkScorerTimeoutQuery extends AbstractQueryBuilder<BulkScorerTimeoutQuery> {
+    public static final class BulkScorerTimeoutQuery extends LeafQueryBuilder<BulkScorerTimeoutQuery> {
 
         private final boolean partialResults;
 

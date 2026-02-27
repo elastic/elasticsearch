@@ -10,6 +10,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -157,7 +158,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, QueryVisitor queryVisitor) throws IOException {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "[script score] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
@@ -166,7 +167,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
         SearchLookup lookup = context.lookup();
         ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), lookup);
-        Query query = this.query.toQuery(context);
+        Query query = this.query.toQuery(context, queryVisitor);
         return new ScriptScoreQuery(
             query,
             script,

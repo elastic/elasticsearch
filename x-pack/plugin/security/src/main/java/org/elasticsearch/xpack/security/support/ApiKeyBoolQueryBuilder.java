@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.support;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -81,9 +82,9 @@ public final class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, QueryVisitor queryVisitor) throws IOException {
         context.setAllowedFields(ApiKeyBoolQueryBuilder::isIndexFieldNameAllowed);
-        return super.doToQuery(context);
+        return super.doToQuery(context, queryVisitor);
     }
 
     @Override

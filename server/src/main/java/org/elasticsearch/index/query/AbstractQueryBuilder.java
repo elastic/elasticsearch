@@ -10,9 +10,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -22,6 +24,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
@@ -45,8 +48,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 
 /**
- * Base class for all classes producing lucene queries.
- * Supports conversion to BytesReference and creation of lucene Query objects.
+ * Base class for query builders that produce Lucene queries.
+ * Provides XContent/stream serialization, boost and query-name handling, and the rewrite entry point.
  */
 public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> implements QueryBuilder {
 
@@ -116,7 +119,21 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final Query toQuery(SearchExecutionContext context) throws IOException {
-        Query query = doToQuery(context);
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        Query query = toQuery(context, visitor);
+        assert query == null || assertBooleanClauses(query, visitor.getNumClauses());
+        return query;
+    }
+
+    private static boolean assertBooleanClauses(Query query, int numClauses) {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(Integer.MAX_VALUE);
+        query.visit(visitor);
+        return visitor.getNumClauses() == numClauses;
+    }
+
+    @Override
+    public final Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException {
+        Query query = doToQuery(context, visitor);
         if (query != null) {
             if (boost != DEFAULT_BOOST) {
                 if (query instanceof MatchNoDocsQuery == false) {
@@ -133,7 +150,18 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return query;
     }
 
-    protected abstract Query doToQuery(SearchExecutionContext context) throws IOException;
+    /**
+     * Builds the Lucene {@link Query} for this builder.
+     * <p>
+     * Implementations should use the provided {@link QueryVisitor} to visit any generated query or sub-queries.
+     * Boost and named-query handling are applied by {@link #toQuery(SearchExecutionContext, QueryVisitor)}.
+     * {@link LeafQueryBuilder} implementations get this visitor handling automatically.
+     *
+     * @param context additional information needed to construct the query
+     * @param visitor query visitor used to account for clauses while building the query
+     * @return the {@link Query} or {@code null} if this query should be ignored upstream
+     */
+    protected abstract Query doToQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException;
 
     /**
      * Sets the query name for the query.
@@ -248,12 +276,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * their {@link QueryBuilder#toQuery(SearchExecutionContext)} method are not added to the
      * resulting collection.
      */
-    static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, SearchExecutionContext context) throws QueryShardException,
-        IOException {
+    static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, SearchExecutionContext context, QueryVisitor queryVisitor)
+        throws QueryShardException, IOException {
         List<Query> queries = new ArrayList<>(queryBuilders.size());
         for (QueryBuilder queryBuilder : queryBuilders) {
             Query query = queryBuilder.rewrite(context).toQuery(context);
             if (query != null) {
+                query.visit(queryVisitor);
                 queries.add(query);
             }
         }

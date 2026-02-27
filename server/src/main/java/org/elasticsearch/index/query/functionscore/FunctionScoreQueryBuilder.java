@@ -11,6 +11,7 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.NamedMatches;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -294,7 +295,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, QueryVisitor queryVisitor) throws IOException {
         ScoreFunction[] filterFunctions = new ScoreFunction[filterFunctionBuilders.length];
         int i = 0;
         for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
@@ -323,9 +324,10 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             }
         }
 
-        Query query = this.query.toQuery(context);
+        Query query = this.query.toQuery(context, queryVisitor);
         if (query == null) {
             query = Queries.ALL_DOCS_INSTANCE;
+            query.visit(queryVisitor);
         }
 
         CombineFunction boostMode = this.boostMode == null ? DEFAULT_BOOST_MODE : this.boostMode;

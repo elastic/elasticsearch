@@ -12,6 +12,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -36,7 +37,7 @@ import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUti
  * of intervening unmatched positions, as well as whether matches are required to be in-order.
  * The span near query maps to Lucene {@link SpanNearQuery}.
  */
-public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
+public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_near";
 
     /** Default for flag controlling whether matches are required to be in-order */
@@ -337,6 +338,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
         @Override
         public Query toQuery(SearchExecutionContext context) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException {
             throw new UnsupportedOperationException();
         }
 

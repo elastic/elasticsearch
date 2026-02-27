@@ -10,11 +10,16 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
+/**
+ * Top-level interface for building Elasticsearch queries.
+ * Implementations can be rewritten, serialized, and converted to Lucene {@link Query} instances.
+ */
 public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject, Rewriteable<QueryBuilder> {
 
     /**
@@ -26,6 +31,16 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
      * @return the {@link Query} or {@code null} if this query should be ignored upstream
      */
     Query toQuery(SearchExecutionContext context) throws IOException;
+
+    /**
+     * Converts this QueryBuilder to a lucene {@link Query} with a query visitor.
+     * Returns {@code null} if this query should be ignored in the context of
+     * parent queries.
+     *
+     * @param context additional information needed to construct the queries
+     * @return the {@link Query} or {@code null} if this query should be ignored upstream
+     */
+    Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException;
 
     /**
      * Sets the arbitrary name to be assigned to the query (see named queries).

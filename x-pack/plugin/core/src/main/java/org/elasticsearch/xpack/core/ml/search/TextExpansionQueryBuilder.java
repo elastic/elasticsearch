@@ -19,6 +19,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -45,7 +46,7 @@ import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.
  * @deprecated Replaced by sparse_vector query
  */
 @Deprecated
-public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
+public class TextExpansionQueryBuilder extends LeafQueryBuilder<TextExpansionQueryBuilder> {
 
     public static final String NAME = "text_expansion";
     public static final ParseField MODEL_TEXT = new ParseField("model_text");

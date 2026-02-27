@@ -168,7 +168,7 @@ public class UserBoolQueryBuilderTests extends ESTestCase {
         }).when(context).setAllowedFields(any());
         try {
             if (randomBoolean()) {
-                userBoolQueryBuilder.doToQuery(context);
+                userBoolQueryBuilder.toQuery(context);
             } else {
                 userBoolQueryBuilder.doRewrite(context);
             }

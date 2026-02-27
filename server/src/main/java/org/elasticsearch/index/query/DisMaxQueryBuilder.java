@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -170,9 +171,9 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, QueryVisitor queryVisitor) throws IOException {
         // return null if there are no queries at all
-        Collection<Query> luceneQueries = toQueries(queries, context);
+        Collection<Query> luceneQueries = toQueries(queries, context, queryVisitor);
         if (luceneQueries.isEmpty()) {
             return Queries.newMatchNoDocsQuery("no clauses for dismax query.");
         }

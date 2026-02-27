@@ -29,7 +29,7 @@ import java.util.Set;
 /**
  * Builder for {@link IntervalQuery}
  */
-public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuilder> {
+public class IntervalQueryBuilder extends LeafQueryBuilder<IntervalQueryBuilder> {
 
     public static final String NAME = "intervals";
 

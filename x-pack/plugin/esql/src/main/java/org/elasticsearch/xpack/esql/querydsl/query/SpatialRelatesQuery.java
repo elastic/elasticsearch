@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
@@ -130,6 +131,11 @@ public class SpatialRelatesQuery extends Query {
                 throw new QueryShardException(context, "failed to find type for field [" + field + "]");
             }
             return buildShapeQuery(context, fieldType);
+        }
+
+        @Override
+        public org.apache.lucene.search.Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException {
+            return toQuery(context);
         }
 
         abstract org.apache.lucene.search.Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType);

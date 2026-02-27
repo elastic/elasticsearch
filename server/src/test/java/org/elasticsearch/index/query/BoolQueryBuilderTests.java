@@ -728,7 +728,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         return expectedPrefilters;
     }
 
-    private static final class TestAutoPrefilteringQueryBuilder extends AbstractQueryBuilder<TestAutoPrefilteringQueryBuilder> {
+    private static final class TestAutoPrefilteringQueryBuilder extends LeafQueryBuilder<TestAutoPrefilteringQueryBuilder> {
 
         Map<String, Set<QueryBuilder>> prefiltersToQueryNameMap;
 

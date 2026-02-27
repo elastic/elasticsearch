@@ -35,7 +35,7 @@ import java.util.Objects;
 /**
  * A Query that does fuzzy matching for a specific value.
  */
-public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder {
+public class RegexpQueryBuilder extends LeafQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "regexp";
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();

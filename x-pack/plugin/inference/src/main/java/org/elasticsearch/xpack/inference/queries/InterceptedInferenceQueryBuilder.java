@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -256,7 +257,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) {
+    public Query doToQuery(SearchExecutionContext context, QueryVisitor queryVisitor) {
         throw new UnsupportedOperationException("Query should be rewritten to a different type");
     }
 

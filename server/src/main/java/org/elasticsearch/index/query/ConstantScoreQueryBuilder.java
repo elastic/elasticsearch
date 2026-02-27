@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -123,8 +124,8 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        Query innerFilter = filterBuilder.toQuery(context);
+    protected Query doToQuery(SearchExecutionContext context, QueryVisitor queryVisitor) throws IOException {
+        Query innerFilter = filterBuilder.toQuery(context, queryVisitor);
         return new ConstantScoreQuery(innerFilter);
     }
 

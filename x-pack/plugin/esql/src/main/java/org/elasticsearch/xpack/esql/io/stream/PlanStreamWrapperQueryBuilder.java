@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -67,6 +68,11 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
     @Override
     public Query toQuery(SearchExecutionContext context) throws IOException {
         return next.toQuery(context);
+    }
+
+    @Override
+    public Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException {
+        return next.toQuery(context, visitor);
     }
 
     @Override

@@ -559,6 +559,199 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /**
+     * Fetch and write in cache multiple contiguous regions of a blob using a single shared input stream.
+     * <p>
+     * This method acquires cache entries for regions {@code firstRegion} through {@code lastRegion},
+     * collects all gaps from their sparse file trackers, and fills them from a single shared input stream
+     * if the writer supports it. This reduces the number of object store GET requests from N to 1.
+     * <p>
+     * If a region cannot be acquired (no free pages and no evictable regions), that region and all
+     * subsequent regions are skipped.
+     *
+     * @param cacheKey      the key to fetch data for
+     * @param firstRegion   the first region to fetch (inclusive)
+     * @param lastRegion    the last region to fetch (inclusive)
+     * @param blobLength    the length of the blob
+     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor an executor to use for reading from the blob store
+     * @param listener      a listener that is completed when all acquired regions have been populated
+     */
+    public void maybeFetchRegions(
+        final KeyType cacheKey,
+        final int firstRegion,
+        final int lastRegion,
+        final long blobLength,
+        final RangeMissingHandler writer,
+        final Executor fetchExecutor,
+        final ActionListener<Void> listener
+    ) {
+        assert firstRegion <= lastRegion : firstRegion + " > " + lastRegion;
+
+        record GapFillInfo(
+            SparseFileTracker.Gap gap,
+            SharedBytes.IO ioRef,
+            int channelPos,
+            int relativePos,
+            int length,
+            Releasable ref
+        ) {}
+
+        final var gapFillInfos = new ArrayList<GapFillInfo>();
+        try {
+            final var overallRefs = new RefCountingRunnable(() -> listener.onResponse(null));
+            try {
+                for (int region = firstRegion; region <= lastRegion; region++) {
+                    if (freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
+                        logger.info("No free regions available, stopping multi-region fetch at region [{}]", region);
+                        break;
+                    }
+
+                    final int effectiveRegionSize = computeCacheFileRegionSize(blobLength, region);
+                    final ByteRange regionRange = ByteRange.of(0, effectiveRegionSize);
+                    if (regionRange.isEmpty()) {
+                        continue;
+                    }
+
+                    final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region);
+                    try {
+                        entry.incRefEnsureOpen();
+                    } catch (AlreadyClosedException e) {
+                        continue;
+                    }
+
+                    final var entryRefs = new RefCountingRunnable(entry::decRef);
+                    try {
+                        final List<SparseFileTracker.Gap> gaps = entry.tracker.waitForRange(
+                            regionRange,
+                            regionRange,
+                            entryRefs.acquireListener()
+                        );
+
+                        if (gaps.isEmpty()) {
+                            continue;
+                        }
+
+                        final int regionOffset = Math.toIntExact(getRegionStart(region));
+                        final SharedBytes.IO ioRef = entry.nonVolatileIO();
+
+                        for (SparseFileTracker.Gap gap : gaps) {
+                            final int start = Math.toIntExact(gap.start());
+                            final int length = Math.toIntExact(gap.end() - start);
+                            gapFillInfos.add(
+                                new GapFillInfo(
+                                    gap,
+                                    ioRef,
+                                    start,
+                                    regionOffset + start,
+                                    length,
+                                    Releasables.wrap(overallRefs.acquire(), entryRefs.acquire())
+                                )
+                            );
+                        }
+                    } finally {
+                        entryRefs.close();
+                    }
+                }
+
+                if (gapFillInfos.isEmpty()) {
+                    return;
+                }
+
+                final int numGaps = gapFillInfos.size();
+                final int firstRelPos = gapFillInfos.get(0).relativePos;
+                final int lastEnd = gapFillInfos.get(numGaps - 1).relativePos + gapFillInfos.get(numGaps - 1).length;
+                final int totalGapSpan = lastEnd - firstRelPos;
+
+                final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(numGaps, totalGapSpan);
+                logger.trace(
+                    () -> Strings.format(
+                        "fill %d gaps across regions [%d-%d] %s shared input stream factory",
+                        numGaps,
+                        firstRegion,
+                        lastRegion,
+                        streamFactory == null ? "without" : "with"
+                    )
+                );
+
+                if (streamFactory != null) {
+                    final var gapFillingTasks = gapFillInfos.stream()
+                        .map(
+                            gi -> multiRegionFillGapRunnable(
+                                gi.gap,
+                                gi.ioRef,
+                                writer,
+                                streamFactory,
+                                gi.channelPos,
+                                gi.relativePos,
+                                ActionListener.releasing(gi.ref)
+                            )
+                        )
+                        .toList();
+                    fetchExecutor.execute(() -> {
+                        try {
+                            gapFillingTasks.forEach(Runnable::run);
+                        } finally {
+                            streamFactory.close();
+                        }
+                    });
+                } else {
+                    for (GapFillInfo gi : gapFillInfos) {
+                        fetchExecutor.execute(
+                            multiRegionFillGapRunnable(
+                                gi.gap,
+                                gi.ioRef,
+                                writer,
+                                null,
+                                gi.channelPos,
+                                gi.relativePos,
+                                ActionListener.releasing(gi.ref)
+                            )
+                        );
+                    }
+                }
+            } finally {
+                overallRefs.close();
+            }
+        } catch (Exception e) {
+            for (GapFillInfo gi : gapFillInfos) {
+                try {
+                    gi.gap.onFailure(e);
+                } catch (Exception ex) {
+                    e.addSuppressed(ex);
+                }
+                Releasables.closeExpectNoException(gi.ref);
+            }
+            listener.onFailure(e);
+        }
+    }
+
+    private Runnable multiRegionFillGapRunnable(
+        SparseFileTracker.Gap gap,
+        SharedBytes.IO ioRef,
+        RangeMissingHandler writer,
+        @Nullable SourceInputStreamFactory streamFactory,
+        int channelPos,
+        int relativePos,
+        ActionListener<Void> listener
+    ) {
+        return () -> ActionListener.run(listener, l -> {
+            writer.fillCacheRange(
+                ioRef,
+                channelPos,
+                streamFactory,
+                relativePos,
+                Math.toIntExact(gap.end() - gap.start()),
+                progress -> gap.onProgress(gap.start() + progress),
+                l.<Void>map(unused -> {
+                    writeCount.increment();
+                    gap.onCompletion();
+                    return null;
+                }).delegateResponse((delegate, e) -> CacheFileRegion.failGapAndListener(gap, delegate, e))
+            );
+        });
+    }
+
+    /**
      * Fetch and write in cache a region of a blob.
      * <p>
      * If {@code force} is {@code true} and no free regions remain, an existing region will be evicted to make room.
@@ -1664,6 +1857,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         /**
+         * Attempt to get a shared {@link SourceInputStreamFactory} for the given number of gaps spanning the given total length.
+         * This overload is used when filling gaps across multiple cache regions, where the gap positions are blob-absolute
+         * rather than region-local.
+         *
+         * @param numGaps the number of gaps to be filled
+         * @param totalGapSpan the total span from the start of the first gap to the end of the last gap (blob-absolute)
+         * @return A factory object to be shared by all gaps filling process, or {@code null} if each gap filling should create
+         * its own input stream.
+         */
+        @Nullable
+        default SourceInputStreamFactory sharedInputStreamFactory(int numGaps, int totalGapSpan) {
+            return null;
+        }
+
+        /**
          * Callback method used to fetch data (usually from a remote storage) and write it in the cache.
          *
          * @param channel is the cache region to write to
@@ -1711,6 +1919,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         @Override
         public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
             return delegate.sharedInputStreamFactory(gaps);
+        }
+
+        @Override
+        public SourceInputStreamFactory sharedInputStreamFactory(int numGaps, int totalGapSpan) {
+            return delegate.sharedInputStreamFactory(numGaps, totalGapSpan);
         }
 
         @Override

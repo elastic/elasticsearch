@@ -1433,6 +1433,290 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         threadPool.shutdown();
     }
 
+    public void testMaybeFetchRegions_BasicMultiRegion() throws Exception {
+        final long regionSize = size(100L);
+        final long cacheSize = size(500L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final var threadPool = new TestThreadPool("test");
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            assertEquals(5, cacheService.freeRegionCount());
+
+            // Blob spanning 3 full regions
+            final long blobLength = regionSize * 3;
+            final AtomicLong bytesRead = new AtomicLong(0L);
+
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            cacheService.maybeFetchRegions(
+                cacheKey,
+                0,
+                2,
+                blobLength,
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> {
+                        bytesRead.addAndGet(length);
+                        progressUpdater.accept(length);
+                    }
+                ),
+                threadPool.generic(),
+                future
+            );
+
+            future.get(10, TimeUnit.SECONDS);
+            assertEquals(blobLength, bytesRead.get());
+            assertEquals(2, cacheService.freeRegionCount()); // 3 regions consumed
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void testMaybeFetchRegions_PartialFreeRegions() throws Exception {
+        final long regionSize = size(100L);
+        final long cacheSize = size(300L); // only 3 regions available
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final var threadPool = new TestThreadPool("test");
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            assertEquals(3, cacheService.freeRegionCount());
+
+            // Fill 2 of 3 regions with a different key
+            final var otherKey = generateCacheKey();
+            for (int i = 0; i < 2; i++) {
+                final PlainActionFuture<Boolean> f = new PlainActionFuture<>();
+                cacheService.maybeFetchRegion(
+                    otherKey,
+                    i,
+                    regionSize * 2,
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
+                        () -> progressUpdater.accept(length)
+                    ),
+                    threadPool.generic(),
+                    f
+                );
+                f.get(10, TimeUnit.SECONDS);
+            }
+            assertEquals(1, cacheService.freeRegionCount());
+
+            // Now try to fetch 4 regions - only 1 should succeed
+            final var cacheKey = generateCacheKey();
+            final long blobLength = regionSize * 4;
+            final AtomicLong bytesRead = new AtomicLong(0L);
+
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            cacheService.maybeFetchRegions(
+                cacheKey,
+                0,
+                3,
+                blobLength,
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> {
+                        bytesRead.addAndGet(length);
+                        progressUpdater.accept(length);
+                    }
+                ),
+                threadPool.generic(),
+                future
+            );
+
+            future.get(10, TimeUnit.SECONDS);
+            // Only 1 region should have been fetched (the only free one)
+            assertEquals(regionSize, bytesRead.get());
+            assertEquals(0, cacheService.freeRegionCount());
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void testMaybeFetchRegions_WithSharedInputStream() throws Exception {
+        final long regionSize = size(100L);
+        final long cacheSize = size(500L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final var threadPool = new TestThreadPool("test");
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long blobLength = regionSize * 3;
+
+            final var invocationCounter = new AtomicInteger();
+            final var factoryClosed = new AtomicBoolean(false);
+            final var dummyStreamFactory = new SourceInputStreamFactory() {
+                @Override
+                public void create(int relativePos, ActionListener<InputStream> listener) {
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void close() {
+                    factoryClosed.set(true);
+                }
+            };
+
+            final var rangeMissingHandler = new RangeMissingHandler() {
+                final AtomicReference<Thread> invocationThread = new AtomicReference<>();
+                final AtomicInteger lastRelativePos = new AtomicInteger(-1);
+
+                @Override
+                public SourceInputStreamFactory sharedInputStreamFactory(int numGaps, int totalGapSpan) {
+                    assertThat(numGaps, equalTo(3));
+                    // Total span should be from region 0 start to region 2 end
+                    assertThat((long) totalGapSpan, equalTo(blobLength));
+                    return dummyStreamFactory;
+                }
+
+                @Override
+                public void fillCacheRange(
+                    SharedBytes.IO channel,
+                    int channelPos,
+                    SourceInputStreamFactory streamFactory,
+                    int relativePos,
+                    int length,
+                    IntConsumer progressUpdater,
+                    ActionListener<Void> completion
+                ) throws IOException {
+                    completeWith(completion, () -> {
+                        // Verify sequential execution on the same thread
+                        if (invocationCounter.incrementAndGet() == 1) {
+                            invocationThread.compareAndSet(null, Thread.currentThread());
+                        } else {
+                            assertThat(invocationThread.get(), sameInstance(Thread.currentThread()));
+                        }
+                        // Verify shared factory is passed
+                        assertThat(streamFactory, sameInstance(dummyStreamFactory));
+                        // Verify blob-absolute positions are increasing
+                        assertThat(lastRelativePos.getAndSet(relativePos), lessThan(relativePos));
+                        progressUpdater.accept(length);
+                    });
+                }
+            };
+
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            cacheService.maybeFetchRegions(cacheKey, 0, 2, blobLength, rangeMissingHandler, threadPool.generic(), future);
+
+            future.get(10, TimeUnit.SECONDS);
+            assertThat(invocationCounter.get(), equalTo(3));
+            assertBusy(() -> assertThat(factoryClosed.get(), is(true)));
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void testMaybeFetchRegions_EmptyGaps() throws Exception {
+        final long regionSize = size(100L);
+        final long cacheSize = size(500L);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(cacheSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+
+        final var threadPool = new TestThreadPool("test");
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long blobLength = regionSize * 2;
+
+            // Pre-populate all regions
+            for (int i = 0; i < 2; i++) {
+                final PlainActionFuture<Boolean> f = new PlainActionFuture<>();
+                cacheService.maybeFetchRegion(
+                    cacheKey,
+                    i,
+                    blobLength,
+                    (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                        completionListener,
+                        () -> progressUpdater.accept(length)
+                    ),
+                    threadPool.generic(),
+                    f
+                );
+                f.get(10, TimeUnit.SECONDS);
+            }
+
+            // Now call maybeFetchRegions - should not trigger any fetching
+            final AtomicLong bytesRead = new AtomicLong(0L);
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            cacheService.maybeFetchRegions(
+                cacheKey,
+                0,
+                1,
+                blobLength,
+                (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
+                    completionListener,
+                    () -> {
+                        bytesRead.addAndGet(length);
+                        progressUpdater.accept(length);
+                    }
+                ),
+                threadPool.generic(),
+                future
+            );
+
+            future.get(10, TimeUnit.SECONDS);
+            assertEquals(0L, bytesRead.get());
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
     public void testFetchRegion() throws Exception {
         final long cacheSize = size(500L);
         final long regionSize = size(100L);

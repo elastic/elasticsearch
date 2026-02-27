@@ -129,6 +129,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             FormatReader format = formatRegistry.byExtension(path.objectName());
 
+            Map<String, Object> partitionValues = Map.of();
+            if (context.split() instanceof FileSplit fileSplit) {
+                partitionValues = fileSplit.partitionValues();
+            }
+
             return new AsyncExternalSourceOperatorFactory(
                 storage,
                 format,
@@ -137,7 +142,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.batchSize(),
                 context.maxBufferSize(),
                 context.executor(),
-                context.fileSet()
+                context.fileSet(),
+                context.partitionColumnNames(),
+                partitionValues,
+                context.sliceQueue()
             );
         };
     }

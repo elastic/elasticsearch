@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
@@ -59,6 +58,7 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -680,7 +680,7 @@ public final class CsvTestUtils {
     }
 
     record ActualResults(
-        Configuration configuration,
+        ZoneId zoneId,
         List<String> columnNames,
         List<Type> columnTypes,
         List<DataType> dataTypes,
@@ -688,7 +688,7 @@ public final class CsvTestUtils {
         Map<String, List<String>> responseHeaders
     ) {
         List<List<Object>> values() {
-            return EsqlTestUtils.getValuesList(ResponseValueUtils.pagesToValues(dataTypes(), pages, configuration.zoneId()));
+            return EsqlTestUtils.getValuesList(ResponseValueUtils.pagesToValues(dataTypes(), pages, zoneId));
         }
     }
 

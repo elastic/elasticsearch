@@ -149,8 +149,7 @@ result:double | step:datetime            | _timeseries:keyword
 53.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
 ;
 
-# Awaits fix: Unpack dimensions
-without_binary_vector_division-Ignore
+without_binary_vector_division
 required_capability: promql_command_v0
 required_capability: promql_nested_aggregates
 required_capability: tsdim_without
@@ -158,14 +157,13 @@ PROMQL index=k8s step=1h result=(sum without (pod, region) (avg_over_time(networ
 | SORT result;
 
 result:double          | step:datetime            | _timeseries:keyword
-5.840411324786325      | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+5.8404113247863245     | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
 6.010756340579711      | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
-6.923012452107280      | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+6.92301245210728       | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
 ;
 
 
-# Awaits fix: Unpack dimensions
-without_inner_by_outer-Ignore
+without_inner_by_outer
 required_capability: promql_command_v0
 required_capability: promql_nested_aggregates
 required_capability: tsdim_without
@@ -173,7 +171,30 @@ PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (region) (network
 | SORT result;
 
 result:double | step:datetime            | cluster:keyword
-99.0          | 2024-05-10T00:00:00.000Z | staging
-99.0          | 2024-05-10T00:00:00.000Z | prod
-99.0          | 2024-05-10T00:00:00.000Z | qa
+15.875        | 2024-05-10T00:00:00.000Z | staging
+18.625        | 2024-05-10T00:00:00.000Z | prod
+26.5          | 2024-05-10T00:00:00.000Z | qa
+;
+
+without_by_excluded_dim_collapses
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(sum by (region) (sum without (region) (network.cost)));
+
+result:double | step:datetime            | region:keyword
+61.0          | 2024-05-10T00:00:00.000Z | null
+;
+
+without_inner_by_outer_non_excluded_dim
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(sum by (pod) (sum without (region) (network.cost)))
+| SORT result;
+
+result:double | step:datetime            | pod:keyword
+18.75         | 2024-05-10T00:00:00.000Z | one
+20.375        | 2024-05-10T00:00:00.000Z | three
+21.875        | 2024-05-10T00:00:00.000Z | two
 ;

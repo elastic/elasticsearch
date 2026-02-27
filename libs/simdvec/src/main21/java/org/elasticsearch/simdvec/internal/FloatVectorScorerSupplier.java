@@ -240,15 +240,6 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
         }
     }
 
-    public interface MemorySegmentAccessor {
-
-        MemorySegment entireSegmentOrNull() throws IOException;
-
-        MemorySegment segmentForEntryOrNull(int ordinal) throws IOException;
-
-        MemorySegmentAccessor clone();
-    }
-
     public static final class DotProductSupplier extends FloatVectorScorerSupplier {
 
         public DotProductSupplier(MemorySegmentAccessor input, FloatVectorValues values) {

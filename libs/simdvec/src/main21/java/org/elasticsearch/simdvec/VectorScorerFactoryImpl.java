@@ -25,6 +25,7 @@ import org.elasticsearch.simdvec.internal.FloatVectorScorer;
 import org.elasticsearch.simdvec.internal.FloatVectorScorerSupplier;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier;
+import org.elasticsearch.simdvec.internal.MemorySegmentAccessor;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -42,12 +43,14 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         INSTANCE = NativeAccess.instance().getVectorSimilarityFunctions().map(ignore -> new VectorScorerFactoryImpl()).orElse(null);
     }
 
-    static class MemorySegmentAccessInputAdapter implements FloatVectorScorerSupplier.MemorySegmentAccessor {
+    // -- Float adapters --
+
+    static class FloatMemorySegmentAccessInputAdapter implements MemorySegmentAccessor {
         private final MemorySegmentAccessInput input;
         private final long length;
         private final int dims;
 
-        MemorySegmentAccessInputAdapter(MemorySegmentAccessInput input, int dims) {
+        FloatMemorySegmentAccessInputAdapter(MemorySegmentAccessInput input, int dims) {
             this.input = input;
             this.length = (long) dims * Float.BYTES;
             this.dims = dims;
@@ -64,20 +67,20 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         }
 
         @Override
-        public FloatVectorScorerSupplier.MemorySegmentAccessor clone() {
-            return new MemorySegmentAccessInputAdapter(input.clone(), dims);
+        public MemorySegmentAccessor clone() {
+            return new FloatMemorySegmentAccessInputAdapter(input.clone(), dims);
         }
     }
 
-    static class MemorySegmentHeapAdapter implements FloatVectorScorerSupplier.MemorySegmentAccessor {
+    static class FloatMemorySegmentHeapAdapter implements MemorySegmentAccessor {
         private final FloatVectorValues values;
 
-        MemorySegmentHeapAdapter(FloatVectorValues values) {
+        FloatMemorySegmentHeapAdapter(FloatVectorValues values) {
             this.values = values;
         }
 
         @Override
-        public MemorySegment entireSegmentOrNull() throws IOException {
+        public MemorySegment entireSegmentOrNull() {
             return null;
         }
 
@@ -87,15 +90,15 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         }
 
         @Override
-        public FloatVectorScorerSupplier.MemorySegmentAccessor clone() {
-            return new MemorySegmentHeapAdapter(values);
+        public MemorySegmentAccessor clone() {
+            return new FloatMemorySegmentHeapAdapter(values);
         }
     }
 
-    static class OffHeapStoreAdapter implements FloatVectorScorerSupplier.MemorySegmentAccessor {
+    static class OffHeapFloatStoreAdapter implements MemorySegmentAccessor {
         private final OffHeapFloatVectorStore store;
 
-        OffHeapStoreAdapter(OffHeapFloatVectorStore store) {
+        OffHeapFloatStoreAdapter(OffHeapFloatVectorStore store) {
             this.store = store;
         }
 
@@ -110,17 +113,92 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         }
 
         @Override
-        public FloatVectorScorerSupplier.MemorySegmentAccessor clone() {
-            return new OffHeapStoreAdapter(store);
+        public MemorySegmentAccessor clone() {
+            return new OffHeapFloatStoreAdapter(store);
         }
     }
 
+    // -- Byte adapters --
+
+    static class ByteMemorySegmentAccessInputAdapter implements MemorySegmentAccessor {
+        private final MemorySegmentAccessInput input;
+        private final int dims;
+
+        ByteMemorySegmentAccessInputAdapter(MemorySegmentAccessInput input, int dims) {
+            this.input = input;
+            this.dims = dims;
+        }
+
+        @Override
+        public MemorySegment entireSegmentOrNull() throws IOException {
+            return input.segmentSliceOrNull(0, input.length());
+        }
+
+        @Override
+        public MemorySegment segmentForEntryOrNull(int ordinal) throws IOException {
+            return input.segmentSliceOrNull((long) ordinal * dims, dims);
+        }
+
+        @Override
+        public MemorySegmentAccessor clone() {
+            return new ByteMemorySegmentAccessInputAdapter(input.clone(), dims);
+        }
+    }
+
+    static class ByteMemorySegmentHeapAdapter implements MemorySegmentAccessor {
+        private final ByteVectorValues values;
+
+        ByteMemorySegmentHeapAdapter(ByteVectorValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public MemorySegment entireSegmentOrNull() {
+            return null;
+        }
+
+        @Override
+        public MemorySegment segmentForEntryOrNull(int ordinal) throws IOException {
+            return MemorySegment.ofArray(values.vectorValue(ordinal));
+        }
+
+        @Override
+        public MemorySegmentAccessor clone() {
+            return new ByteMemorySegmentHeapAdapter(values);
+        }
+    }
+
+    static class OffHeapByteStoreAdapter implements MemorySegmentAccessor {
+        private final OffHeapByteVectorStore store;
+
+        OffHeapByteStoreAdapter(OffHeapByteVectorStore store) {
+            this.store = store;
+        }
+
+        @Override
+        public MemorySegment entireSegmentOrNull() {
+            return null;
+        }
+
+        @Override
+        public MemorySegment segmentForEntryOrNull(int ordinal) {
+            return store.getVectorSegment(ordinal);
+        }
+
+        @Override
+        public MemorySegmentAccessor clone() {
+            return new OffHeapByteStoreAdapter(store);
+        }
+    }
+
+    // -- Reflection helpers --
+
     /**
-     * Attempts to extract a {@link WrappedNativeFloatVectors} from a {@link FloatVectorValues}
+     * Attempts to extract an {@link OffHeapFloatVectorStore} from a {@link FloatVectorValues}
      * created by {@code FloatVectorValues.fromFloats(list, dim)}. The anonymous class captures
      * the list as a synthetic field; we use reflection to access it.
      */
-    static OffHeapFloatVectorStore extractOffHeapStore(FloatVectorValues values) {
+    static OffHeapFloatVectorStore extractOffHeapFloatStore(FloatVectorValues values) {
         for (var field : values.getClass().getDeclaredFields()) {
             if (java.util.List.class.isAssignableFrom(field.getType())) {
                 try {
@@ -137,6 +215,30 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         return null;
     }
 
+    /**
+     * Attempts to extract an {@link OffHeapByteVectorStore} from a {@link ByteVectorValues}
+     * created by {@code ByteVectorValues.fromBytes(list, dim)}. The anonymous class captures
+     * the list as a synthetic field; we use reflection to access it.
+     */
+    static OffHeapByteVectorStore extractOffHeapByteStore(ByteVectorValues values) {
+        for (var field : values.getClass().getDeclaredFields()) {
+            if (java.util.List.class.isAssignableFrom(field.getType())) {
+                try {
+                    field.setAccessible(true);
+                    Object list = field.get(values);
+                    if (list instanceof WrappedNativeByteVectors wrapper) {
+                        return wrapper.getStore();
+                    }
+                } catch (IllegalAccessException e) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    // -- Supplier creation --
+
     @Override
     public Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
         VectorSimilarityType similarityType,
@@ -149,25 +251,25 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         }
         if (input instanceof MemorySegmentAccessInput msInput) {
             checkInvariants(values.size(), values.dimension(), input);
-            var adapter = new MemorySegmentAccessInputAdapter(msInput, values.dimension());
-            return getRandomVectorScorerSupplier(similarityType, values, adapter);
+            var adapter = new FloatMemorySegmentAccessInputAdapter(msInput, values.dimension());
+            return createFloatScorerSupplier(similarityType, values, adapter);
         }
-        OffHeapFloatVectorStore offHeapStore = extractOffHeapStore(values);
+        OffHeapFloatVectorStore offHeapStore = extractOffHeapFloatStore(values);
         if (offHeapStore != null) {
-            var adapter = new OffHeapStoreAdapter(offHeapStore);
-            return getRandomVectorScorerSupplier(similarityType, values, adapter);
+            var adapter = new OffHeapFloatStoreAdapter(offHeapStore);
+            return createFloatScorerSupplier(similarityType, values, adapter);
         }
         if (SUPPORTS_HEAP_SEGMENTS) {
-            var adapter = new MemorySegmentHeapAdapter(values);
-            return getRandomVectorScorerSupplier(similarityType, values, adapter);
+            var adapter = new FloatMemorySegmentHeapAdapter(values);
+            return createFloatScorerSupplier(similarityType, values, adapter);
         }
         return Optional.empty();
     }
 
-    private static Optional<RandomVectorScorerSupplier> getRandomVectorScorerSupplier(
+    private static Optional<RandomVectorScorerSupplier> createFloatScorerSupplier(
         VectorSimilarityType similarityType,
         FloatVectorValues values,
-        FloatVectorScorerSupplier.MemorySegmentAccessor adapter
+        MemorySegmentAccessor adapter
     ) {
         return switch (similarityType) {
             case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(adapter, values));
@@ -182,23 +284,38 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         IndexInput input,
         ByteVectorValues values
     ) {
-        // TODO: update to use MemorySegmentAccessor
-        if (input == null) {
-            return Optional.empty();
+        if (input != null) {
+            input = FilterIndexInput.unwrapOnlyTest(input);
+            input = MemorySegmentAccessInputAccess.unwrap(input);
         }
-
-        input = FilterIndexInput.unwrapOnlyTest(input);
-        input = MemorySegmentAccessInputAccess.unwrap(input);
         if (input instanceof MemorySegmentAccessInput msInput) {
             checkInvariants(values.size(), values.dimension(), input);
-            return switch (similarityType) {
-                case COSINE -> Optional.of(new ByteVectorScorerSupplier.CosineSupplier(msInput, values));
-                case DOT_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.DotProductSupplier(msInput, values));
-                case EUCLIDEAN -> Optional.of(new ByteVectorScorerSupplier.EuclideanSupplier(msInput, values));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.MaxInnerProductSupplier(msInput, values));
-            };
+            var adapter = new ByteMemorySegmentAccessInputAdapter(msInput, values.dimension());
+            return createByteScorerSupplier(similarityType, values, adapter);
+        }
+        OffHeapByteVectorStore offHeapStore = extractOffHeapByteStore(values);
+        if (offHeapStore != null) {
+            var adapter = new OffHeapByteStoreAdapter(offHeapStore);
+            return createByteScorerSupplier(similarityType, values, adapter);
+        }
+        if (SUPPORTS_HEAP_SEGMENTS) {
+            var adapter = new ByteMemorySegmentHeapAdapter(values);
+            return createByteScorerSupplier(similarityType, values, adapter);
         }
         return Optional.empty();
+    }
+
+    private static Optional<RandomVectorScorerSupplier> createByteScorerSupplier(
+        VectorSimilarityType similarityType,
+        ByteVectorValues values,
+        MemorySegmentAccessor adapter
+    ) {
+        return switch (similarityType) {
+            case COSINE -> Optional.of(new ByteVectorScorerSupplier.CosineSupplier(adapter, values));
+            case DOT_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.DotProductSupplier(adapter, values));
+            case EUCLIDEAN -> Optional.of(new ByteVectorScorerSupplier.EuclideanSupplier(adapter, values));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new ByteVectorScorerSupplier.MaxInnerProductSupplier(adapter, values));
+        };
     }
 
     @Override

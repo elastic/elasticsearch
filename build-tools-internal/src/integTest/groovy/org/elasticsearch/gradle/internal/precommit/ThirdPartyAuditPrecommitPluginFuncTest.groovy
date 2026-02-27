@@ -15,9 +15,7 @@ import net.bytebuddy.description.modifier.Visibility
 import net.bytebuddy.dynamic.DynamicType
 import net.bytebuddy.implementation.FixedValue
 import org.apache.logging.log4j.LogManager
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
-import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
@@ -25,7 +23,7 @@ import org.gradle.testkit.runner.TaskOutcome
 
 import static org.elasticsearch.gradle.fixtures.TestClasspathUtils.setupJarJdkClasspath
 
-class ThirdPartyAuditTaskFuncTest extends AbstractGradleInternalPluginFuncTest {
+class ThirdPartyAuditPrecommitPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = ThirdPartyAuditPrecommitPlugin.class
 

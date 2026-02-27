@@ -490,7 +490,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
 
         long maxOrd() {
-            return cells.size() - 1;
+            return cells.size();
         }
 
         @Override

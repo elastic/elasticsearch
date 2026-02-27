@@ -9,23 +9,33 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TDigestHistogramFieldProducerTests extends ESTestCase {
+public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
 
     public void testLastValueProducerForLegacyHistogram() throws IOException {
-        var producer = TDigestHistogramFieldProducer.createForLegacyHistogram("my-histogram", DownsampleConfig.SamplingMethod.LAST_VALUE);
+        var producer = TDigestHistogramFieldDownsampler.create(
+            "my-histogram",
+            createFieldType("histogram"),
+            null,
+            DownsampleConfig.SamplingMethod.LAST_VALUE
+        );
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 
@@ -47,7 +57,12 @@ public class TDigestHistogramFieldProducerTests extends ESTestCase {
     }
 
     public void testAggregateProducerForLegacyHistogram() throws IOException {
-        var producer = TDigestHistogramFieldProducer.createForLegacyHistogram("my-histogram", DownsampleConfig.SamplingMethod.AGGREGATE);
+        var producer = TDigestHistogramFieldDownsampler.create(
+            "my-histogram",
+            createFieldType("histogram"),
+            null,
+            DownsampleConfig.SamplingMethod.AGGREGATE
+        );
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 
@@ -69,7 +84,12 @@ public class TDigestHistogramFieldProducerTests extends ESTestCase {
     }
 
     public void testLastValueProducerForTDigest() throws IOException {
-        var producer = TDigestHistogramFieldProducer.createForTDigest("my-histogram", DownsampleConfig.SamplingMethod.LAST_VALUE);
+        var producer = TDigestHistogramFieldDownsampler.create(
+            "my-histogram",
+            createFieldType("tdigest"),
+            null,
+            DownsampleConfig.SamplingMethod.LAST_VALUE
+        );
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 
@@ -91,7 +111,12 @@ public class TDigestHistogramFieldProducerTests extends ESTestCase {
     }
 
     public void testAggregateProducerForTDigest() throws IOException {
-        var producer = TDigestHistogramFieldProducer.createForTDigest("my-histogram", DownsampleConfig.SamplingMethod.AGGREGATE);
+        var producer = TDigestHistogramFieldDownsampler.create(
+            "my-histogram",
+            createFieldType("tdigest"),
+            null,
+            DownsampleConfig.SamplingMethod.AGGREGATE
+        );
         assertTrue(producer.isEmpty());
         assertEquals("my-histogram", producer.name());
 
@@ -149,6 +174,25 @@ public class TDigestHistogramFieldProducerTests extends ESTestCase {
             @Override
             public long count() {
                 return count[i];
+            }
+        };
+    }
+
+    MappedFieldType createFieldType(String typeName) {
+        return new MappedFieldType(typeName, null, false, Map.of()) {
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                return null;
+            }
+
+            @Override
+            public String typeName() {
+                return typeName;
+            }
+
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                return null;
             }
         };
     }

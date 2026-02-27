@@ -56,11 +56,6 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            return super.read(factory, docs, offset, nullsFiltered);
-        }
-
-        @Override
         public void read(int doc, BytesRefBuilder builder) throws IOException {
             if (false == docValues.docValues().advanceExact(doc)) {
                 builder.appendNull();

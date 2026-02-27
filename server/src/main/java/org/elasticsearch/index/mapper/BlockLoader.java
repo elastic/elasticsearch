@@ -424,31 +424,57 @@ public interface BlockLoader {
             if (preferLoader.rowStrideStoredFieldSpec().noRequirements() == false) {
                 return fallbackLoader.rowStrideReader(breaker, context);
             }
-            RowStrideReader preferReader = preferLoader.rowStrideReader(breaker, context);
-            if (canUsePreferLoaderForLeaf(context)) {
-                return preferReader;
-            }
-            RowStrideReader fallbackReader = fallbackLoader.rowStrideReader(breaker, context);
-            return new RowStrideReader() {
-                @Override
-                public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                    if (storedFields.loaded() == false && canUsePreferLoaderForDoc(docId)) {
-                        preferReader.read(docId, storedFields, builder);
-                    } else {
-                        fallbackReader.read(docId, storedFields, builder);
-                    }
+            RowStrideReader preferReader = null;
+            RowStrideReader fallbackReader = null;
+            boolean success = false;
+            try {
+                preferReader = preferLoader.rowStrideReader(breaker, context);
+                if (preferReader == null) {
+                    throw new IllegalStateException(
+                        "ConditionalBlockLoader requires sub-readers to support both row-at-a-time and column-at-a-time: " + preferLoader
+                    );
                 }
-
-                @Override
-                public boolean canReuse(int startingDocID) {
-                    return fallbackReader.canReuse(startingDocID) && preferReader.canReuse(startingDocID);
+                if (canUsePreferLoaderForLeaf(context)) {
+                    success = true;
+                    return preferReader;
                 }
-
-                @Override
-                public void close() {
+                fallbackReader = fallbackLoader.rowStrideReader(breaker, context);
+                success = true;
+                return new ConditionalRowStrideReader(preferReader, fallbackReader);
+            } finally {
+                if (success == false) {
                     Releasables.close(preferReader, fallbackReader);
                 }
-            };
+            }
+        }
+
+        class ConditionalRowStrideReader implements RowStrideReader {
+            private final RowStrideReader preferReader;
+            private final RowStrideReader fallbackReader;
+
+            ConditionalRowStrideReader(RowStrideReader preferReader, RowStrideReader fallbackReader) {
+                this.preferReader = preferReader;
+                this.fallbackReader = fallbackReader;
+            }
+
+            @Override
+            public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                if (storedFields.loaded() == false && canUsePreferLoaderForDoc(docId)) {
+                    preferReader.read(docId, storedFields, builder);
+                } else {
+                    fallbackReader.read(docId, storedFields, builder);
+                }
+            }
+
+            @Override
+            public boolean canReuse(int startingDocID) {
+                return fallbackReader.canReuse(startingDocID) && preferReader.canReuse(startingDocID);
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(preferReader, fallbackReader);
+            }
         }
 
         @Override

@@ -45,7 +45,7 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
         return new BytesRefsFromCustomBinary(dv);
     }
 
-    public abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader {
+    public abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader implements RowStrideReader {
         protected final TrackingBinaryDocValues docValues;
 
         public AbstractBytesRefsFromBinary(TrackingBinaryDocValues docValues) {
@@ -62,6 +62,11 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
                 }
                 return builder.build();
             }
+        }
+
+        @Override
+        public final void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            read(docId, (BytesRefBuilder) builder);
         }
 
         @Override

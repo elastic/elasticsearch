@@ -53,7 +53,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.ColumnAtATimeR
         }
 
         @Override
-        public final RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             return null;
         }
 

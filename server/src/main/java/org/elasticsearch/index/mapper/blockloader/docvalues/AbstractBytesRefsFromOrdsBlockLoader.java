@@ -25,7 +25,7 @@ import java.io.IOException;
  */
 public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     protected final String fieldName;
-    private final ByteSizeValue size;
+    protected final ByteSizeValue size;
 
     public AbstractBytesRefsFromOrdsBlockLoader(String fieldName, ByteSizeValue size) {
         this.fieldName = fieldName;

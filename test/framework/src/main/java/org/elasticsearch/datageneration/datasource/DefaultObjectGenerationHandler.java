@@ -74,9 +74,21 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
                 if (fieldName.startsWith(RESERVED_FIELD_NAME_PREFIX)) {
                     continue;
                 }
+                if (containsSurrogates(fieldName)) {
+                    continue;
+                }
 
                 return fieldName;
             }
+        }
+
+        private boolean containsSurrogates(String str) {
+            for (int i = 0; i < str.length(); i++) {
+                if (Character.isSurrogate(str.charAt(i))) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 

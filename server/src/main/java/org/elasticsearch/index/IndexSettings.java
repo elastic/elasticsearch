@@ -1009,23 +1009,25 @@ public final class IndexSettings {
             }
 
             @Override
-            public void validate(Boolean value, Map<Setting<?>, Object> settings) {
-                var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
-                if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false
-                    && indexVersion.equals(IndexVersions.ZERO) == false) {
-                    // We validate settings in different places before a real indexVersion has been assigned or
-                    // is missing for other reasons. In those cases IndexVersion.ZERO is used as fallback value,
-                    // and we don't want to fail those validations. At index creation time we _will_ validate with
-                    // the creation version.
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
-                            DISABLE_SEQUENCE_NUMBERS.getKey(),
-                            IndexVersions.DISABLE_SEQUENCE_NUMBERS,
-                            indexVersion
-                        )
-                    );
+            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                if (enabled) {
+                    var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
+                    if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS) == false
+                        && indexVersion.equals(IndexVersions.ZERO) == false) {
+                        // We validate settings in different places before a real indexVersion has been assigned or
+                        // is missing for other reasons. In those cases IndexVersion.ZERO is used as fallback value,
+                        // and we don't want to fail those validations. At index creation time we _will_ validate with
+                        // the creation version.
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                                DISABLE_SEQUENCE_NUMBERS.getKey(),
+                                IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+                                indexVersion
+                            )
+                        );
+                    }
                 }
             }
 

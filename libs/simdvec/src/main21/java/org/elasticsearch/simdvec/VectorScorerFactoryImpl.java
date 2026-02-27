@@ -15,6 +15,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
+import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
@@ -209,6 +210,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
      * created by {@code FloatVectorValues.fromFloats(list, dim)}. The anonymous class captures
      * the list as a synthetic field; we use reflection to access it.
      */
+    @SuppressForbidden(reason = "we need reflection to access the vector store")
     static OffHeapFloatVectorStore extractOffHeapFloatStore(FloatVectorValues values) {
         for (var field : values.getClass().getDeclaredFields()) {
             if (java.util.List.class.isAssignableFrom(field.getType())) {
@@ -231,6 +233,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
      * created by {@code ByteVectorValues.fromBytes(list, dim)}. The anonymous class captures
      * the list as a synthetic field; we use reflection to access it.
      */
+    @SuppressForbidden(reason = "we need reflection to access the vector store")
     static OffHeapByteVectorStore extractOffHeapByteStore(ByteVectorValues values) {
         for (var field : values.getClass().getDeclaredFields()) {
             if (java.util.List.class.isAssignableFrom(field.getType())) {

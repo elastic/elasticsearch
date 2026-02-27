@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.gpu;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,6 +25,7 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -36,6 +39,8 @@ public class TransportGpuStatsAction extends TransportNodesAction<
     TransportGpuStatsAction.NodeRequest,
     NodeGpuStatsResponse,
     Void> {
+
+    static final Version MIN_GPU_STATS_NODE_VERSION = Version.V_9_3_0;
 
     private final boolean gpuSettingEnabled;
 
@@ -76,6 +81,18 @@ public class TransportGpuStatsAction extends TransportNodesAction<
     @Override
     protected NodeGpuStatsResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeGpuStatsResponse(in);
+    }
+
+    @Override
+    protected DiscoveryNode[] resolveRequest(GpuStatsRequest request, ClusterState clusterState) {
+        return Arrays.stream(super.resolveRequest(request, clusterState))
+            .filter(TransportGpuStatsAction::supportsGpuStatsTransportAction)
+            .toArray(DiscoveryNode[]::new);
+    }
+
+    @SuppressWarnings("deprecation")
+    static boolean supportsGpuStatsTransportAction(DiscoveryNode node) {
+        return node.getVersion().onOrAfter(MIN_GPU_STATS_NODE_VERSION);
     }
 
     @Override

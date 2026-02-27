@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MvMaxLongsFromDocValuesBlockLoaderTests extends AbstractLongsFromDocValuesBlockLoaderTests {
-    public MvMaxLongsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        super(blockAtATime, multiValues, missingValues);
+    public MvMaxLongsFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
+        super(multiValues, missingValues);
     }
 
     @Override
@@ -37,10 +37,7 @@ public class MvMaxLongsFromDocValuesBlockLoaderTests extends AbstractLongsFromDo
 
         try (var longsReader = longsLoader.reader(breaker, ctx); var mvMaxLongsReader = mvMaxLongsLoader.reader(breaker, ctx);) {
             assertThat(mvMaxLongsReader, readerMatcher());
-            try (
-                TestBlock longs = read(longsLoader, longsReader, ctx, docs);
-                TestBlock maxLongs = read(mvMaxLongsLoader, mvMaxLongsReader, ctx, docs);
-            ) {
+            try (TestBlock longs = read(longsReader, docs); TestBlock maxLongs = read(mvMaxLongsReader, docs);) {
                 checkBlocks(longs, maxLongs);
             }
         }
@@ -52,10 +49,7 @@ public class MvMaxLongsFromDocValuesBlockLoaderTests extends AbstractLongsFromDo
                     docsArray[d] = i + d;
                 }
                 docs = TestBlock.docs(docsArray);
-                try (
-                    TestBlock longs = read(longsLoader, longsReader, ctx, docs);
-                    TestBlock maxLongs = read(mvMaxLongsLoader, mvMaxLongsReader, ctx, docs);
-                ) {
+                try (TestBlock longs = read(longsReader, docs); TestBlock maxLongs = read(mvMaxLongsReader, docs);) {
                     checkBlocks(longs, maxLongs);
                 }
             }

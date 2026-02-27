@@ -102,6 +102,12 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MAX_KEYWORD_SORT_FIELDS = Setting.intSetting("max_keyword_sort_fields", -1, -1);
 
+    /**
+     * Controls how external source queries are distributed across nodes.
+     * Valid values: "adaptive" (default), "coordinator_only", "round_robin".
+     */
+    public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
+
     public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
@@ -234,6 +240,10 @@ public final class QueryPragmas implements Writeable {
 
     public int maxKeywordSortFields() {
         return MAX_KEYWORD_SORT_FIELDS.get(settings);
+    }
+
+    public String externalDistribution() {
+        return EXTERNAL_DISTRIBUTION.get(settings);
     }
 
     public int partialAggregationEmitKeysThreshold(int defaultThreshold) {

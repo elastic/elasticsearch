@@ -84,9 +84,9 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.DataType.IMAGE;
+import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.inference.InferenceString.DataFormat.BASE64;
-import static org.elasticsearch.inference.InferenceString.DataType.IMAGE;
-import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;

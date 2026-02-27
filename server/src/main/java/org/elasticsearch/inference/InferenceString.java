@@ -38,35 +38,6 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     static final String VALUE_FIELD = "value";
 
     /**
-     * Describes the type of data represented by an {@link InferenceString}
-     */
-    public enum DataType {
-        TEXT(DataFormat.TEXT),
-        IMAGE(DataFormat.BASE64);
-
-        private final DataFormat defaultFormat;
-
-        DataType(DataFormat defaultFormat) {
-            this.defaultFormat = defaultFormat;
-        }
-
-        @Override
-        public String toString() {
-            return name().toLowerCase(Locale.ROOT);
-        }
-
-        public static DataType fromString(String name) {
-            try {
-                return valueOf(name.trim().toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ex) {
-                throw new IllegalArgumentException(
-                    Strings.format("Unrecognized type [%s], must be one of %s", name, Arrays.toString(DataType.values()))
-                );
-            }
-        }
-    }
-
-    /**
      * Describes the format of data represented by an {@link InferenceString}
      */
     public enum DataFormat {
@@ -91,7 +62,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
 
     static final ConstructingObjectParser<InferenceString, Void> PARSER = new ConstructingObjectParser<>(
         InferenceString.class.getSimpleName(),
-        args -> new InferenceString((InferenceString.DataType) args[0], (InferenceString.DataFormat) args[1], (String) args[2])
+        args -> new InferenceString((DataType) args[0], (InferenceString.DataFormat) args[1], (String) args[2])
     );
     static {
         PARSER.declareString(constructorArg(), DataType::fromString, new ParseField(TYPE_FIELD));
@@ -119,7 +90,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      */
     public InferenceString(DataType dataType, @Nullable DataFormat dataFormat, String value) {
         this.dataType = Objects.requireNonNull(dataType);
-        this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.defaultFormat);
+        this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.getDefaultFormat());
         validateTypeAndFormat();
         this.value = Objects.requireNonNull(value);
     }
@@ -161,7 +132,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      * <p>
      * <b>
      * This method should only be called in code paths that do not deal with multimodal inputs, i.e. code paths where all inputs are
-     * guaranteed to be raw text, since it discards the {@link org.elasticsearch.inference.InferenceString.DataType} associated with
+     * guaranteed to be raw text, since it discards the {@link DataType} associated with
      * each input.
      *</b>
      * @param inferenceStrings The list of {@link InferenceString} to convert to a list of {@link String}
@@ -176,7 +147,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      * <p>
      * <b>
      * This method should only be called in code paths that do not deal with multimodal inputs, i.e. code paths where all inputs are
-     * guaranteed to be raw text, since it discards the {@link org.elasticsearch.inference.InferenceString.DataType} associated with
+     * guaranteed to be raw text, since it discards the {@link DataType} associated with
      * each input.
      *</b>
      * @param inferenceString The {@link InferenceString} to convert to a {@link String}

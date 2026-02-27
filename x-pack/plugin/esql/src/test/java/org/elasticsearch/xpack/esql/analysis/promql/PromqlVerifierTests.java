@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis.promql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
 import java.util.List;
 
@@ -120,11 +121,9 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    public void testWithoutNotSupported() {
-        assertThat(
-            error("PROMQL index=test step=5m avg(foo) without (bar)", tsdb),
-            containsString("'without' grouping is not supported at this time")
-        );
+    public void testWithoutIsAccepted() {
+        // without grouping should be accepted by the verifier (no exception thrown)
+        tsdb.analyze(EsqlParser.INSTANCE.parseQuery("PROMQL index=test step=5m avg(network.connections) without (host)"));
     }
 
     public void groupModifiersNotSupported() {

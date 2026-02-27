@@ -1,0 +1,200 @@
+// Tests for PromQL `without` grouping modifier.
+// `without (dim1, dim2)` groups by all dimensions except the listed ones.
+
+// without (pod, region) = by (cluster)
+
+without_sum_equals_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(sum without (pod, region) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double          | step:datetime            | _timeseries:keyword
+17.521233974358974     | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+18.032269021739133     | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+20.76903735632184      | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+without_avg_equals_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(avg without (pod, region) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double          | step:datetime            | _timeseries:keyword
+5.8404113247863245     | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+6.010756340579711      | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+6.92301245210728       | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+without_max_equals_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(max without (pod, region) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double         | step:datetime            | _timeseries:keyword
+6.46875               | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+7.262931034482759     | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+8.375                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+;
+
+without_min_equals_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(min without (pod, region) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double          | step:datetime            | _timeseries:keyword
+4.0703125              | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+5.1826923076923075     | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+6.635416666666667      | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+without_count_equals_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(count without (pod, region) (avg_over_time(network.cost[1h])))
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+3.0           | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+3.0           | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+3.0           | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+;
+
+// without (cluster, region) = by (pod)
+
+without_sum_equals_by_pod
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(sum without (cluster, region) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double          | step:datetime            | _timeseries:keyword
+17.409752155172413     | 2024-05-10T00:00:00.000Z | "{""pod"":""two""}"
+18.032579863914197     | 2024-05-10T00:00:00.000Z | "{""pod"":""one""}"
+20.880208333333336     | 2024-05-10T00:00:00.000Z | "{""pod"":""three""}"
+;
+
+// without a single dimension
+
+without_single_dimension
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(sum without (pod) (network.cost))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+15.875        | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""region"":""us""}"
+18.625        | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"
+26.5          | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+// without with filter
+
+without_with_label_filter
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(sum without (pod, region) (network.cost{cluster!="prod"}))
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+15.875        | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+26.5          | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+// nested: cross-series aggregate wrapping without
+
+without_nested_max_of_sum
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(max(sum without (pod, region) (avg_over_time(network.cost[1h]))));
+
+result:double      | step:datetime
+20.76903735632184  | 2024-05-10T00:00:00.000Z
+;
+
+without_nested_avg_of_sum
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(avg(sum without (pod, region) (avg_over_time(network.cost[1h]))));
+
+result:double          | step:datetime
+18.774180117473318     | 2024-05-10T00:00:00.000Z
+;
+
+// without in binary expression
+
+without_binary_mul_scalar
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(sum without (pod, region) (network.cost) * 2)
+| SORT result;
+
+result:double | step:datetime            | _timeseries:keyword
+31.75         | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+37.25         | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+53.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+without_binary_vector_division
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(sum without (pod, region) (avg_over_time(network.cost[1h])) / count without (pod, region) (avg_over_time(network.cost[1h])))
+| SORT result;
+
+result:double          | step:datetime            | _timeseries:keyword
+5.8404113247863245     | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging""}"
+6.010756340579711      | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod""}"
+6.92301245210728       | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa""}"
+;
+
+
+without_inner_by_outer
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (region) (network.cost)))
+| SORT result;
+
+result:double | step:datetime            | cluster:keyword
+15.875        | 2024-05-10T00:00:00.000Z | staging
+18.625        | 2024-05-10T00:00:00.000Z | prod
+26.5          | 2024-05-10T00:00:00.000Z | qa
+;
+
+without_by_excluded_dim_collapses
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(sum by (region) (sum without (region) (network.cost)));
+
+result:double | step:datetime            | region:keyword
+61.0          | 2024-05-10T00:00:00.000Z | null
+;
+
+without_inner_by_outer_non_excluded_dim
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: tsdim_without
+PROMQL index=k8s step=1h result=(sum by (pod) (sum without (region) (network.cost)))
+| SORT result;
+
+result:double | step:datetime            | pod:keyword
+18.75         | 2024-05-10T00:00:00.000Z | one
+20.375        | 2024-05-10T00:00:00.000Z | three
+21.875        | 2024-05-10T00:00:00.000Z | two
+;

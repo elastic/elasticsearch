@@ -263,7 +263,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         static boolean checkBulk(int elementSize, MemorySegment a, MemorySegment b, int length, int count, MemorySegment result) {
-            Objects.checkFromIndexSize(0, length * count * elementSize, (int) a.byteSize());
+            Objects.checkFromIndexSize(0L, (long) length * count * elementSize, a.byteSize());
             Objects.checkFromIndexSize(0, length, (int) b.byteSize());
             Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
             return true;
@@ -278,7 +278,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             MemorySegment result
         ) {
             final int queryBits = 4;
-            Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * count, (int) dataset.byteSize());
+            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * count, dataset.byteSize());
             // 1 bit data -> x4 bits query, 2 bit data -> x2 bits query
             Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * (queryBits / dataBits), (int) query.byteSize());
             Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
@@ -296,7 +296,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             MemorySegment result
         ) {
             if (pitch < length * elementSize) throw new IllegalArgumentException("Pitch needs to be at least " + length);
-            Objects.checkFromIndexSize(0, pitch * count, (int) a.byteSize());
+            Objects.checkFromIndexSize(0L, (long) pitch * count, a.byteSize());
             Objects.checkFromIndexSize(0, length * elementSize, (int) b.byteSize());
             Objects.checkFromIndexSize(0, count * Integer.BYTES, (int) offsets.byteSize());
             Objects.checkFromIndexSize(0, count * Float.BYTES, (int) result.byteSize());
@@ -317,7 +317,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             if (pitch < datasetVectorLengthInBytes) throw new IllegalArgumentException(
                 "Pitch needs to be at least " + datasetVectorLengthInBytes
             );
-            Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * count, (int) a.byteSize());
+            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * count, a.byteSize());
             // 1 bit data -> x4 bits query, 2 bit data -> x2 bits query
             Objects.checkFromIndexSize(0, datasetVectorLengthInBytes * (queryBits / dataBits), (int) b.byteSize());
             Objects.checkFromIndexSize(0, count * Integer.BYTES, (int) offsets.byteSize());

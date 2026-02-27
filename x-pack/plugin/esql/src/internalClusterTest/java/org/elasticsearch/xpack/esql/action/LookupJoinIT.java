@@ -50,12 +50,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -162,7 +159,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         RestClient restClient = getRestClient();
 
         for (String indexName : indexNames) {
-            CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET_MAP.get(indexName);
+            CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET.get(indexName);
             if (dataset == null) {
                 throw new IllegalArgumentException("No definition found for index: " + indexName);
             }
@@ -200,12 +197,8 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     private void ensureEnrichPolicies(List<String> policyNames) throws IOException {
         RestClient restClient = getRestClient();
 
-        // Build a map of policy name to EnrichConfig for quick lookup
-        Map<String, CsvTestsDataLoader.EnrichConfig> policyMap = CsvTestsDataLoader.ENRICH_POLICIES.stream()
-            .collect(Collectors.toMap(CsvTestsDataLoader.EnrichConfig::policyName, Function.identity()));
-
         for (String policyName : policyNames) {
-            CsvTestsDataLoader.EnrichConfig config = policyMap.get(policyName);
+            CsvTestsDataLoader.EnrichConfig config = CsvTestsDataLoader.ENRICH_POLICIES.get(policyName);
             if (config == null) {
                 throw new IllegalArgumentException("No definition found for enrich policy: " + policyName);
             }

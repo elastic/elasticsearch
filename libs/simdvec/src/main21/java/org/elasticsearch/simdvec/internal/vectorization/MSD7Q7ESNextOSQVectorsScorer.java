@@ -15,12 +15,12 @@ import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
-/** Panamized scorer for 7-bit symmetric quantized vectors stored as a {@link MemorySegment}. */
-final class MSInt7SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {
+/** Vectorized scorer for 7-bit symmetric quantized vectors stored as a {@link MemorySegment}. */
+final class MSD7Q7ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {
 
     private final MemorySegmentES92Int7VectorsScorer int7Scorer;
 
-    MSInt7SymmetricESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
+    MSD7Q7ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
         super(in, dimensions, dataLength, bulkSize, memorySegment);
         this.int7Scorer = new MemorySegmentES92Int7VectorsScorer(in, dimensions, bulkSize, memorySegment);
     }

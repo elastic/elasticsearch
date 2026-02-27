@@ -50,7 +50,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         } else if (queryBits == 4 && indexBits == 2) {
             this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
         } else if (queryBits == 7 && indexBits == 7) {
-            this.scorer = new MSInt7SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
+            this.scorer = new MSD7Q7ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
         } else {
             throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
         }
@@ -149,7 +149,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
     }
 
     abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSDibitToInt4ESNextOSQVectorsScorer,
-        MSInt4SymmetricESNextOSQVectorsScorer, MSInt7SymmetricESNextOSQVectorsScorer {
+        MSInt4SymmetricESNextOSQVectorsScorer, MSD7Q7ESNextOSQVectorsScorer {
 
         // TODO: split Panama and Native implementations
         static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();

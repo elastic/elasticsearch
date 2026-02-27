@@ -148,7 +148,8 @@ public class ForceMergeStep implements DlmStep {
         );
     }
 
-    /** This method executes the given force merge request. Once the request has completed successfully it updates
+    /** 
+     * This method executes the given force merge request. Once the request has completed successfully it updates
      * the {@link #DLM_FORCE_MERGE_COMPLETE_SETTING} in the cluster state indicating that the force merge has completed.
      * The listener is notified after the cluster state update has been made, or when the force merge fails or the
      * update to the cluster state fails.

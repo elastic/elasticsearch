@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -54,13 +55,22 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -196,6 +206,68 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    PhysicalPlan discoverSplits(PhysicalPlan plan) {
+        if (operatorFactoryRegistry == null) {
+            return plan;
+        }
+        return SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+    }
+
+    static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {
+        String value = pragmas.externalDistribution();
+        return switch (value) {
+            case "", "adaptive" -> new AdaptiveStrategy();
+            case "coordinator_only" -> CoordinatorOnlyStrategy.INSTANCE;
+            case "round_robin" -> new RoundRobinStrategy();
+            default -> {
+                LOGGER.warn("unknown external_distribution pragma value [{}]; falling back to adaptive", value);
+                yield new AdaptiveStrategy();
+            }
+        };
+    }
+
+    PhysicalPlan applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
+        List<ExternalSplit> externalSplits = collectExternalSplits(plan);
+        if (externalSplits.isEmpty()) {
+            return plan;
+        }
+
+        ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
+        ExternalDistributionContext context = new ExternalDistributionContext(
+            plan,
+            externalSplits,
+            clusterService.state().nodes(),
+            configuration.pragmas()
+        );
+
+        ExternalDistributionPlan distributionPlan = strategy.planDistribution(context);
+
+        if (distributionPlan.distributed()) {
+            // TODO: PR5 will insert ExchangeExec and break the plan for data node dispatch.
+            // Until then, external sources always execute on the coordinator.
+            LOGGER.debug("external distribution requested but not yet supported; falling back to coordinator-only");
+        }
+
+        // Safety net: remove any ExchangeExec wrapping ExternalSourceExec to prevent
+        // the plan from being incorrectly split between coordinator and data nodes.
+        return collapseExternalSourceExchanges(plan);
+    }
+
+    private static List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
+        List<ExternalSplit> splits = new ArrayList<>();
+        plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
+        return splits;
+    }
+
+    static PhysicalPlan collapseExternalSourceExchanges(PhysicalPlan plan) {
+        return plan.transformUp(ExchangeExec.class, exchange -> {
+            if (exchange.child() instanceof ExternalSourceExec) {
+                return exchange.child();
+            }
+            return exchange;
+        });
     }
 
     public void execute(
@@ -347,8 +419,10 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile
     ) {
+        final PhysicalPlan splitPlan = discoverSplits(physicalPlan);
+        final PhysicalPlan resolvedPlan = applyExternalDistributionStrategy(splitPlan, configuration);
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
-            physicalPlan,
+            resolvedPlan,
             configuration
         );
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
@@ -368,7 +442,7 @@ public class ComputeService {
             listener.onFailure(new IllegalStateException("expected data node plan starts with an ExchangeSink; got " + dataNodePlan));
             return;
         }
-        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(physicalPlan, EsRelation::concreteIndices);
+        Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(resolvedPlan, EsRelation::concreteIndices);
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
         if (dataNodePlan == null) {
             if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0) == false) {
@@ -395,7 +469,7 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     listener.map(completionInfo -> {
                         updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                        return new Result(physicalPlan.output(), collectedPages, configuration, completionInfo, execInfo);
+                        return new Result(resolvedPlan.output(), collectedPages, configuration, completionInfo, execInfo);
                     })
                 )
             ) {
@@ -418,7 +492,7 @@ public class ComputeService {
                 return;
             }
         }
-        Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(physicalPlan, EsRelation::originalIndices);
+        Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
         /*
@@ -426,7 +500,7 @@ public class ComputeService {
          * the listener without holding on to a reference to the
          * entire plan.
          */
-        List<Attribute> outputAttributes = physicalPlan.output();
+        List<Attribute> outputAttributes = resolvedPlan.output();
         var exchangeSource = new ExchangeSourceHandler(
             configuration.pragmas().exchangeBufferSize(),
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
@@ -721,7 +795,8 @@ public class ComputeService {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
-            var drivers = localExecutionPlan.createDrivers(context.sessionId());
+            String driverSessionId = new TaskId(clusterService.localNode().getId(), task.getId()).toString();
+            var drivers = localExecutionPlan.createDrivers(driverSessionId);
             // Note that the drivers themselves do not hold a reference to the search contexts, but rather, these are held (and therefore
             // incremented) by the source operators, and the DocVectors. Since The contexts are pre-created with a count of 1, and then
             // incremented by the relevant source operators, after creating the *data* drivers (and therefore, the source operators), we can
@@ -799,9 +874,14 @@ public class ComputeService {
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
-        ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan, LocalPhysicalOptimization.ENABLED);
+        // Just send out everything through a single exchange as a fallback
+        ReductionPlan passThroughReduction = new ReductionPlan(
+            originalPlan.replaceChild(source),
+            originalPlan,
+            LocalPhysicalOptimization.ENABLED
+        );
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
-            return defaultResult;
+            return passThroughReduction;
         }
 
         Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges = p -> new ReductionPlan(
@@ -809,6 +889,7 @@ public class ComputeService {
             originalPlan,
             LocalPhysicalOptimization.ENABLED
         );
+
         // The default plan is just the exchange source piped directly into the exchange sink.
         ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
             case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
@@ -820,15 +901,40 @@ public class ComputeService {
                     originalPlan
                 )
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
-                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : defaultResult);
+                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction);
             case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
+            // Not a TopN - must be an agg or a limit
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
-            default -> defaultResult;
+            default -> passThroughReduction;
         };
         if (planTimeProfile != null) {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
         }
+
+        // TODO: How we generate intermediate attributes prevents us from cleanly checking dependencies here. We should always be
+        // able to perform this check.
+        if (Assertions.ENABLED == false
+            || (reductionPlan.dataNodePlan().child() instanceof FragmentExec fragment
+                && skipConsistencyCheckAfterReductionPlanning(fragment.fragment()))) {
+            return reductionPlan;
+        }
+
+        PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.nodeReducePlan(), originalPlan.output());
+        ExchangeSourceExec reductionSource = (ExchangeSourceExec) reductionPlan.nodeReducePlan().collectLeaves().getFirst();
+        // The data driver's output is sent to the reduction driver, so the outputs must match up.
+        PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
+
         return reductionPlan;
+    }
+
+    private static boolean skipConsistencyCheckAfterReductionPlanning(LogicalPlan fragment) {
+        // FragmentExec.output() doesn't take into account intermediate attributes of aggs, and time series aggs
+        // have some peculiarities due to implicit dimensions. We should clean this up and add a proper check here.
+        return fragment instanceof Aggregate
+            // MetricsInfo does not serialize its output attributes (they are generated automatically and do not depend on the input).
+            // After de-serializing the data node plan, the output attributes have different NameIds than the ExchangeSink of the
+            // data node plan.
+            || fragment instanceof MetricsInfo;
     }
 
     String newChildSession(String session) {

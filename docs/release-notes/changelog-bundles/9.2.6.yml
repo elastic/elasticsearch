@@ -1,7 +1,12 @@
 version: 9.2.6
 released: false
-generated: 2026-02-23T17:45:08.403124777Z
+generated: 2026-02-24T13:16:35.578228192Z
 changelogs:
+  - pr: 138160
+    summary: Add missing `job_id` filter to Anomaly Detection data deleter
+    area: Machine Learning
+    type: bug
+    issues: []
   - pr: 141242
     summary: Deep copy `BytesRef` when creating a constant vector block
     area: ES|QL
@@ -131,6 +136,12 @@ changelogs:
     type: bug
     issues:
       - 95367
+  - pr: 142450
+    summary: Fix transform producing empty dest index when source query references runtime fields
+    area: Transform
+    type: bug
+    issues:
+      - 113156
   - pr: 142479
     summary: Fixing for NPE when there is no query specified for the standard retriever
     area: Ranking

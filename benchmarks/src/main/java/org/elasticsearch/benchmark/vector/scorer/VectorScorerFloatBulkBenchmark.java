@@ -17,11 +17,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -71,13 +67,7 @@ import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareD
 public class VectorScorerFloatBulkBenchmark {
 
     static {
-        NodeNamePatternConverter.setGlobalNodeName("benchmark");
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-        if (supportsHeapSegments() == false) {
-            final Logger LOG = LogManager.getLogger(VectorScorerFloatBulkBenchmark.class);
-            LOG.warn("*Query targets cannot run on " + "JDK " + Runtime.version());
-        }
+        BenchmarkUtils.configureBenchmarkLogging();
     }
 
     @Param({ "1024" })

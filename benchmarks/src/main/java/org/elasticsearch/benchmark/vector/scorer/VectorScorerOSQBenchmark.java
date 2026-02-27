@@ -137,11 +137,12 @@ public class VectorScorerOSQBenchmark {
         }
 
         int binaryQueryLength = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
+        byte queryBits = bits == 7 ? (byte) 7 : (byte) 4;
         VectorScorerTestUtils.OSQVectorData[] queryVectors = new VectorScorerTestUtils.OSQVectorData[numVectors];
         var query = new float[dims];
         for (int i = 0; i < numVectors; i++) {
             randomVector(random, query, similarityFunction);
-            queryVectors[i] = createOSQQueryData(query, centroid, quantizer, dims, (byte) 4, binaryQueryLength);
+            queryVectors[i] = createOSQQueryData(query, centroid, quantizer, dims, queryBits, binaryQueryLength);
         }
 
         return new VectorData(indexVectors, queryVectors, binaryIndexLength, VectorUtil.dotProduct(centroid, centroid));
@@ -167,25 +168,8 @@ public class VectorScorerOSQBenchmark {
         }
         this.input = directory.openInput("vectors", IOContext.DEFAULT);
 
-/<<<<<<< feature/bbq-multibit-quantization-139591
-        binaryQueries = new VectorScorerTestUtils.OSQVectorData[numVectors];
-        var query = new float[dims];
-        for (int i = 0; i < numVectors; ++i) {
-            randomVector(random, query, similarityFunction);
-            binaryQueries[i] = createOSQQueryData(
-                query,
-                centroid,
-                quantizer,
-                dims,
-                bits == (byte) 7 ? (byte) 7 : (byte) 4,
-                binaryQueryLength
-            );
-        }
-        centroidDp = VectorUtil.dotProduct(centroid, centroid);
-/=======
         this.binaryQueries = data.queries;
         this.centroidDp = data.centroidDp;
-/>>>>>>> main
 
         this.scratch = new byte[data.binaryIndexLength];
         final int docBits;
@@ -237,26 +221,6 @@ public class VectorScorerOSQBenchmark {
 
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
-/<<<<<<< feature/bbq-multibit-quantization-139591
-            for (int i = 0; i < numVectors; i++) {
-                float qDist = scorer.quantizeScore(binaryQueries[j].quantizedVector());
-                input.readFloats(corrections, 0, corrections.length);
-                int addition = input.readInt();
-                float score = scorer.score(
-                    binaryQueries[j].lowerInterval(),
-                    binaryQueries[j].upperInterval(),
-                    binaryQueries[j].quantizedComponentSum(),
-                    binaryQueries[j].additionalCorrection(),
-                    similarityFunction,
-                    centroidDp,
-                    corrections[0],
-                    corrections[1],
-                    addition,
-                    corrections[2],
-                    qDist
-                );
-                results[j * numVectors + i] = score;
-/=======
             for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {
                 scorer.quantizeScoreBulk(binaryQueries[j].quantizedVector(), BULK_SIZE, scratchScores);
                 input.readFloats(lowerIntervals, 0, BULK_SIZE);
@@ -280,7 +244,6 @@ public class VectorScorerOSQBenchmark {
                     );
                     results[j * NUM_VECTORS + i + b] = score;
                 }
-/>>>>>>> main
             }
         }
         return results;

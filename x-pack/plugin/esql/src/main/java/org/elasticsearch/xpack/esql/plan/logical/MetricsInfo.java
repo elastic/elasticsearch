@@ -65,13 +65,18 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
     }
 
     private MetricsInfo(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class)
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
+        out.writeNamedWriteableCollection(attributes);
     }
 
     @Override

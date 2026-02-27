@@ -9,10 +9,10 @@
 
 package org.elasticsearch.benchmark.xcontent;
 
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.benchmark.index.mapper.MapperServiceFactory;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -51,11 +51,9 @@ import java.util.concurrent.TimeUnit;
 @Warmup(iterations = 1)
 @Measurement(iterations = 5)
 public class OptimizedTextBenchmark {
+
     static {
-        // For Elasticsearch900Lucene101Codec:
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging();
-        LogConfigurator.setNodeName("test");
+        Utils.configureBenchmarkLogging();
     }
 
     /**

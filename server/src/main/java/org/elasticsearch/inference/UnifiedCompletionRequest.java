@@ -22,6 +22,8 @@ import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
@@ -39,12 +41,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MAX_COMPLETION_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MAX_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MESSAGES_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MODEL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.REASONING_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.STOP_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TEMPERATURE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_CHOICE_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOP_P_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -58,7 +63,8 @@ public record UnifiedCompletionRequest(
     @Nullable Float temperature,
     @Nullable ToolChoice toolChoice,
     @Nullable List<Tool> tools,
-    @Nullable Float topP
+    @Nullable Float topP,
+    @Nullable Reasoning reasoning
 ) implements Writeable, ToXContentFragment {
 
     /**
@@ -144,24 +150,26 @@ public record UnifiedCompletionRequest(
             (Float) args[4],
             (ToolChoice) args[5],
             (List<Tool>) args[6],
-            (Float) args[7]
+            (Float) args[7],
+            (Reasoning) args[8]
         )
     );
 
     static {
-        PARSER.declareObjectArray(constructorArg(), Message.PARSER::apply, new ParseField("messages"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("model"));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField("max_completion_tokens"));
-        PARSER.declareStringArray(optionalConstructorArg(), new ParseField("stop"));
-        PARSER.declareFloat(optionalConstructorArg(), new ParseField("temperature"));
+        PARSER.declareObjectArray(constructorArg(), Message.PARSER::apply, new ParseField(MESSAGES_FIELD));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(MODEL_FIELD));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField(MAX_COMPLETION_TOKENS_FIELD));
+        PARSER.declareStringArray(optionalConstructorArg(), new ParseField(STOP_FIELD));
+        PARSER.declareFloat(optionalConstructorArg(), new ParseField(TEMPERATURE_FIELD));
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> parseToolChoice(p),
-            new ParseField("tool_choice"),
+            new ParseField(TOOL_CHOICE_FIELD),
             ObjectParser.ValueType.OBJECT_OR_STRING
         );
-        PARSER.declareObjectArray(optionalConstructorArg(), Tool.PARSER::apply, new ParseField("tools"));
-        PARSER.declareFloat(optionalConstructorArg(), new ParseField("top_p"));
+        PARSER.declareObjectArray(optionalConstructorArg(), Tool.PARSER::apply, new ParseField(TOOL_FIELD));
+        PARSER.declareFloat(optionalConstructorArg(), new ParseField(TOP_P_FIELD));
+        PARSER.declareObject(optionalConstructorArg(), Reasoning.PARSER::apply, new ParseField(REASONING_FIELD));
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -172,12 +180,24 @@ public record UnifiedCompletionRequest(
             new NamedWriteableRegistry.Entry(ContentObject.class, ContentObjectImage.NAME, ContentObjectImage::new),
             new NamedWriteableRegistry.Entry(ContentObject.class, ContentObjectFile.NAME, ContentObjectFile::new),
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceObject.NAME, ToolChoiceObject::new),
-            new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new)
+            new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new),
+            new NamedWriteableRegistry.Entry(Reasoning.class, Reasoning.NAME, Reasoning::new),
+            new NamedWriteableRegistry.Entry(
+                ReasoningDetail.class,
+                ReasoningDetail.EncryptedReasoningDetail.NAME,
+                ReasoningDetail::fromStream
+            ),
+            new NamedWriteableRegistry.Entry(
+                ReasoningDetail.class,
+                ReasoningDetail.SummaryReasoningDetail.NAME,
+                ReasoningDetail::fromStream
+            ),
+            new NamedWriteableRegistry.Entry(ReasoningDetail.class, ReasoningDetail.TextReasoningDetail.NAME, ReasoningDetail::fromStream)
         );
     }
 
     public static UnifiedCompletionRequest of(List<Message> messages) {
-        return new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
+        return new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null);
     }
 
     public UnifiedCompletionRequest(StreamInput in) throws IOException {
@@ -189,7 +209,10 @@ public record UnifiedCompletionRequest(
             in.readOptionalFloat(),
             in.readOptionalNamedWriteable(ToolChoice.class),
             in.readOptionalCollectionAsList(Tool::new),
-            in.readOptionalFloat()
+            in.readOptionalFloat(),
+            in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
+                ? in.readOptionalNamedWriteable(Reasoning.class)
+                : null
         );
     }
 
@@ -203,6 +226,9 @@ public record UnifiedCompletionRequest(
         out.writeOptionalNamedWriteable(toolChoice);
         out.writeOptionalCollection(tools);
         out.writeOptionalFloat(topP);
+        if (out.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)) {
+            out.writeOptionalNamedWriteable(reasoning);
+        }
     }
 
     @Override
@@ -231,6 +257,9 @@ public record UnifiedCompletionRequest(
         // so we allow implementations to pass in the model id via the params
         if (params.param(MODEL_ID_PARAM) != null) {
             builder.field(MODEL_FIELD, params.param(MODEL_ID_PARAM));
+        }
+        if (reasoning != null) {
+            builder.field(REASONING_FIELD, reasoning);
         }
         return builder;
     }

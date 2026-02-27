@@ -48,9 +48,24 @@ public final class UnifiedCompletionRequestUtils {
     public static final String MODEL_FIELD = "model";
     public static final String MAX_COMPLETION_TOKENS_FIELD = "max_completion_tokens";
     public static final String MAX_TOKENS_FIELD = "max_tokens";
+    public static final String REASONING_FIELD = "reasoning";
+    public static final String REASONING_DETAILS_FIELD = "reasoning_details";
+    public static final String EFFORT_FIELD = "effort";
+    public static final String SUMMARY_FIELD = "summary";
+    public static final String EXCLUDE_FIELD = "exclude";
+    public static final String ENABLE_FIELD = "enable";
+    public static final String REASONING_DETAIL_TYPE_FIELD = "reasoning_detail_type";
+    public static final String DATA_FIELD = "data";
+    public static final String FORMAT_FIELD = "format";
+    public static final String INDEX_FIELD = "index";
+    public static final String SIGNATURE_FIELD = "signature";
 
     public static final TransportVersion MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED = TransportVersion.fromName(
         "inference_api_multimodal_chat_completion"
+    );
+
+    public static final TransportVersion CHAT_COMPLETION_REASONING_SUPPORT_ADDED = TransportVersion.fromName(
+        "inference_api_chat_completion_reasoning_added"
     );
 
     public static <T> T extractRequiredFieldOfType(Map<String, Object> sourceMap, String key, Class<T> type, String containingObject) {

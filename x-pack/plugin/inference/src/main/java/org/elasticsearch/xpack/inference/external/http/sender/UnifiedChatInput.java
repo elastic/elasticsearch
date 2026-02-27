@@ -42,7 +42,7 @@ public class UnifiedChatInput extends InferenceInputs {
     }
 
     private static List<Message> convertToMessages(List<String> inputs, String roleValue) {
-        return inputs.stream().map(value -> new Message(new ContentString(value), roleValue, null, null)).toList();
+        return inputs.stream().map(value -> new Message(new ContentString(value), roleValue, null, null, null, List.of())).toList();
     }
 
     public UnifiedCompletionRequest getRequest() {

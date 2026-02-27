@@ -67,7 +67,6 @@ public class RemoteReindexingUtils {
      * @param backoffPolicy policy for delay between retries
      * @param threadPool   thread pool for scheduling retries
      * @param client      REST client for the remote cluster
-     * @param countRetry   invoked on each retry attempt
      * @param delegate    receives the version on success or failure after all retries exhausted
      */
     public static void lookupRemoteVersionWithRetries(
@@ -75,11 +74,9 @@ public class RemoteReindexingUtils {
         BackoffPolicy backoffPolicy,
         ThreadPool threadPool,
         RestClient client,
-        Runnable countRetry,
         RejectAwareActionListener<Version> delegate
     ) {
         RetryListener<Version> retryListener = new RetryListener<>(logger, threadPool, backoffPolicy, listener -> {
-            countRetry.run();
             lookupRemoteVersion(listener, threadPool, client);
         }, delegate);
         lookupRemoteVersion(retryListener, threadPool, client);

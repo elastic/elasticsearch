@@ -236,7 +236,9 @@ public class Reindexer {
             exponentialBackoff(request.getRetryBackoffInitialTime(), request.getMaxRetries()),
             threadPool,
             restClient,
-            task.getWorkerState()::countSearchRetry,
+            // TODO - Do we want to pass in a countRetry runnable here to count the number of times we retry?
+            // This would be similar to the behaviour in PaginatedHitSource, except they (unintentionally?)
+            // use a search counter, which is eventually reported in
             rejectAwareListener
         );
     }

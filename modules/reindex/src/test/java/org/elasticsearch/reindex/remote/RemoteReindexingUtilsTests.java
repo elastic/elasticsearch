@@ -332,14 +332,12 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         }).when(client).performRequestAsync(any(), any());
 
         AtomicBoolean success = new AtomicBoolean(false);
-        AtomicInteger retryCount = new AtomicInteger(0);
 
         RemoteReindexingUtils.lookupRemoteVersionWithRetries(
             logger,
             BackoffPolicy.constantBackoff(TimeValue.ZERO, 1),
             threadPool,
             client,
-            retryCount::incrementAndGet,
             RejectAwareActionListener.wrap(v -> {
                 assertEquals(Version.fromString("1.7.5"), v);
                 success.set(true);
@@ -347,7 +345,6 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         );
 
         assertTrue("listener should have received success", success.get());
-        assertEquals("countRetry should be invoked once per retry", 1, retryCount.get());
         assertEquals("performRequestAsync should be called twice (initial + 1 retry)", 2, callCount.get());
     }
 
@@ -368,7 +365,6 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             BackoffPolicy.constantBackoff(TimeValue.ZERO, 1),
             threadPool,
             client,
-            () -> {},
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
                 assertTrue(e instanceof ElasticsearchStatusException);
                 assertEquals(RestStatus.TOO_MANY_REQUESTS, ((ElasticsearchStatusException) e).status());
@@ -400,7 +396,6 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             BackoffPolicy.constantBackoff(TimeValue.ZERO, 5),
             threadPool,
             client,
-            () -> fail("countRetry should not be called for non-429"),
             RejectAwareActionListener.wrap(v -> fail(), e -> {
                 assertTrue(e instanceof ElasticsearchStatusException);
                 assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ((ElasticsearchStatusException) e).status());
@@ -424,7 +419,6 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             BackoffPolicy.constantBackoff(TimeValue.ZERO, 5),
             threadPool,
             client,
-            () -> fail("countRetry should not be called when first attempt succeeds"),
             RejectAwareActionListener.wrap(v -> {
                 assertEquals(Version.fromString("2.3.3"), v);
                 success.set(true);

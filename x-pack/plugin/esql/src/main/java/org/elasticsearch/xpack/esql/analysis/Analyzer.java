@@ -1402,11 +1402,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Common logic for resolving fields with shadowing support.
          * Resolves unresolved attributes and handles field name shadowing (last definition wins).
-         *
-         * @param fields the fields to resolve
-         * @param resolver function to resolve an UnresolvedAttribute
-         * @param onResolved callback invoked when a field is resolved, receives the resolved alias
-         * @return a pair of (newFields, changed) where changed indicates if any modifications occurred
          */
         private ResolvedFields resolveFieldsWithShadowing(
             List<Alias> fields,
@@ -1446,23 +1441,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Resolve Row fields, allowing later fields to reference earlier ones.
          * Unlike resolveEval, Row fields are typically literals, so we directly substitute
          * the literal expressions instead of creating attribute references.
-         * <p>
-         * For example:
-         * <pre>
-         * ROW x = 4, y = 2, z = x + y
-         * - x is resolved as literal 4
-         * - y is resolved as literal 2
-         * - z is resolved by substituting x with 4 and y with 2, resulting in 4 + 2
-         * </pre>
-         * <p>
-         * Field shadowing is supported:
-         * <pre>
-         * ROW x = 5, y = x * 2, x = y + 1
-         * - First x = 5 is defined
-         * - y = x * 2 resolves to y = 5 * 2 = 10
-         * - Second x = y + 1 resolves to x = 10 + 1 = 11
-         * - Final output: y = 10, x = 11 (first x is removed)
-         * </pre>
          */
         private LogicalPlan resolveRow(Row row) {
             Map<String, Expression> fieldExpressions = new HashMap<>();

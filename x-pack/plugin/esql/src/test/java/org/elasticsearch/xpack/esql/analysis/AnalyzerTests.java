@@ -345,7 +345,6 @@ public class AnalyzerTests extends ESTestCase {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
-        // ROW x = 4, y = 2, z = x + y
         var plan = analyzer.analyze(
             new Row(
                 EMPTY,
@@ -366,19 +365,16 @@ public class AnalyzerTests extends ESTestCase {
 
         assertEquals(3, row.fields().size());
 
-        // x should be literal 4
         Alias xField = row.fields().get(0);
         assertEquals("x", xField.name());
         assertThat(xField.child(), instanceOf(Literal.class));
         assertEquals(4, ((Literal) xField.child()).value());
 
-        // y should be literal 2
         Alias yField = row.fields().get(1);
         assertEquals("y", yField.name());
         assertThat(yField.child(), instanceOf(Literal.class));
         assertEquals(2, ((Literal) yField.child()).value());
 
-        // z should be Add(literal 4, literal 2), not Add(UnresolvedAttribute, UnresolvedAttribute)
         Alias zField = row.fields().get(2);
         assertEquals("z", zField.name());
         assertThat(zField.child(), instanceOf(Add.class));

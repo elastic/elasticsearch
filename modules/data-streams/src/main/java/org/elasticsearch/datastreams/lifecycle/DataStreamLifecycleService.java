@@ -1814,8 +1814,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     /**
      * This wrapper exists only to provide equals and hashCode implementations of a ForceMergeRequest for transportActionsDeduplicator.
      * It intentionally ignores forceMergeUUID (which ForceMergeRequest's equals/hashCode would have to if they existed) because we don't
-     * care about it for data stream lifecycle deduplication. This class is non-private for the sake of unit testing, but should not be used
-     * outside of Data Stream Lifecycle Service.
+     * care about it for data stream lifecycle deduplication. This class is public so that it can be reused by other data stream lifecycle
+     * management components (for example when forming DLM force-merge requests), but it is not intended as a
+     * general-purpose Elasticsearch public API.
      */
     public static final class ForceMergeRequestWrapper extends ForceMergeRequest {
         public ForceMergeRequestWrapper(ForceMergeRequest original) {

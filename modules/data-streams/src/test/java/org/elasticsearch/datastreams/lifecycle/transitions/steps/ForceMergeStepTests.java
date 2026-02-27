@@ -44,6 +44,7 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.datastreams.lifecycle.transitions.steps.ForceMergeStep.DLM_FORCE_MERGE_COMPLETE_SETTING;
@@ -161,10 +162,7 @@ public class ForceMergeStepTests extends ESTestCase {
 
         forceMergeStep.maybeForceMerge(indexName, stepContext);
 
-        BroadcastResponse response = Mockito.mock(BroadcastResponse.class);
-        Mockito.when(response.getFailedShards()).thenReturn(0);
-        Mockito.when(response.getTotalShards()).thenReturn(1);
-        Mockito.when(response.getSuccessfulShards()).thenReturn(1);
+        BroadcastResponse response = new BroadcastResponse(1, 1, 0, List.of());
         capturedForceMergeListener.get().onResponse(response);
 
         // After the force merge succeeds, forceMerge() calls markDLMForceMergeComplete() which submits

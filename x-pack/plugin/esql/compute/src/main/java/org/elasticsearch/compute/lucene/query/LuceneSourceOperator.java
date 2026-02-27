@@ -182,22 +182,22 @@ public class LuceneSourceOperator extends LuceneOperator {
             return false;
         }
 
-    private static Query unwrap(Query query) {
-        while (true) {
-            switch (query) {
-                case BoostQuery q: {
-                    query = q.getQuery();
-                    break;
+        private static Query unwrap(Query query) {
+            while (true) {
+                switch (query) {
+                    case BoostQuery q: {
+                        query = q.getQuery();
+                        break;
+                    }
+                    case ConstantScoreQuery q: {
+                        query = q.getQuery();
+                        break;
+                    }
+                    default:
+                        return query;
                 }
-                case ConstantScoreQuery q: {
-                    query = q.getQuery();
-                    break;
-                }
-                default:
-                    return query;
             }
         }
-    }
 
         /**
          * Select the {@link PartitioningStrategy} for a {@link BooleanQuery}.

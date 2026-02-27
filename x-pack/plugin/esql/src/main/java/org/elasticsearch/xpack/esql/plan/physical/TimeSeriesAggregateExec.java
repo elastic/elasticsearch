@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TsdimWithout;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,6 +39,7 @@ public class TimeSeriesAggregateExec extends AggregateExec {
     );
 
     private final Bucket timeBucket;
+    private final TsdimWithout tsdimWithout;
 
     public TimeSeriesAggregateExec(
         Source source,
@@ -48,19 +51,42 @@ public class TimeSeriesAggregateExec extends AggregateExec {
         Integer estimatedRowSize,
         Bucket timeBucket
     ) {
+        this(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, timeBucket, null);
+    }
+
+    public TimeSeriesAggregateExec(
+        Source source,
+        PhysicalPlan child,
+        List<? extends Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        AggregatorMode mode,
+        List<Attribute> intermediateAttributes,
+        Integer estimatedRowSize,
+        Bucket timeBucket,
+        TsdimWithout tsdimWithout
+    ) {
         super(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         this.timeBucket = timeBucket;
+        this.tsdimWithout = tsdimWithout;
     }
 
     private TimeSeriesAggregateExec(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        if (in.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_AGGREGATE_TSDIM_WITHOUT)) {
+            this.tsdimWithout = in.readOptionalWriteable(inp -> (TsdimWithout) TsdimWithout.ENTRY.reader.read(inp));
+        } else {
+            this.tsdimWithout = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
+        if (out.getTransportVersion().supports(TimeSeriesAggregate.TIME_SERIES_AGGREGATE_TSDIM_WITHOUT)) {
+            out.writeOptionalWriteable(tsdimWithout);
+        }
     }
 
     @Override
@@ -79,7 +105,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            timeBucket,
+            tsdimWithout
         );
     }
 
@@ -93,7 +120,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            timeBucket,
+            tsdimWithout
         );
     }
 
@@ -107,7 +135,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            timeBucket,
+            tsdimWithout
         );
     }
 
@@ -121,7 +150,8 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             newMode,
             intermediateAttributes(),
             estimatedRowSize(),
-            timeBucket
+            timeBucket,
+            tsdimWithout
         );
     }
 
@@ -135,12 +165,17 @@ public class TimeSeriesAggregateExec extends AggregateExec {
             getMode(),
             intermediateAttributes(),
             estimatedRowSize,
-            timeBucket
+            timeBucket,
+            tsdimWithout
         );
     }
 
     public Bucket timeBucket() {
         return timeBucket;
+    }
+
+    public TsdimWithout tsdimWithout() {
+        return tsdimWithout;
     }
 
     public Rounding.Prepared timeBucketRounding(FoldContext foldContext) {

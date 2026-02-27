@@ -13,8 +13,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketSerializationTests;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TsdimWithout;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSerializationTests<TimeSeriesAggregate> {
@@ -25,13 +27,15 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
         List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
         List<? extends NamedExpression> aggregates = AggregateSerializationTests.randomAggregates();
         Bucket timeBucket = BucketSerializationTests.createRandomBucket(configuration());
+        TsdimWithout tsdimWithout = randomTsdimWithout();
         return new TimeSeriesAggregate(
             source,
             child,
             groupings,
             aggregates,
             timeBucket,
-            AbstractExpressionSerializationTests.randomChild()
+            AbstractExpressionSerializationTests.randomChild(),
+            tsdimWithout
         );
     }
 
@@ -41,7 +45,8 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
         List<Expression> groupings = instance.groupings();
         List<? extends NamedExpression> aggregates = instance.aggregates();
         Bucket timeBucket = instance.timeBucket();
-        switch (between(0, 3)) {
+        TsdimWithout tsdimWithout = instance.tsdimWithout();
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> groupings = randomValueOtherThan(
                 groupings,
@@ -49,8 +54,21 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
             );
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
             case 3 -> timeBucket = randomValueOtherThan(timeBucket, () -> BucketSerializationTests.createRandomBucket(configuration()));
+            case 4 -> tsdimWithout = tsdimWithout == null ? createNonNullTsdimWithout() : null;
         }
-        return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, timeBucket, instance.timestamp());
+        return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, timeBucket, instance.timestamp(), tsdimWithout);
+    }
+
+    private TsdimWithout randomTsdimWithout() {
+        if (randomBoolean()) {
+            return null;
+        }
+        return createNonNullTsdimWithout();
+    }
+
+    private TsdimWithout createNonNullTsdimWithout() {
+        List<Expression> fields = new ArrayList<>(randomFieldAttributes(1, 3, false));
+        return new TsdimWithout(randomSource(), fields);
     }
 
     @Override

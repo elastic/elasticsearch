@@ -92,6 +92,51 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         }
     }
 
+    static class OffHeapStoreAdapter implements FloatVectorScorerSupplier.MemorySegmentAccessor {
+        private final OffHeapFloatVectorStore store;
+
+        OffHeapStoreAdapter(OffHeapFloatVectorStore store) {
+            this.store = store;
+        }
+
+        @Override
+        public MemorySegment entireSegmentOrNull() {
+            return null;
+        }
+
+        @Override
+        public MemorySegment segmentForEntryOrNull(int ordinal) {
+            return store.getVectorSegment(ordinal);
+        }
+
+        @Override
+        public FloatVectorScorerSupplier.MemorySegmentAccessor clone() {
+            return new OffHeapStoreAdapter(store);
+        }
+    }
+
+    /**
+     * Attempts to extract a {@link WrappedNativeFloatVectors} from a {@link FloatVectorValues}
+     * created by {@code FloatVectorValues.fromFloats(list, dim)}. The anonymous class captures
+     * the list as a synthetic field; we use reflection to access it.
+     */
+    static OffHeapFloatVectorStore extractOffHeapStore(FloatVectorValues values) {
+        for (var field : values.getClass().getDeclaredFields()) {
+            if (java.util.List.class.isAssignableFrom(field.getType())) {
+                try {
+                    field.setAccessible(true);
+                    Object list = field.get(values);
+                    if (list instanceof WrappedNativeFloatVectors wrapper) {
+                        return wrapper.getStore();
+                    }
+                } catch (IllegalAccessException e) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
     @Override
     public Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
         VectorSimilarityType similarityType,
@@ -105,20 +150,30 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         if (input instanceof MemorySegmentAccessInput msInput) {
             checkInvariants(values.size(), values.dimension(), input);
             var adapter = new MemorySegmentAccessInputAdapter(msInput, values.dimension());
-            return switch (similarityType) {
-                case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(adapter, values));
-                case EUCLIDEAN -> Optional.of(new FloatVectorScorerSupplier.EuclideanSupplier(adapter, values));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.MaxInnerProductSupplier(adapter, values));
-            };
-        } else if (SUPPORTS_HEAP_SEGMENTS) {
+            return getRandomVectorScorerSupplier(similarityType, values, adapter);
+        }
+        OffHeapFloatVectorStore offHeapStore = extractOffHeapStore(values);
+        if (offHeapStore != null) {
+            var adapter = new OffHeapStoreAdapter(offHeapStore);
+            return getRandomVectorScorerSupplier(similarityType, values, adapter);
+        }
+        if (SUPPORTS_HEAP_SEGMENTS) {
             var adapter = new MemorySegmentHeapAdapter(values);
-            return switch (similarityType) {
-                case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(adapter, values));
-                case EUCLIDEAN -> Optional.of(new FloatVectorScorerSupplier.EuclideanSupplier(adapter, values));
-                case MAXIMUM_INNER_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.MaxInnerProductSupplier(adapter, values));
-            };
+            return getRandomVectorScorerSupplier(similarityType, values, adapter);
         }
         return Optional.empty();
+    }
+
+    private static Optional<RandomVectorScorerSupplier> getRandomVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        FloatVectorValues values,
+        FloatVectorScorerSupplier.MemorySegmentAccessor adapter
+    ) {
+        return switch (similarityType) {
+            case COSINE, DOT_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.DotProductSupplier(adapter, values));
+            case EUCLIDEAN -> Optional.of(new FloatVectorScorerSupplier.EuclideanSupplier(adapter, values));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new FloatVectorScorerSupplier.MaxInnerProductSupplier(adapter, values));
+        };
     }
 
     @Override

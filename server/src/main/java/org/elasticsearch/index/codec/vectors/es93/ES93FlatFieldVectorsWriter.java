@@ -26,9 +26,10 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.simdvec.OffHeapByteVectorStore;
 import org.elasticsearch.simdvec.OffHeapFloatVectorStore;
+import org.elasticsearch.simdvec.WrappedNativeByteVectors;
+import org.elasticsearch.simdvec.WrappedNativeFloatVectors;
 
 import java.io.IOException;
-import java.util.AbstractList;
 import java.util.List;
 
 /**
@@ -89,17 +90,17 @@ abstract class ES93FlatFieldVectorsWriter<T> extends FlatFieldVectorsWriter<T> {
         lastDocID = docID;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public List<T> getVectors() {
-        return new AbstractList<>() {
-            @Override
-            public T get(int index) {
-                return getStoredVector(index);
+        return (List<T>) switch (fieldInfo.getVectorEncoding()) {
+            case BYTE -> {
+                var store = ((ByteWriter) this).store;
+                yield new WrappedNativeByteVectors(store);
             }
-
-            @Override
-            public int size() {
-                return storedVectorCount();
+            case FLOAT32 -> {
+                var store = ((FloatWriter) this).store;
+                yield new WrappedNativeFloatVectors(store);
             }
         };
     }
@@ -203,4 +204,5 @@ abstract class ES93FlatFieldVectorsWriter<T> extends FlatFieldVectorsWriter<T> {
             throw new UnsupportedOperationException();
         }
     }
+
 }

@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import fixture.gcs.GoogleCloudStorageHttpFixture;
 import fixture.gcs.TestUtils;
 
+import com.github.luben.zstd.ZstdOutputStream;
+
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.logging.LogManager;
@@ -21,8 +24,8 @@ import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -38,6 +41,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
@@ -118,6 +122,37 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         return parameterizedTests;
     }
 
+    /**
+     * Load csv-spec files and cross-product each test with all formats and storage backends.
+     * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 8 arguments:
+     * (fileName, groupName, testName, lineNumber, testCase, instructions, format, storageBackend).
+     */
+    protected static List<Object[]> readExternalSpecTestsWithFormats(List<String> formats, String... specPatterns) throws Exception {
+        List<URL> urls = new ArrayList<>();
+        for (String pattern : specPatterns) {
+            urls.addAll(classpathResources(pattern));
+        }
+        if (urls.isEmpty()) {
+            throw new IllegalStateException("No csv-spec files found for patterns: " + List.of(specPatterns));
+        }
+
+        List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
+        List<Object[]> parameterizedTests = new ArrayList<>();
+        for (Object[] baseTest : baseTests) {
+            for (String format : formats) {
+                for (StorageBackend backend : BACKENDS) {
+                    int baseLength = baseTest.length;
+                    Object[] parameterizedTest = new Object[baseLength + 2];
+                    System.arraycopy(baseTest, 0, parameterizedTest, 0, baseLength);
+                    parameterizedTest[baseLength] = format;
+                    parameterizedTest[baseLength + 1] = backend;
+                    parameterizedTests.add(parameterizedTest);
+                }
+            }
+        }
+        return parameterizedTests;
+    }
+
     @ClassRule
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
@@ -136,14 +171,19 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     /** Cached path to local fixtures directory */
     private static Path localFixturesPath;
 
+    /** Compression suffixes to generate on the fly from .csv and .ndjson fixtures */
+    private static final List<String> COMPRESSION_SUFFIXES = List.of(".gz", ".zst", ".zstd", ".bz2", ".bz");
+
     /**
      * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3 and GCS fixtures.
-     * This runs once before all tests, making pre-built test data available automatically.
+     * Compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson files are generated
+     * on the fly rather than checked in.
      */
     @BeforeClass
     public static void loadExternalSourceFixtures() {
         s3Fixture.loadFixturesFromResources();
         loadGcsFixtures();
+        generateCompressedFixtures();
         resolveLocalFixturesPath();
     }
 
@@ -171,6 +211,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    String name = file.getFileName().toString();
+                    if (COMPRESSION_SUFFIXES.stream().anyMatch(name::endsWith)) {
+                        return FileVisitResult.CONTINUE;
+                    }
                     String relativePath = fixturesPath.relativize(file).toString();
                     String key = WAREHOUSE + "/" + relativePath;
                     byte[] content = Files.readAllBytes(file);
@@ -187,21 +231,117 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Generate compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson fixtures
+     * on the fly and add them to the S3 and GCS fixtures. This avoids checking in binary
+     * compressed files.
+     */
+    private static void generateCompressedFixtures() {
+        try {
+            URL resourceUrl = AbstractExternalSourceSpecTestCase.class.getResource("/iceberg-fixtures");
+            if (resourceUrl == null || "file".equals(resourceUrl.getProtocol()) == false) {
+                return;
+            }
+            Path fixturesPath = Paths.get(resourceUrl.toURI());
+            if (Files.exists(fixturesPath) == false) {
+                return;
+            }
+
+            int[] generated = { 0 };
+            Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    String name = file.getFileName().toString();
+                    if (name.endsWith(".csv") == false && name.endsWith(".ndjson") == false) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                    byte[] content = Files.readAllBytes(file);
+                    String relativeDir = fixturesPath.relativize(file.getParent()).toString();
+
+                    for (String suffix : COMPRESSION_SUFFIXES) {
+                        byte[] compressed = compress(content, suffix);
+                        String compressedName = name + suffix;
+                        String key = WAREHOUSE + "/" + (relativeDir.isEmpty() ? compressedName : relativeDir + "/" + compressedName);
+
+                        addBlobToFixture(key, compressed);
+                        gcsFixture.getHandler().putBlob(key, new BytesArray(compressed));
+                        generated[0]++;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+            if (generated[0] > 0) {
+                logger.info("Generated {} compressed fixture variants on the fly", generated[0]);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to generate compressed fixtures", e);
+        }
+    }
+
+    private static byte[] compress(byte[] input, String suffix) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        return switch (suffix) {
+            case ".gz" -> {
+                try (GZIPOutputStream out = new GZIPOutputStream(baos)) {
+                    out.write(input);
+                }
+                yield baos.toByteArray();
+            }
+            case ".zst", ".zstd" -> {
+                try (ZstdOutputStream out = new ZstdOutputStream(baos)) {
+                    out.write(input);
+                }
+                yield baos.toByteArray();
+            }
+            case ".bz2", ".bz" -> {
+                try (BZip2CompressorOutputStream out = new BZip2CompressorOutputStream(baos)) {
+                    out.write(input);
+                }
+                yield baos.toByteArray();
+            }
+            default -> throw new IllegalArgumentException("Unknown compression: " + suffix);
+        };
+    }
+
+    /**
      * Resolve and cache the local path to the fixtures directory.
-     * This is used for LOCAL storage backend to access files directly from the classpath.
+     * Writes generated compressed variants (.gz, .zst, .zstd, .bz2, .bz) alongside the
+     * source fixtures so the LOCAL storage backend can access them from the same path.
      */
     private static void resolveLocalFixturesPath() {
         try {
             URL resourceUrl = AbstractExternalSourceSpecTestCase.class.getResource("/iceberg-fixtures");
-            if (resourceUrl != null && resourceUrl.getProtocol().equals("file")) {
-                localFixturesPath = Paths.get(resourceUrl.toURI());
-                logger.info("Local fixtures path: {}", localFixturesPath);
-            } else {
+            if (resourceUrl == null || "file".equals(resourceUrl.getProtocol()) == false) {
                 logger.warn("Could not resolve local fixtures path - LOCAL storage backend may not work");
+                return;
             }
-        } catch (URISyntaxException e) {
+            Path fixturesPath = Paths.get(resourceUrl.toURI());
+            if (Files.exists(fixturesPath) == false) {
+                return;
+            }
+            writeCompressedVariantsToFixturesPath(fixturesPath);
+            localFixturesPath = fixturesPath;
+            logger.info("Local fixtures path: {}", localFixturesPath);
+        } catch (Exception e) {
             logger.warn("Failed to resolve local fixtures path", e);
         }
+    }
+
+    private static void writeCompressedVariantsToFixturesPath(Path fixturesPath) throws IOException {
+        Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                String name = file.getFileName().toString();
+                if (name.endsWith(".csv") || name.endsWith(".ndjson")) {
+                    byte[] content = Files.readAllBytes(file);
+                    Path parent = file.getParent();
+                    for (String suffix : COMPRESSION_SUFFIXES) {
+                        byte[] compressed = compress(content, suffix);
+                        Files.write(parent.resolve(name + suffix), compressed);
+                    }
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
     /**

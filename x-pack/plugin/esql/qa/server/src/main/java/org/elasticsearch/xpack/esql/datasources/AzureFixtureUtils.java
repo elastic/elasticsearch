@@ -64,6 +64,25 @@ public final class AzureFixtureUtils {
     }
 
     /**
+     * Upload a blob to the Azure fixture.
+     *
+     * @param fixtureAddress the fixture address (e.g. "http://localhost:port/account")
+     * @param key the blob key (e.g. "warehouse/standalone/employees.ndjson.bz2")
+     * @param content the blob content
+     */
+    public static void addBlobToFixture(String fixtureAddress, String key, byte[] content) {
+        try {
+            BlobServiceClient blobServiceClient = createBlobServiceClient(fixtureAddress);
+            BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient(CONTAINER);
+            BlobClient blobClient = containerClient.getBlobClient(key);
+            blobClient.upload(new java.io.ByteArrayInputStream(content), content.length, true);
+        } catch (Exception e) {
+            logger.error("Failed to add blob [{}] to Azure fixture", key, e);
+            throw e;
+        }
+    }
+
+    /**
      * Load test fixtures from the classpath resources into the Azure fixture.
      *
      * @param fixtureAddress the fixture address (e.g. "http://localhost:port/account")
@@ -71,19 +90,14 @@ public final class AzureFixtureUtils {
     public static void loadFixturesFromResources(String fixtureAddress) {
         try {
             var resourceUrl = AzureFixtureUtils.class.getResource(FIXTURES_RESOURCE_PATH);
-            if (resourceUrl == null) {
-                logger.warn("Fixtures resource path not found: {}", FIXTURES_RESOURCE_PATH);
-                return;
-            }
+            assert resourceUrl != null : "Fixtures resource path not found: " + FIXTURES_RESOURCE_PATH;
+            assert resourceUrl.getProtocol().equals("file") : "Fixtures resource path must be a file: " + resourceUrl;
 
-            if ("file".equals(resourceUrl.getProtocol())) {
-                Path fixturesPath = Paths.get(resourceUrl.toURI());
-                loadFixturesFromPath(fixtureAddress, fixturesPath);
-            } else {
-                logger.warn("Cannot load fixtures from non-file URL: {}", resourceUrl);
-            }
+            Path fixturesPath = Paths.get(resourceUrl.toURI());
+            loadFixturesFromPath(fixtureAddress, fixturesPath);
         } catch (Exception e) {
             logger.error("Failed to load fixtures from resources", e);
+            throw new RuntimeException(e);
         }
     }
 

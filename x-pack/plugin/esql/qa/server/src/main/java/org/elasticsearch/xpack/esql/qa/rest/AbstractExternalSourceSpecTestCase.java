@@ -18,6 +18,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.SpecReader;
+import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
@@ -44,6 +45,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 
+import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
@@ -207,16 +209,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             gcsServiceAccountJson = new String(serviceAccountBytes, StandardCharsets.UTF_8);
 
             URL resourceUrl = AbstractExternalSourceSpecTestCase.class.getResource("/iceberg-fixtures");
-            if (resourceUrl == null || "file".equals(resourceUrl.getProtocol()) == false) {
-                logger.warn("Could not resolve iceberg-fixtures for GCS fixture loading");
-                return;
-            }
+            assertTrue(resourceUrl != null && "file".equals(resourceUrl.getProtocol()));
 
             Path fixturesPath = Paths.get(resourceUrl.toURI());
-            if (Files.exists(fixturesPath) == false) {
-                logger.warn("Fixtures path does not exist for GCS: {}", fixturesPath);
-                return;
-            }
+            assertTrue(Files.exists(fixturesPath));
 
             Set<String> loadedFiles = new HashSet<>();
             Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
@@ -243,19 +239,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /**
      * Generate compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson fixtures
-     * on the fly and add them to the S3 and GCS fixtures. This avoids checking in binary
+     * on the fly and add them to the S3, GCS, and Azure fixtures. This avoids checking in binary
      * compressed files.
      */
     private static void generateCompressedFixtures() {
         try {
             URL resourceUrl = AbstractExternalSourceSpecTestCase.class.getResource("/iceberg-fixtures");
-            if (resourceUrl == null || "file".equals(resourceUrl.getProtocol()) == false) {
-                return;
-            }
+            assertTrue(resourceUrl != null && "file".equals(resourceUrl.getProtocol()));
             Path fixturesPath = Paths.get(resourceUrl.toURI());
-            if (Files.exists(fixturesPath) == false) {
-                return;
-            }
+            assertTrue(Files.exists(fixturesPath));
 
             int[] generated = { 0 };
             Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
@@ -275,16 +267,17 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
                         addBlobToFixture(key, compressed);
                         gcsFixture.getHandler().putBlob(key, new BytesArray(compressed));
+                        AzureFixtureUtils.addBlobToFixture(azureFixture.getAddress(), key, compressed);
                         generated[0]++;
                     }
                     return FileVisitResult.CONTINUE;
                 }
             });
-            if (generated[0] > 0) {
-                logger.info("Generated {} compressed fixture variants on the fly", generated[0]);
-            }
+            assertTrue(generated[0] > 0);
+            logger.info("Generated {} compressed fixture variants on the fly", generated[0]);
         } catch (Exception e) {
             logger.error("Failed to generate compressed fixtures", e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -321,19 +314,15 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static void resolveLocalFixturesPath() {
         try {
             URL resourceUrl = AbstractExternalSourceSpecTestCase.class.getResource("/iceberg-fixtures");
-            if (resourceUrl == null || "file".equals(resourceUrl.getProtocol()) == false) {
-                logger.warn("Could not resolve local fixtures path - LOCAL storage backend may not work");
-                return;
-            }
+            assertTrue(resourceUrl != null && "file".equals(resourceUrl.getProtocol()));
             Path fixturesPath = Paths.get(resourceUrl.toURI());
-            if (Files.exists(fixturesPath) == false) {
-                return;
-            }
+            assertTrue(Files.exists(fixturesPath));
             writeCompressedVariantsToFixturesPath(fixturesPath);
             localFixturesPath = fixturesPath;
             logger.info("Local fixtures path: {}", localFixturesPath);
         } catch (Exception e) {
             logger.warn("Failed to resolve local fixtures path", e);
+            throw new RuntimeException(e);
         }
     }
 

@@ -49,7 +49,12 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         SNAP
     }
 
-    public ESNextOSQVectorsScorerTests(DirectoryType directoryType, byte indexBits, byte queryBits, VectorSimilarityFunction similarityFunction) {
+    public ESNextOSQVectorsScorerTests(
+        DirectoryType directoryType,
+        byte indexBits,
+        byte queryBits,
+        VectorSimilarityFunction similarityFunction
+    ) {
         this.directoryType = directoryType;
         this.indexBits = indexBits;
         this.queryBits = queryBits;

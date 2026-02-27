@@ -20,7 +20,6 @@ import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class DefaultObjectGenerationHandler implements DataSourceHandler {
-
     @Override
     public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
         return new DataSourceResponse.ChildFieldGenerator() {

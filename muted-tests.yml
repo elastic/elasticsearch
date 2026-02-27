@@ -449,12 +449,6 @@ tests:
 - class: org.elasticsearch.index.mapper.ShortFieldMapperTests
   method: testSyntheticSourceWithTranslogSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/143196
-- class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
-  method: testStandardIndexWithTSDBDocValuesFormatSetting
-  issue: https://github.com/elastic/elasticsearch/issues/143197
-- class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
-  method: testTSDBIndexUsesCorrectDocValuesFormat
-  issue: https://github.com/elastic/elasticsearch/issues/143198
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/143199

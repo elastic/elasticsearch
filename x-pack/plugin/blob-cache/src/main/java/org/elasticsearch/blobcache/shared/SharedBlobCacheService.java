@@ -587,14 +587,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     ) {
         assert firstRegion <= lastRegion : firstRegion + " > " + lastRegion;
 
-        record GapFillInfo(
-            SparseFileTracker.Gap gap,
-            SharedBytes.IO ioRef,
-            int channelPos,
-            int relativePos,
-            int length,
-            Releasable ref
-        ) {}
+        record GapFillInfo(SparseFileTracker.Gap gap, SharedBytes.IO ioRef, int channelPos, int relativePos, int length, Releasable ref) {}
 
         final var gapFillInfos = new ArrayList<GapFillInfo>();
         try {

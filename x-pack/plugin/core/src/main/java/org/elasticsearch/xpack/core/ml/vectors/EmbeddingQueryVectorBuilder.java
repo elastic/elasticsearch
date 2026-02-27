@@ -7,24 +7,36 @@
 
 package org.elasticsearch.xpack.core.ml.vectors;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     public static final String NAME = "embedding";
@@ -87,7 +99,68 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public void buildVector(Client client, ActionListener<float[]> listener) {
-        // TODO: Implement
+        if (inferenceId == null) {
+            listener.onFailure(new IllegalArgumentException("[inference_id] must be specified"));
+            return;
+        }
+
+        var getModelRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.ANY);
+        executeAsyncWithOrigin(
+            client,
+            INFERENCE_ORIGIN,
+            GetInferenceModelAction.INSTANCE,
+            getModelRequest,
+            listener.delegateFailureAndWrap((l, getModelResponse) -> handleGetModelResponse(client, l, getModelResponse))
+        );
+    }
+
+    private void handleGetModelResponse(
+        Client client,
+        ActionListener<float[]> listener,
+        GetInferenceModelAction.Response getModelResponse
+    ) {
+        if (getModelResponse.getEndpoints().isEmpty()) {
+            listener.onFailure(new ResourceNotFoundException("inference endpoint [" + inferenceId + "] not found"));
+            return;
+        }
+
+        var taskType = getModelResponse.getEndpoints().get(0).getTaskType();
+        if (taskType != TaskType.EMBEDDING) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "inference endpoint [" + inferenceId + "] has task type [" + taskType + "], expected [" + TaskType.EMBEDDING + "]"
+                )
+            );
+            return;
+        }
+
+        var inferenceString = format != null ? new InferenceString(type, format, value) : new InferenceString(type, value);
+        var embeddingRequest = EmbeddingRequest.of(List.of(new InferenceStringGroup(inferenceString)));
+        // TODO: Don't hard-code timeout
+        var request = new EmbeddingAction.Request(inferenceId, TaskType.EMBEDDING, embeddingRequest, TimeValue.THIRTY_SECONDS);
+        executeAsyncWithOrigin(
+            client,
+            INFERENCE_ORIGIN,
+            EmbeddingAction.INSTANCE,
+            request,
+            listener.delegateFailureAndWrap(EmbeddingQueryVectorBuilder::handleEmbeddingResponse)
+        );
+    }
+
+    private static void handleEmbeddingResponse(ActionListener<float[]> listener, InferenceAction.Response response) {
+        if (response.getResults() instanceof EmbeddingFloatResults results) {
+            if (results.embeddings().isEmpty()) {
+                listener.onFailure(new IllegalStateException("embedding inference response contains no results"));
+                return;
+            }
+            listener.onResponse(results.embeddings().getFirst().values());
+        } else {
+            listener.onFailure(
+                new IllegalStateException(
+                    "expected a result of type [" + EmbeddingFloatResults.class + "], received [" + response.getResults().getClass() + "]"
+                )
+            );
+        }
     }
 
     @Override

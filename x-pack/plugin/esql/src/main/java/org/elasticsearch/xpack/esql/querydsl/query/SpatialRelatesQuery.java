@@ -135,7 +135,11 @@ public class SpatialRelatesQuery extends Query {
 
         @Override
         public org.apache.lucene.search.Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException {
-            return toQuery(context);
+            org.apache.lucene.search.Query query = toQuery(context);
+            if (query != null) {
+                query.visit(visitor);
+            }
+            return query;
         }
 
         abstract org.apache.lucene.search.Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType);

@@ -72,7 +72,11 @@ public class PlanStreamWrapperQueryBuilder implements QueryBuilder {
 
     @Override
     public Query toQuery(SearchExecutionContext context, QueryVisitor visitor) throws IOException {
-        return next.toQuery(context, visitor);
+        Query query = next.toQuery(context, visitor);
+        if (query != null) {
+            query.visit(visitor);
+        }
+        return query;
     }
 
     @Override

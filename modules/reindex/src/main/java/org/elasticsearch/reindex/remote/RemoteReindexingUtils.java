@@ -18,6 +18,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -109,7 +110,6 @@ public class RemoteReindexingUtils {
      * @param backoffPolicy policy for delay between retries
      * @param threadPool   thread pool for scheduling retries
      * @param client      REST client for the remote cluster
-     * @param countRetry   invoked on each retry attempt
      * @param delegate    receives the version on success or failure after all retries exhausted
      */
     public static void lookupRemoteVersionWithRetries(
@@ -117,11 +117,9 @@ public class RemoteReindexingUtils {
         BackoffPolicy backoffPolicy,
         ThreadPool threadPool,
         RestClient client,
-        Runnable countRetry,
         RejectAwareActionListener<Version> delegate
     ) {
         RetryListener<Version> retryListener = new RetryListener<>(logger, threadPool, backoffPolicy, listener -> {
-            countRetry.run();
             lookupRemoteVersion(listener, threadPool, client);
         }, delegate);
         lookupRemoteVersion(retryListener, threadPool, client);
@@ -152,7 +150,7 @@ public class RemoteReindexingUtils {
         try {
             client.performRequestAsync(request, new ResponseListener() {
                 @Override
-                public void onSuccess(org.elasticsearch.client.Response response) {
+                public void onSuccess(Response response) {
                     // Restore the thread context to get the precious headers
                     try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
                         assert ctx != null; // eliminates compiler warning

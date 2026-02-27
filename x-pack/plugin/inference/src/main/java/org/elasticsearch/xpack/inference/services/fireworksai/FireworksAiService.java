@@ -30,7 +30,10 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -40,9 +43,14 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.fireworksai.action.FireworksAiActionCreator;
+import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.fireworksai.request.FireworksAiUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -50,9 +58,12 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
@@ -60,8 +71,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 /**
- * FireworksAI inference service for text embeddings.
- * This service uses the FireworksAI REST API to perform text embeddings.
+ * FireworksAI inference service for text embeddings and chat completions.
  */
 public class FireworksAiService extends SenderService {
     public static final String NAME = "fireworksai";
@@ -71,12 +81,30 @@ public class FireworksAiService extends SenderService {
         "inference_api_fireworks_ai_service_added"
     );
 
-    // Supported embedding models: https://docs.fireworks.ai/guides/querying-embeddings-models
-    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING);
+    public static final TransportVersion INFERENCE_API_FIREWORKS_AI_CHAT_COMPLETION_ADDED = TransportVersion.fromName(
+        "inference_api_fireworks_ai_chat_completion_added"
+    );
+
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
+        TaskType.TEXT_EMBEDDING,
+        TaskType.COMPLETION,
+        TaskType.CHAT_COMPLETION
+    );
+
+    private static final FireworksAiChatCompletionModelCreator CHAT_COMPLETION_MODEL_CREATOR = new FireworksAiChatCompletionModelCreator();
 
     private static final Map<TaskType, ModelCreator<? extends FireworksAiModel>> MODEL_CREATORS = Map.of(
         TaskType.TEXT_EMBEDDING,
-        new FireworksAiEmbeddingsModelCreator()
+        new FireworksAiEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR
+    );
+
+    static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
+        FireworksAiActionCreator.COMPLETION_REQUEST_TYPE,
+        OpenAiChatCompletionResponseEntity::fromResponse
     );
 
     // FireworksAI embeddings max batch size - enforced by the embeddings server
@@ -103,6 +131,11 @@ public class FireworksAiService extends SenderService {
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
         return SUPPORTED_TASK_TYPES;
+    }
+
+    @Override
+    public Set<TaskType> supportedStreamingTasks() {
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
     @Override
@@ -215,15 +248,15 @@ public class FireworksAiService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        if (model instanceof FireworksAiEmbeddingsModel == false) {
+        if (model instanceof FireworksAiModel == false) {
             listener.onFailure(createInvalidModelException(model));
             return;
         }
 
-        FireworksAiEmbeddingsModel embeddingsModel = (FireworksAiEmbeddingsModel) model;
+        FireworksAiModel fireworksAiModel = (FireworksAiModel) model;
         var actionCreator = new FireworksAiActionCreator(getSender(), getServiceComponents());
 
-        var action = embeddingsModel.accept(actionCreator, taskSettings);
+        var action = fireworksAiModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);
     }
 
@@ -263,7 +296,24 @@ public class FireworksAiService extends SenderService {
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        ServiceUtils.throwUnsupportedUnifiedCompletionOperation(NAME);
+        if (model instanceof FireworksAiChatCompletionModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        FireworksAiChatCompletionModel fireworksAiModel = (FireworksAiChatCompletionModel) model;
+        var overriddenModel = FireworksAiChatCompletionModel.of(fireworksAiModel, inputs.getRequest());
+        var manager = new GenericRequestManager<>(
+            getServiceComponents().threadPool(),
+            overriddenModel,
+            UNIFIED_CHAT_COMPLETION_HANDLER,
+            unifiedChatInput -> new FireworksAiUnifiedChatCompletionRequest(unifiedChatInput, overriddenModel),
+            UnifiedChatInput.class
+        );
+
+        var errorMessage = constructFailedToSendRequestMessage(FireworksAiActionCreator.COMPLETION_ERROR_PREFIX);
+        var action = new SenderExecutableAction(getSender(), manager, errorMessage);
+        action.execute(inputs, timeout, listener);
     }
 
     @Override
@@ -338,6 +388,19 @@ public class FireworksAiService extends SenderService {
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
+
+                configurationMap.put(
+                    URL,
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
+                        "The URL of the FireworksAI endpoint. Useful for on-demand deployments."
+                    )
+                        .setLabel("URL")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
 

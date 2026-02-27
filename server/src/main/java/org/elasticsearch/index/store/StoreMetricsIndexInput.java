@@ -276,6 +276,12 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
             addBytesRead(8);
             return result;
         }
+
+        @Override
+        public void readBytes(long pos, byte[] bytes, int offset, int length) throws IOException {
+            delegate.readBytes(pos, bytes, offset, length);
+            addBytesRead(length);
+        }
     }
 
     private static class MetricsRandomAccessInput implements RandomAccessInput {
@@ -318,6 +324,12 @@ public class StoreMetricsIndexInput extends FilterIndexInput {
             long result = delegate.readLong(pos);
             metricHolder.instance().addBytesRead(8);
             return result;
+        }
+
+        @Override
+        public void readBytes(long pos, byte[] bytes, int offset, int length) throws IOException {
+            delegate.readBytes(pos, bytes, offset, length);
+            metricHolder.instance().addBytesRead(length);
         }
     }
 }

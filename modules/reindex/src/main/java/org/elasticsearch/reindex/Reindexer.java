@@ -91,7 +91,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -115,7 +114,6 @@ public class Reindexer {
     private final ReindexSslConfig reindexSslConfig;
     private final ReindexMetrics reindexMetrics;
     private final TransportService transportService;
-    @Nullable // might be null for modules which use reindex but don't currently have relocations, as of writing: enrich module
     private final ReindexRelocationNodePicker relocationNodePicker;
 
     Reindexer(
@@ -127,7 +125,7 @@ public class Reindexer {
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
         TransportService transportService,
-        @Nullable ReindexRelocationNodePicker relocationNodePicker
+        ReindexRelocationNodePicker relocationNodePicker
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
@@ -137,7 +135,7 @@ public class Reindexer {
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
         this.transportService = Objects.requireNonNull(transportService);
-        this.relocationNodePicker = relocationNodePicker;
+        this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -335,10 +333,13 @@ public class Reindexer {
             exponentialBackoff(request.getRetryBackoffInitialTime(), request.getMaxRetries()),
             threadPool,
             restClient,
-            task.getWorkerState()::countSearchRetry,
+            // TODO - Do we want to pass in a countRetry runnable here to count the number of times we retry?
+            // https://github.com/elastic/elasticsearch-team/issues/2382
             rejectAwareListener
         );
     }
+
+    // TODO - Retry logic
 
     /**
      * Opens a PIT on the remote cluster, runs the sliced action, and closes the PIT when done.
@@ -521,7 +522,7 @@ public class Reindexer {
     private void initTaskForRelocationIfEnabled(final BulkByScrollTask task) {
         // todo: move initialization to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
-        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false || relocationNodePicker == null) {
+        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false) {
             return;
         }
         final boolean nonSlicedThereforeSetupRelocation = task.isWorker() && task.getParentTaskId().isSet() == false;

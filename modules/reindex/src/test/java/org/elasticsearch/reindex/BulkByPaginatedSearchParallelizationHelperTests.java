@@ -41,6 +41,9 @@ import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearch
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.Assert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase {
 
@@ -138,6 +141,6 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
             AssertionError.class,
             () -> executeSlicedAction(task, request, ReindexAction.INSTANCE, listener, client, node, null, v -> {})
         );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("initialized"));
+        assertThat(e.getMessage(), containsString("initialized"));
     }
 }

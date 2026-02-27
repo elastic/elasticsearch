@@ -461,6 +461,9 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/143199
+- class: org.elasticsearch.index.mapper.GeoPointFieldMapperTests
+  method: testSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/143201
 
 # Examples:
 #

@@ -22,7 +22,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matcher;
 import org.junit.ClassRule;
 
@@ -145,10 +144,6 @@ public class EsqlPartitioningIT extends ESRestTestCase {
     }
 
     private static Matcher<String> expectedAutoPartition(String index, String idxPartition, boolean score) {
-        boolean lateMaterializationEnabled = EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled();
-        if (score && lateMaterializationEnabled == false) {
-            return equalTo("SHARD");
-        }
         return equalTo(switch (index) {
             case "idx" -> idxPartition;
             case "small_idx" -> "SHARD";

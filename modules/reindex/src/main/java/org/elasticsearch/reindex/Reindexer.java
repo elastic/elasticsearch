@@ -317,7 +317,7 @@ public class Reindexer {
             task.getLeaderState().setNodeToRelocateToSupplier(new NodeToRelocateToSupplier(clusterService, relocationNodePicker));
         } else {
             if (task.getParentTaskId().isSet()) {
-                task.getWorkerState().setNodeToRelocateToSupplier(getLeaderNodeToRelocatoToSupplier(task));
+                task.getWorkerState().setNodeToRelocateToSupplier(getLeaderNodeToRelocateToSupplier(task));
             } else {
                 // we don't need a thread-safe nodeToRelocateToSupplier for non-sliced, but re-using leads to less code
                 task.getWorkerState().setNodeToRelocateToSupplier(new NodeToRelocateToSupplier(clusterService, relocationNodePicker));
@@ -363,13 +363,16 @@ public class Reindexer {
         }
     }
 
-    private Supplier<Optional<String>> getLeaderNodeToRelocatoToSupplier(final BulkByScrollTask workerTask) {
+    private Supplier<Optional<String>> getLeaderNodeToRelocateToSupplier(final BulkByScrollTask workerTask) {
         assert workerTask.isWorker() && workerTask.getParentTaskId().isSet() : "task should be a worker and have a parent";
         // n.b relies on reindex subtasks existing on the same node.
         final CancellableTask parentTask = taskManager.getCancellableTasks().get(workerTask.getParentTaskId().getId());
-        assert parentTask instanceof BulkByScrollTask : "parent task should be a bulk-by-scroll task";
-        assert ReindexAction.NAME.equals(parentTask.getAction()) : "parent task should be a reindex task";
-        return ((BulkByScrollTask) parentTask).getLeaderState()::getNodeToRelocateTo;
+        if (ReindexAction.NAME.equals(parentTask.getAction()) == false) {
+            throw new IllegalStateException("parent task should be a reindex task");
+        } else if (parentTask instanceof BulkByScrollTask parentBulkByScrollTask) {
+            return parentBulkByScrollTask.getLeaderState()::getNodeToRelocateTo;
+        }
+        throw new IllegalStateException("parent task should be a bulk-by-scroll task");
     }
 
     /**

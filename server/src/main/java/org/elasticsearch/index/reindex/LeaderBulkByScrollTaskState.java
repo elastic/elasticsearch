@@ -119,7 +119,11 @@ public class LeaderBulkByScrollTaskState {
     }
 
     public Optional<String> getNodeToRelocateTo() {
-        return Objects.requireNonNull(nodeToRelocateToSupplier.get(), "Node to relocate to supplier not set").get();
+        final Supplier<Optional<String>> supplier = this.nodeToRelocateToSupplier.get();
+        if (supplier == null) {
+            throw new IllegalStateException("Node to relocate to supplier should be set before, if this method is called");
+        }
+        return supplier.get();
     }
 
     private void recordSliceCompletionAndRespondIfAllDone(ActionListener<BulkByScrollResponse> listener) {
@@ -155,15 +159,15 @@ public class LeaderBulkByScrollTaskState {
 
     private boolean relocationCompletedListener(final ActionListener<BulkByScrollResponse> listener) {
         final Map<Integer, ResumeInfo.SliceStatus> sliceResumeInfoMap = new HashMap<>();
-        boolean allJobsCompletedTheforeNoNeedForRelocation = true;
+        boolean allJobsCompletedThereforeNoNeedForRelocation = true;
         for (final Result result : results.asList()) {
             final var sliceStatus = getSliceStatus(result);
             if (sliceStatus.resumeInfo() != null) {
-                allJobsCompletedTheforeNoNeedForRelocation = false;
+                allJobsCompletedThereforeNoNeedForRelocation = false;
             }
             sliceResumeInfoMap.put(result.sliceId, sliceStatus);
         }
-        if (allJobsCompletedTheforeNoNeedForRelocation) {
+        if (allJobsCompletedThereforeNoNeedForRelocation) {
             return false;
         }
         final var resumeInfo = new ResumeInfo(null, sliceResumeInfoMap);

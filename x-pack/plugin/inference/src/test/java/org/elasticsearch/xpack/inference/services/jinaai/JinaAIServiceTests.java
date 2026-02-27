@@ -85,9 +85,9 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.inference.DataType.TEXT;
-import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -1817,10 +1817,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             // Add an InferenceStringGroup with multiple InferenceStrings at a random point in the input list
             var indexToAdd = randomIntBetween(0, inputs.size() - 1);
             var multipleInferenceStrings = new InferenceStringGroup(
-                List.of(
-                    new InferenceString(TEXT, DataFormat.TEXT, "first_input"),
-                    new InferenceString(IMAGE, BASE64, "second_input")
-                )
+                List.of(new InferenceString(TEXT, DataFormat.TEXT, "first_input"), new InferenceString(IMAGE, BASE64, "second_input"))
             );
             inputs.add(indexToAdd, multipleInferenceStrings);
             service.embeddingInfer(

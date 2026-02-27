@@ -18,6 +18,11 @@ public final class Utils {
         // utility class
     }
 
+    static {
+        LogConfigurator.setClusterName("elasticsearch-benchmark");
+        LogConfigurator.setNodeName("test");
+    }
+
     public static void configureBenchmarkLogging() {
         LogConfigurator.loadLog4jPlugins();
         NodeNamePatternConverter.setGlobalNodeName("benchmark");

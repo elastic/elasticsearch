@@ -28,9 +28,9 @@ public final class AzureStorageObject implements StorageObject {
     private final String blobName;
     private final StoragePath path;
 
-    private Long cachedLength;
-    private Instant cachedLastModified;
-    private Boolean cachedExists;
+    private volatile Long cachedLength;
+    private volatile Instant cachedLastModified;
+    private volatile Boolean cachedExists;
 
     public AzureStorageObject(BlobClient blobClient, String container, String blobName, StoragePath path) {
         if (blobClient == null) {

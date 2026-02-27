@@ -70,7 +70,7 @@ public final class AzureFixtureUtils {
      */
     public static void loadFixturesFromResources(String fixtureAddress) {
         try {
-            java.net.URL resourceUrl = AzureFixtureUtils.class.getResource(FIXTURES_RESOURCE_PATH);
+            var resourceUrl = AzureFixtureUtils.class.getResource(FIXTURES_RESOURCE_PATH);
             if (resourceUrl == null) {
                 logger.warn("Fixtures resource path not found: {}", FIXTURES_RESOURCE_PATH);
                 return;

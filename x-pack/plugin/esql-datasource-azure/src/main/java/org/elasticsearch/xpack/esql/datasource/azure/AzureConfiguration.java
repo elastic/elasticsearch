@@ -69,25 +69,4 @@ public record AzureConfiguration(String connectionString, String account, String
             || (account != null && key != null)
             || (sasToken != null && sasToken.isEmpty() == false);
     }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        AzureConfiguration that = (AzureConfiguration) o;
-        return Objects.equals(connectionString, that.connectionString)
-            && Objects.equals(account, that.account)
-            && Objects.equals(key, that.key)
-            && Objects.equals(sasToken, that.sasToken)
-            && Objects.equals(endpoint, that.endpoint);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(connectionString, account, key, sasToken, endpoint);
-    }
 }

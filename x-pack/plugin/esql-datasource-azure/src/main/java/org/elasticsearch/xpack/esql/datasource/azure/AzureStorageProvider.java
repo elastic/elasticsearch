@@ -177,8 +177,28 @@ public final class AzureStorageProvider implements StorageProvider {
 
     @Override
     public void close() throws IOException {
-        if (blobServiceClient != null) {
-            blobServiceClient = null;
+        BlobServiceClient client = blobServiceClient;
+        blobServiceClient = null;
+        if (client != null) {
+            try {
+                closeHttpClient(client.getHttpPipeline().getHttpClient());
+            } catch (Exception e) {
+                throw new IOException("Failed to close Azure BlobServiceClient", e);
+            }
+        }
+    }
+
+    /**
+     * Close the underlying HttpClient if it implements AutoCloseable.
+     * BlobServiceClient does not implement Closeable; the default NettyAsyncHttpClient
+     * does not either, so this is typically a no-op. We attempt close when possible so
+     * that custom HttpClient implementations or future SDK versions that support close
+     * will be properly cleaned up. For full resource cleanup (like repository-azure),
+     * the client would need to be built with a custom ConnectionProvider.
+     */
+    private static void closeHttpClient(com.azure.core.http.HttpClient httpClient) throws Exception {
+        if (httpClient instanceof AutoCloseable closeable) {
+            closeable.close();
         }
     }
 

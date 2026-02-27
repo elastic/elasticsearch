@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.generator.FunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -33,7 +34,11 @@ public interface CommandGenerator {
      */
     record CommandDescription(String commandName, CommandGenerator generator, String commandString, Map<String, Object> context) {}
 
-    record QuerySchema(List<String> baseIndices, List<LookupIdx> lookupIndices, List<CsvTestsDataLoader.EnrichConfig> enrichPolicies) {}
+    record QuerySchema(
+        List<String> baseIndices,
+        List<LookupIdx> lookupIndices,
+        Collection<CsvTestsDataLoader.EnrichConfig> enrichPolicies
+    ) {}
 
     record ValidationResult(boolean success, String errorMessage) {}
 
@@ -135,7 +140,12 @@ public interface CommandGenerator {
         columns = columns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
 
         if (previousColumns.size() != columns.size()) {
-            return new ValidationResult(false, "Expecting [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
+            List<String> prevNames = previousColumns.stream().map(Column::name).toList();
+            List<String> newNames = columns.stream().map(Column::name).toList();
+            return new ValidationResult(
+                false,
+                "Expecting " + previousColumns.size() + " columns [" + prevNames + "], got " + columns.size() + " [" + newNames + "]"
+            );
         }
 
         List<String> prevColNames = previousColumns.stream().map(Column::name).toList();

@@ -18,6 +18,7 @@ public final class SearchFeatures implements FeatureSpecification {
 
     public static final NodeFeature LUCENE_10_0_0_UPGRADE = new NodeFeature("lucene_10_upgrade");
     public static final NodeFeature LUCENE_10_1_0_UPGRADE = new NodeFeature("lucene_10_1_upgrade");
+    public static final NodeFeature LUCENE_10_4_0_UPGRADE_TEST = new NodeFeature("lucene_10_4_upgrade");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -73,7 +74,8 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS,
             CLOSING_INVALID_PIT_ID,
-            FUNCTION_SCORE_NAMED_QUERIES
+            FUNCTION_SCORE_NAMED_QUERIES,
+            LUCENE_10_4_0_UPGRADE_TEST
         );
     }
 }

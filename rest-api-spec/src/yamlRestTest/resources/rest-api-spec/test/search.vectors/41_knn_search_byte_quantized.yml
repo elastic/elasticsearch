@@ -194,6 +194,9 @@ setup:
 
 ---
 "KNN Vector similarity search only":
+  - skip:
+      cluster_features: [ "lucene_10_4_upgrade" ]
+      reason: "min similarity score changed with Lucene 10.4"
   - do:
       search:
         index: hnsw_byte_quantized
@@ -204,6 +207,27 @@ setup:
             k: 3
             field: vector
             similarity: 10.3
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+  - length: {hits.hits: 1}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+---
+"KNN Vector similarity search only on Lucene 10.4":
+  - requires:
+      cluster_features: [ "lucene_10_4_upgrade" ]
+      reason: "min similarity score changed with Lucene 10.4"
+  - do:
+      search:
+        index: hnsw_byte_quantized
+        body:
+          fields: [ "name" ]
+          knn:
+            num_candidates: 3
+            k: 3
+            field: vector
+            similarity: 10.51
             query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
 
   - length: {hits.hits: 1}

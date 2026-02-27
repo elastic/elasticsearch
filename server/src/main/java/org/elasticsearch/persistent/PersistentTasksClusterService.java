@@ -557,7 +557,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
             while (projectIdToTasksIterator.hasNext()) {
                 var projectIdToTasks = projectIdToTasksIterator.next();
                 for (PersistentTask<?> task : projectIdToTasks.v2().tasks()) {
-                    if (needsReassignment(task.getAssignment(), event.state().nodes())) {
+                    if (needsReassignment(task, event.state().nodes(), event.state().metadata())) {
                         Assignment assignment = createAssignment(
                             task.getTaskName(),
                             task.getParams(),
@@ -580,6 +580,22 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     private static boolean isAnyTaskUnassigned(final Stream<Tuple<ProjectId, PersistentTasks>> projectIdTasksTuples) {
         return projectIdTasksTuples.flatMap(tasks -> tasks.v2().tasks().stream())
             .anyMatch(task -> task.getAssignment().isAssigned() == false);
+    }
+
+    /**
+     * Returns true if any opt-in persistent task is currently assigned to a node that is marked for
+     * shutdown. Used by the periodic rechecker so it can trigger reassignment even when the task is
+     * technically assigned (and therefore not caught by {@link #isAnyTaskUnassigned}).
+     */
+    private boolean isAnyAutoReassignedTaskOnShutdownNode(final ClusterState state) {
+        var shutdowns = state.metadata().nodeShutdowns();
+        if (shutdowns.getAll().isEmpty()) {
+            return false;
+        }
+        return getAllTasks(state).flatMap(tuple -> tuple.v2().tasks().stream())
+            .filter(task -> task.getAssignment().isAssigned())
+            .filter(task -> shutdowns.contains(task.getAssignment().getExecutorNode()))
+            .anyMatch(task -> registry.getPersistentTaskExecutorSafe(task.getTaskName()).automaticReassignmentOnShutdown());
     }
 
     /**
@@ -608,7 +624,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
 
             // We need to check if removed nodes were running any of the tasks and reassign them
             for (PersistentTask<?> task : tasks.tasks()) {
-                if (needsReassignment(task.getAssignment(), nodes)) {
+                if (needsReassignment(task, nodes, currentState.metadata())) {
                     Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), clusterState, projectId);
                     if (Objects.equals(assignment, task.getAssignment()) == false) {
                         logger.trace(
@@ -667,8 +683,24 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     }
 
     /** Returns true if the task is not assigned or is assigned to a non-existing node */
-    public static boolean needsReassignment(final Assignment assignment, final DiscoveryNodes nodes) {
+    public static boolean isUnassignedOrMisassigned(final Assignment assignment, final DiscoveryNodes nodes) {
         return (assignment.isAssigned() == false || nodes.nodeExists(assignment.getExecutorNode()) == false);
+    }
+
+    /**
+     * Returns true if the task needs reassignment, either because it is unassigned / its node no longer
+     * exists, or because it is assigned to a node that is marked for shutdown and the task executor has
+     * opted in to automatic shutdown-aware reassignment.
+     */
+    private boolean needsReassignment(final PersistentTask<?> task, final DiscoveryNodes nodes, final Metadata metadata) {
+        if (isUnassignedOrMisassigned(task.getAssignment(), nodes)) {
+            return true;
+        }
+        if (task.getAssignment().isAssigned() && metadata.nodeShutdowns().contains(task.getAssignment().getExecutorNode())) {
+            PersistentTasksExecutor<?> executor = registry.getPersistentTaskExecutorSafe(task.getTaskName());
+            return executor.automaticReassignmentOnShutdown();
+        }
+        return false;
     }
 
     private static PersistentTasks.Builder<?> builder(ClusterState currentState, @Nullable ProjectId projectId) {
@@ -814,7 +846,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                 // TODO just run on the elected master?
                 final ClusterState state = clusterService.state();
                 logger.trace("periodic persistent task assignment check running for cluster state {}", state.getVersion());
-                if (isAnyTaskUnassigned(PersistentTasks.getAllTasks(state))) {
+                if (isAnyTaskUnassigned(PersistentTasks.getAllTasks(state)) || isAnyAutoReassignedTaskOnShutdownNode(state)) {
                     reassignPersistentTasks();
                 }
             }

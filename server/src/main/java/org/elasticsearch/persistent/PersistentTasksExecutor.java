@@ -126,6 +126,19 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     }
 
     /**
+     * Whether this task should proactively be reassigned when its executing node is marked for shutdown.
+     *
+     * <p>Returns {@code false} by default, preserving existing behavior where individual task executors
+     * handle shutdown themselves (e.g. via their own cluster state listener).
+     *
+     * <p>Executors that have no state to persist and want immediate, gap-free reassignment on node
+     * shutdown (of any type, including RESTART) should override this to return {@code true}.
+     */
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
+    /**
      * Checks the current cluster state for compatibility with the params
      * <p>
      * Throws an exception if the supplied params cannot be executed on the cluster in the current state.

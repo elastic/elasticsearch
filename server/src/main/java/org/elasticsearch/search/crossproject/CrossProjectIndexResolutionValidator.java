@@ -23,9 +23,11 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -99,13 +101,16 @@ public class CrossProjectIndexResolutionValidator {
         // We report only the first 404 error when there is no 403 error
         IndexNotFoundException notFoundException = null;
 
+        final Set<String> excludedProjects = computeExcludedProjects(localResolvedExpressions);
+
         final boolean hasProjectRouting = Strings.isEmpty(projectRouting) == false;
         logger.debug(
-            "Checking index existence for [{}] and [{}] with indices options [{}]{}",
+            "Checking index existence for [{}] and [{}] with indices options [{}]{}{}",
             localResolvedExpressions,
             remoteResolvedExpressions,
             indicesOptions,
-            hasProjectRouting ? " and project routing [" + projectRouting + "]" : ""
+            hasProjectRouting ? " and project routing [" + projectRouting + "]" : "",
+            excludedProjects.isEmpty() ? "" : " with excluded projects " + excludedProjects
         );
 
         for (ResolvedIndexExpression localResolvedIndices : localResolvedExpressions.expressions()) {
@@ -142,6 +147,7 @@ public class CrossProjectIndexResolutionValidator {
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
+                        excludedProjects,
                         projectAlias,
                         resource,
                         remoteExpression,
@@ -184,6 +190,7 @@ public class CrossProjectIndexResolutionValidator {
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         remoteResolvedExpressions,
+                        excludedProjects,
                         projectAlias,
                         resource,
                         remoteExpression,
@@ -299,6 +306,7 @@ public class CrossProjectIndexResolutionValidator {
 
     private static ElasticsearchException checkSingleRemoteExpression(
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
+        Set<String> excludedProjects,
         String projectAlias,
         String resource,
         String remoteExpression,
@@ -310,14 +318,11 @@ public class CrossProjectIndexResolutionValidator {
         }
 
         ResolvedIndexExpressions resolvedExpressionsInProject = remoteResolvedExpressions.get(projectAlias);
-        /*
-         * We look for an index in the linked projects only after we've ascertained that it does not exist
-         * on the origin. However, if we couldn't find a valid entry for the same index in the resolved
-         * expressions `Map<K,V>` from the linked projects, it could mean that we did not hear back from
-         * the linked project due to some error that occurred on it. In such case, the scenario effectively
-         * is identical to the one where we could not find an index anywhere.
-         */
         if (resolvedExpressionsInProject == null) {
+            if (excludedProjects.contains(projectAlias)) {
+                logger.debug("Skipping check for project [{}] which was excluded by a project exclusion expression", projectAlias);
+                return null;
+            }
             return new IndexNotFoundException(remoteExpression);
         }
 
@@ -333,6 +338,22 @@ public class CrossProjectIndexResolutionValidator {
             remoteExpression,
             indicesOptions
         );
+    }
+
+    static Set<String> computeExcludedProjects(ResolvedIndexExpressions localResolvedExpressions) {
+        Set<String> excludedProjects = null;
+        for (ResolvedIndexExpression expr : localResolvedExpressions.expressions()) {
+            for (String remote : expr.remoteExpressions()) {
+                String[] split = RemoteClusterAware.splitIndexName(remote);
+                if (split[0] != null && isExclusionExpression(split[0])) {
+                    if (excludedProjects == null) {
+                        excludedProjects = new HashSet<>();
+                    }
+                    excludedProjects.add(split[0].substring(1));
+                }
+            }
+        }
+        return excludedProjects == null ? Set.of() : excludedProjects;
     }
 
     public static String[] splitQualifiedResource(String resource) {

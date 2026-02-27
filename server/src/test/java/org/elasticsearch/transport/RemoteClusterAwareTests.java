@@ -43,6 +43,25 @@ public class RemoteClusterAwareTests extends ESTestCase {
         }
     }
 
+    public void testGroupClusterIndicesExclusionOrderDoesNotMatter() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
+
+        {
+            String[] indices = new String[] { "*:logs*", "-cluster1:*" };
+            Map<String, List<String>> grouped = remoteClusterAware.groupClusterIndices(remoteClusterNames, indices);
+            assertThat(grouped, not(hasKey("cluster1")));
+            assertThat(grouped, hasKey("cluster2"));
+        }
+
+        {
+            String[] indices = new String[] { "-cluster1:*", "*:logs*" };
+            Map<String, List<String>> grouped = remoteClusterAware.groupClusterIndices(remoteClusterNames, indices);
+            assertThat(grouped, not(hasKey("cluster1")));
+            assertThat(grouped, hasKey("cluster2"));
+        }
+    }
+
     public void testGroupClusterIndices() {
         RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
         Set<String> remoteClusterNames = Set.of("cluster1", "cluster2", "some-cluster3");

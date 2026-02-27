@@ -206,12 +206,12 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                 (l, ignored) -> getDeploymentStats(client, request.getResourceId(), parentTaskId, assignmentMetadata, l)
             )
             .andThenApply(deploymentStats -> {
-                Map<String, AssignmentStats> byDeploymentId = deploymentStats.getStats()
+                Map<String, AssignmentStats> statsByDeploymentId = deploymentStats.getStats()
                     .results()
                     .stream()
                     .collect(Collectors.toMap(AssignmentStats::getDeploymentId, Function.identity()));
-                responseBuilder.setDeploymentStatsByDeploymentId(byDeploymentId);
-                return byDeploymentId;
+                responseBuilder.setDeploymentStatsByDeploymentId(statsByDeploymentId);
+                return statsByDeploymentId;
             })
 
             .<Map<String, TrainedModelSizeStats>>andThen(
@@ -359,7 +359,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                 long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
                 List<String> deploymentIds = modelIdToDeploymentIds.get(model.getModelId());
 
-                if (deploymentIds != null && deploymentIds.isEmpty() == false) {
+                if (deploymentIds != null) {
                     for (String deploymentId : deploymentIds) {
                         AssignmentStats assignmentStats = deploymentStatsByDeploymentId.get(deploymentId);
                         int numberOfAllocations = assignmentStats.getNumberOfAllocations() != null

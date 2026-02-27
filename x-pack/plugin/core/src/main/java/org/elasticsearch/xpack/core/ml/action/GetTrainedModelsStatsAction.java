@@ -309,10 +309,12 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                                 // look up by model id
                                 ingestStats = ingestStatsMap.get(modelId);
                             }
-                            TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.getOrDefault(
-                                deploymentId,
-                                modelSizeStatsMap.get(modelId)
-                            );
+                            // First try deployment ID (for deployed PyTorch models with per-deployment stats),
+                            // then fall back to model ID (for undeployed or non-PyTorch models)
+                            TrainedModelSizeStats modelSizeStats = modelSizeStatsMap.get(deploymentId);
+                            if (modelSizeStats == null) {
+                                modelSizeStats = modelSizeStatsMap.get(modelId);
+                            }
                             trainedModelStats.add(
                                 new TrainedModelStats(
                                     modelId,

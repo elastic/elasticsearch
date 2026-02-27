@@ -1,5 +1,6 @@
 area: Vector Search
-issues: []
+issues:
+ - 142793
 pr: 143310
 summary: Guard `gpu_vector_indexing` stats transport fanout in mixed-version clusters
 type: bug

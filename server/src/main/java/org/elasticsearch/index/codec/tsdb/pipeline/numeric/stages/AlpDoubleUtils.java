@@ -16,7 +16,12 @@ final class AlpDoubleUtils {
     private AlpDoubleUtils() {}
 
     static final int MAX_EXPONENT = 18;
-    static final int DEFAULT_MAX_EXCEPTION_PERCENT = 5;
+    // NOTE: Fixed threshold for cache validation only — triggers a re-search of (e,f)
+    // candidates when the cached pair produces too many exceptions for the new block.
+    static final int CACHE_VALIDATION_THRESHOLD = 5;
+
+    // NOTE: Average per-exception metadata cost: VInt position (~2 bytes) + raw Long (8 bytes).
+    static final int DOUBLE_EXCEPTION_COST = 10;
     static final double[] POWERS_OF_TEN = new double[MAX_EXPONENT + 1];
     static final double[] NEG_POWERS_OF_TEN = new double[MAX_EXPONENT + 1];
     static final int SAMPLE_SIZE = 16;
@@ -89,10 +94,9 @@ final class AlpDoubleUtils {
         return exceptions;
     }
 
-    // NOTE: Returns true if ALP-encoded mantissas are strictly narrower (fewer bits)
-    // than the original sortable-longs. Uses sign-magnitude conversion so negative
-    // values do not inflate the bit count to 64.
-    static boolean isAlpNarrower(final long[] values, int valueCount, int e, int f) {
+    // NOTE: Returns how many bits ALP saves per value (maxOriginalBits - maxMantissaBits).
+    // Uses sign-magnitude conversion so negative values do not inflate the bit count to 64.
+    static int computeBitSavings(final long[] values, int valueCount, int e, int f) {
         final double mulFactor = POWERS_OF_TEN[e] * NEG_POWERS_OF_TEN[f];
         int maxOriginalBits = 0;
         int maxMantissaBits = 0;
@@ -104,21 +108,16 @@ final class AlpDoubleUtils {
             maxOriginalBits = Math.max(maxOriginalBits, Long.SIZE - Long.numberOfLeadingZeros(origMag));
             maxMantissaBits = Math.max(maxMantissaBits, Long.SIZE - Long.numberOfLeadingZeros(mantMag));
         }
-        return maxMantissaBits < maxOriginalBits;
+        return Math.max(0, maxOriginalBits - maxMantissaBits);
     }
 
-    // NOTE: Two-tier skip to avoid transforms that produce no compression benefit.
-    static boolean shouldSkipDouble(final long[] values, int valueCount, int bestE, int bestF, int bestExceptions) {
-        if (bestExceptions != 0) {
-            return false;
-        }
-        if (bestE == 0 && bestF == 0) {
-            return true;
-        }
-        if (bestE <= 1 && bestF <= 1) {
-            return isAlpNarrower(values, valueCount, bestE, bestF) == false;
-        }
-        return false;
+    // NOTE: Dynamic exception threshold — the more bits ALP saves per value, the more
+    // exceptions we can tolerate before the metadata overhead erodes the savings. A 2×
+    // safety margin ensures we only accept exceptions when the net benefit is meaningful,
+    // avoiding CPU waste on marginal compression gains.
+    static int maxExceptionPercent(int bitsSaved, int exceptionCost) {
+        if (bitsSaved <= 0) return 0;
+        return (bitsSaved * 100) / (8 * exceptionCost * 2);
     }
 
     // NOTE: Fused ALP encode transform: single pass over the block that converts

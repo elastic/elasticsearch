@@ -29,7 +29,6 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
 
     static final int MIN_PREFIX_LENGTH = 2;
 
-    private final int maxExceptionPercent;
     private final int maxExponent;
     private final float quantizeStep;
     private final int blockSize;
@@ -44,7 +43,6 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
     private int cachedAlpF = -1;
 
     public AlpRdFloatEncodeStage(int blockSize) {
-        this.maxExceptionPercent = AlpFloatUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = AlpFloatUtils.MAX_EXPONENT;
         this.quantizeStep = 0.0f;
         this.blockSize = blockSize;
@@ -57,7 +55,6 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
     // (step = 2 * maxError) into this stage, eliminating a separate quantize pass.
     public AlpRdFloatEncodeStage(int blockSize, double maxError) {
         assert maxError > 0 : "maxError must be positive: " + maxError;
-        this.maxExceptionPercent = AlpFloatUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = Math.min((int) Math.ceil(-Math.log10(maxError)), AlpFloatUtils.MAX_EXPONENT);
         this.quantizeStep = (float) (2.0 * maxError);
         this.blockSize = blockSize;
@@ -93,8 +90,8 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
             bestE = cachedAlpE;
             bestF = cachedAlpF;
             bestExceptions = AlpFloatUtils.countExceptionsFloat(values, valueCount, bestE, bestF);
-            final int maxAllowed = (valueCount * maxExceptionPercent) / 100;
-            if (bestExceptions > maxAllowed) {
+            final int cacheMaxAllowed = (valueCount * AlpFloatUtils.CACHE_VALIDATION_THRESHOLD) / 100;
+            if (bestExceptions > cacheMaxAllowed) {
                 bestExceptions = AlpFloatUtils.findBestEFFloatTopK(values, valueCount, maxExponent, efOut, candE, candF, candCount);
                 bestE = efOut[0];
                 bestF = efOut[1];
@@ -109,15 +106,13 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
             cachedAlpF = bestF;
         }
 
-        if (AlpFloatUtils.shouldSkipFloat(values, valueCount, bestE, bestF, bestExceptions)) {
-            encodeAlpRdOrRaw(values, valueCount, out);
-            return;
-        }
-
-        final int maxAllowed = (valueCount * maxExceptionPercent) / 100;
-        if (bestExceptions <= maxAllowed) {
-            encodeDecimal(values, valueCount, out, bestE, bestF, context);
-            return;
+        final int bitsSaved = AlpFloatUtils.computeBitSavings(values, valueCount, bestE, bestF);
+        if (bitsSaved > 0) {
+            final int maxAllowed = (valueCount * AlpFloatUtils.maxExceptionPercent(bitsSaved, AlpFloatUtils.FLOAT_EXCEPTION_COST)) / 100;
+            if (bestExceptions <= maxAllowed) {
+                encodeDecimal(values, valueCount, out, bestE, bestF, context);
+                return;
+            }
         }
 
         encodeAlpRdOrRaw(values, valueCount, out);
@@ -215,7 +210,6 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
     public boolean equals(Object o) {
         return this == o
             || (o instanceof AlpRdFloatEncodeStage that
-                && maxExceptionPercent == that.maxExceptionPercent
                 && maxExponent == that.maxExponent
                 && Float.compare(quantizeStep, that.quantizeStep) == 0
                 && blockSize == that.blockSize);
@@ -223,19 +217,11 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxExceptionPercent, maxExponent, quantizeStep, blockSize);
+        return Objects.hash(maxExponent, quantizeStep, blockSize);
     }
 
     @Override
     public String toString() {
-        return "AlpRdFloatEncodeStage{maxExceptionPercent="
-            + maxExceptionPercent
-            + ", maxExponent="
-            + maxExponent
-            + ", quantizeStep="
-            + quantizeStep
-            + ", blockSize="
-            + blockSize
-            + "}";
+        return "AlpRdFloatEncodeStage{maxExponent=" + maxExponent + ", quantizeStep=" + quantizeStep + ", blockSize=" + blockSize + "}";
     }
 }

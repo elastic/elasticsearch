@@ -29,7 +29,6 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
 
     static final int MIN_PREFIX_LENGTH = 2;
 
-    private final int maxExceptionPercent;
     private final int maxExponent;
     private final double quantizeStep;
     private final int blockSize;
@@ -44,7 +43,6 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
     private int cachedAlpF = -1;
 
     public AlpRdDoubleEncodeStage(int blockSize) {
-        this.maxExceptionPercent = AlpDoubleUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = AlpDoubleUtils.MAX_EXPONENT;
         this.quantizeStep = 0.0;
         this.blockSize = blockSize;
@@ -57,7 +55,6 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
     // (step = 2 * maxError) into this stage, eliminating a separate quantize pass.
     public AlpRdDoubleEncodeStage(int blockSize, double maxError) {
         assert maxError > 0 : "maxError must be positive: " + maxError;
-        this.maxExceptionPercent = AlpDoubleUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = Math.min((int) Math.ceil(-Math.log10(maxError)), AlpDoubleUtils.MAX_EXPONENT);
         this.quantizeStep = 2.0 * maxError;
         this.blockSize = blockSize;
@@ -94,8 +91,8 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
             bestE = cachedAlpE;
             bestF = cachedAlpF;
             bestExceptions = AlpDoubleUtils.countExceptions(values, valueCount, bestE, bestF);
-            final int maxAllowed = (valueCount * maxExceptionPercent) / 100;
-            if (bestExceptions > maxAllowed) {
+            final int cacheMaxAllowed = (valueCount * AlpDoubleUtils.CACHE_VALIDATION_THRESHOLD) / 100;
+            if (bestExceptions > cacheMaxAllowed) {
                 bestExceptions = AlpDoubleUtils.findBestEFDoubleTopK(values, valueCount, maxExponent, efOut, candE, candF, candCount);
                 bestE = efOut[0];
                 bestF = efOut[1];
@@ -118,15 +115,13 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
             cachedAlpF = bestF;
         }
 
-        if (AlpDoubleUtils.shouldSkipDouble(values, valueCount, bestE, bestF, bestExceptions)) {
-            encodeAlpRdOrRaw(values, valueCount, out);
-            return;
-        }
-
-        final int maxAllowed = (valueCount * maxExceptionPercent) / 100;
-        if (bestExceptions <= maxAllowed) {
-            encodeDecimal(values, valueCount, out, bestE, bestF, context);
-            return;
+        final int bitsSaved = AlpDoubleUtils.computeBitSavings(values, valueCount, bestE, bestF);
+        if (bitsSaved > 0) {
+            final int maxAllowed = (valueCount * AlpDoubleUtils.maxExceptionPercent(bitsSaved, AlpDoubleUtils.DOUBLE_EXCEPTION_COST)) / 100;
+            if (bestExceptions <= maxAllowed) {
+                encodeDecimal(values, valueCount, out, bestE, bestF, context);
+                return;
+            }
         }
 
         encodeAlpRdOrRaw(values, valueCount, out);
@@ -224,7 +219,6 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
     public boolean equals(Object o) {
         return this == o
             || (o instanceof AlpRdDoubleEncodeStage that
-                && maxExceptionPercent == that.maxExceptionPercent
                 && maxExponent == that.maxExponent
                 && Double.compare(quantizeStep, that.quantizeStep) == 0
                 && blockSize == that.blockSize);
@@ -232,19 +226,11 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxExceptionPercent, maxExponent, quantizeStep, blockSize);
+        return Objects.hash(maxExponent, quantizeStep, blockSize);
     }
 
     @Override
     public String toString() {
-        return "AlpRdDoubleEncodeStage{maxExceptionPercent="
-            + maxExceptionPercent
-            + ", maxExponent="
-            + maxExponent
-            + ", quantizeStep="
-            + quantizeStep
-            + ", blockSize="
-            + blockSize
-            + "}";
+        return "AlpRdDoubleEncodeStage{maxExponent=" + maxExponent + ", quantizeStep=" + quantizeStep + ", blockSize=" + blockSize + "}";
     }
 }

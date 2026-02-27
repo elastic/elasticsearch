@@ -16,7 +16,12 @@ final class AlpFloatUtils {
     private AlpFloatUtils() {}
 
     static final int MAX_EXPONENT = 10;
-    static final int DEFAULT_MAX_EXCEPTION_PERCENT = 5;
+    // NOTE: Fixed threshold for cache validation only — triggers a re-search of (e,f)
+    // candidates when the cached pair produces too many exceptions for the new block.
+    static final int CACHE_VALIDATION_THRESHOLD = 5;
+
+    // NOTE: Average per-exception metadata cost: VInt position (~2 bytes) + ZInt value (~4 bytes).
+    static final int FLOAT_EXCEPTION_COST = 6;
     static final float[] POWERS_OF_TEN_FLOAT = new float[MAX_EXPONENT + 1];
     static final float[] NEG_POWERS_OF_TEN_FLOAT = new float[MAX_EXPONENT + 1];
     static final int SAMPLE_SIZE = 16;
@@ -88,10 +93,9 @@ final class AlpFloatUtils {
         return exceptions;
     }
 
-    // NOTE: Returns true if ALP-encoded mantissas are strictly narrower (fewer bits)
-    // than the original sortable-ints. Uses sign-magnitude conversion so negative
-    // values do not inflate the bit count to 32.
-    static boolean isAlpNarrower(final long[] values, int valueCount, int e, int f) {
+    // NOTE: Returns how many bits ALP saves per value (maxOriginalBits - maxMantissaBits).
+    // Uses sign-magnitude conversion so negative values do not inflate the bit count to 32.
+    static int computeBitSavings(final long[] values, int valueCount, int e, int f) {
         final float mulFactor = POWERS_OF_TEN_FLOAT[e] * NEG_POWERS_OF_TEN_FLOAT[f];
         int maxOriginalBits = 0;
         int maxMantissaBits = 0;
@@ -103,20 +107,14 @@ final class AlpFloatUtils {
             maxOriginalBits = Math.max(maxOriginalBits, Integer.SIZE - Integer.numberOfLeadingZeros(origMag));
             maxMantissaBits = Math.max(maxMantissaBits, Integer.SIZE - Integer.numberOfLeadingZeros(mantMag));
         }
-        return maxMantissaBits < maxOriginalBits;
+        return Math.max(0, maxOriginalBits - maxMantissaBits);
     }
 
-    static boolean shouldSkipFloat(final long[] values, int valueCount, int bestE, int bestF, int bestExceptions) {
-        if (bestExceptions != 0) {
-            return false;
-        }
-        if (bestE == 0 && bestF == 0) {
-            return true;
-        }
-        if (bestE <= 1 && bestF <= 1) {
-            return isAlpNarrower(values, valueCount, bestE, bestF) == false;
-        }
-        return false;
+    // NOTE: Dynamic exception threshold — mirrors AlpDoubleUtils.maxExceptionPercent.
+    // See that method for the full rationale.
+    static int maxExceptionPercent(int bitsSaved, int exceptionCost) {
+        if (bitsSaved <= 0) return 0;
+        return (bitsSaved * 100) / (8 * exceptionCost * 2);
     }
 
     // NOTE: Fused ALP encode transform: single pass over the block that converts

@@ -18,7 +18,6 @@ import java.util.Objects;
 
 public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
 
-    private final int maxExceptionPercent;
     private final int maxExponent;
     private final double quantizeStep;
     private final int[] efOut = new int[2];
@@ -31,7 +30,6 @@ public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
     private int cachedAlpF = -1;
 
     public AlpDoubleTransformEncodeStage(int blockSize) {
-        this.maxExceptionPercent = AlpDoubleUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = AlpDoubleUtils.MAX_EXPONENT;
         this.quantizeStep = 0.0;
         this.positions = new int[blockSize];
@@ -42,7 +40,6 @@ public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
     // (step = 2 * maxError) into this stage, eliminating a separate quantize pass.
     public AlpDoubleTransformEncodeStage(int blockSize, double maxError) {
         assert maxError > 0 : "maxError must be positive: " + maxError;
-        this.maxExceptionPercent = AlpDoubleUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = Math.min((int) Math.ceil(-Math.log10(maxError)), AlpDoubleUtils.MAX_EXPONENT);
         this.quantizeStep = 2.0 * maxError;
         this.positions = new int[blockSize];
@@ -56,7 +53,8 @@ public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
 
     @Override
     public int maxMetadataBytes(int blockSize) {
-        int maxExc = (blockSize * maxExceptionPercent) / 100;
+        final int maxPercent = AlpDoubleUtils.maxExceptionPercent(Long.SIZE, AlpDoubleUtils.DOUBLE_EXCEPTION_COST);
+        final int maxExc = (blockSize * maxPercent) / 100;
         return 7 + maxExc * 13;
     }
 
@@ -81,8 +79,8 @@ public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
             bestE = cachedAlpE;
             bestF = cachedAlpF;
             bestExceptions = AlpDoubleUtils.countExceptions(values, valueCount, bestE, bestF);
-            final int maxAllowed = (valueCount * maxExceptionPercent) / 100;
-            if (bestExceptions > maxAllowed) {
+            final int cacheMaxAllowed = (valueCount * AlpDoubleUtils.CACHE_VALIDATION_THRESHOLD) / 100;
+            if (bestExceptions > cacheMaxAllowed) {
                 bestExceptions = AlpDoubleUtils.findBestEFDoubleTopK(values, valueCount, maxExponent, efOut, candE, candF, candCount);
                 bestE = efOut[0];
                 bestF = efOut[1];
@@ -97,11 +95,11 @@ public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
             cachedAlpF = bestF;
         }
 
-        if (AlpDoubleUtils.shouldSkipDouble(values, valueCount, bestE, bestF, bestExceptions)) {
+        final int bitsSaved = AlpDoubleUtils.computeBitSavings(values, valueCount, bestE, bestF);
+        if (bitsSaved <= 0) {
             return valueCount;
         }
-
-        final int maxAllowed = (valueCount * maxExceptionPercent) / 100;
+        final int maxAllowed = (valueCount * AlpDoubleUtils.maxExceptionPercent(bitsSaved, AlpDoubleUtils.DOUBLE_EXCEPTION_COST)) / 100;
         if (bestExceptions > maxAllowed) {
             return valueCount;
         }
@@ -132,24 +130,17 @@ public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
     public boolean equals(Object o) {
         return this == o
             || (o instanceof AlpDoubleTransformEncodeStage that
-                && maxExceptionPercent == that.maxExceptionPercent
                 && maxExponent == that.maxExponent
                 && Double.compare(quantizeStep, that.quantizeStep) == 0);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxExceptionPercent, maxExponent, quantizeStep);
+        return Objects.hash(maxExponent, quantizeStep);
     }
 
     @Override
     public String toString() {
-        return "AlpDoubleTransformEncodeStage{maxExceptionPercent="
-            + maxExceptionPercent
-            + ", maxExponent="
-            + maxExponent
-            + ", quantizeStep="
-            + quantizeStep
-            + "}";
+        return "AlpDoubleTransformEncodeStage{maxExponent=" + maxExponent + ", quantizeStep=" + quantizeStep + "}";
     }
 }

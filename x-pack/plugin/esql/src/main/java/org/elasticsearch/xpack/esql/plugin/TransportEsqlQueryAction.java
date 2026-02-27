@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -199,6 +200,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
         OperatorFactoryRegistry operatorFactoryRegistry = planExecutor.dataSourceModule()
             .createOperatorFactoryRegistry(threadPool.executor(ThreadPool.Names.SEARCH));
+        FilterPushdownRegistry filterPushdownRegistry = planExecutor.dataSourceModule().filterPushdownRegistry();
         this.computeService = new ComputeService(
             services,
             enrichLookupService,
@@ -206,7 +208,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             threadPool,
             bigArrays,
             blockFactoryProvider.blockFactory(),
-            operatorFactoryRegistry
+            operatorFactoryRegistry,
+            filterPushdownRegistry
         );
 
         this.activityLogger = new ActivityLogger<>(

@@ -141,16 +141,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             })
             .<Boolean>andThen((listener, existingUnparsedModel) -> {
 
-                Model existingParsedModel = service.get()
-                    .parsePersistedConfig(
-                        new UnparsedModel(
-                            existingUnparsedModel.inferenceEntityId(),
-                            existingUnparsedModel.taskType(),
-                            existingUnparsedModel.service(),
-                            existingUnparsedModel.settings(),
-                            existingUnparsedModel.secrets()
-                        )
-                    );
+                Model existingParsedModel = service.get().parsePersistedConfig(existingUnparsedModel);
 
                 validateResolvedTaskType(existingParsedModel, resolvedTaskType);
 

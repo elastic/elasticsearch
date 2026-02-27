@@ -53,6 +53,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -199,7 +200,11 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
             ValidationException.class,
             () -> parsePersistedConfig("""
                 {
-                  "service_settings": {}
+                  "service_settings": {
+                  },
+                  "secret_settings": {
+                    "api_key": "12345"
+                  }
                 }
                 """)
         );
@@ -209,7 +214,13 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
         assertThrows(
             "Validation Failed: 1: [service_settings] does not contain the required setting [model];",
             ElasticsearchStatusException.class,
-            () -> parsePersistedConfig("{}")
+            () -> parsePersistedConfig("""
+                {
+                  "secret_settings": {
+                    "api_key": "12345"
+                  }
+                }
+                """)
         );
     }
 
@@ -397,9 +408,19 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
     }
 
     private DeepSeekChatCompletionModel parsePersistedConfig(String json) throws IOException {
+        Map<String, Object> asMap = map(json);
+        Map<String, Object> serviceSettings = new HashMap<>();
+        if (asMap.containsKey(ModelConfigurations.SERVICE_SETTINGS)) {
+            serviceSettings.put(ModelConfigurations.SERVICE_SETTINGS, asMap.get(ModelConfigurations.SERVICE_SETTINGS));
+        }
+        Map<String, Object> secretSettings = null;
+        if (asMap.containsKey(ModelSecrets.SECRET_SETTINGS)) {
+            secretSettings = new HashMap<>();
+            secretSettings.put(ModelSecrets.SECRET_SETTINGS, asMap.get(ModelSecrets.SECRET_SETTINGS));
+        }
         try (var service = createService()) {
             var model = service.parsePersistedConfig(
-                new UnparsedModel("inference-id", TaskType.CHAT_COMPLETION, DeepSeekService.NAME, map(json), null)
+                new UnparsedModel("inference-id", TaskType.CHAT_COMPLETION, DeepSeekService.NAME, serviceSettings, secretSettings)
             );
             assertThat(model, isA(DeepSeekChatCompletionModel.class));
             return model;

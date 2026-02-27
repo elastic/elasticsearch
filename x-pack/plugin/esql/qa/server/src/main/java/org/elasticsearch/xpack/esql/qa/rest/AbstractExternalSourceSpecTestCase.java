@@ -6,9 +6,10 @@
  */
 package org.elasticsearch.xpack.esql.qa.rest;
 
-import com.github.luben.zstd.ZstdOutputStream;
 import fixture.gcs.GoogleCloudStorageHttpFixture;
 import fixture.gcs.TestUtils;
+
+import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.elasticsearch.Version;
@@ -25,7 +26,6 @@ import org.junit.ClassRule;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;

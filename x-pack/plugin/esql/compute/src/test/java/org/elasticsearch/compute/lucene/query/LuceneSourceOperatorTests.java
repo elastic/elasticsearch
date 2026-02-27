@@ -502,7 +502,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         private final ContextIndexSearcher searcher;
         private final ShardSearchStats shardSearchStats;
 
-        public static final int MIN_DOCS_PER_SLICE = 50_000;
+        private static final int MIN_DOCS_PER_SLICE = 50_000;
+        private static final int MAX_SLICES_NUMBER = 10;
 
         // TODO Reuse this overload in the places that pass 0.
         public MockShardContext(IndexReader reader) {
@@ -523,7 +524,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                         TrivialQueryCachingPolicy.NEVER,
                         true,
                         Runnable::run,
-                        10,
+                        MAX_SLICES_NUMBER,
                         MIN_DOCS_PER_SLICE
                     );
                 } else {

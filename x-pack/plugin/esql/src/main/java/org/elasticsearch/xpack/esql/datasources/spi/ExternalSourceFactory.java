@@ -32,4 +32,8 @@ public interface ExternalSourceFactory {
     default SourceOperatorFactoryProvider operatorFactory() {
         return null;
     }
+
+    default SplitProvider splitProvider() {
+        return SplitProvider.SINGLE;
+    }
 }

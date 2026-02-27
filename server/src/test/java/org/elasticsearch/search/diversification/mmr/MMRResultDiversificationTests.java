@@ -63,10 +63,13 @@ public class MMRResultDiversificationTests extends ESTestCase {
     private MMRResultDiversificationContext getRandomFloatContext(List<Integer> expectedDocIds) {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, List.of())
-            .elementType(DenseVectorFieldMapper.ElementType.FLOAT)
-            .dimensions(4)
-            .build(context);
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder(
+            "dense_vector_field",
+            IndexVersion.current(),
+            false,
+            false,
+            List.of()
+        ).elementType(DenseVectorFieldMapper.ElementType.FLOAT).dimensions(4).build(context);
 
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
         builder.elementType(DenseVectorFieldMapper.ElementType.FLOAT);
@@ -98,10 +101,13 @@ public class MMRResultDiversificationTests extends ESTestCase {
     private MMRResultDiversificationContext getRandomByteContext(List<Integer> expectedDocIds) {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, List.of())
-            .elementType(DenseVectorFieldMapper.ElementType.BYTE)
-            .dimensions(4)
-            .build(context);
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder(
+            "dense_vector_field",
+            IndexVersion.current(),
+            false,
+            false,
+            List.of()
+        ).elementType(DenseVectorFieldMapper.ElementType.BYTE).dimensions(4).build(context);
 
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();
         builder.elementType(DenseVectorFieldMapper.ElementType.BYTE);
@@ -133,10 +139,13 @@ public class MMRResultDiversificationTests extends ESTestCase {
     public void testMMRDiversificationIfNoSearchHits() throws IOException {
         final MapperBuilderContext context = MapperBuilderContext.root(false, false);
 
-        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder("dense_vector_field", IndexVersion.current(), false, List.of())
-            .elementType(DenseVectorFieldMapper.ElementType.FLOAT)
-            .dimensions(4)
-            .build(context);
+        DenseVectorFieldMapper mapper = new DenseVectorFieldMapper.Builder(
+            "dense_vector_field",
+            IndexVersion.current(),
+            false,
+            false,
+            List.of()
+        ).elementType(DenseVectorFieldMapper.ElementType.FLOAT).dimensions(4).build(context);
 
         // Change the element type to byte, which is incompatible with int8 HNSW index options
         DenseVectorFieldMapper.Builder builder = (DenseVectorFieldMapper.Builder) mapper.getMergeBuilder();

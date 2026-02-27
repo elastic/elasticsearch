@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
@@ -310,6 +311,41 @@ public class DataSourceModuleTests extends ESTestCase {
         assertFalse("Should not handle file:///tmp/data", fileFactory.canHandle("file:///tmp/data"));
         // Unknown scheme should not be handled
         assertFalse("Should not handle s3://bucket/data.csv", fileFactory.canHandle("s3://bucket/data.csv"));
+    }
+
+    /**
+     * Test that with gzip plugin, compressed paths (.csv.gz) are supported.
+     */
+    public void testFileSourceFactoryCanHandleCompressedPaths() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        var fileFactory = module.sourceFactories().get("file");
+        assertNotNull(fileFactory);
+
+        assertTrue("Should handle file:///tmp/data.csv.gz", fileFactory.canHandle("file:///tmp/data.csv.gz"));
+        assertTrue("Should handle file:///tmp/data.tsv.gz", fileFactory.canHandle("file:///tmp/data.tsv.gz"));
+        assertFalse("Should not handle file:///tmp/data.parquet.gz", fileFactory.canHandle("file:///tmp/data.parquet.gz"));
+    }
+
+    /**
+     * Test that with gzip plugin, byExtension returns delegating reader for compound extensions.
+     */
+    public void testFormatReaderRegistryCompressedExtension() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+        assertTrue("Should have compressed extension for data.csv.gz", registry.hasCompressedExtension("data.csv.gz"));
+        assertFalse("Should not have compressed extension for data.csv", registry.hasCompressedExtension("data.csv"));
+
+        FormatReader reader = registry.byExtension("data.csv.gz");
+        assertNotNull(reader);
+        assertEquals("csv", reader.formatName());
+        assertTrue(
+            "Reader should be CompressionDelegatingFormatReader",
+            reader.getClass().getSimpleName().contains("CompressionDelegating")
+        );
     }
 
     /**

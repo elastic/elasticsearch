@@ -494,3 +494,14 @@ FROM languages_lookup | WHERE kql("English") | KEEP language_code,language_name,
 language_code:integer | language_name:keyword | unmapped:null
 1                     | English               | null
 ;
+
+kqlOverUnmapped
+required_capability: optional_fields_nullify_tech_preview
+required_capability: kql_function
+
+SET unmapped_fields="nullify"\; 
+FROM languages_lookup | WHERE kql("unmapped: English") | KEEP language_code,language_name,unmapped
+;
+
+language_code:integer | language_name:keyword | unmapped:null
+;

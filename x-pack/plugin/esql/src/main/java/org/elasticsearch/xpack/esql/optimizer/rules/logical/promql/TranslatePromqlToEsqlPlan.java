@@ -533,10 +533,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         }
 
         if (missingKeys.isEmpty() == false) {
-            throw new QlIllegalArgumentException(
-                "could not resolve matching keys [{}] in both sides of group modifier join",
-                missingKeys
-            );
+            throw new QlIllegalArgumentException("could not resolve matching keys [{}] in both sides of group modifier join", missingKeys);
         }
 
         InlineJoin inlineJoin = new InlineJoin(source, drivingPlan, inlinePlan, JoinTypes.LEFT, leftJoinFields, rightJoinFields);

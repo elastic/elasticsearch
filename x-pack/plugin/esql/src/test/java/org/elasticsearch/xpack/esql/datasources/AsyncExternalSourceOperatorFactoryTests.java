@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -540,6 +541,223 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertSame(fileSet, factory.fileSet());
         assertTrue(factory.fileSet().isResolved());
         assertEquals(2, factory.fileSet().size());
+    }
+
+    // ===== Slice Queue tests =====
+
+    public void testSliceQueueReadsSplitsSequentially() throws Exception {
+        List<FileSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/f1.parquet"), 0, 100, "parquet", Map.of(), Map.of()),
+            new FileSplit("test", StoragePath.of("s3://bucket/f2.parquet"), 0, 200, "parquet", Map.of(), Map.of()),
+            new FileSplit("test", StoragePath.of("s3://bucket/f3.parquet"), 0, 300, "parquet", Map.of(), Map.of())
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(new ArrayList<>(splits));
+
+        AtomicInteger readCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/f1.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            null,
+            null,
+            null,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        assertNotNull(operator);
+
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(3, readCount.get());
+        assertEquals(3, pages.size());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    public void testSliceQueueExhaustionFinishesOperator() throws Exception {
+        FileSplit split = new FileSplit("test", StoragePath.of("s3://bucket/only.parquet"), 0, 100, "parquet", Map.of(), Map.of());
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(List.of(split));
+
+        AtomicInteger readCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(readCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/only.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        BlockFactory blockFactory = mock(BlockFactory.class);
+        when(driverContext.blockFactory()).thenReturn(blockFactory);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run(),
+            null,
+            null,
+            null,
+            sliceQueue
+        );
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                pages.add(page);
+            }
+        }
+
+        assertEquals(1, readCount.get());
+        assertEquals(1, pages.size());
+
+        for (Page p : pages) {
+            p.releaseBlocks();
+        }
+        operator.close();
+    }
+
+    public void testSliceQueueMultipleDriversClaimDifferentSplits() throws Exception {
+        int splitCount = 6;
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new FileSplit("test", StoragePath.of("s3://bucket/f" + i + ".parquet"), 0, 100, "parquet", Map.of(), Map.of()));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+
+        AtomicInteger totalReadCount = new AtomicInteger(0);
+        FormatReader formatReader = new PageCountingFormatReader(totalReadCount);
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+
+        StoragePath path = StoragePath.of("s3://bucket/f0.parquet");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        int driverCount = 3;
+        List<SourceOperator> operators = new ArrayList<>();
+        List<DriverContext> contexts = new ArrayList<>();
+
+        for (int d = 0; d < driverCount; d++) {
+            DriverContext driverContext = mock(DriverContext.class);
+            BlockFactory blockFactory = mock(BlockFactory.class);
+            when(driverContext.blockFactory()).thenReturn(blockFactory);
+            doAnswer(inv -> null).when(driverContext).addAsyncAction();
+            doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+            contexts.add(driverContext);
+
+            AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                storageProvider,
+                formatReader,
+                path,
+                attributes,
+                100,
+                10,
+                (Runnable r) -> r.run(),
+                null,
+                null,
+                null,
+                sliceQueue
+            );
+            operators.add(factory.get(driverContext));
+        }
+
+        List<Page> allPages = new ArrayList<>();
+        for (SourceOperator op : operators) {
+            while (op.isFinished() == false) {
+                Page page = op.getOutput();
+                if (page != null) {
+                    allPages.add(page);
+                }
+            }
+        }
+
+        assertEquals(splitCount, totalReadCount.get());
+        assertEquals(splitCount, allPages.size());
+
+        for (Page p : allPages) {
+            p.releaseBlocks();
+        }
+        for (SourceOperator op : operators) {
+            op.close();
+        }
+    }
+
+    public void testSliceQueueAccessor() {
+        List<ExternalSplit> splits = List.of(
+            new FileSplit("test", StoragePath.of("s3://bucket/a.parquet"), 0, 10, "parquet", Map.of(), Map.of())
+        );
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        FormatReader formatReader = mock(FormatReader.class);
+        when(formatReader.formatName()).thenReturn("parquet");
+
+        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            StoragePath.of("s3://bucket/a.parquet"),
+            List.of(
+                new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+            ),
+            100,
+            10,
+            Runnable::run,
+            null,
+            null,
+            null,
+            sliceQueue
+        );
+
+        assertSame(sliceQueue, factory.sliceQueue());
     }
 
     // ===== Helpers =====

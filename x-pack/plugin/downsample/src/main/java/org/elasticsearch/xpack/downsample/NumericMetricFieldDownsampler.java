@@ -7,8 +7,14 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
+import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -19,27 +25,53 @@ import java.io.IOException;
  * values. Based on the supported metric types, the subclasses of this class compute values for
  * gauge and metric types.
  */
-abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleFieldProducer<SortedNumericDoubleValues> {
+abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsampler<SortedNumericDoubleValues> permits
+    AggregateMetricDoubleFieldDownsampler, NumericMetricFieldDownsampler.AggregateGauge, NumericMetricFieldDownsampler.LastValue {
 
-    NumericMetricFieldProducer(String name) {
-        super(name);
+    NumericMetricFieldDownsampler(String name, IndexFieldData<?> fieldData) {
+        super(name, fieldData);
+    }
+
+    @Override
+    public SortedNumericDoubleValues getLeaf(LeafReaderContext context) {
+        LeafNumericFieldData numericFieldData = (LeafNumericFieldData) fieldData.load(context);
+        return numericFieldData.getDoubleValues();
+    }
+
+    public static boolean supportsFieldType(MappedFieldType fieldType) {
+        TimeSeriesParams.MetricType metricType = fieldType.getMetricType();
+        return metricType == TimeSeriesParams.MetricType.GAUGE || metricType == TimeSeriesParams.MetricType.COUNTER;
+    }
+
+    static NumericMetricFieldDownsampler create(
+        String fieldName,
+        MappedFieldType fieldType,
+        IndexFieldData<?> fieldData,
+        DownsampleConfig.SamplingMethod samplingMethod
+    ) {
+        assert supportsFieldType(fieldType)
+            : "only gauges and counters accepted, other metrics should have been handled by dedicated downsamplers";
+        if (samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE && fieldType.getMetricType() == TimeSeriesParams.MetricType.GAUGE) {
+            return new NumericMetricFieldDownsampler.AggregateGauge(fieldName, fieldData);
+        }
+        return new NumericMetricFieldDownsampler.LastValue(fieldName, fieldData);
     }
 
     static final double MAX_NO_VALUE = -Double.MAX_VALUE;
     static final double MIN_NO_VALUE = Double.MAX_VALUE;
 
     /**
-     * {@link NumericMetricFieldProducer} implementation for creating an aggregate gauge metric field
+     * {@link NumericMetricFieldDownsampler} implementation for creating an aggregate gauge metric field
      */
-    static final class AggregateGauge extends NumericMetricFieldProducer {
+    static final class AggregateGauge extends NumericMetricFieldDownsampler {
 
         double max = MAX_NO_VALUE;
         double min = MIN_NO_VALUE;
         final CompensatedSum sum = new CompensatedSum();
         long count;
 
-        AggregateGauge(String name) {
-            super(name);
+        AggregateGauge(String name, IndexFieldData<?> fieldData) {
+            super(name, fieldData);
         }
 
         @Override
@@ -84,15 +116,15 @@ abstract sealed class NumericMetricFieldProducer extends AbstractDownsampleField
     }
 
     /**
-     * {@link NumericMetricFieldProducer} implementation for sampling the last value of a numeric metric field.
+     * {@link NumericMetricFieldDownsampler} implementation for sampling the last value of a numeric metric field.
      * Important note: This class assumes that field values are collected and sorted by descending order by time.
      */
-    static final class LastValue extends NumericMetricFieldProducer {
+    static final class LastValue extends NumericMetricFieldDownsampler {
 
         double lastValue = Double.NaN;
 
-        LastValue(String name) {
-            super(name);
+        LastValue(String name, IndexFieldData<?> fieldData) {
+            super(name, fieldData);
         }
 
         @Override

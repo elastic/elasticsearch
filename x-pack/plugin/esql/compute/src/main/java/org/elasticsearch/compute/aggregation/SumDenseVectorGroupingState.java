@@ -44,7 +44,7 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
                 "Cannot sum dense vectors with different dimensions: expected [" + this.dimensions + "] but got [" + dimensions + "]"
             );
         }
-        ensureCapacity(groupId, dimensions);
+        ensureCapacity(groupId);
 
         int groupSumStart = groupId * dimensions;
         for (int i = 0; i < dimensions; i++) {
@@ -53,7 +53,8 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
         trackGroupId(groupId);
     }
 
-    private void ensureCapacity(int groupId, int dimensions) {
+    private void ensureCapacity(int groupId) {
+        assert dimensions != -1 : "Dimensions should be set before ensuring capacity";
         sums = bigArrays.grow(sums, (groupId + 1L) * dimensions);
     }
 

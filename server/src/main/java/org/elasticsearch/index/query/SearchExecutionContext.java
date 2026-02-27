@@ -90,6 +90,13 @@ import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
  *
  * This context is used in several components of search execution, including
  * building queries and fetching hits.
+ *
+ * The context is not designed to be thread-safe and is not expected to be
+ * shared between multiple threads. The exception is the Percolator that
+ * runs multiple queries simultaneously with the same context and will mutate
+ * elements of the context that are not threadsafe. {@link #copyForConcurrentUse()}
+ * addresses the Percolator use by creating a shallow copy with new instances of the
+ * mutable elements.
  */
 public class SearchExecutionContext extends QueryRewriteContext {
 

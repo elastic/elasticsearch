@@ -56,13 +56,11 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.FilteredSearchExecutionContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
@@ -577,19 +575,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     // The QueryBuilder.toQuery() function modifies the search context's
                     // AutoPrefilteringScope in a way that is not thread safe. For other
                     // queries this is not a problem, but Percolate will call the returned
-                    // PercolateQuery.QueryStore function from multiple threads. Here the
-                    // solution is to create an AutoPrefilteringScope for each invocation
-                    // of PercolateQuery.QueryStore
-                    var safeContext = new FilteredSearchExecutionContext(context) {
-
-                        private AutoPrefilteringScope localAutoPrefilteringScope = new AutoPrefilteringScope();
-
-                        @Override
-                        public AutoPrefilteringScope autoPrefilteringScope() {
-                            return localAutoPrefilteringScope;
-                        }
-                    };
-
+                    // PercolateQuery.QueryStore function from multiple threads.
+                    // Use a cloned SearchExecutionContext for each thread.
+                    var safeContext = context.copyForConcurrentUse();
                     queryBuilder = Rewriteable.rewrite(queryBuilder, safeContext);
                     // toQuery will access localAutoPrefilteringScope
                     return queryBuilder.toQuery(safeContext);

@@ -264,6 +264,19 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.autoPrefilteringScope = new AutoPrefilteringScope();
     }
 
+    /**
+     * Creates a shallow copy of the context with new instances of the fields
+     * that are mutable - notably {@code AutoPrefilteringScope} and {@code NestedScope}.
+     * The mutable elements cannot be shared safely between threads, this function
+     * returns a copy that is safe to use in a concurrent environment without the
+     * overhead of a full copy.
+     *
+     * @return The shallow copy of the context.
+     */
+    public SearchExecutionContext copyForConcurrentUse() {
+        return new SearchExecutionContext(this);
+    }
+
     // Set alias filter, so it can be applied for queries that need it (e.g. knn query)
     public void setAliasFilter(QueryBuilder aliasFilter) {
         this.aliasFilter = aliasFilter;

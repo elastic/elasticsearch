@@ -396,4 +396,12 @@ public class FilteredSearchExecutionContext extends SearchExecutionContext {
     public AutoPrefilteringScope autoPrefilteringScope() {
         return in.autoPrefilteringScope();
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public FilteredSearchExecutionContext copyForConcurrentUse() {
+        return new FilteredSearchExecutionContext(this);
+    }
 }

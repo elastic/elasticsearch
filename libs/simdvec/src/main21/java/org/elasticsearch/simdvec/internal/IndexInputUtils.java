@@ -16,6 +16,7 @@ import org.elasticsearch.core.DirectAccessInput;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.util.function.IntFunction;
 
 /**
  * Utility for obtaining a {@link MemorySegment} view of data in an
@@ -40,17 +41,25 @@ public final class IndexInputUtils {
      * {@link MemorySegmentAccessInput#segmentSliceOrNull}. If that
      * returns {@code null}, it tries a direct {@link java.nio.ByteBuffer}
      * view via {@link DirectAccessInput}. As a last resort it copies the
-     * data onto the heap.
+     * data onto the heap using a byte array obtained from
+     * {@code scratchSupplier}.
      *
      * <p> The memory segment passed to {@code action} is valid only for
      * the duration of the call. Callers must not retain references to it.
      *
-     * @param in         the index input positioned at the data to read
-     * @param length     the number of bytes to read
-     * @param action     the function to apply to the memory segment
+     * @param in              the index input positioned at the data to read
+     * @param length          the number of bytes to read
+     * @param scratchSupplier supplies a byte array of at least the requested
+     *                        length, used only on the heap-copy fallback path
+     * @param action          the function to apply to the memory segment
      * @return the result of applying {@code action}
      */
-    public static <R> R withSlice(IndexInput in, long length, CheckedFunction<MemorySegment, R, IOException> action) throws IOException {
+    public static <R> R withSlice(
+        IndexInput in,
+        long length,
+        IntFunction<byte[]> scratchSupplier,
+        CheckedFunction<MemorySegment, R, IOException> action
+    ) throws IOException {
         checkInputType(in);
         if (in instanceof MemorySegmentAccessInput msai) {
             long offset = in.getFilePointer();
@@ -72,7 +81,7 @@ public final class IndexInputUtils {
                 return result[0];
             }
         }
-        return action.apply(copyOnHeap(in, Math.toIntExact(length)));
+        return action.apply(copyOnHeap(in, Math.toIntExact(length), scratchSupplier));
     }
 
     /**
@@ -93,11 +102,13 @@ public final class IndexInputUtils {
 
     /**
      * Reads the given number of bytes from the current position of the
-     * given IndexInput into a heap-backed memory segment.
+     * given IndexInput into a heap-backed memory segment. The returned
+     * segment is sliced to exactly {@code bytesToRead} bytes, even if
+     * the underlying array is larger.
      */
-    private static MemorySegment copyOnHeap(IndexInput in, int bytesToRead) throws IOException {
-        byte[] scratch = new byte[bytesToRead];
-        in.readBytes(scratch, 0, bytesToRead);
-        return MemorySegment.ofArray(scratch);
+    private static MemorySegment copyOnHeap(IndexInput in, int bytesToRead, IntFunction<byte[]> scratchSupplier) throws IOException {
+        byte[] buf = scratchSupplier.apply(bytesToRead);
+        in.readBytes(buf, 0, bytesToRead);
+        return MemorySegment.ofArray(buf).asSlice(0, bytesToRead);
     }
 }

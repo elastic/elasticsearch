@@ -59,14 +59,23 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         INT_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(VECTOR_BITSIZE));
     }
 
+    private byte[] scratch;
+
     protected MemorySegmentES92PanamaInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         super(in, dimensions, bulkSize);
         IndexInputUtils.checkInputType(in);
     }
 
+    protected byte[] getScratch(int len) {
+        if (scratch == null || scratch.length < len) {
+            scratch = new byte[len];
+        }
+        return scratch;
+    }
+
     protected long panamaInt7DotProduct(byte[] q) throws IOException {
         assert dimensions == q.length;
-        return IndexInputUtils.withSlice(in, dimensions, segment -> panamaInt7DotProductImpl(q, segment, dimensions));
+        return IndexInputUtils.withSlice(in, dimensions, this::getScratch, segment -> panamaInt7DotProductImpl(q, segment, dimensions));
     }
 
     private static long panamaInt7DotProductImpl(byte[] q, MemorySegment segment, int dimensions) {
@@ -150,7 +159,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
 
     protected void panamaInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert dimensions == q.length;
-        IndexInputUtils.withSlice(in, (long) dimensions * count, segment -> {
+        IndexInputUtils.withSlice(in, (long) dimensions * count, this::getScratch, segment -> {
             panamaInt7DotProductBulkImpl(q, segment, dimensions, count, scores);
             return null;
         });
@@ -226,7 +235,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         float[] scores,
         int bulkSize
     ) throws IOException {
-        IndexInputUtils.withSlice(in, 16L * bulkSize, memorySegment -> {
+        IndexInputUtils.withSlice(in, 16L * bulkSize, this::getScratch, memorySegment -> {
             applyCorrectionsBulkImpl(
                 memorySegment,
                 queryAdditionalCorrection,

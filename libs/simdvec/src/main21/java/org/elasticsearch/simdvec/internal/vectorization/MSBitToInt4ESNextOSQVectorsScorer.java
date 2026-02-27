@@ -57,7 +57,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     }
 
     private long nativeQuantizeScore(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, segment -> nativeQuantizeScoreImpl(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, this::getScratch, segment -> nativeQuantizeScoreImpl(q, segment, length));
     }
 
     private static long nativeQuantizeScoreImpl(byte[] q, MemorySegment datasetMemorySegment, int length) {
@@ -76,7 +76,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     }
 
     private long quantizeScore256(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, segment -> quantizeScore256Impl(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, this::getScratch, segment -> quantizeScore256Impl(q, segment, length));
     }
 
     private static long quantizeScore256Impl(byte[] q, MemorySegment memorySegment, int length) {
@@ -156,7 +156,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, segment -> quantizeScore128Impl(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, this::getScratch, segment -> quantizeScore128Impl(q, segment, length));
     }
 
     private static long quantizeScore128Impl(byte[] q, MemorySegment memorySegment, int length) {
@@ -245,7 +245,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
 
     private void nativeQuantizeScoreBulk(MemorySegment querySegment, int count, MemorySegment scoresSegment) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, datasetSegment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, datasetSegment -> {
             dotProductD1Q4Bulk(datasetSegment, querySegment, length, count, scoresSegment);
             return null;
         });
@@ -253,7 +253,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, segment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, segment -> {
             quantizeScore128BulkImpl(q, segment, length, count, scores);
             return null;
         });
@@ -315,7 +315,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, segment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, segment -> {
             quantizeScore256BulkImpl(q, segment, length, count, scores);
             return null;
         });
@@ -494,6 +494,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         return IndexInputUtils.withSlice(
             in,
             16L * bulkSize,
+            this::getScratch,
             seg -> ScoreCorrections.nativeApplyCorrectionsBulk(
                 similarityFunction,
                 seg,
@@ -524,6 +525,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         return IndexInputUtils.withSlice(
             in,
             16L * bulkSize,
+            this::getScratch,
             seg -> applyCorrections128BulkImpl(
                 seg,
                 queryAdditionalCorrection,
@@ -641,6 +643,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         return IndexInputUtils.withSlice(
             in,
             16L * bulkSize,
+            this::getScratch,
             memorySegment -> applyCorrections256BulkImpl(
                 memorySegment,
                 queryAdditionalCorrection,

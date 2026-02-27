@@ -51,8 +51,17 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
     static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
+    private byte[] scratch;
+
     public MemorySegmentES91OSQVectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         super(in, dimensions, bulkSize);
+    }
+
+    private byte[] getScratch(int len) {
+        if (scratch == null || scratch.length < len) {
+            scratch = new byte[len];
+        }
+        return scratch;
     }
 
     @Override
@@ -70,7 +79,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     }
 
     private long quantizeScore256(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, segment -> quantizeScore256Impl(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, this::getScratch, segment -> quantizeScore256Impl(q, segment, length));
     }
 
     private static long quantizeScore256Impl(byte[] q, MemorySegment memorySegment, int length) {
@@ -150,7 +159,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, segment -> quantizeScore128Impl(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, this::getScratch, segment -> quantizeScore128Impl(q, segment, length));
     }
 
     private static long quantizeScore128Impl(byte[] q, MemorySegment memorySegment, int length) {
@@ -223,7 +232,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, segment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, segment -> {
             quantizeScore128BulkImpl(q, count, scores, segment, length);
             return null;
         });
@@ -286,7 +295,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, segment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, segment -> {
             quantizeScore256BulkImpl(q, count, scores, segment, length);
             return null;
         });
@@ -389,6 +398,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 return IndexInputUtils.withSlice(
                     in,
                     (14L + length) * this.bulkSize,
+                    this::getScratch,
                     segment -> score256Bulk(
                         segment,
                         q,
@@ -405,6 +415,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 return IndexInputUtils.withSlice(
                     in,
                     (14L + length) * this.bulkSize,
+                    this::getScratch,
                     segment -> score128Bulk(
                         segment,
                         q,

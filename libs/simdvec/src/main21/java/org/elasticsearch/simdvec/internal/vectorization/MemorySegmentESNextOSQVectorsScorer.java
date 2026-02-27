@@ -179,6 +179,8 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         protected final int dimensions;
         protected final int bulkSize;
 
+        private byte[] scratch;
+
         /**
          * Creates a new MemorySegmentScorer. The index input must be a
          * {@link MemorySegmentAccessInput} or {@link DirectAccessInput};
@@ -202,6 +204,13 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
             this.length = dataLength;
             this.dimensions = dimensions;
             this.bulkSize = bulkSize;
+        }
+
+        protected byte[] getScratch(int len) {
+            if (scratch == null || scratch.length < len) {
+                scratch = new byte[len];
+            }
+            return scratch;
         }
 
         abstract long quantizeScore(byte[] q) throws IOException;

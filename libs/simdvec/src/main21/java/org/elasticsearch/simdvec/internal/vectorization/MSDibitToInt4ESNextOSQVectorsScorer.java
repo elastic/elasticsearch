@@ -57,7 +57,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
     }
 
     private long nativeQuantizeScore(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, length, segment -> nativeQuantizeScoreImpl(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, this::getScratch, segment -> nativeQuantizeScoreImpl(q, segment, length));
     }
 
     private static long nativeQuantizeScoreImpl(byte[] q, MemorySegment datasetMemorySegment, int length) {
@@ -89,7 +89,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
 
     private long quantizeScore256(byte[] q) throws IOException {
         int size = length / 2;
-        return IndexInputUtils.withSlice(in, size, segment -> quantizeScore256Impl(q, segment, size));
+        return IndexInputUtils.withSlice(in, size, this::getScratch, segment -> quantizeScore256Impl(q, segment, size));
     }
 
     private static long quantizeScore256Impl(byte[] q, MemorySegment memorySegment, int size) {
@@ -170,7 +170,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
 
     private long quantizeScore128(byte[] q) throws IOException {
         int size = length / 2;
-        return IndexInputUtils.withSlice(in, size, segment -> quantizeScore128Impl(q, segment, size));
+        return IndexInputUtils.withSlice(in, size, this::getScratch, segment -> quantizeScore128Impl(q, segment, size));
     }
 
     private static long quantizeScore128Impl(byte[] q, MemorySegment memorySegment, int size) {
@@ -260,7 +260,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
 
     private void nativeQuantizeScoreBulk(MemorySegment queryMemorySegment, int count, MemorySegment scoresSegment) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputUtils.withSlice(in, datasetLengthInBytes, datasetSegment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, datasetSegment -> {
             dotProductD2Q4Bulk(datasetSegment, queryMemorySegment, length, count, scoresSegment);
             return null;
         });
@@ -372,6 +372,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         return IndexInputUtils.withSlice(
             in,
             16L * bulkSize,
+            this::getScratch,
             seg -> ScoreCorrections.nativeApplyCorrectionsBulk(
                 similarityFunction,
                 seg,
@@ -402,6 +403,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         return IndexInputUtils.withSlice(
             in,
             16L * bulkSize,
+            this::getScratch,
             memorySegment -> applyCorrections128BulkImpl(
                 memorySegment,
                 queryAdditionalCorrection,
@@ -519,6 +521,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         return IndexInputUtils.withSlice(
             in,
             16L * bulkSize,
+            this::getScratch,
             memorySegment -> applyCorrections256BulkImpl(
                 memorySegment,
                 queryAdditionalCorrection,

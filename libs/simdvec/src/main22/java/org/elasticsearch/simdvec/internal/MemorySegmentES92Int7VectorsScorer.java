@@ -40,14 +40,14 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
     }
 
     private long nativeInt7DotProduct(byte[] q) throws IOException {
-        return IndexInputUtils.withSlice(in, dimensions, segment -> {
+        return IndexInputUtils.withSlice(in, dimensions, this::getScratch, segment -> {
             final MemorySegment querySegment = MemorySegment.ofArray(q);
             return Similarities.dotProductI7u(segment, querySegment, dimensions);
         });
     }
 
     private void nativeInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
-        IndexInputUtils.withSlice(in, (long) dimensions * count, segment -> {
+        IndexInputUtils.withSlice(in, (long) dimensions * count, this::getScratch, segment -> {
             final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
             final MemorySegment querySegment = MemorySegment.ofArray(q);
             Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);

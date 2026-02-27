@@ -120,7 +120,7 @@ public class IndexInputUtilsTests extends ESTestCase {
 
     private void verifyWithSlice(IndexInput in, byte[] expectedData) throws IOException {
         int firstChunk = 64;
-        byte[] result1 = IndexInputUtils.withSlice(in, firstChunk, segment -> {
+        byte[] result1 = IndexInputUtils.withSlice(in, firstChunk, byte[]::new, segment -> {
             byte[] buf = new byte[(int) segment.byteSize()];
             MemorySegment.ofArray(buf).copyFrom(segment);
             return buf;
@@ -129,7 +129,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         assertEquals(firstChunk, in.getFilePointer());
 
         int secondChunk = 128;
-        byte[] result2 = IndexInputUtils.withSlice(in, secondChunk, segment -> {
+        byte[] result2 = IndexInputUtils.withSlice(in, secondChunk, byte[]::new, segment -> {
             byte[] buf = new byte[(int) segment.byteSize()];
             MemorySegment.ofArray(buf).copyFrom(segment);
             return buf;
@@ -138,7 +138,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         assertEquals(firstChunk + secondChunk, in.getFilePointer());
 
         int remaining = expectedData.length - firstChunk - secondChunk;
-        byte[] result3 = IndexInputUtils.withSlice(in, remaining, segment -> {
+        byte[] result3 = IndexInputUtils.withSlice(in, remaining, byte[]::new, segment -> {
             byte[] buf = new byte[(int) segment.byteSize()];
             MemorySegment.ofArray(buf).copyFrom(segment);
             return buf;

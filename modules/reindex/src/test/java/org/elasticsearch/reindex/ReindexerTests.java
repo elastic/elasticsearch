@@ -9,10 +9,17 @@
 
 package org.elasticsearch.reindex;
 
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+
+import org.apache.logging.log4j.Level;
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
@@ -21,7 +28,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,30 +39,25 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.tasks.TaskId;
-import org.apache.logging.log4j.Level;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpClient;
@@ -65,9 +66,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
-
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -83,9 +81,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
-import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -388,29 +386,25 @@ public class ReindexerTests extends ESTestCase {
     public void testRemoteReindexingRequestFailsToClosePit() throws Exception {
         assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
-        HttpServer server = createRemotePitMockServer(
-            (path, method) -> path.contains("_pit") && "DELETE".equals(method),
-            exchange -> {
-                try {
-                    exchange.sendResponseHeaders(500, -1);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+        HttpServer server = createRemotePitMockServer((path, method) -> path.contains("_pit") && "DELETE".equals(method), exchange -> {
+            try {
+                exchange.sendResponseHeaders(500, -1);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-        );
+        });
         server.start();
         try {
-            MockLog.awaitLogger(
-                () -> {
-                    try {
-                        runRemotePitTestWithMockServer(server, request -> {}, initFuture -> {
-                            BulkByScrollResponse response = initFuture.actionGet();
-                            assertNotNull(response);
-                        });
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                },
+            MockLog.awaitLogger(() -> {
+                try {
+                    runRemotePitTestWithMockServer(server, request -> {}, initFuture -> {
+                        BulkByScrollResponse response = initFuture.actionGet();
+                        assertNotNull(response);
+                    });
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            },
                 Reindexer.class,
                 new MockLog.SeenEventExpectation(
                     "Failed to close remote PIT should be logged",
@@ -432,29 +426,25 @@ public class ReindexerTests extends ESTestCase {
     public void testRemoteReindexingRequestFailsWhenClosePitIsRejected() throws Exception {
         assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
-        HttpServer server = createRemotePitMockServer(
-            (path, method) -> path.contains("_pit") && "DELETE".equals(method),
-            exchange -> {
-                try {
-                    exchange.sendResponseHeaders(TOO_MANY_REQUESTS.getStatus(), -1);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+        HttpServer server = createRemotePitMockServer((path, method) -> path.contains("_pit") && "DELETE".equals(method), exchange -> {
+            try {
+                exchange.sendResponseHeaders(TOO_MANY_REQUESTS.getStatus(), -1);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-        );
+        });
         server.start();
         try {
-            MockLog.awaitLogger(
-                () -> {
-                    try {
-                        runRemotePitTestWithMockServer(server, request -> {}, initFuture -> {
-                            BulkByScrollResponse response = initFuture.actionGet();
-                            assertNotNull(response);
-                        });
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                },
+            MockLog.awaitLogger(() -> {
+                try {
+                    runRemotePitTestWithMockServer(server, request -> {}, initFuture -> {
+                        BulkByScrollResponse response = initFuture.actionGet();
+                        assertNotNull(response);
+                    });
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            },
                 Reindexer.class,
                 new MockLog.SeenEventExpectation(
                     "Failed to close remote PIT (rejected) should be logged",
@@ -580,13 +570,12 @@ public class ReindexerTests extends ESTestCase {
                     false
                 );
 
-                MockLog.awaitLogger(
-                    () -> {
-                        final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
-                        reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
-                        final BulkByScrollResponse response = initFuture.actionGet();
-                        assertNotNull(response);
-                    },
+                MockLog.awaitLogger(() -> {
+                    final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                    reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
+                    final BulkByScrollResponse response = initFuture.actionGet();
+                    assertNotNull(response);
+                },
                     Reindexer.class,
                     new MockLog.SeenEventExpectation(
                         "Failed to close local PIT should be logged",
@@ -656,10 +645,7 @@ public class ReindexerTests extends ESTestCase {
         private final TestThreadPool threadPool;
 
         OpenPitFailingClient(String threadPoolName, String failureMessage) {
-            super(
-                new TestThreadPool(threadPoolName),
-                TestProjectResolvers.DEFAULT_PROJECT_ONLY
-            );
+            super(new TestThreadPool(threadPoolName), TestProjectResolvers.DEFAULT_PROJECT_ONLY);
             this.threadPool = (TestThreadPool) super.threadPool();
             this.failureMessage = failureMessage;
         }
@@ -684,11 +670,21 @@ public class ReindexerTests extends ESTestCase {
 
     // --- helpers ---
 
-    private static final String REMOTE_PIT_TEST_VERSION_JSON =
-        "{\"version\":{\"number\":\"7.10.0\"},\"tagline\":\"You Know, for Search\"}";
+    private static final String REMOTE_PIT_TEST_VERSION_JSON = "{\"version\":{\"number\":\"7.10.0\"},\"tagline\":\"You Know, for Search\"}";
     private static final String REMOTE_PIT_OPEN_RESPONSE = "{\"id\":\"c29tZXBpdGlk\"}";
-    private static final String REMOTE_PIT_EMPTY_SEARCH_RESPONSE =
-        "{\"_scroll_id\":\"scroll1\",\"timed_out\":false,\"hits\":{\"total\":0,\"hits\":[]},\"_shards\":{\"total\":1,\"successful\":1,\"failed\":0}}";
+    private static final String REMOTE_PIT_EMPTY_SEARCH_RESPONSE = "{"
+        + "\"_scroll_id\":\"scroll1\","
+        + "\"timed_out\":false,"
+        + "\"hits\":{"
+        + "\"total\":0,"
+        + "\"hits\":[]"
+        + "},"
+        + "\"_shards\":{"
+        + "\"total\":1,"
+        + "\"successful\":1,"
+        + "\"failed\":0"
+        + "}"
+        + "}";
 
     /**
      * Creates a MockHttpServer that handles the full remote PIT flow (version, open PIT, search, close PIT).
@@ -801,7 +797,11 @@ public class ReindexerTests extends ESTestCase {
             );
 
             PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
-            reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, mock(Client.class), l)));
+            reindexer.initTask(
+                task,
+                request,
+                initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, mock(Client.class), l))
+            );
             assertions.accept(initFuture);
         } finally {
             terminate(threadPool);

@@ -81,6 +81,15 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.p12'
 }
 
+tasks.named('forbiddenApisTest').configure {
+  // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  modifyBundledSignatures { bundledSignatures ->
+    bundledSignatures -= 'jdk-non-portable'
+    bundledSignatures += 'jdk-internal'
+    bundledSignatures
+  }
+}
+
 // Support for testing reindex-from-remote against old Elasticsearch versions
 configurations {
   oldesFixture

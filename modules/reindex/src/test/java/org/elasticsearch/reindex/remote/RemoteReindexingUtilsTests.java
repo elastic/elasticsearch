@@ -20,10 +20,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -452,14 +452,10 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.openPit(
             new String[] { randomAlphaOfLength(between(1, 10)) },
             TimeValue.timeValueMillis(between(1, 60000)),
-            RejectAwareActionListener.wrap(
-                pitId -> {
-                    capturedPitId[0] = pitId;
-                    success.set(true);
-                },
-                e -> fail("unexpected failure"),
-                e -> fail("unexpected rejection")
-            ),
+            RejectAwareActionListener.wrap(pitId -> {
+                capturedPitId[0] = pitId;
+                success.set(true);
+            }, e -> fail("unexpected failure"), e -> fail("unexpected rejection")),
             threadPool,
             client
         );
@@ -503,15 +499,11 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.openPit(
             new String[] { randomAlphaOfLength(between(1, 10)) },
             randomPositiveTimeValue(),
-            RejectAwareActionListener.wrap(
-                v -> fail("unexpected success"),
-                e -> {
-                    assertTrue(e instanceof ElasticsearchStatusException);
-                    assertEquals(statusCode, ((ElasticsearchStatusException) e).status().getStatus());
-                    failed.set(true);
-                },
-                e -> fail("unexpected rejection")
-            ),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
+                assertTrue(e instanceof ElasticsearchStatusException);
+                assertEquals(statusCode, ((ElasticsearchStatusException) e).status().getStatus());
+                failed.set(true);
+            }, e -> fail("unexpected rejection")),
             threadPool,
             client
         );
@@ -531,15 +523,11 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.openPit(
             new String[] { randomAlphaOfLength(between(1, 10)) },
             randomPositiveTimeValue(),
-            RejectAwareActionListener.wrap(
-                v -> fail("unexpected success"),
-                e -> {
-                    assertTrue(e instanceof ElasticsearchException);
-                    assertThat(e.getMessage(), containsString("remote is likely not an Elasticsearch instance"));
-                    failed.set(true);
-                },
-                e -> fail("unexpected rejection")
-            ),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
+                assertTrue(e instanceof ElasticsearchException);
+                assertThat(e.getMessage(), containsString("remote is likely not an Elasticsearch instance"));
+                failed.set(true);
+            }, e -> fail("unexpected rejection")),
             threadPool,
             client
         );
@@ -559,15 +547,11 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RemoteReindexingUtils.openPit(
             new String[] { randomAlphaOfLength(between(1, 10)) },
             randomPositiveTimeValue(),
-            RejectAwareActionListener.wrap(
-                v -> fail("unexpected success"),
-                e -> {
-                    assertTrue(e instanceof IllegalArgumentException);
-                    assertThat(e.getMessage(), containsString("open point-in-time response must contain [id] field"));
-                    failed.set(true);
-                },
-                e -> fail("unexpected rejection")
-            ),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
+                assertTrue(e instanceof IllegalArgumentException);
+                assertThat(e.getMessage(), containsString("open point-in-time response must contain [id] field"));
+                failed.set(true);
+            }, e -> fail("unexpected rejection")),
             threadPool,
             client
         );
@@ -628,15 +612,11 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         AtomicBoolean failed = new AtomicBoolean(false);
         RemoteReindexingUtils.closePit(
             new BytesArray(randomByteArrayOfLength(between(1, 32))),
-            RejectAwareActionListener.wrap(
-                v -> fail("unexpected success"),
-                e -> {
-                    assertTrue(e instanceof ElasticsearchStatusException);
-                    assertEquals(statusCode, ((ElasticsearchStatusException) e).status().getStatus());
-                    failed.set(true);
-                },
-                e -> fail("unexpected rejection")
-            ),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
+                assertTrue(e instanceof ElasticsearchStatusException);
+                assertEquals(statusCode, ((ElasticsearchStatusException) e).status().getStatus());
+                failed.set(true);
+            }, e -> fail("unexpected rejection")),
             threadPool,
             client
         );
@@ -655,15 +635,11 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         AtomicBoolean failed = new AtomicBoolean(false);
         RemoteReindexingUtils.closePit(
             new BytesArray(randomByteArrayOfLength(between(1, 32))),
-            RejectAwareActionListener.wrap(
-                v -> fail("unexpected success"),
-                e -> {
-                    assertTrue(e instanceof ElasticsearchException);
-                    assertThat(e.getMessage(), containsString("remote is likely not an Elasticsearch instance"));
-                    failed.set(true);
-                },
-                e -> fail("unexpected rejection")
-            ),
+            RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
+                assertTrue(e instanceof ElasticsearchException);
+                assertThat(e.getMessage(), containsString("remote is likely not an Elasticsearch instance"));
+                failed.set(true);
+            }, e -> fail("unexpected rejection")),
             threadPool,
             client
         );

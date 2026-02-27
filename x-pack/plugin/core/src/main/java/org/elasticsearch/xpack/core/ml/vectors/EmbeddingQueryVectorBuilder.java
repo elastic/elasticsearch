@@ -24,27 +24,36 @@ import java.util.Objects;
 public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     public static final String NAME = "embedding";
 
+    public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField FORMAT_FIELD = new ParseField("format");
     public static final ParseField VALUE_FIELD = new ParseField("value");
 
     private static final TransportVersion EMBEDDING_QUERY_VECTOR_BUILDER = TransportVersion.fromName("embedding_query_vector_builder");
 
+    private final String inferenceId;
     private final InferenceString.DataType type;
     private final InferenceString.DataFormat format;
     private final String value;
 
     public EmbeddingQueryVectorBuilder(InferenceString.DataType type, String value) {
-        this(type, null, value);
+        this(null, type, null, value);
     }
 
-    public EmbeddingQueryVectorBuilder(InferenceString.DataType type, @Nullable InferenceString.DataFormat format, String value) {
+    public EmbeddingQueryVectorBuilder(
+        @Nullable String inferenceId,
+        InferenceString.DataType type,
+        @Nullable InferenceString.DataFormat format,
+        String value
+    ) {
+        this.inferenceId = inferenceId;
         this.type = Objects.requireNonNull(type);
         this.format = format;
         this.value = Objects.requireNonNull(value);
     }
 
     public EmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
+        this.inferenceId = in.readOptionalString();
         this.type = in.readEnum(InferenceString.DataType.class);
         this.format = in.readOptionalEnum(InferenceString.DataFormat.class);
         this.value = in.readString();
@@ -67,6 +76,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(inferenceId);
         out.writeEnum(type);
         out.writeOptionalEnum(format);
         out.writeString(value);
@@ -75,6 +85,9 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (inferenceId != null) {
+            builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
+        }
         builder.field(TYPE_FIELD.getPreferredName(), type);
         if (format != null) {
             builder.field(FORMAT_FIELD.getPreferredName(), format);

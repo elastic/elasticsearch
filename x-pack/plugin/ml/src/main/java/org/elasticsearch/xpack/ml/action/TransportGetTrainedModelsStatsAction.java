@@ -312,25 +312,22 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         ActionListener<Map<String, TrainedModelSizeStats>> listener,
         Map<String, AssignmentStats> deploymentStatsByDeploymentId
     ) {
-        ActionListener<List<TrainedModelConfig>> modelsListener = ActionListener.wrap(
-            models -> {
-                final List<String> pytorchModelIds = models.stream()
-                    .filter(m -> m.getModelType() == TrainedModelType.PYTORCH)
-                    .map(TrainedModelConfig::getModelId)
-                    .toList();
-                definitionLengths(
-                    pytorchModelIds,
-                    parentTaskId,
-                    ActionListener.wrap(
-                        pytorchTotalDefinitionLengthsByModelId -> listener.onResponse(
-                            buildModelSizeStatsByKey(models, pytorchTotalDefinitionLengthsByModelId, deploymentStatsByDeploymentId)
-                        ),
-                        listener::onFailure
-                    )
-                );
-            },
-            listener::onFailure
-        );
+        ActionListener<List<TrainedModelConfig>> modelsListener = ActionListener.wrap(models -> {
+            final List<String> pytorchModelIds = models.stream()
+                .filter(m -> m.getModelType() == TrainedModelType.PYTORCH)
+                .map(TrainedModelConfig::getModelId)
+                .toList();
+            definitionLengths(
+                pytorchModelIds,
+                parentTaskId,
+                ActionListener.wrap(
+                    pytorchTotalDefinitionLengthsByModelId -> listener.onResponse(
+                        buildModelSizeStatsByKey(models, pytorchTotalDefinitionLengthsByModelId, deploymentStatsByDeploymentId)
+                    ),
+                    listener::onFailure
+                )
+            );
+        }, listener::onFailure);
 
         trainedModelProvider.getTrainedModels(
             expandedIdsWithAliases,
@@ -369,10 +366,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                             ? assignmentStats.getNumberOfAllocations()
                             : 0;
                         long estimatedMemoryUsageBytes = estimatedMemoryUsageBytes(model, totalDefinitionLength, numberOfAllocations);
-                        modelSizeStatsByKey.put(
-                            deploymentId,
-                            new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
-                        );
+                        modelSizeStatsByKey.put(deploymentId, new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes));
                     }
                 } else {
                     long estimatedMemoryUsageBytes = estimatedMemoryUsageBytes(model, totalDefinitionLength, 0);

@@ -460,30 +460,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
     }
 
     public void testBuilderSortsByModelIdThenDeploymentId() {
-        AssignmentStats dep1 = new AssignmentStats(
-            "dep1",
-            "modelA",
-            1,
-            2,
-            null,
-            null,
-            null,
-            Instant.now(),
-            List.of(),
-            Priority.NORMAL
-        );
-        AssignmentStats dep2 = new AssignmentStats(
-            "dep2",
-            "modelA",
-            1,
-            3,
-            null,
-            null,
-            null,
-            Instant.now(),
-            List.of(),
-            Priority.NORMAL
-        );
+        AssignmentStats dep1 = new AssignmentStats("dep1", "modelA", 1, 2, null, null, null, Instant.now(), List.of(), Priority.NORMAL);
+        AssignmentStats dep2 = new AssignmentStats("dep2", "modelA", 1, 3, null, null, null, Instant.now(), List.of(), Priority.NORMAL);
 
         Map<String, AssignmentStats> assignmentStatsMap = Map.of("dep1", dep1, "dep2", dep2);
 

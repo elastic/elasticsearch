@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 143208
+summary: Prevent full-text functions (e.g. multi_match) from executing after mv_expand
+type: bug
+

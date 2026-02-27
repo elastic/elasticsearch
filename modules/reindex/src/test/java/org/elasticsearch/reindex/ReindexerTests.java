@@ -78,9 +78,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
@@ -694,10 +694,8 @@ public class ReindexerTests extends ESTestCase {
      * For requests matching the predicate, the customHandler is used; otherwise standard success responses are returned.
      */
     @SuppressForbidden(reason = "use http server for testing")
-    private HttpServer createRemotePitMockServer(
-        BiPredicate<String, String> useCustomHandler,
-        Consumer<HttpExchange> customHandler
-    ) throws IOException {
+    private HttpServer createRemotePitMockServer(BiPredicate<String, String> useCustomHandler, Consumer<HttpExchange> customHandler)
+        throws IOException {
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", exchange -> {
             String path = exchange.getRequestURI().getPath();

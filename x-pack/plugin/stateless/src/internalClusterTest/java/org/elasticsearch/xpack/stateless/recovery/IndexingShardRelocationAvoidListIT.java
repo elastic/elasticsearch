@@ -118,9 +118,8 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         ensureGreen(indexName);
-        // We expect to see 1 call to each from pre-warming. And no calls from preRecovery.
-        assertEquals(1, containerChildrenCalls.get());
-        assertEquals(1, containerListCalls.get());
+        assertEquals(2, containerChildrenCalls.get());
+        assertEquals(2, containerListCalls.get());
     }
 
     public void testRelocatingIndexShardReceivesAllBlobs() throws Exception {

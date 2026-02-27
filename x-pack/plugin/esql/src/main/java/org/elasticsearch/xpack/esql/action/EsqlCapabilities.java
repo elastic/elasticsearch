@@ -179,6 +179,11 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
         /**
+         * Fix incorrect failure when using KQL function with unmapped_fields="nullify"
+         */
+        OPTIONAL_FIELDS_NULLIFY_WITH_KQL_FUNCTION,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

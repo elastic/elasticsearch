@@ -486,6 +486,7 @@ x:integer      |does_not_exist:null |y:keyword | language_name:keyword
 kql
 required_capability: optional_fields_nullify_tech_preview
 required_capability: kql_function
+required_capability: optional_fields_nullify_with_kql_function
 
 SET unmapped_fields="nullify"\; 
 FROM languages_lookup | WHERE kql("English") | KEEP language_code,language_name,unmapped
@@ -498,6 +499,7 @@ language_code:integer | language_name:keyword | unmapped:null
 kqlOverUnmapped
 required_capability: optional_fields_nullify_tech_preview
 required_capability: kql_function
+required_capability: optional_fields_nullify_with_kql_function
 
 SET unmapped_fields="nullify"\; 
 FROM languages_lookup | WHERE kql("unmapped: English") | KEEP language_code,language_name,unmapped

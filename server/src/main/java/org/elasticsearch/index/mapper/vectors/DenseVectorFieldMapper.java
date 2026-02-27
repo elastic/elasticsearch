@@ -140,7 +140,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     public static final int BBQ_MIN_DIMS = 64;
     public static final String CONFIDENCE_INTERVAL_DEPRECATION_MESSAGE =
-        "Parameter [confidence_interval] in [index_options] for dense_vector field [{}] is deprecated and will be removed in a future version";
+        "Parameter [confidence_interval] in [index_options] for dense_vector field [{}] "
+            + "is deprecated and will be removed in a future version";
 
     private static final int DEFAULT_BBQ_IVF_QUANTIZE_BITS = 1;
 

@@ -88,11 +88,13 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testSmoothDoubleSelectsFpc() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 10);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
     }
 
     public void testNoisyDoubleDefaultSelectsAlpWith6Decimals() {
@@ -101,6 +103,8 @@ public class PipelineSelectorTests extends ESTestCase {
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
         assertAlpMaxError(config, 1e-6);
     }
 
@@ -147,47 +151,37 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testDoubleCounterDefaultSelectsFpc() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 10);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
     }
 
-    public void testDoubleCounterStorageSelectsGorilla() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
-        final PipelineConfig config = selector.select(
-            profile,
-            512,
-            PipelineConfig.DataType.DOUBLE,
-            PipelineResolver.OptimizeFor.STORAGE,
-            MetricType.COUNTER
-        );
+    public void testDoubleCounterHighRepeatSelectsGorilla() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 250, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gorilla.class)));
     }
 
-    public void testDoubleCounterSpeedSelectsChimp() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
-        final PipelineConfig config = selector.select(
-            profile,
-            512,
-            PipelineConfig.DataType.DOUBLE,
-            PipelineResolver.OptimizeFor.SPEED,
-            MetricType.COUNTER
-        );
+    public void testDoubleCounterDefaultSelectsChimp128() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpDoubleStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
     }
 
     public void testSmoothFloatSelectsFpc() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 10);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
     }
 
     public void testNoisyFloatSelectsAlp() {
@@ -196,42 +190,32 @@ public class PipelineSelectorTests extends ESTestCase {
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
     }
 
     public void testFloatCounterDefaultSelectsFpc() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 10);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
     }
 
-    public void testFloatCounterStorageSelectsGorilla() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
-        final PipelineConfig config = selector.select(
-            profile,
-            512,
-            PipelineConfig.DataType.FLOAT,
-            PipelineResolver.OptimizeFor.STORAGE,
-            MetricType.COUNTER
-        );
+    public void testFloatCounterHighRepeatSelectsGorilla() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 250, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.GorillaFloat.class)));
     }
 
-    public void testFloatCounterSpeedSelectsChimp() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
-        final PipelineConfig config = selector.select(
-            profile,
-            512,
-            PipelineConfig.DataType.FLOAT,
-            PipelineResolver.OptimizeFor.SPEED,
-            MetricType.COUNTER
-        );
+    public void testFloatCounterDefaultSelectsChimp128() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpFloatStage.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
     }
 
     public void testDeterministic() {
@@ -314,8 +298,10 @@ public class PipelineSelectorTests extends ESTestCase {
         final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.DOUBLE, null, null);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
@@ -347,75 +333,130 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testDoubleGaugeCounterDistinction() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 10);
 
         final PipelineConfig gauge = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.GAUGE);
         assertThat(gauge.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
 
         final PipelineConfig counter = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
-        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.FpcStage.class)));
+        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
     }
 
     public void testFloatGaugeCounterDistinction() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 10);
 
         final PipelineConfig gauge = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.GAUGE);
         assertThat(gauge.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
 
         final PipelineConfig counter = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
-        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.FpcStage.class)));
+        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
     }
 
-    public void testSmoothDoubleStorageSelectsGorilla() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
-        final PipelineConfig config = selector.select(
-            profile,
-            512,
-            PipelineConfig.DataType.DOUBLE,
-            PipelineResolver.OptimizeFor.STORAGE,
-            null
-        );
+    public void testHighRepeatDoubleSelectsGorilla() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 250, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
 
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gorilla.class)));
     }
 
-    public void testSmoothDoubleSpeedSelectsChimp() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
-        final PipelineConfig config = selector.select(
+    public void testXorDoubleDefaultSelectsChimp128() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
+
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
+    }
+
+    public void testHighRepeatFloatSelectsGorilla() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 250, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
+
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.GorillaFloat.class)));
+    }
+
+    public void testXorFloatDefaultSelectsChimp128() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
+
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
+    }
+
+    public void testConstantFloatUsesWidePipeline() {
+        final long[] values = new long[512];
+        Arrays.fill(values, 42L);
+        final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.FLOAT, null, null);
+
+        assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
+    }
+
+    public void testSpeedWidensFpcThresholdForDouble() {
+        // NOTE: deltaDeltaMaxBits=20 is between default(16) and SPEED(24) thresholds
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 20);
+
+        final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
+        assertThat(defaultConfig.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
+
+        final PipelineConfig speedConfig = selector.select(
             profile,
             512,
             PipelineConfig.DataType.DOUBLE,
             PipelineResolver.OptimizeFor.SPEED,
             null
         );
-
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpDoubleStage.class)));
+        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
     }
 
-    public void testSmoothFloatStorageSelectsGorilla() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
-        final PipelineConfig config = selector.select(
-            profile,
-            512,
-            PipelineConfig.DataType.FLOAT,
-            PipelineResolver.OptimizeFor.STORAGE,
-            null
-        );
+    public void testSpeedWidensFpcThresholdForFloat() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 20);
 
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.GorillaFloat.class)));
-    }
+        final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
+        assertThat(defaultConfig.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
 
-    public void testSmoothFloatSpeedSelectsChimp() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
-        final PipelineConfig config = selector.select(
+        final PipelineConfig speedConfig = selector.select(
             profile,
             512,
             PipelineConfig.DataType.FLOAT,
             PipelineResolver.OptimizeFor.SPEED,
             null
         );
+        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
+    }
 
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpFloatStage.class)));
+    public void testSpeedRaisesGorillaThresholdForDouble() {
+        // NOTE: xorZeroFraction = 260/511 ≈ 0.509, between default(0.4) and SPEED(0.6) thresholds
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 260, 30);
+
+        final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
+        assertThat(defaultConfig.specs(), hasItem(instanceOf(StageSpec.Gorilla.class)));
+
+        final PipelineConfig speedConfig = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.DOUBLE,
+            PipelineResolver.OptimizeFor.SPEED,
+            null
+        );
+        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
+    }
+
+    public void testSpeedRaisesGorillaThresholdForFloat() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 260, 30);
+
+        final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
+        assertThat(defaultConfig.specs(), hasItem(instanceOf(StageSpec.GorillaFloat.class)));
+
+        final PipelineConfig speedConfig = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.FLOAT,
+            PipelineResolver.OptimizeFor.SPEED,
+            null
+        );
+        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
     }
 
     // -- Round-trip tests: verify which delta stages fire and that encode→decode is lossless --
@@ -575,11 +616,7 @@ public class PipelineSelectorTests extends ESTestCase {
         final long[] values = smoothDoubles(BS, 100.0, 0.1);
 
         final int gorillaBytes = measureAndLog("gorilla-randomwalk-double", PipelineConfig.forDoubles(BS).gorilla(), values);
-        final int chimpBytes = measureAndLog(
-            "chimp-randomwalk-double",
-            PipelineConfig.forDoubles(BS).chimpDoubleStage().offset().gcd().bitPack(),
-            values
-        );
+        final int chimpBytes = measureAndLog("chimp-randomwalk-double", PipelineConfig.forDoubles(BS).chimp128(), values);
         final int fpcBytes = measureAndLog(
             "fpc-randomwalk-double",
             PipelineConfig.forDoubles(BS).fpcStage().offset().gcd().bitPack(),
@@ -595,11 +632,7 @@ public class PipelineSelectorTests extends ESTestCase {
         final long[] values = monotonicDoubles(BS, 1000.0, 0.5);
 
         final int gorillaBytes = measureAndLog("gorilla-monotonic-double", PipelineConfig.forDoubles(BS).gorilla(), values);
-        final int chimpBytes = measureAndLog(
-            "chimp-monotonic-double",
-            PipelineConfig.forDoubles(BS).chimpDoubleStage().offset().gcd().bitPack(),
-            values
-        );
+        final int chimpBytes = measureAndLog("chimp-monotonic-double", PipelineConfig.forDoubles(BS).chimp128(), values);
         final int fpcBytes = measureAndLog(
             "fpc-monotonic-double",
             PipelineConfig.forDoubles(BS).fpcStage().offset().gcd().bitPack(),
@@ -653,7 +686,7 @@ public class PipelineSelectorTests extends ESTestCase {
         final long[] decimal = decimalDoubles(BS, 20.0, 5.0);
 
         final PipelineConfig gorilla = PipelineConfig.forDoubles(BS).gorilla();
-        final PipelineConfig chimp = PipelineConfig.forDoubles(BS).chimpDoubleStage().offset().gcd().bitPack();
+        final PipelineConfig chimp = PipelineConfig.forDoubles(BS).chimp128();
         final PipelineConfig fpc = PipelineConfig.forDoubles(BS).fpcStage().offset().gcd().bitPack();
         final PipelineConfig alp = PipelineConfig.forDoubles(BS).alpDoubleStage(1e-6).offset().gcd().bitPack();
 

@@ -68,12 +68,12 @@ class ValuesFromSingleReader extends ValuesReader {
             loadFromSingleLeaf(
                 Long.MAX_VALUE, // Effectively disable splitting pages when we're not loading in order
                 unshuffled,
-                new ValuesReaderDocs(docs).mapped(forwards),
+                new ValuesReaderDocs(docs).mapped(forwards, 0, docs.getPositionCount()),
                 0
             );
             final int[] backwards = docs.shardSegmentDocMapBackwards();
             for (int i = 0; i < unshuffled.length; i++) {
-                target[i] = unshuffled[i].filter(backwards);
+                target[i] = unshuffled[i].filter(false, backwards);
                 unshuffled[i].close();
                 unshuffled[i] = null;
             }
@@ -146,19 +146,7 @@ class ValuesFromSingleReader extends ValuesReader {
             sourceLoader = shardContext.newSourceLoader().apply(storedFieldsSpec.sourcePaths());
             storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
         }
-        if (storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-            throw new IllegalStateException(
-                "found row stride readers [" + rowStrideReaders + "] without stored fields [" + storedFieldsSpec + "]"
-            );
-        }
-        StoredFieldLoader storedFieldLoader;
-        if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
-            storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
-            operator.trackStoredFields(storedFieldsSpec, true);
-        } else {
-            storedFieldLoader = StoredFieldLoader.fromSpec(storedFieldsSpec);
-            operator.trackStoredFields(storedFieldsSpec, false);
-        }
+        StoredFieldLoader storedFieldLoader = storedFieldLoader(storedFieldsSpec, shardContext, docs);
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
             storedFieldLoader.getLoader(ctx, null),
             sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
@@ -186,6 +174,22 @@ class ValuesFromSingleReader extends ValuesReader {
             log.debug("loaded {} positions row stride estimated/actual {}/{} bytes", p - offset, estimated, actual);
         }
         docs.setCount(p);
+    }
+
+    private StoredFieldLoader storedFieldLoader(
+        StoredFieldsSpec storedFieldsSpec,
+        ValuesSourceReaderOperator.ShardContext shardContext,
+        ValuesReaderDocs docs
+    ) {
+        if (storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
+            return StoredFieldLoader.empty();
+        }
+        if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
+            operator.trackStoredFields(storedFieldsSpec, true);
+            return StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
+        }
+        operator.trackStoredFields(storedFieldsSpec, false);
+        return StoredFieldLoader.fromSpec(storedFieldsSpec);
     }
 
     /**

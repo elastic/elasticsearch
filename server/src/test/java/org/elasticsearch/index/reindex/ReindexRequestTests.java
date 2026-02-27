@@ -19,6 +19,8 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.slice.SliceBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,6 +36,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
@@ -523,6 +526,19 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertArrayEquals(new String[] { "remote:index" }, r.getSearchRequest().indices());
         ActionRequestValidationException validationException = r.validate();
         assertNull(validationException);
+    }
+
+    public void testCreateTask_notEligibleForRelocationOnShutdown() throws IOException {
+        ReindexRequest request = parseRequestWithSourceIndices("source");
+        Task task = request.createTask(randomLong(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(false));
+    }
+
+    public void testCreateTask_eligibleForRelocationOnShutdown() throws IOException {
+        ReindexRequest request = parseRequestWithSourceIndices("source");
+        request.setEligibleForRelocationOnShutdown(true);
+        Task task = request.createTask(randomLong(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(true));
     }
 
     private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {

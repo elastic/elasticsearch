@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -59,6 +61,13 @@ public class DeepSeekService extends SenderService {
     );
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_STREAMING = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     private static final TransportVersion ML_INFERENCE_DEEPSEEK = TransportVersion.fromName("ml_inference_deepseek");
+    private static final DeepSeekChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new DeepSeekChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends DeepSeekChatCompletionModel>> MODEL_CREATORS = Map.of(
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR
+    );
 
     public DeepSeekService(
         HttpRequestSender.Factory factory,
@@ -146,29 +155,68 @@ public class DeepSeekService extends SenderService {
         ActionListener.completeWith(parsedModelListener, () -> {
             var serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             try {
-                return DeepSeekChatCompletionModel.createFromNewInput(modelId, taskType, NAME, serviceSettingsMap);
+                return createModel(modelId, taskType, serviceSettingsMap, null, ConfigurationParseContext.REQUEST);
             } finally {
                 throwIfNotEmptyMap(serviceSettingsMap, NAME);
             }
         });
     }
 
+    private static DeepSeekChatCompletionModel createModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> serviceSettingsMap,
+        Map<String, Object> secretSettingsMap,
+        ConfigurationParseContext context
+    ) {
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettingsMap,
+            null,
+            null,
+            secretSettingsMap,
+            context
+        );
+    }
+
     @Override
     public Model parsePersistedConfigWithSecrets(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
         var serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         var secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
-        return DeepSeekChatCompletionModel.readFromStorage(modelId, taskType, NAME, serviceSettingsMap, secretSettingsMap);
+        return createModelFromStorage(inferenceEntityId, taskType, serviceSettingsMap, secretSettingsMap);
+    }
+
+    @Override
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
     public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         var serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        return DeepSeekChatCompletionModel.readFromStorage(modelId, taskType, NAME, serviceSettingsMap, null);
+        return createModelFromStorage(modelId, taskType, serviceSettingsMap, null);
+    }
+
+    private static DeepSeekChatCompletionModel createModelFromStorage(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> serviceSettingsMap,
+        Map<String, Object> secrets
+    ) {
+        return createModel(inferenceEntityId, taskType, serviceSettingsMap, secrets, ConfigurationParseContext.PERSISTENT);
     }
 
     @Override
@@ -193,10 +241,10 @@ public class DeepSeekService extends SenderService {
 
     private static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 

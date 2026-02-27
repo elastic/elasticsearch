@@ -43,7 +43,9 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedMultimodalUnifiedCompletionOperation;
 
 public abstract class SenderService implements InferenceService {
     protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
@@ -134,8 +136,16 @@ public abstract class SenderService implements InferenceService {
         ActionListener<InferenceServiceResults> listener
     ) {
         SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((completionInferListener) -> {
-            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
+            if (supportsMultimodalCompletions() || request.containsMultimodalContent() == false) {
+                doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
+            } else {
+                throwUnsupportedMultimodalUnifiedCompletionOperation(name());
+            }
         }).addListener(listener);
+    }
+
+    protected boolean supportsMultimodalCompletions() {
+        return false;
     }
 
     @Override
@@ -268,5 +278,30 @@ public abstract class SenderService implements InferenceService {
     @Override
     public void close() throws IOException {
         IOUtils.closeWhileHandlingException(sender);
+    }
+
+    /**
+     * Retrieves a {@link ModelCreator} from the provided map based on the task type, or throws an exception if not found.
+     * @param modelCreators the map of task types to model creators
+     * @param inferenceId the inference entity ID
+     * @param taskType the task type
+     * @param service the service name
+     * @param context the configuration parse context
+     * @param <C> the type of {@link ModelCreator}
+     * @return the retrieved {@link ModelCreator}
+     * @throws ElasticsearchStatusException if no {@link ModelCreator} is found for the given task type
+     */
+    protected static <C> C retrieveModelCreatorFromMapOrThrow(
+        Map<TaskType, C> modelCreators,
+        String inferenceId,
+        TaskType taskType,
+        String service,
+        ConfigurationParseContext context
+    ) {
+        C modelCreator = modelCreators.get(taskType);
+        if (modelCreator == null) {
+            throw createInvalidTaskTypeException(inferenceId, service, taskType, context);
+        }
+        return modelCreator;
     }
 }

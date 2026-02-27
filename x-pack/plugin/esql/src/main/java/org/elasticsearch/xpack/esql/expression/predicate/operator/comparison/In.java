@@ -238,10 +238,6 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     protected boolean areCompatible(DataType left, DataType right) {
-        if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
-            // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
-            return left == right;
-        }
         if (DataType.isSpatialOrGrid(left) && DataType.isSpatialOrGrid(right)) {
             return left == right;
         }
@@ -326,6 +322,18 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             return new InMillisNanosEvaluator.Factory(source(), lhs, factories);
         }
         var commonType = commonType();
+
+        // if you reached this point, it means that the types were not compatible, which should have been caught by the type resolution
+        // verification step, so this should never happen in practice. We are throwing an exception in this case to get more information
+        // about the failure, if it does happen.
+        // see also https://github.com/elastic/elasticsearch/issues/141267
+        if (commonType == null) {
+            throw new EsqlIllegalArgumentException(
+                "Cannot compare incompatible types in IN expression: value type ["
+                    + value.dataType().typeName()
+                    + "] is not compatible with list types"
+            );
+        }
         if (commonType.isNumeric()) {
             lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.apply(value));
             factories = list.stream()

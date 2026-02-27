@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.inference.CompletionFunction;
@@ -252,7 +253,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         CompletionFunction completionFunction = new CompletionFunction(
             Source.EMPTY,
             Literal.keyword(Source.EMPTY, "test prompt"),
-            Literal.keyword(Source.EMPTY, "test-model")
+            Literal.keyword(Source.EMPTY, "test-model"),
+            new MapExpression(Source.EMPTY, List.of())
         );
 
         // Create a mock operator that returns a result
@@ -306,7 +308,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         CompletionFunction completionFunction = new CompletionFunction(
             Source.EMPTY,
             Literal.NULL,
-            Literal.keyword(Source.EMPTY, "test-model")
+            Literal.keyword(Source.EMPTY, "test-model"),
+            new MapExpression(Source.EMPTY, List.of())
         );
 
         // Create a mock operator that returns a result
@@ -342,7 +345,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         CompletionFunction completionFunction = new CompletionFunction(
             Source.EMPTY,
             mock(Attribute.class),
-            Literal.keyword(Source.EMPTY, "test model")
+            Literal.keyword(Source.EMPTY, "test model"),
+            new MapExpression(Source.EMPTY, List.of())
         );
 
         InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator((f, driverContext) -> mock(Operator.class));
@@ -359,7 +363,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         CompletionFunction completionFunction = new CompletionFunction(
             Source.EMPTY,
             Literal.keyword(Source.EMPTY, "test prompt"),
-            Literal.keyword(Source.EMPTY, "test-model")
+            Literal.keyword(Source.EMPTY, "test-model"),
+            new MapExpression(Source.EMPTY, List.of())
         );
 
         // Mock an operator that will trigger an async failure
@@ -387,7 +392,8 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         CompletionFunction completionFunction = new CompletionFunction(
             Source.EMPTY,
             Literal.keyword(Source.EMPTY, "test prompt"),
-            Literal.keyword(Source.EMPTY, "test-model")
+            Literal.keyword(Source.EMPTY, "test-model"),
+            new MapExpression(Source.EMPTY, List.of())
         );
 
         Operator operator = mock(Operator.class);

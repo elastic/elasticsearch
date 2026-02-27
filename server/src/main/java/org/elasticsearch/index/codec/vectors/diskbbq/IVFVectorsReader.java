@@ -240,7 +240,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         CodecUtil.checksumEntireFile(ivfClusters);
     }
 
-    private FlatVectorsReader getReaderForField(String field) {
+    protected FlatVectorsReader getReaderForField(String field) {
         FieldInfo info = fieldInfos.fieldInfo(field);
         if (info == null) throw new IllegalArgumentException("Could not find field [" + field + "]");
         return genericReaders.getReaderForField(info.number);
@@ -313,7 +313,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             visitRatio
         );
         Bits acceptDocsBits = acceptDocs.bits();
-        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits);
+        PostingVisitor scorer = getPostingVisitor(fieldInfo, postListSlice, target, acceptDocsBits, entry.centroidSlice(ivfCentroids));
         long expectedDocs = 0;
         long actualDocs = 0;
         // initially we visit only the "centroids to search"
@@ -323,8 +323,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         while (centroidPrefetchingIterator.hasNext()
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
-            // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
-            // is enough?
             expectedDocs += scorer.resetPostingsScorer(postingMetadata);
             actualDocs += scorer.visit(knnCollector);
             if (knnCollector.getSearchStrategy() != null) {
@@ -461,8 +459,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    public abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, Bits needsScoring)
-        throws IOException;
+    public abstract PostingVisitor getPostingVisitor(
+        FieldInfo fieldInfo,
+        IndexInput postingsLists,
+        float[] target,
+        Bits needsScoring,
+        IndexInput centroidSlice
+    ) throws IOException;
 
     public interface PostingVisitor {
         /** returns the number of documents in the posting list */

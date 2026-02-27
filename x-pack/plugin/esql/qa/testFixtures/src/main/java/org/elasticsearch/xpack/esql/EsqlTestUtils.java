@@ -146,6 +146,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.versionfield.Version;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.hamcrest.Matcher;
 import org.hamcrest.collection.IsIterableContainingInAnyOrder;
 import org.hamcrest.collection.IsIterableContainingInOrder;
@@ -1187,13 +1188,8 @@ public final class EsqlTestUtils {
         double min = digest.getMin();
         double max = digest.getMax();
 
-        TDigestHolder returnValue = null;
-        try {
-            returnValue = new TDigestHolder(centroids, counts, min, max, sum, valueCount);
-        } catch (IOException e) {
-            // This is a test util, so we're just going to fail the test here
-            fail(e);
-        }
+        TDigestHolder returnValue = new TDigestHolder();
+        returnValue.reset(EncodedTDigest.encodeCentroids(centroids, counts), min, max, sum, valueCount);
         return returnValue;
     }
 

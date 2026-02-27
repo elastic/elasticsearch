@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -780,7 +781,15 @@ public final class CsvTestUtils {
                 DocumentParsingException::new,
                 XContentParserUtils::parsingException
             );
-            return new TDigestHolder(parsed.centroids(), parsed.counts(), parsed.min(), parsed.max(), parsed.sum(), parsed.count());
+            TDigestHolder tdigest = new TDigestHolder();
+            tdigest.reset(
+                EncodedTDigest.encodeCentroids(parsed.centroids(), parsed.counts()),
+                parsed.min(),
+                parsed.max(),
+                parsed.sum(),
+                parsed.count()
+            );
+            return tdigest;
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }

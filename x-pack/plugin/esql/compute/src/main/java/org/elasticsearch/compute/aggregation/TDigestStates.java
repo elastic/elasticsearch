@@ -198,7 +198,7 @@ public final class TDigestStates {
                     TDigest state = getOrNull(groupId);
                     if (state != null) {
                         seenBuilder.appendBoolean(true);
-                        tempHolder.set(state, minima.get(groupId), maxima.get(groupId), sums.get(groupId));
+                        tempHolder.set(state, sums.get(groupId), minima.get(groupId), maxima.get(groupId));
                         histoBuilder.appendTDigest(tempHolder.holderView());
                     } else {
                         seenBuilder.appendBoolean(false);
@@ -219,7 +219,7 @@ public final class TDigestStates {
                     int groupId = selected.getInt(i);
                     TDigest state = getOrNull(groupId);
                     if (state != null) {
-                        tempHolder.set(state, minima.get(groupId), maxima.get(groupId), sums.get(groupId));
+                        tempHolder.set(state, sums.get(groupId), minima.get(groupId), maxima.get(groupId));
                         histoBuilder.appendTDigest(tempHolder.holderView());
                     } else {
                         histoBuilder.appendNull();

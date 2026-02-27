@@ -62,14 +62,14 @@ public class BreakingTDigestHolder implements Releasable, Accountable {
         } catch (IOException e) {
             throw new IllegalStateException("Centroid encoding threw exception", e);
         }
-        holder.reset(encodedDigestBuffer.bytesRefView(), sum, min, max, tdigest.size());
+        holder.reset(encodedDigestBuffer.bytesRefView(), min, max, sum, tdigest.size());
     }
 
     public void set(TDigestHolder tdigest) {
         encodedDigestBuffer.clear();
         BytesRef bytesToCopy = tdigest.getEncodedDigest();
         encodedDigestBuffer.writeBytes(bytesToCopy.bytes, bytesToCopy.offset, bytesToCopy.length);
-        holder.reset(encodedDigestBuffer.bytesRefView(), tdigest.getSum(), tdigest.getMin(), tdigest.getMax(), tdigest.size());
+        holder.reset(encodedDigestBuffer.bytesRefView(), tdigest.getMin(), tdigest.getMax(), tdigest.getSum(), tdigest.size());
     }
 
     public TDigestHolder holderView() {

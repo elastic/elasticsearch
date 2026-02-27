@@ -240,10 +240,10 @@ public sealed interface StageSpec {
         }
     }
 
-    record ChimpPayload() implements StageSpec {
+    record ChimpDoublePayload() implements StageSpec {
         @Override
         public StageId stageId() {
-            return StageId.CHIMP_PAYLOAD;
+            return StageId.CHIMP_DOUBLE_PAYLOAD;
         }
     }
 

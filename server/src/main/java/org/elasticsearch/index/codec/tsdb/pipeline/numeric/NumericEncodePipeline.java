@@ -122,7 +122,7 @@ public final class NumericEncodePipeline {
             || spec instanceof StageSpec.AlpRdDouble
             || spec instanceof StageSpec.AlpFloat
             || spec instanceof StageSpec.AlpRdFloat
-            || spec instanceof StageSpec.ChimpPayload
+            || spec instanceof StageSpec.ChimpDoublePayload
             || spec instanceof StageSpec.ChimpFloatPayload
             || spec instanceof StageSpec.Chimp128DoublePayload
             || spec instanceof StageSpec.Chimp128FloatPayload;
@@ -240,7 +240,7 @@ public final class NumericEncodePipeline {
             || s instanceof StageSpec.FpcDoubleStage
             || s instanceof StageSpec.AlpDouble
             || s instanceof StageSpec.AlpRdDouble
-            || s instanceof StageSpec.ChimpPayload
+            || s instanceof StageSpec.ChimpDoublePayload
             || s instanceof StageSpec.Chimp128DoublePayload;
     }
 

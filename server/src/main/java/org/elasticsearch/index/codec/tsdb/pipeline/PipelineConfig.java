@@ -322,7 +322,7 @@ public final class PipelineConfig {
         }
 
         public PipelineConfig chimp() {
-            specs.add(new StageSpec.ChimpPayload());
+            specs.add(new StageSpec.ChimpDoublePayload());
             return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
         }
 

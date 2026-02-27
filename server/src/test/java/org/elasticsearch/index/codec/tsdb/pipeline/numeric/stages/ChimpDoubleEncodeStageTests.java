@@ -206,8 +206,8 @@ public class ChimpDoubleEncodeStageTests extends ESTestCase {
     }
 
     public void testStageId() {
-        assertThat(new ChimpDoubleEncodeStage().id(), equalTo(StageId.CHIMP_PAYLOAD.id));
-        assertThat(new ChimpDoubleDecodeStage().id(), equalTo(StageId.CHIMP_PAYLOAD.id));
+        assertThat(new ChimpDoubleEncodeStage().id(), equalTo(StageId.CHIMP_DOUBLE_PAYLOAD.id));
+        assertThat(new ChimpDoubleDecodeStage().id(), equalTo(StageId.CHIMP_DOUBLE_PAYLOAD.id));
     }
 
     private void assertRoundTrip(final long[] original) throws IOException {

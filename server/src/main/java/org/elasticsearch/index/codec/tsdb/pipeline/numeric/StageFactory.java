@@ -148,7 +148,7 @@ public final class StageFactory {
             case StageSpec.AlpRdFloat(double maxError) -> maxError > 0
                 ? new AlpRdFloatEncodeStage(blockSize, maxError)
                 : new AlpRdFloatEncodeStage(blockSize);
-            case StageSpec.ChimpPayload() -> new ChimpDoubleEncodeStage();
+            case StageSpec.ChimpDoublePayload() -> new ChimpDoubleEncodeStage();
             case StageSpec.ChimpFloatPayload() -> new ChimpFloatEncodeStage();
             case StageSpec.Chimp128DoublePayload(int bs) -> new Chimp128DoubleEncodeStage(bs);
             case StageSpec.Chimp128FloatPayload(int bs) -> new Chimp128FloatEncodeStage(bs);
@@ -168,7 +168,7 @@ public final class StageFactory {
             case StageSpec.AlpRdDouble alpRdDouble -> new AlpRdDoubleDecodeStage(blockSize);
             case StageSpec.AlpFloat alpFloat -> new AlpFloatDecodeStage(blockSize);
             case StageSpec.AlpRdFloat alpRdFloat -> new AlpRdFloatDecodeStage(blockSize);
-            case StageSpec.ChimpPayload() -> new ChimpDoubleDecodeStage();
+            case StageSpec.ChimpDoublePayload() -> new ChimpDoubleDecodeStage();
             case StageSpec.ChimpFloatPayload() -> new ChimpFloatDecodeStage();
             case StageSpec.Chimp128DoublePayload chimp128DoublePayload -> new Chimp128DoubleDecodeStage();
             case StageSpec.Chimp128FloatPayload chimp128FloatPayload -> new Chimp128FloatDecodeStage();
@@ -205,7 +205,7 @@ public final class StageFactory {
             case ALP_RD_DOUBLE -> new StageSpec.AlpRdDouble();
             case ALP_FLOAT -> new StageSpec.AlpFloat();
             case ALP_RD_FLOAT -> new StageSpec.AlpRdFloat();
-            case CHIMP_PAYLOAD -> new StageSpec.ChimpPayload();
+            case CHIMP_DOUBLE_PAYLOAD -> new StageSpec.ChimpDoublePayload();
             case CHIMP_FLOAT_PAYLOAD -> new StageSpec.ChimpFloatPayload();
             case CHIMP128_DOUBLE_PAYLOAD -> new StageSpec.Chimp128DoublePayload();
             case CHIMP128_FLOAT_PAYLOAD -> new StageSpec.Chimp128FloatPayload();

@@ -29,7 +29,7 @@ public final class ChimpDoubleDecodeStage implements PayloadDecoder {
 
     @Override
     public byte id() {
-        return StageId.CHIMP_PAYLOAD.id;
+        return StageId.CHIMP_DOUBLE_PAYLOAD.id;
     }
 
     @Override

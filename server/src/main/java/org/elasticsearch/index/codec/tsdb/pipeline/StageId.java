@@ -41,8 +41,8 @@ public enum StageId {
     ALP_RD_FLOAT((byte) 0xA9, "alpRdFloat"),
     LZ4((byte) 0xA5, "lz4"),
     GORILLA_FLOAT_PAYLOAD((byte) 0xAA, "gorillaFloat"),
-    CHIMP_PAYLOAD((byte) 0xAB, "chimpPayload"),
-    CHIMP_FLOAT_PAYLOAD((byte) 0xAC, "chimpFloatPayload"),
+    CHIMP_DOUBLE_PAYLOAD((byte) 0xAB, "chimpDouble"),
+    CHIMP_FLOAT_PAYLOAD((byte) 0xAC, "chimpFloat"),
     CHIMP128_DOUBLE_PAYLOAD((byte) 0xAD, "chimp128Double"),
     CHIMP128_FLOAT_PAYLOAD((byte) 0xAE, "chimp128Float");
 
@@ -80,7 +80,7 @@ public enum StageId {
             case (byte) 0xA9 -> ALP_RD_FLOAT;
             case (byte) 0xA5 -> LZ4;
             case (byte) 0xAA -> GORILLA_FLOAT_PAYLOAD;
-            case (byte) 0xAB -> CHIMP_PAYLOAD;
+            case (byte) 0xAB -> CHIMP_DOUBLE_PAYLOAD;
             case (byte) 0xAC -> CHIMP_FLOAT_PAYLOAD;
             case (byte) 0xAD -> CHIMP128_DOUBLE_PAYLOAD;
             case (byte) 0xAE -> CHIMP128_FLOAT_PAYLOAD;

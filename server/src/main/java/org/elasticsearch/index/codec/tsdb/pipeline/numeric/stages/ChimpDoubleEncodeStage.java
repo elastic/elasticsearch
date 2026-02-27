@@ -36,7 +36,7 @@ public final class ChimpDoubleEncodeStage implements PayloadEncoder {
 
     @Override
     public byte id() {
-        return StageId.CHIMP_PAYLOAD.id;
+        return StageId.CHIMP_DOUBLE_PAYLOAD.id;
     }
 
     // NOTE: Payload layout: [valueCount: VInt] [first value: 64 raw bits]

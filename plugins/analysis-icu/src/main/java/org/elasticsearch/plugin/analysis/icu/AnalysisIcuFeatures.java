@@ -19,7 +19,7 @@ public class AnalysisIcuFeatures implements FeatureSpecification {
     public static final NodeFeature ICU_TRANSFORM_CUSTOM_RULESET = new NodeFeature("analysis.icu_transform.custom_ruleset");
 
     @Override
-    public Set<NodeFeature> getFeatures() {
+    public Set<NodeFeature> getTestFeatures() {
         return Set.of(ICU_TRANSFORM_CUSTOM_RULESET);
     }
 }

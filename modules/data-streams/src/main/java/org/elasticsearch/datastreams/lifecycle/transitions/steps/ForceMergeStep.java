@@ -9,18 +9,26 @@
 
 package org.elasticsearch.datastreams.lifecycle.transitions.steps;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
 
+import java.util.Arrays;
 import java.util.Optional;
 
 /**
@@ -41,6 +49,8 @@ public class ForceMergeStep implements DlmStep {
     private static final Settings FORCE_MERGE_COMPLETE_SETTINGS = Settings.builder()
         .put(DLM_FORCE_MERGE_COMPLETE_SETTING.getKey(), true)
         .build();
+    private static final int SINGLE_SEGMENT = 1;
+    private static final Logger logger = LogManager.getLogger(ForceMergeStep.class);
 
     /**
      * Determines if the step has been completed for the given index and project state.
@@ -120,6 +130,56 @@ public class ForceMergeStep implements DlmStep {
                     }
                 }, listener::onFailure))
         );
+    }
+
+    void maybeForceMerge(String index, DlmStepContext stepContext) {
+        ForceMergeRequest forceMergeRequest = formForceMergeRequest(index);
+        stepContext.executeDeduplicatedRequest(
+            ForceMergeAction.NAME,
+            forceMergeRequest,
+            Strings.format("DLM service encountered an error trying to force merge index [%s]", index),
+            (req, l) -> forceMerge(stepContext.projectId(), forceMergeRequest, l, stepContext)
+        );
+    }
+
+    protected void forceMerge(
+        ProjectId projectId,
+        ForceMergeRequest forceMergeRequest,
+        ActionListener<Void> listener,
+        DlmStepContext stepContext
+    ) {
+        logger.debug("DLM attempting to force merge index [{}]", stepContext.indexName());
+        stepContext.client()
+            .projectClient(projectId)
+            .admin()
+            .indices()
+            .forceMerge(forceMergeRequest, listener.delegateFailureAndWrap((l, response) -> {
+                if (response.getFailedShards() == 0) {
+                    logger.debug("DLM successfully force merged index [{}]", stepContext.indexName());
+                    l.onResponse(null);
+                } else {
+                    DefaultShardOperationFailedException[] failures = response.getShardFailures();
+                    String errorMessage = Strings.format(
+                        "DLM failed while force merging index [%s] with the following failures: [%s]",
+                        stepContext.indexName(),
+                        failures == null
+                            ? "n/a"
+                            : org.elasticsearch.common.Strings.collectionToDelimitedString(
+                                Arrays.stream(failures).map(org.elasticsearch.common.Strings::toString).toList(),
+                                ","
+                            )
+                    );
+                    logger.warn(errorMessage);
+                    ElasticsearchException e = new ElasticsearchException(errorMessage);
+                    l.onFailure(e);
+                }
+            }));
+    }
+
+    private ForceMergeRequest formForceMergeRequest(String index) {
+        ForceMergeRequest req = new ForceMergeRequest(index);
+        req.maxNumSegments(SINGLE_SEGMENT);
+        return new DataStreamLifecycleService.ForceMergeRequestWrapper(req);
     }
 
     /**

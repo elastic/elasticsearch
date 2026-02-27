@@ -9,12 +9,16 @@
 
 package org.elasticsearch.datastreams.lifecycle.transitions.steps;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ResultDeduplicator;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -37,13 +41,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.time.Clock;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.datastreams.lifecycle.transitions.steps.ForceMergeStep.DLM_FORCE_MERGE_COMPLETE_SETTING;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ForceMergeStepTests extends ESTestCase {
 
@@ -58,6 +66,8 @@ public class ForceMergeStepTests extends ESTestCase {
     private ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> deduplicator;
     private AtomicReference<ActionListener<AcknowledgedResponse>> capturedListener;
     private AtomicReference<UpdateSettingsRequest> capturedRequest;
+    private AtomicReference<ActionListener<BroadcastResponse>> capturedForceMergeListener;
+    private AtomicReference<ForceMergeRequest> capturedForceMergeRequest;
 
     @Before
     public void setup() {
@@ -71,6 +81,8 @@ public class ForceMergeStepTests extends ESTestCase {
         deduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         capturedListener = new AtomicReference<>();
         capturedRequest = new AtomicReference<>();
+        capturedForceMergeListener = new AtomicReference<>();
+        capturedForceMergeRequest = new AtomicReference<>();
 
         client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
             @Override
@@ -83,6 +95,9 @@ public class ForceMergeStepTests extends ESTestCase {
                 if (request instanceof UpdateSettingsRequest) {
                     capturedRequest.set((UpdateSettingsRequest) request);
                     capturedListener.set((ActionListener<AcknowledgedResponse>) listener);
+                } else if (request instanceof ForceMergeRequest) {
+                    capturedForceMergeRequest.set((ForceMergeRequest) request);
+                    capturedForceMergeListener.set((ActionListener<BroadcastResponse>) listener);
                 }
             }
         };
@@ -124,8 +139,75 @@ public class ForceMergeStepTests extends ESTestCase {
         assertThat(DLM_FORCE_MERGE_COMPLETE_SETTING.get(settings), is(true));
     }
 
-    public void testStepName() {
-        assertThat(forceMergeStep.stepName(), is("Force Merge Index"));
+    public void testMaybeForceMergeSubmitsForceMergeRequest() {
+        ProjectState projectState = createProjectState();
+        DlmStepContext stepContext = createStepContext(projectState);
+
+        forceMergeStep.maybeForceMerge(indexName, stepContext);
+
+        assertThat(capturedForceMergeRequest.get(), is(notNullValue()));
+        assertThat(capturedForceMergeRequest.get().indices().length, is(1));
+        assertThat(capturedForceMergeRequest.get().indices()[0], is(indexName));
+        assertThat(capturedForceMergeRequest.get().maxNumSegments(), is(1));
+    }
+
+    public void testMaybeForceMergeSuccessClearsErrorRecord() {
+        ProjectState projectState = createProjectState();
+        DlmStepContext stepContext = createStepContext(projectState);
+
+        // Pre-populate the error store so we can verify it gets cleared on success
+        errorStore.recordError(projectId, indexName, new RuntimeException("previous error"));
+        assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
+
+        forceMergeStep.maybeForceMerge(indexName, stepContext);
+
+        BroadcastResponse response = Mockito.mock(BroadcastResponse.class);
+        Mockito.when(response.getFailedShards()).thenReturn(0);
+        capturedForceMergeListener.get().onResponse(response);
+
+        // ErrorRecordingActionListener.onResponse clears the error record
+        assertThat(errorStore.getError(projectId, indexName), is(nullValue()));
+    }
+
+    public void testMaybeForceMergeRecordsErrorOnListenerFailure() {
+        ProjectState projectState = createProjectState();
+        DlmStepContext stepContext = createStepContext(projectState);
+
+        forceMergeStep.maybeForceMerge(indexName, stepContext);
+
+        RuntimeException failure = new RuntimeException("force merge transport failure");
+        capturedForceMergeListener.get().onFailure(failure);
+
+        // The deduplicator's ErrorRecordingActionListener should have stored the error
+        var errorRecord = errorStore.getError(projectId, indexName);
+        assertNotNull(errorRecord);
+        assertThat(errorRecord.error(), containsString("force merge transport failure"));
+    }
+
+    public void testForceMergeFailsWhenShardsHaveFailures() {
+        ProjectState projectState = createProjectState();
+        DlmStepContext stepContext = createStepContext(projectState);
+        ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
+
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+        forceMergeStep.forceMerge(projectId, forceMergeRequest, ActionListener.wrap(v -> {
+            throw new AssertionError("expected failure but got success");
+        }, capturedFailure::set), stepContext);
+
+        DefaultShardOperationFailedException shardFailure = new DefaultShardOperationFailedException(
+            indexName,
+            0,
+            new IllegalStateException("shard merge failed")
+        );
+        BroadcastResponse response = Mockito.mock(BroadcastResponse.class);
+        Mockito.when(response.getFailedShards()).thenReturn(1);
+        Mockito.when(response.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[] { shardFailure });
+        capturedForceMergeListener.get().onResponse(response);
+
+        assertThat(capturedFailure.get(), is(notNullValue()));
+        assertThat(capturedFailure.get(), instanceOf(ElasticsearchException.class));
+        assertThat(capturedFailure.get().getMessage(), containsString(indexName));
+        assertThat(capturedFailure.get().getMessage(), containsString("DLM failed while force merging"));
     }
 
     private ProjectState createProjectState() {

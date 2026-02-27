@@ -1817,8 +1817,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * care about it for data stream lifecycle deduplication. This class is non-private for the sake of unit testing, but should not be used
      * outside of Data Stream Lifecycle Service.
      */
-    static final class ForceMergeRequestWrapper extends ForceMergeRequest {
-        ForceMergeRequestWrapper(ForceMergeRequest original) {
+    public static final class ForceMergeRequestWrapper extends ForceMergeRequest {
+        public ForceMergeRequestWrapper(ForceMergeRequest original) {
             super(original.indices());
             this.maxNumSegments(original.maxNumSegments());
             this.onlyExpungeDeletes(original.onlyExpungeDeletes());

@@ -1841,7 +1841,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         int completedCheckCount = 0;
         int executeCount = 0;
         final Set<String> executedIndices = new HashSet<>();
-        List<Function<String, String>> outputIndexNamePatterns = null;
+        List<Function<String, String>> outputIndexNamePatternFunctions = null;
 
         @Override
         public boolean stepCompleted(Index index, ProjectState projectState) {
@@ -1864,11 +1864,11 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         }
 
         @Override
-        public List<Function<String, String>> possibleOutputIndexNamePatterns() {
-            if (outputIndexNamePatterns != null) {
-                return outputIndexNamePatterns;
+        public List<String> possibleOutputIndexNamePatterns(String indexName) {
+            if (outputIndexNamePatternFunctions != null) {
+                return outputIndexNamePatternFunctions.stream().map(func -> func.apply(indexName)).toList();
             }
-            return DlmStep.super.possibleOutputIndexNamePatterns();
+            return DlmStep.super.possibleOutputIndexNamePatterns(indexName);
         }
     }
 
@@ -2349,7 +2349,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
     public void testResolveIndexForStepExecutionPreviousStepOutputMatchesExistingIndex() {
         TestDlmStep step1 = new TestDlmStep();
-        step1.outputIndexNamePatterns = List.of(name -> "cloned-" + name);
+        step1.outputIndexNamePatternFunctions = List.of(name -> "cloned-" + name);
         TestDlmStep step2 = new TestDlmStep();
         TestDlmAction action = new TestDlmAction(TimeValue.timeValueMillis(1), step1, step2);
 
@@ -2372,9 +2372,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(result, is(clonedMeta.getIndex()));
     }
 
-    public void testResolveIndexForStepExecutionNoMatchReturnsOriginalIndex() {
+    public void testResolveIndexForStepExecutionNoMatchThrowsAssertionError() {
         TestDlmStep step1 = new TestDlmStep();
-        step1.outputIndexNamePatterns = List.of(name -> "nonexistent-" + name);
+        step1.outputIndexNamePatternFunctions = List.of(name -> "nonexistent-" + name);
         TestDlmStep step2 = new TestDlmStep();
         TestDlmAction action = new TestDlmAction(TimeValue.timeValueMillis(1), step1, step2);
 
@@ -2388,27 +2388,23 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ProjectState projectState = projectStateFromProject(builder);
 
         Index originalIndex = originalMeta.getIndex();
-        try (var mockLog = MockLog.capture(DataStreamLifecycleService.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "resolve index warning",
-                    DataStreamLifecycleService.class.getCanonicalName(),
-                    Level.WARN,
-                    "Unable to resolve index name for executing step [Test Step] for action [Test DLM Action] with index ["
-                        + originalIndex.getName()
-                        + "], defaulting to original index name"
-                )
-            );
-
-            Index result = dataStreamLifecycleService.resolveIndexOutputFromPreviousStep(1, originalIndex, action, projectState);
-            assertThat(result, is(originalIndex));
-            mockLog.assertAllExpectationsMatched();
-        }
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> dataStreamLifecycleService.resolveIndexOutputFromPreviousStep(1, originalIndex, action, projectState)
+        );
+        assertThat(
+            e.getMessage(),
+            is(
+                "Unable to resolve index name for executing step [Test Step] for action [Test DLM Action] with index ["
+                    + originalIndex.getName()
+                    + "]"
+            )
+        );
     }
 
     public void testResolveIndexOutputFromPreviousStepMultiplePatternsFirstMatchWins() {
         TestDlmStep step1 = new TestDlmStep();
-        step1.outputIndexNamePatterns = List.of(name -> "first-" + name, name -> "second-" + name);
+        step1.outputIndexNamePatternFunctions = List.of(name -> "first-" + name, name -> "second-" + name);
         TestDlmStep step2 = new TestDlmStep();
         TestDlmAction action = new TestDlmAction(TimeValue.timeValueMillis(1), step1, step2);
 
@@ -2439,7 +2435,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
     public void testResolveIndexOutputFromPreviousStepSkipsNonMatchingPatternsUsesSecond() {
         TestDlmStep step1 = new TestDlmStep();
-        step1.outputIndexNamePatterns = List.of(name -> "nonexistent-" + name, name -> "second-" + name);
+        step1.outputIndexNamePatternFunctions = List.of(name -> "nonexistent-" + name, name -> "second-" + name);
         TestDlmStep step2 = new TestDlmStep();
         TestDlmAction action = new TestDlmAction(TimeValue.timeValueMillis(1), step1, step2);
 
@@ -2464,10 +2460,10 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
     public void testDlmStepDefaultPossibleOutputIndexNamePatterns() {
         TestDlmStep step = new TestDlmStep();
-        List<Function<String, String>> patterns = step.possibleOutputIndexNamePatterns();
-        assertThat(patterns, hasSize(1));
         String testName = randomAlphaOfLength(10);
-        assertThat(patterns.get(0).apply(testName), is(testName));
+        List<String> patterns = step.possibleOutputIndexNamePatterns(testName);
+        assertThat(patterns, hasSize(1));
+        assertThat(patterns.getFirst(), is(testName));
     }
 
     public void testFormatExecutionTimeMilliseconds() {

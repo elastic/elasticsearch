@@ -636,6 +636,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     private int findFirstIncompleteStepIndex(ProjectState projectState, DataStream dataStream, DlmAction action, Index index) {
+        assert action.steps().size() >= 1 : "an action must have at least one step";
         int stepToExecute = -1;
         for (int i = action.steps().size() - 1; i >= 0; i--) {
             DlmStep step = action.steps().get(i);
@@ -691,21 +692,22 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
 
         DlmStep previousStep = action.steps().get(stepToExecuteIndex - 1);
-        List<Function<String, String>> possibleOutputIndexNamePatterns = previousStep.possibleOutputIndexNamePatterns();
+        List<String> possibleOutputIndexNamePatterns = previousStep.possibleOutputIndexNamePatterns(index.getName());
 
-        for (Function<String, String> possibleOutputIndexNamePattern : possibleOutputIndexNamePatterns) {
-            String candidateIndexName = possibleOutputIndexNamePattern.apply(index.getName());
+        for (String candidateIndexName : possibleOutputIndexNamePatterns) {
             if (projectState.metadata().hasIndex(candidateIndexName)) {
                 return projectState.metadata().index(candidateIndexName).getIndex();
             }
         }
 
-        logger.warn(
-            "Unable to resolve index name for executing step [{}] for action [{}] with index [{}], defaulting to original index name",
-            action.steps().get(stepToExecuteIndex).stepName(),
-            action.name(),
-            index.getName()
-        );
+        assert false
+            : "Unable to resolve index name for executing step ["
+                + action.steps().get(stepToExecuteIndex).stepName()
+                + "] for action ["
+                + action.name()
+                + "] with index ["
+                + index.getName()
+                + "]";
 
         return index;
     }

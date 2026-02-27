@@ -248,7 +248,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 throw new IllegalStateException("DLM action [" + action.name() + "] must have at least one step");
             }
             for (DlmStep step : action.steps()) {
-                if (step.possibleOutputIndexNamePatterns().isEmpty()) {
+                if (step.possibleOutputIndexNamePatterns("dummy-index").isEmpty()) {
                     throw new IllegalStateException(
                         "DLM step ["
                             + step.stepName()

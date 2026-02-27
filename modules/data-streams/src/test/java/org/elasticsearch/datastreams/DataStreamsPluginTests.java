@@ -37,14 +37,14 @@ public class DataStreamsPluginTests extends ESTestCase {
 
     public void testVerifyActionsWithSingleCustomOutputPattern() {
         TestDlmStep step = new TestDlmStep("step-1");
-        step.outputIndexNamePatterns = List.of(name -> "cloned-" + name);
+        step.outputIndexNamePatternFunctions = List.of(name -> "cloned-" + name);
         DlmAction action = new TestDlmAction("valid-action", List.of(step));
         DataStreamsPlugin.verifyActions(List.of(action));
     }
 
     public void testVerifyActionsWithMultipleCustomOutputPatterns() {
         TestDlmStep step = new TestDlmStep("step-1");
-        step.outputIndexNamePatterns = List.of(name -> "partial-" + name, name -> "full-" + name);
+        step.outputIndexNamePatternFunctions = List.of(name -> "partial-" + name, name -> "full-" + name);
         DlmAction action = new TestDlmAction("valid-action", List.of(step));
         DataStreamsPlugin.verifyActions(List.of(action));
     }
@@ -52,14 +52,14 @@ public class DataStreamsPluginTests extends ESTestCase {
     public void testVerifyActionsWithMixOfDefaultAndCustomOutputPatterns() {
         TestDlmStep defaultStep = new TestDlmStep("default-step");
         TestDlmStep customStep = new TestDlmStep("custom-step");
-        customStep.outputIndexNamePatterns = List.of(name -> "cloned-" + name);
+        customStep.outputIndexNamePatternFunctions = List.of(name -> "cloned-" + name);
         DlmAction action = new TestDlmAction("valid-action", List.of(defaultStep, customStep));
         DataStreamsPlugin.verifyActions(List.of(action));
     }
 
     public void testVerifyActionsWithMultipleValidActions() {
         TestDlmStep step1 = new TestDlmStep("step-1");
-        step1.outputIndexNamePatterns = List.of(name -> "cloned-" + name);
+        step1.outputIndexNamePatternFunctions = List.of(name -> "cloned-" + name);
         DlmAction action1 = new TestDlmAction("action-1", List.of(step1, new TestDlmStep("step-2")));
         DlmAction action2 = new TestDlmAction("action-2", List.of(new TestDlmStep("step-3")));
         DataStreamsPlugin.verifyActions(List.of(action1, action2));
@@ -73,7 +73,7 @@ public class DataStreamsPluginTests extends ESTestCase {
 
     public void testVerifyActionsThrowsOnStepWithEmptyOutputPatterns() {
         TestDlmStep step = new TestDlmStep("bad-step");
-        step.outputIndexNamePatterns = List.of();
+        step.outputIndexNamePatternFunctions = List.of();
         DlmAction action = new TestDlmAction("my-action", List.of(step));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> DataStreamsPlugin.verifyActions(List.of(action)));
@@ -94,7 +94,7 @@ public class DataStreamsPluginTests extends ESTestCase {
     public void testVerifyActionsThrowsOnSecondStepWithEmptyOutputPatterns() {
         TestDlmStep goodStep = new TestDlmStep("good-step");
         TestDlmStep badStep = new TestDlmStep("bad-step");
-        badStep.outputIndexNamePatterns = List.of();
+        badStep.outputIndexNamePatternFunctions = List.of();
         DlmAction action = new TestDlmAction("my-action", List.of(goodStep, badStep));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> DataStreamsPlugin.verifyActions(List.of(action)));
@@ -103,7 +103,7 @@ public class DataStreamsPluginTests extends ESTestCase {
 
     private static class TestDlmStep implements DlmStep {
         private final String name;
-        List<Function<String, String>> outputIndexNamePatterns = null;
+        List<Function<String, String>> outputIndexNamePatternFunctions = null;
 
         TestDlmStep(String name) {
             this.name = name;
@@ -123,11 +123,11 @@ public class DataStreamsPluginTests extends ESTestCase {
         }
 
         @Override
-        public List<Function<String, String>> possibleOutputIndexNamePatterns() {
-            if (outputIndexNamePatterns != null) {
-                return outputIndexNamePatterns;
+        public List<String> possibleOutputIndexNamePatterns(String indexName) {
+            if (outputIndexNamePatternFunctions != null) {
+                return outputIndexNamePatternFunctions.stream().map(func -> func.apply(indexName)).toList();
             }
-            return DlmStep.super.possibleOutputIndexNamePatterns();
+            return DlmStep.super.possibleOutputIndexNamePatterns(indexName);
         }
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.ParseField;
@@ -34,19 +35,18 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     private final String value;
 
     public EmbeddingQueryVectorBuilder(InferenceString.DataType type, String value) {
-        // TODO: Get default format
         this(type, null, value);
     }
 
-    public EmbeddingQueryVectorBuilder(InferenceString.DataType type, InferenceString.DataFormat format, String value) {
+    public EmbeddingQueryVectorBuilder(InferenceString.DataType type, @Nullable InferenceString.DataFormat format, String value) {
         this.type = Objects.requireNonNull(type);
-        this.format = Objects.requireNonNull(format);
+        this.format = format;
         this.value = Objects.requireNonNull(value);
     }
 
     public EmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
         this.type = in.readEnum(InferenceString.DataType.class);
-        this.format = in.readEnum(InferenceString.DataFormat.class);
+        this.format = in.readOptionalEnum(InferenceString.DataFormat.class);
         this.value = in.readString();
     }
 
@@ -67,12 +67,20 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: Implement
+        out.writeEnum(type);
+        out.writeOptionalEnum(format);
+        out.writeString(value);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // TODO: Implement
-        return null;
+        builder.startObject();
+        builder.field(TYPE_FIELD.getPreferredName(), type);
+        if (format != null) {
+            builder.field(FORMAT_FIELD.getPreferredName(), format);
+        }
+        builder.field(VALUE_FIELD.getPreferredName(), value);
+        builder.endObject();
+        return builder;
     }
 }

@@ -78,6 +78,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
@@ -693,8 +695,8 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     private HttpServer createRemotePitMockServer(
-        java.util.function.BiPredicate<String, String> useCustomHandler,
-        java.util.function.Consumer<HttpExchange> customHandler
+        BiPredicate<String, String> useCustomHandler,
+        Consumer<HttpExchange> customHandler
     ) throws IOException {
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", exchange -> {
@@ -733,8 +735,8 @@ public class ReindexerTests extends ESTestCase {
     @SuppressForbidden(reason = "use http server for testing")
     private void runRemotePitTestWithMockServer(
         HttpServer server,
-        java.util.function.Consumer<ReindexRequest> requestConfigurer,
-        java.util.function.Consumer<PlainActionFuture<BulkByScrollResponse>> assertions
+        Consumer<ReindexRequest> requestConfigurer,
+        Consumer<PlainActionFuture<BulkByScrollResponse>> assertions
     ) {
         BytesArray matchAll = new BytesArray("{\"match_all\":{}}");
         RemoteInfo remoteInfo = new RemoteInfo(

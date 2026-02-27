@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -415,7 +416,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(request.getEntity(), not(nullValue()));
         assertEquals(ContentType.APPLICATION_JSON.toString(), request.getEntity().getContentType().getValue());
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
-        String expectedId = java.util.Base64.getUrlEncoder().encodeToString(pitIdBytes);
+        String expectedId = Base64.getUrlEncoder().encodeToString(pitIdBytes);
         assertThat(body, containsString("\"id\":\"" + expectedId + "\""));
     }
 
@@ -427,7 +428,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         BytesReference pitId = new BytesArray(pitIdBytes);
         Request request = closePit(pitId);
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
-        String expectedId = java.util.Base64.getUrlEncoder().encodeToString(pitIdBytes);
+        String expectedId = Base64.getUrlEncoder().encodeToString(pitIdBytes);
         assertThat(body, containsString("\"id\":\"" + expectedId + "\""));
     }
 
@@ -439,7 +440,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         BytesReference pitId = new BytesArray(pitIdStr.getBytes(StandardCharsets.UTF_8));
         Request request = closePit(pitId);
         String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
-        String expectedId = java.util.Base64.getUrlEncoder().encodeToString(pitIdStr.getBytes(StandardCharsets.UTF_8));
+        String expectedId = Base64.getUrlEncoder().encodeToString(pitIdStr.getBytes(StandardCharsets.UTF_8));
         assertThat(body, containsString("\"id\""));
         assertThat(body, containsString(expectedId));
         assertThat(body.trim(), startsWith("{"));

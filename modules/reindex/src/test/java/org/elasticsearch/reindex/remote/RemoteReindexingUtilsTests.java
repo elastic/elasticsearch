@@ -42,6 +42,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.Base64;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -437,7 +438,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
      */
     public void testOpenPitSuccess() {
         byte[] pitIdBytes = randomByteArrayOfLength(between(1, 64));
-        String base64Id = java.util.Base64.getUrlEncoder().encodeToString(pitIdBytes);
+        String base64Id = Base64.getUrlEncoder().encodeToString(pitIdBytes);
         String json = "{\"id\":\"" + base64Id + "\"}";
         Response response = mock(Response.class);
         when(response.getEntity()).thenReturn(new StringEntity(json, ContentType.APPLICATION_JSON));
@@ -463,7 +464,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
      * Verifies that openPit invokes onRejection when the remote returns HTTP 429.
      */
     public void testOpenPitTooManyRequestsTriggersRejection() throws Exception {
-        mockFailure(new org.elasticsearch.client.ResponseException(rejectionResponse429()));
+        mockFailure(new ResponseException(rejectionResponse429()));
 
         AtomicBoolean rejected = new AtomicBoolean(false);
         RemoteReindexingUtils.openPit(
@@ -481,7 +482,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
      */
     public void testOpenPitHttpErrorTriggersFailure() throws Exception {
         int statusCode = randomFrom(RestStatus.BAD_REQUEST, RestStatus.NOT_FOUND, RestStatus.INTERNAL_SERVER_ERROR).getStatus();
-        org.apache.http.StatusLine statusLine = mock(org.apache.http.StatusLine.class);
+        StatusLine statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
         Response response = mock(Response.class);
         when(response.getStatusLine()).thenReturn(statusLine);
@@ -489,7 +490,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RequestLine requestLine = mock(RequestLine.class);
         when(requestLine.getMethod()).thenReturn("POST");
         when(response.getRequestLine()).thenReturn(requestLine);
-        mockFailure(new org.elasticsearch.client.ResponseException(response));
+        mockFailure(new ResponseException(response));
 
         AtomicBoolean failed = new AtomicBoolean(false);
         RemoteReindexingUtils.openPit(
@@ -578,7 +579,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
      * Verifies that closePit invokes onRejection when the remote returns HTTP 429.
      */
     public void testClosePitTooManyRequestsTriggersRejection() throws Exception {
-        mockFailure(new org.elasticsearch.client.ResponseException(rejectionResponse429()));
+        mockFailure(new ResponseException(rejectionResponse429()));
 
         AtomicBoolean rejected = new AtomicBoolean(false);
         RemoteReindexingUtils.closePit(
@@ -595,7 +596,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
      */
     public void testClosePitHttpErrorTriggersFailure() throws Exception {
         int statusCode = randomFrom(RestStatus.BAD_REQUEST, RestStatus.NOT_FOUND, RestStatus.INTERNAL_SERVER_ERROR).getStatus();
-        org.apache.http.StatusLine statusLine = mock(org.apache.http.StatusLine.class);
+        StatusLine statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(statusCode);
         Response response = mock(Response.class);
         when(response.getStatusLine()).thenReturn(statusLine);
@@ -603,7 +604,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RequestLine requestLine = mock(RequestLine.class);
         when(requestLine.getMethod()).thenReturn("DELETE");
         when(response.getRequestLine()).thenReturn(requestLine);
-        mockFailure(new org.elasticsearch.client.ResponseException(response));
+        mockFailure(new ResponseException(response));
 
         AtomicBoolean failed = new AtomicBoolean(false);
         RemoteReindexingUtils.closePit(

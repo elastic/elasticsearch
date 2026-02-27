@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * A DLM step responsible for force merging the index.
@@ -132,6 +133,11 @@ public class ForceMergeStep implements DlmStep {
         );
     }
 
+    /**
+     * Helper method to execute the force merge request for the given index. This method forms the request and uses the
+     * step context to execute it in a deduplicated manner. The actual execution of the force merge request is
+     * delegated to the {@link #forceMerge} method.
+     */
     void maybeForceMerge(String index, DlmStepContext stepContext) {
         ForceMergeRequest forceMergeRequest = formForceMergeRequest(index);
         stepContext.executeDeduplicatedRequest(
@@ -142,36 +148,47 @@ public class ForceMergeStep implements DlmStep {
         );
     }
 
+    /** This method executes the given force merge request. Once the request has completed successfully it updates
+     * the {@link #DLM_FORCE_MERGE_COMPLETE_SETTING} in the cluster state indicating that the force merge has completed.
+     * The listener is notified after the cluster state update has been made, or when the force merge fails or the
+     * update to the cluster state fails.
+     */
     protected void forceMerge(
         ProjectId projectId,
         ForceMergeRequest forceMergeRequest,
         ActionListener<Void> listener,
         DlmStepContext stepContext
     ) {
-        logger.debug("DLM attempting to force merge index [{}]", stepContext.indexName());
+        assert forceMergeRequest.indices() != null && forceMergeRequest.indices().length == 1 : "DLM force merges one index at a time";
+        final String targetIndex = forceMergeRequest.indices()[0];
+        logger.info("DLM is issuing a request to force merge index [{}]", targetIndex);
         stepContext.client()
             .projectClient(projectId)
             .admin()
             .indices()
-            .forceMerge(forceMergeRequest, listener.delegateFailureAndWrap((l, response) -> {
-                if (response.getFailedShards() == 0) {
-                    logger.debug("DLM successfully force merged index [{}]", stepContext.indexName());
-                    l.onResponse(null);
-                } else {
-                    DefaultShardOperationFailedException[] failures = response.getShardFailures();
-                    String errorMessage = Strings.format(
-                        "DLM failed while force merging index [%s] with the following failures: [%s]",
-                        stepContext.indexName(),
+            .forceMerge(forceMergeRequest, listener.delegateFailureAndWrap((l, forceMergeResponse) -> {
+                if (forceMergeResponse.getFailedShards() > 0) {
+                    DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures();
+                    String message = Strings.format(
+                        "DLM failed to force merge %d shards for index [%s] due to failures [%s]",
+                        forceMergeResponse.getFailedShards(),
+                        targetIndex,
                         failures == null
-                            ? "n/a"
-                            : org.elasticsearch.common.Strings.collectionToDelimitedString(
-                                Arrays.stream(failures).map(org.elasticsearch.common.Strings::toString).toList(),
-                                ","
-                            )
+                            ? "unknown"
+                            : Arrays.stream(failures).map(DefaultShardOperationFailedException::toString).collect(Collectors.joining(","))
                     );
-                    logger.warn(errorMessage);
-                    ElasticsearchException e = new ElasticsearchException(errorMessage);
-                    l.onFailure(e);
+                    l.onFailure(new ElasticsearchException(message));
+                } else if (forceMergeResponse.getTotalShards() != forceMergeResponse.getSuccessfulShards()) {
+                    String message = Strings.format(
+                        "DLM failed while force merging index [%s]: only %d out of %d shards succeeded",
+                        targetIndex,
+                        forceMergeResponse.getSuccessfulShards(),
+                        forceMergeResponse.getTotalShards()
+                    );
+                    l.onFailure(new ElasticsearchException(message));
+                } else {
+                    logger.info("DLM successfully force merged index [{}]", targetIndex);
+                    markDLMForceMergeComplete(stepContext, listener);
                 }
             }));
     }

@@ -163,7 +163,15 @@ public class ForceMergeStepTests extends ESTestCase {
 
         BroadcastResponse response = Mockito.mock(BroadcastResponse.class);
         Mockito.when(response.getFailedShards()).thenReturn(0);
+        Mockito.when(response.getTotalShards()).thenReturn(1);
+        Mockito.when(response.getSuccessfulShards()).thenReturn(1);
         capturedForceMergeListener.get().onResponse(response);
+
+        // After the force merge succeeds, forceMerge() calls markDLMForceMergeComplete() which submits
+        // an UpdateSettingsRequest. The deduplicator's ErrorRecordingActionListener only fires once
+        // that nested request completes, so we must complete it here.
+        assertThat(capturedListener.get(), is(notNullValue()));
+        capturedListener.get().onResponse(AcknowledgedResponse.TRUE);
 
         // ErrorRecordingActionListener.onResponse clears the error record
         assertThat(errorStore.getError(projectId, indexName), is(nullValue()));
@@ -204,6 +212,26 @@ public class ForceMergeStepTests extends ESTestCase {
         Mockito.when(response.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[] { shardFailure });
         capturedForceMergeListener.get().onResponse(response);
 
+        assertThat(capturedFailure.get(), is(notNullValue()));
+        assertThat(capturedFailure.get(), instanceOf(ElasticsearchException.class));
+        assertThat(capturedFailure.get().getMessage(), containsString(indexName));
+        assertThat(capturedFailure.get().getMessage(), containsString("DLM failed to force merge"));
+    }
+
+    public void testForceMergeFailsWhenShardsPartiallySuccessful() {
+        ProjectState projectState = createProjectState();
+        DlmStepContext stepContext = createStepContext(projectState);
+        ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indexName);
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+        forceMergeStep.forceMerge(projectId, forceMergeRequest, ActionListener.wrap(v -> {
+            throw new AssertionError("expected failure but got success");
+        }, capturedFailure::set), stepContext);
+        BroadcastResponse response = Mockito.mock(BroadcastResponse.class);
+        Mockito.when(response.getTotalShards()).thenReturn(5);
+        Mockito.when(response.getSuccessfulShards()).thenReturn(3);
+        Mockito.when(response.getFailedShards()).thenReturn(0);
+        Mockito.when(response.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[0]);
+        capturedForceMergeListener.get().onResponse(response);
         assertThat(capturedFailure.get(), is(notNullValue()));
         assertThat(capturedFailure.get(), instanceOf(ElasticsearchException.class));
         assertThat(capturedFailure.get().getMessage(), containsString(indexName));

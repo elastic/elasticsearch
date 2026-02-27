@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -119,8 +120,7 @@ public class CrossProjectIndexResolutionValidator {
             // TODO consider sorting during index re-writing, to avoid sorting here
             var remoteExpressions = localResolvedIndices.remoteExpressions().stream().sorted().toList();
             ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
-            ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
-            ElasticsearchException localException = checkResolutionFailure(localExpressions, result, originalExpression, indicesOptions);
+            ElasticsearchException localException = checkResolutionFailure(localExpressions, originalExpression, indicesOptions);
 
             if (isQualifiedExpression) {
                 if (localException != null) {
@@ -141,6 +141,7 @@ public class CrossProjectIndexResolutionValidator {
                     var resource = splitResource[1];
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
+                        localResolvedExpressions,
                         remoteResolvedExpressions,
                         projectAlias,
                         resource,
@@ -183,6 +184,7 @@ public class CrossProjectIndexResolutionValidator {
                     var resource = splitResource[1];
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
+                        localResolvedExpressions,
                         remoteResolvedExpressions,
                         projectAlias,
                         resource,
@@ -298,6 +300,7 @@ public class CrossProjectIndexResolutionValidator {
     }
 
     private static ElasticsearchException checkSingleRemoteExpression(
+        ResolvedIndexExpressions localExpressions,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
         String projectAlias,
         String resource,
@@ -323,16 +326,15 @@ public class CrossProjectIndexResolutionValidator {
 
         ResolvedIndexExpression.LocalExpressions matchingExpression = findMatchingExpression(resolvedExpressionsInProject, resource);
         if (matchingExpression == null) {
-            assert false : "Expected to find matching expression [" + resource + "] in project [" + projectAlias + "]";
-            return new IndexNotFoundException(remoteExpression);
+            // assume that this is the result of sending an exclusion to the remote
+            return checkResolutionFailure(
+                new ResolvedIndexExpression.LocalExpressions(Set.of(), SUCCESS, null),
+                remoteExpression,
+                indicesOptions
+            );
         }
 
-        return checkResolutionFailure(
-            matchingExpression,
-            matchingExpression.localIndexResolutionResult(),
-            remoteExpression,
-            indicesOptions
-        );
+        return checkResolutionFailure(matchingExpression, remoteExpression, indicesOptions);
     }
 
     public static String[] splitQualifiedResource(String resource) {
@@ -361,12 +363,13 @@ public class CrossProjectIndexResolutionValidator {
 
     private static ElasticsearchException checkResolutionFailure(
         ResolvedIndexExpression.LocalExpressions localExpressions,
-        ResolvedIndexExpression.LocalIndexResolutionResult result,
         String expression,
         IndicesOptions indicesOptions
     ) {
         assert false == (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable())
             : "Should not be checking index existence in lenient mode";
+
+        var result = localExpressions.localIndexResolutionResult();
 
         if (indicesOptions.ignoreUnavailable() == false) {
             if (result == CONCRETE_RESOURCE_NOT_VISIBLE) {

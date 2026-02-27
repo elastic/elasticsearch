@@ -63,7 +63,7 @@ public class Utf8CodePointsFromOrdsBlockLoaderTests extends AbstractFromOrdsBloc
                     docsArray[d] = i + d;
                 }
                 docs = TestBlock.docs(docsArray);
-                try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs);) {
+                try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs)) {
                     checkBlocks(strings, codePoints);
                 }
             }

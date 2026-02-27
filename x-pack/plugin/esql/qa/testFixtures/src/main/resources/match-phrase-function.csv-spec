@@ -454,6 +454,39 @@ from books
 book_no:keyword
 ;
 
+matchPhraseBeforeMvExpand
+required_capability: match_phrase_function
+
+from books
+| where match_phrase(author, "Carol Faulkner")
+| mv_expand author
+| keep book_no, author
+;
+ignoreOrder: true
+
+book_no:keyword | author:text
+2378            | Carol Faulkner
+2378            | Holly Byers Ochoa
+2378            | Lucretia Mott
+;
+
+matchPhraseBeforeMvExpandWithStats
+required_capability: match_phrase_function
+
+from books
+| where match_phrase(title, "Lord of the Rings")
+| mv_expand author
+| stats count = count(*) by book_no
+| sort book_no
+;
+
+book_no:keyword | count:long
+2675            | 1
+2714            | 1
+4023            | 4
+7140            | 2
+;
+
 testMatchPhraseUnionAll
 required_capability: subquery_in_from_command
 required_capability: full_text_functions_accept_null_field

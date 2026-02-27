@@ -92,7 +92,9 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
         protected BlockFactoryProvider blockFactoryProvider(
             CircuitBreaker breaker,
             BigArrays bigArrays,
-            ByteSizeValue maxPrimitiveArraySize
+            ByteSizeValue maxPrimitiveArraySize,
+            long bytesRefRamOverestimateThreshold,
+            double bytesRefRamOverestimateFactor
         ) {
             return new BlockFactoryProvider(new MockBlockFactory(breaker, bigArrays, maxPrimitiveArraySize));
         }

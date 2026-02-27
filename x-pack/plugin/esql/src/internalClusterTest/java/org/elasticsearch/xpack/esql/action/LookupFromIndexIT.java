@@ -358,7 +358,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))
                 ),
                 true,
-                0
+                0,
+                PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY)
             );
             CancellableTask parentTask = new EsqlQueryTask(
                 "test-session",

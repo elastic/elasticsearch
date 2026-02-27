@@ -55,11 +55,11 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        AllReader minReader = null;
-        AllReader maxReader = null;
-        AllReader sumReader = null;
-        AllReader countReader = null;
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        ColumnAtATimeReader minReader = null;
+        ColumnAtATimeReader maxReader = null;
+        ColumnAtATimeReader sumReader = null;
+        ColumnAtATimeReader countReader = null;
         boolean success = false;
         try {
             minReader = minLoader != null ? minLoader.reader(breaker, context) : null;
@@ -81,13 +81,18 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
         return factory.aggregateMetricDoubleBuilder(expectedCount);
     }
 
-    private static class Reader implements AllReader {
-        private final AllReader minReader;
-        private final AllReader maxReader;
-        private final AllReader sumReader;
-        private final AllReader countReader;
+    private static class Reader implements ColumnAtATimeReader {
+        private final ColumnAtATimeReader minReader;
+        private final ColumnAtATimeReader maxReader;
+        private final ColumnAtATimeReader sumReader;
+        private final ColumnAtATimeReader countReader;
 
-        private Reader(AllReader minReader, AllReader maxReader, AllReader sumReader, AllReader countReader) {
+        private Reader(
+            ColumnAtATimeReader minReader,
+            ColumnAtATimeReader maxReader,
+            ColumnAtATimeReader sumReader,
+            ColumnAtATimeReader countReader
+        ) {
             this.minReader = minReader;
             this.maxReader = maxReader;
             this.sumReader = sumReader;
@@ -119,23 +124,6 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
                 if (success == false) {
                     Releasables.closeExpectNoException(minBlock, maxBlock, sumBlock, countBlock);
                 }
-            }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            var blockBuilder = (AggregateMetricDoubleBuilder) builder;
-            readSingleRowFromSubblock(docId, storedFields, blockBuilder.min(), minReader);
-            readSingleRowFromSubblock(docId, storedFields, blockBuilder.max(), maxReader);
-            readSingleRowFromSubblock(docId, storedFields, blockBuilder.sum(), sumReader);
-            readSingleRowFromSubblock(docId, storedFields, blockBuilder.count(), countReader);
-        }
-
-        private void readSingleRowFromSubblock(int docID, StoredFields storedFields, Builder builder, AllReader reader) throws IOException {
-            if (reader == null) {
-                builder.appendNull();
-            } else {
-                reader.read(docID, storedFields, builder);
             }
         }
 

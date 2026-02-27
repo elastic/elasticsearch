@@ -79,7 +79,7 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
      * Resume information for a single worker of a BulkByScrollTask.
      */
     public interface WorkerResumeInfo extends NamedWriteable {
-        long startTime();
+        long startTimeEpochMillis();
 
         BulkByScrollTask.Status status();
     }
@@ -87,9 +87,12 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
     /**
      * Resume information for a scroll-based BulkByScrollTask worker.
      */
-    public record ScrollWorkerResumeInfo(String scrollId, long startTime, BulkByScrollTask.Status status, @Nullable Version remoteVersion)
-        implements
-            WorkerResumeInfo {
+    public record ScrollWorkerResumeInfo(
+        String scrollId,
+        long startTimeEpochMillis,
+        BulkByScrollTask.Status status,
+        @Nullable Version remoteVersion
+    ) implements WorkerResumeInfo {
         public static final String NAME = "ScrollWorkerResumeInfo";
 
         public ScrollWorkerResumeInfo {
@@ -104,7 +107,7 @@ public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Intege
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(scrollId);
-            out.writeLong(startTime);
+            out.writeLong(startTimeEpochMillis);
             status.writeTo(out);
             out.writeOptional((output, version) -> Version.writeVersion(version, output), remoteVersion);
         }

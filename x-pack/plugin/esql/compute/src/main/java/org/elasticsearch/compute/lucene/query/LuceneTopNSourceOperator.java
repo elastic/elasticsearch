@@ -309,6 +309,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             }
 
             int shardId = shardContext.index();
+            shardRowsEmitted[shardId] += size;
             shard = blockFactory.newConstantIntBlockWith(shardId, size).asVector();
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();

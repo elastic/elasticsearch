@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
@@ -152,6 +153,15 @@ public class ForceMergeStepTests extends ESTestCase {
         assertThat(capturedForceMergeRequest.get().maxNumSegments(), is(1));
     }
 
+    public void testMaybeForceMergeSkipsWhenIndexNotInMetadata() {
+        ProjectState projectState = buildProjectState(null);
+        DlmStepContext stepContext = createStepContext(projectState);
+
+        forceMergeStep.maybeForceMerge(indexName, stepContext);
+
+        assertThat(capturedForceMergeRequest.get(), is(nullValue()));
+    }
+
     public void testMaybeForceMergeSkipsWhenAlreadyComplete() {
         ProjectState projectState = createProjectStateWithSetting(true);
         DlmStepContext stepContext = createStepContext(projectState);
@@ -253,11 +263,15 @@ public class ForceMergeStepTests extends ESTestCase {
         return buildProjectState(Settings.builder().put(DLM_FORCE_MERGE_COMPLETE_SETTING.getKey(), forceMergeComplete).build());
     }
 
-    private ProjectState buildProjectState(Settings additionalSettings) {
-        IndexMetadata indexMetadata = buildIndexMetadata(additionalSettings);
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata, false))
-            .build();
+    /**
+     * Builds a {@link ProjectState} for the test index. Pass {@code null} to omit the index from metadata entirely.
+     */
+    private ProjectState buildProjectState(@Nullable Settings indexSettings) {
+        ProjectMetadata.Builder projectMetadata = ProjectMetadata.builder(projectId);
+        if (indexSettings != null) {
+            projectMetadata.put(buildIndexMetadata(indexSettings), false);
+        }
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata.build()).build();
         return clusterState.projectState(projectId);
     }
 

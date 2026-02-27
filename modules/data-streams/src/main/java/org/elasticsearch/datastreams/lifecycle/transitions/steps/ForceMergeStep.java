@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettin
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -140,6 +141,16 @@ public class ForceMergeStep implements DlmStep {
      * index before executing and skips execution if so.
      */
     void maybeForceMerge(String index, DlmStepContext stepContext) {
+        IndexMetadata indexMetadata = Optional.ofNullable(stepContext.projectState())
+            .map(ProjectState::metadata)
+            .map(metadata -> metadata.index(index))
+            .orElse(null);
+
+        if (indexMetadata == null) {
+            logger.warn("Index [{}] not found in project metadata, skipping force merge step", index);
+            return;
+        }
+
         if (isDLMForceMergeComplete(stepContext.index(), stepContext.projectState())) {
             logger.info("DLM force merge step is already completed for index [{}], skipping execution", stepContext.indexName());
             return;

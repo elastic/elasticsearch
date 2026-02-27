@@ -15,6 +15,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -488,7 +489,7 @@ public class ReindexerTests extends ESTestCase {
                 mock(ReindexSslConfig.class),
                 null,
                 mock(TransportService.class),
-                null
+                mock(ReindexRelocationNodePicker.class)
             );
 
             final ReindexRequest request = new ReindexRequest();
@@ -512,7 +513,7 @@ public class ReindexerTests extends ESTestCase {
 
             fail("expected listener to receive failure");
         } catch (Exception e) {
-            assertThat(e.getMessage(), containsString(expectedMessage));
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString(expectedMessage));
         } finally {
             client.shutdown();
         }
@@ -552,7 +553,7 @@ public class ReindexerTests extends ESTestCase {
                     mock(ReindexSslConfig.class),
                     null,
                     mock(TransportService.class),
-                    null
+                    mock(ReindexRelocationNodePicker.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -783,7 +784,7 @@ public class ReindexerTests extends ESTestCase {
                 sslConfig,
                 null,
                 mock(TransportService.class),
-                null
+                mock(ReindexRelocationNodePicker.class)
             );
 
             BulkByScrollTask task = new BulkByScrollTask(

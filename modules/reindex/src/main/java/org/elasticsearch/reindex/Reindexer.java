@@ -259,37 +259,32 @@ public class Reindexer {
 
         SearchRequest searchRequest = request.getSearchRequest();
         String[] indices = searchRequest.indices();
-        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices)
-            .indicesOptions(searchRequest.indicesOptions())
+        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
             .keepAlive(pitKeepAlive(request));
 
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call
-        client.execute(
-            TransportOpenPointInTimeAction.TYPE,
-            pitRequest,
-            listenerWithMetrics.delegateFailureAndWrap((l, pitResponse) -> {
-                BytesReference pitId = pitResponse.getPointInTimeId();
-                ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
-                    l,
-                    () -> client.execute(
-                        TransportClosePointInTimeAction.TYPE,
-                        new ClosePointInTimeRequest(pitId),
-                        ActionListener.wrap(r -> {}, e -> logger.warn("Failed to close local PIT", e))
-                    )
-                );
-                Consumer<Version> workerActionWithClosePit = createWorkerAction(
-                    task,
-                    request,
-                    bulkClient,
-                    listenerWithClosePit,
-                    startTime,
-                    false,
-                    true
-                );
-                // TODO - Pass the point-in-time ID into the BulkByPaginatedSearchParallelizationHelper to be used
-                executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
-            })
-        );
+        client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listenerWithMetrics.delegateFailureAndWrap((l, pitResponse) -> {
+            BytesReference pitId = pitResponse.getPointInTimeId();
+            ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
+                l,
+                () -> client.execute(
+                    TransportClosePointInTimeAction.TYPE,
+                    new ClosePointInTimeRequest(pitId),
+                    ActionListener.wrap(r -> {}, e -> logger.warn("Failed to close local PIT", e))
+                )
+            );
+            Consumer<Version> workerActionWithClosePit = createWorkerAction(
+                task,
+                request,
+                bulkClient,
+                listenerWithClosePit,
+                startTime,
+                false,
+                true
+            );
+            // TODO - Pass the point-in-time ID into the BulkByPaginatedSearchParallelizationHelper to be used
+            executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
+        }));
     }
 
     /**
@@ -370,39 +365,32 @@ public class Reindexer {
     ) {
         String[] indices = request.getSearchRequest().indices();
         // Sends a REST request to the remote node to open a PIT
-        openPit(
-            indices,
-            pitKeepAlive(request),
-            RejectAwareActionListener.wrap(
-                pitId -> {
-                    ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
-                        listenerWithRelocations,
-                        () -> closePit(pitId, RejectAwareActionListener.wrap(v -> closeRestClientAndRun(restClient, () -> {}), e -> {
-                            logger.warn("Failed to close remote PIT", e);
-                            closeRestClientAndRun(restClient, () -> {});
-                        }, e -> {
-                            logger.warn("Failed to close remote PIT (rejected)", e);
-                            closeRestClientAndRun(restClient, () -> {});
-                        }), threadPool, restClient)
-                    );
-                    Consumer<Version> workerActionWithClosePit = createWorkerAction(
-                        task,
-                        request,
-                        bulkClient,
-                        listenerWithClosePit,
-                        startTime,
-                        true,
-                        true
-                    );
-                    // TODO - Pass the point-in-time ID into the BulkByPaginatedSearchParallelizationHelper to be used
-                    executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, remoteVersion);
-                },
-                e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e)),
-                e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e))
-            ),
-            threadPool,
-            restClient
-        );
+        openPit(indices, pitKeepAlive(request), RejectAwareActionListener.wrap(pitId -> {
+            ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
+                listenerWithRelocations,
+                () -> closePit(pitId, RejectAwareActionListener.wrap(v -> closeRestClientAndRun(restClient, () -> {}), e -> {
+                    logger.warn("Failed to close remote PIT", e);
+                    closeRestClientAndRun(restClient, () -> {});
+                }, e -> {
+                    logger.warn("Failed to close remote PIT (rejected)", e);
+                    closeRestClientAndRun(restClient, () -> {});
+                }), threadPool, restClient)
+            );
+            Consumer<Version> workerActionWithClosePit = createWorkerAction(
+                task,
+                request,
+                bulkClient,
+                listenerWithClosePit,
+                startTime,
+                true,
+                true
+            );
+            // TODO - Pass the point-in-time ID into the BulkByPaginatedSearchParallelizationHelper to be used
+            executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, remoteVersion);
+        },
+            e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e)),
+            e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e))
+        ), threadPool, restClient);
     }
 
     /**

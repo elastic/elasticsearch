@@ -7,38 +7,47 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapper;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
+import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
 import java.io.IOException;
 
 /**
  * A producer that can be used for downsampling ONLY an exponential histogram field whether it's a metric or a label.
  */
-abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleFieldProducer<ExponentialHistogramValuesReader> {
+abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsampler<ExponentialHistogramValuesReader> {
     static final String TYPE = "exponential_histogram";
 
-    ExponentialHistogramFieldProducer(String name) {
-        super(name);
+    ExponentialHistogramFieldDownsampler(String name, IndexFieldData<?> fieldData) {
+        super(name, fieldData);
     }
 
     /**
      * @return the requested producer based on the sampling method for an exponential histogram field
      */
-    static AbstractDownsampleFieldProducer<?> create(String name, DownsampleConfig.SamplingMethod samplingMethod) {
+    static AbstractFieldDownsampler<?> create(String name, IndexFieldData<?> fieldData, DownsampleConfig.SamplingMethod samplingMethod) {
         return switch (samplingMethod) {
-            case AGGREGATE -> new ExponentialHistogramFieldProducer.MergeProducer(name);
-            case LAST_VALUE -> new ExponentialHistogramFieldProducer.LastValueProducer(name);
+            case AGGREGATE -> new ExponentialHistogramFieldDownsampler.MergeProducer(name, fieldData);
+            case LAST_VALUE -> new ExponentialHistogramFieldDownsampler.LastValueProducer(name, fieldData);
         };
     }
 
     protected abstract ExponentialHistogram downsampledValue();
+
+    public static boolean supportsFieldType(MappedFieldType fieldType) {
+        return ExponentialHistogramFieldMapper.CONTENT_TYPE.equals(fieldType.typeName());
+    }
 
     @Override
     public void write(XContentBuilder builder) throws IOException {
@@ -48,14 +57,20 @@ abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleField
         }
     }
 
+    @Override
+    public ExponentialHistogramValuesReader getLeaf(LeafReaderContext context) throws IOException {
+        LeafExponentialHistogramFieldData exponentialHistogramFieldData = (LeafExponentialHistogramFieldData) fieldData.load(context);
+        return exponentialHistogramFieldData.getHistogramValues();
+    }
+
     /**
      * Downsamples an exponential histogram by merging all values.
      */
-    static class MergeProducer extends ExponentialHistogramFieldProducer {
+    static class MergeProducer extends ExponentialHistogramFieldDownsampler {
         private ExponentialHistogramMerger merger = null;
 
-        MergeProducer(String name) {
-            super(name);
+        MergeProducer(String name, IndexFieldData<?> fieldData) {
+            super(name, fieldData);
         }
 
         @Override
@@ -95,11 +110,11 @@ abstract class ExponentialHistogramFieldProducer extends AbstractDownsampleField
      * Downsamples an exponential histogram by preserving the last value.
      * Important note: This class assumes that field values are collected and sorted by descending order by time
      */
-    static class LastValueProducer extends ExponentialHistogramFieldProducer {
+    static class LastValueProducer extends ExponentialHistogramFieldDownsampler {
         private ExponentialHistogram lastValue = null;
 
-        LastValueProducer(String name) {
-            super(name);
+        LastValueProducer(String name, IndexFieldData<?> fieldData) {
+            super(name, fieldData);
         }
 
         @Override

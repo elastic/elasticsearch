@@ -277,14 +277,14 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Expects
-     * Project[[first_name{f}#7, last_name{r}#17]]
-     * \_Limit[1000[INTEGER],true]
-     *   \_MvExpand[last_name{f}#10,last_name{r}#17]
-     *     \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
-     * uages{f}#9, last_name{r}#10, long_noidx{f}#16, salary{f}#11]]
-     *       \_Eval[[null[KEYWORD] AS last_name]]
-     *         \_Limit[1000[INTEGER],false]
-     *           \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * <pre>{@code
+     * Project[[first_name{f}#8, last_name{r}#18]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[last_name{f}#11,last_name{r}#18]
+     *     \_Eval[[null[KEYWORD] AS last_name#11]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     * }</pre>
      */
     public void testMissingFieldInMvExpand() {
         var plan = plan("""
@@ -296,20 +296,17 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var testStats = statsForMissingField("last_name");
         var localPlan = localPlan(plan, testStats);
 
-        // It'd be much better if this project was pushed down past the MvExpand, because MvExpand's cost scales with the number of
-        // involved attributes/columns.
         var project = as(localPlan, Project.class);
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("first_name", "last_name"));
 
         var limit1 = asLimit(project.child(), 1000, true);
         var mvExpand = as(limit1.child(), MvExpand.class);
-        var project2 = as(mvExpand.child(), Project.class);
-        var eval = as(project2.child(), Eval.class);
-        assertEquals(eval.fields().size(), 1);
-        var lastName = eval.fields().get(0);
-        assertEquals(lastName.name(), "last_name");
-        assertEquals(lastName.child(), new Literal(EMPTY, null, KEYWORD));
+        var eval = as(mvExpand.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        var lastName = eval.fields().getFirst();
+        assertEquals("last_name", lastName.name());
+        assertEquals(new Literal(EMPTY, null, KEYWORD), lastName.child());
         var limit2 = asLimit(eval.child(), 1000, false);
         var relation = as(limit2.child(), EsRelation.class);
         assertThat(Expressions.names(relation.output()), not(contains("last_name")));
@@ -1543,6 +1540,18 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertTrue(esRelation.output().contains(filterFieldAttr));
     }
 
+    /**
+     * Expects
+     * <pre>{@code
+     * Project[[!alias_integer, boolean{f}#12, byte{f}#13, constant_keyword-foo{f}#14, date{f}#15, date_nanos{f}#16, dense_ve
+     * ctor{f}#31, double{f}#17, float{f}#18, half_float{f}#19, integer{f}#21, ip{f}#22, keyword{r}#32, long{f}#24, scaled_float{f}#20,
+     * semantic_text{f}#30, short{f}#26, text{f}#27, unsigned_long{f}#25, version{f}#28, wildcard{f}#29, similarity{r}#8]]
+     * \_TopN[[Order[similarity{r}#8,DESC,FIRST], Order[keyword{r}#32,ASC,LAST]],1[INTEGER],false]
+     *   \_Eval[[$$dense_vector$V_L2NORM$1918516530{f$}#33 AS similarity#8]]
+     *     \_MvExpand[keyword{f}#23,keyword{r}#32]
+     *       \_EsRelation[test_all][!alias_integer, boolean{f}#12, byte{f}#13, constant..]
+     * }</pre>
+     */
     public void testVectorFunctionsUpdateIntermediateProjections() {
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
         String query = String.format(Locale.ROOT, """
@@ -1581,17 +1590,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var mvExpand = as(eval.child(), MvExpand.class);
         assertThat(Expressions.name(mvExpand.target()), equalTo("keyword"));
 
-        // Inner Project with the pushed down function
-        var innerProject = as(mvExpand.child(), Project.class);
-        assertTrue(Expressions.names(innerProject.projections()).contains("keyword"));
-        assertTrue(
-            innerProject.projections()
-                .stream()
-                .anyMatch(p -> (p instanceof FieldAttribute fa) && fa.name().startsWith(testCase.toFieldAttrName()))
-        );
-
         // EsRelation[test_all][$$dense_vector$V_COSINE$33{f}#33, !alias_in..]
-        var esRelation = as(innerProject.child(), EsRelation.class);
+        var esRelation = as(mvExpand.child(), EsRelation.class);
         assertTrue(esRelation.output().contains(fieldAttr));
     }
 

@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -80,6 +81,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -161,6 +163,7 @@ public class ComputeService {
     private final ExchangeService exchangeService;
     private final PlannerSettings.Holder plannerSettings;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
+    private final FilterPushdownRegistry filterPushdownRegistry;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -170,7 +173,8 @@ public class ComputeService {
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactory blockFactory,
-        OperatorFactoryRegistry operatorFactoryRegistry
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        FilterPushdownRegistry filterPushdownRegistry
     ) {
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
@@ -202,6 +206,7 @@ public class ComputeService {
         );
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.filterPushdownRegistry = filterPushdownRegistry != null ? filterPushdownRegistry : FilterPushdownRegistry.empty();
     }
 
     PlannerSettings.Holder plannerSettings() {
@@ -228,10 +233,10 @@ public class ComputeService {
         };
     }
 
-    PhysicalPlan applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
+    ExternalDistributionResult applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
         List<ExternalSplit> externalSplits = collectExternalSplits(plan);
         if (externalSplits.isEmpty()) {
-            return plan;
+            return new ExternalDistributionResult(plan, null);
         }
 
         ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
@@ -245,14 +250,21 @@ public class ComputeService {
         ExternalDistributionPlan distributionPlan = strategy.planDistribution(context);
 
         if (distributionPlan.distributed()) {
-            // TODO: PR5 will insert ExchangeExec and break the plan for data node dispatch.
-            // Until then, external sources always execute on the coordinator.
-            LOGGER.debug("external distribution requested but not yet supported; falling back to coordinator-only");
+            LOGGER.debug(
+                "external distribution: distributing {} splits across {} nodes",
+                externalSplits.size(),
+                distributionPlan.nodeAssignments().size()
+            );
+            return new ExternalDistributionResult(plan, distributionPlan);
         }
 
-        // Safety net: remove any ExchangeExec wrapping ExternalSourceExec to prevent
-        // the plan from being incorrectly split between coordinator and data nodes.
-        return collapseExternalSourceExchanges(plan);
+        return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null);
+    }
+
+    record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan) {
+        boolean isDistributed() {
+            return distributionPlan != null && distributionPlan.distributed();
+        }
     }
 
     private static List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
@@ -420,7 +432,8 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile
     ) {
         final PhysicalPlan splitPlan = discoverSplits(physicalPlan);
-        final PhysicalPlan resolvedPlan = applyExternalDistributionStrategy(splitPlan, configuration);
+        final ExternalDistributionResult distributionResult = applyExternalDistributionStrategy(splitPlan, configuration);
+        final PhysicalPlan resolvedPlan = distributionResult.plan();
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             resolvedPlan,
             configuration
@@ -444,8 +457,15 @@ public class ComputeService {
         }
         Map<String, OriginalIndices> clusterToConcreteIndices = getIndices(resolvedPlan, EsRelation::concreteIndices);
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
+        boolean hasConcreteIndices = false;
+        for (OriginalIndices v : clusterToConcreteIndices.values()) {
+            if (v.indices().length > 0) {
+                hasConcreteIndices = true;
+                break;
+            }
+        }
         if (dataNodePlan == null) {
-            if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0) == false) {
+            if (hasConcreteIndices) {
                 String error = "expected no concrete indices without data node plan; got " + clusterToConcreteIndices;
                 assert false : error;
                 listener.onFailure(new IllegalStateException(error));
@@ -484,13 +504,34 @@ public class ComputeService {
                 );
                 return;
             }
-        } else {
-            if (clusterToConcreteIndices.values().stream().allMatch(v -> v.indices().length == 0)) {
-                var error = "expected concrete indices with data node plan but got empty; data node plan " + dataNodePlan;
-                assert false : error;
-                listener.onFailure(new IllegalStateException(error));
-                return;
-            }
+        }
+        // External source distribution: data node plan exists but no ES indices
+        if (distributionResult.isDistributed() && hasConcreteIndices == false) {
+            executeExternalDistribution(
+                sessionId,
+                rootTask,
+                flags,
+                configuration,
+                foldContext,
+                (ExchangeSinkExec) dataNodePlan,
+                coordinatorPlan,
+                resolvedPlan,
+                distributionResult.distributionPlan(),
+                collectedPages,
+                execInfo,
+                profileQualifier,
+                cancelQueryOnFailure,
+                exchangeSinkSupplier,
+                planTimeProfile,
+                listener
+            );
+            return;
+        }
+        if (hasConcreteIndices == false) {
+            var error = "expected concrete indices with data node plan but got empty; data node plan " + dataNodePlan;
+            assert false : error;
+            listener.onFailure(new IllegalStateException(error));
+            return;
         }
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
@@ -659,6 +700,78 @@ public class ComputeService {
         }
     }
 
+    private void executeExternalDistribution(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldContext,
+        ExchangeSinkExec dataNodePlan,
+        PhysicalPlan coordinatorPlan,
+        PhysicalPlan resolvedPlan,
+        ExternalDistributionPlan distributionPlan,
+        List<Page> collectedPages,
+        EsqlExecutionInfo execInfo,
+        String profileQualifier,
+        Runnable cancelQueryOnFailure,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        PlanTimeProfile planTimeProfile,
+        ActionListener<Result> listener
+    ) {
+        List<Attribute> outputAttributes = resolvedPlan.output();
+        var exchangeSource = new ExchangeSourceHandler(
+            configuration.pragmas().exchangeBufferSize(),
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+        );
+        listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+        exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
+        try (
+            var computeListener = new ComputeListener(
+                transportService.getThreadPool(),
+                cancelQueryOnFailure,
+                listener.delegateFailureAndWrap((l, completionInfo) -> {
+                    execInfo.markEndQuery();
+                    l.onResponse(new Result(outputAttributes, collectedPages, configuration, completionInfo, execInfo));
+                })
+            )
+        ) {
+            try (Releasable ignored = exchangeSource.addEmptySink()) {
+                // Run the coordinator plan
+                runCompute(
+                    rootTask,
+                    new ComputeContext(
+                        sessionId,
+                        profileDescription(profileQualifier, "final"),
+                        LOCAL_CLUSTER,
+                        flags,
+                        EmptyIndexedByShardId.instance(),
+                        configuration,
+                        foldContext,
+                        exchangeSource::createExchangeSource,
+                        exchangeSinkSupplier
+                    ),
+                    coordinatorPlan,
+                    plannerSettings.get(),
+                    LocalPhysicalOptimization.ENABLED,
+                    planTimeProfile,
+                    computeListener.acquireCompute()
+                );
+                // Dispatch to each data node with its assigned splits
+                dataNodeComputeHandler.startExternalComputeOnDataNodes(
+                    sessionId,
+                    rootTask,
+                    flags,
+                    configuration,
+                    dataNodePlan,
+                    distributionPlan,
+                    exchangeSource,
+                    cancelQueryOnFailure,
+                    computeListener
+                );
+            }
+        }
+    }
+
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
     private static void updateShardCountForCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
         if (execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == ALWAYS) {
@@ -700,8 +813,10 @@ public class ComputeService {
      */
     static void failIfAllShardsFailed(EsqlExecutionInfo execInfo, List<Page> finalResults) {
         // do not fail if any final result has results
-        if (finalResults.stream().anyMatch(p -> p.getPositionCount() > 0)) {
-            return;
+        for (Page p : finalResults) {
+            if (p.getPositionCount() > 0) {
+                return;
+            }
         }
         int totalFailedShards = 0;
         for (EsqlExecutionInfo.Cluster cluster : execInfo.clusterInfo.values()) {
@@ -773,16 +888,28 @@ public class ComputeService {
 
             List<SearchExecutionContext> localContexts = new ArrayList<>();
             context.searchExecutionContexts().iterable().forEach(localContexts::add);
+            boolean hasExternalSource = plan.anyMatch(p -> p instanceof ExternalSourceExec);
             var localPlan = switch (localPhysicalOptimization) {
-                case ENABLED -> PlannerUtils.localPlan(
-                    plannerSettings,
-                    context.flags(),
-                    localContexts,
-                    context.configuration(),
-                    context.foldCtx(),
-                    plan,
-                    planTimeProfile
-                );
+                case ENABLED -> hasExternalSource
+                    ? PlannerUtils.localPlan(
+                        plannerSettings,
+                        context.flags(),
+                        context.configuration(),
+                        context.foldCtx(),
+                        plan,
+                        SearchContextStats.from(localContexts),
+                        filterPushdownRegistry,
+                        planTimeProfile
+                    )
+                    : PlannerUtils.localPlan(
+                        plannerSettings,
+                        context.flags(),
+                        localContexts,
+                        context.configuration(),
+                        context.foldCtx(),
+                        plan,
+                        planTimeProfile
+                    );
                 case DISABLED -> plan;
             };
             if (LOGGER.isDebugEnabled()) {

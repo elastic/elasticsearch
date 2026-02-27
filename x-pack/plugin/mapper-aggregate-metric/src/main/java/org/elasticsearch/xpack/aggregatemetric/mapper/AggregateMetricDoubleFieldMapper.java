@@ -582,28 +582,14 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
             if (cfg != null) {
-                var function = cfg.function();
-                Metric metric = null;
-                switch (function) {
-                    case AMD_DEFAULT:
-                        return new AggregateMetricDoubleBlockLoader.AvgBlockLoader(metricFields);
-                    case AMD_COUNT:
-                        metric = Metric.value_count;
-                        break;
-                    case AMD_MAX:
-                        metric = Metric.max;
-                        break;
-                    case AMD_MIN:
-                        metric = Metric.min;
-                        break;
-                    case AMD_SUM:
-                        metric = Metric.sum;
-                        break;
-                }
-                if (metric == null) {
-                    return new AggregateMetricDoubleBlockLoader(metricFields);
-                }
-                return getIndividualBlockLoader(metric);
+                return switch (cfg.function()) {
+                    case AMD_DEFAULT -> new AggregateMetricDoubleBlockLoader.AvgBlockLoader(metricFields);
+                    case AMD_COUNT -> getIndividualBlockLoader(Metric.value_count);
+                    case AMD_MAX -> getIndividualBlockLoader(Metric.max);
+                    case AMD_MIN -> getIndividualBlockLoader(Metric.min);
+                    case AMD_SUM -> getIndividualBlockLoader(Metric.sum);
+                    default -> new AggregateMetricDoubleBlockLoader(metricFields);
+                };
             }
             return new AggregateMetricDoubleBlockLoader(metricFields);
         }

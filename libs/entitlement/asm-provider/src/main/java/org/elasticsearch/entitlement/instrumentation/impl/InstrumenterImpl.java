@@ -10,7 +10,6 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
@@ -470,7 +469,10 @@ public final class InstrumenterImpl implements Instrumenter {
             Label tryEnd = new Label();
             Label catchStart = new Label();
             Label catchEnd = new Label();
-            mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, Type.getType(NotEntitledException.class).getInternalName());
+            // Use a string literal instead of Type.getType(NotEntitledException.class).getInternalName() to avoid
+            // loading the class across module boundaries; NotEntitledException is injected into java.base via the
+            // bridge, and this module cannot access it directly.
+            mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, "org/elasticsearch/entitlement/bridge/NotEntitledException");
             mv.visitLabel(tryStart);
             invokeInstrumentationMethod();
             mv.visitLabel(tryEnd);

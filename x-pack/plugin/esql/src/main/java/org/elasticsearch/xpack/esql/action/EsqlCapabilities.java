@@ -2204,6 +2204,17 @@ public class EsqlCapabilities {
         INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
 
         /**
+         * Support for function {@code JSON_EXTRACT}.
+         */
+        FN_JSON_EXTRACT,
+
+        /**
+         * Fix for an ArrayIndexOutOfBoundsException in the aggregation framework when the same field is passed twice.
+         * https://github.com/elastic/elasticsearch/issues/142180
+         */
+        FIX_AGGREGATION_FRAMEWORK_CHANNELS,
+
+        /**
          * Support for intra-row field references in ROW command.
          * https://github.com/elastic/elasticsearch/issues/140217
          */

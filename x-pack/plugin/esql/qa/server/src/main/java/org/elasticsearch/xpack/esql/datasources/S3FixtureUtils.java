@@ -415,6 +415,9 @@ public final class S3FixtureUtils {
             }
         }
 
+        /** Compressed extensions generated on the fly; skip loading from disk */
+        private static final Set<String> COMPRESSED_EXTENSIONS = Set.of(".gz", ".zst", ".zstd", ".bz2", ".bz");
+
         private void loadFixturesFromPath(Path fixturesPath) throws IOException {
             if (Files.exists(fixturesPath) == false) {
                 fixtureLogger.warn("Fixtures path does not exist: {}", fixturesPath);
@@ -426,6 +429,10 @@ public final class S3FixtureUtils {
             Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    String name = file.getFileName().toString();
+                    if (COMPRESSED_EXTENSIONS.stream().anyMatch(name::endsWith)) {
+                        return FileVisitResult.CONTINUE;
+                    }
                     String relativePath = fixturesPath.relativize(file).toString();
                     String key = WAREHOUSE + "/" + relativePath;
 

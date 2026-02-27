@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.transform.transforms.latest;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
@@ -105,7 +105,22 @@ public class LatestChangeCollectorTests extends ESTestCase {
     public void testProcessSearchResponseReturnsNullForNoAggregations() {
         LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp", List.of("orderId"));
 
-        SearchResponse response = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).build();
+        SearchResponse response = new SearchResponse(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            null,
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            null
+        );
         try {
             Map<String, Object> afterKey = changeCollector.processSearchResponse(response);
             assertThat(afterKey, is(nullValue()));
@@ -332,7 +347,22 @@ public class LatestChangeCollectorTests extends ESTestCase {
         }
         when(composite.getBuckets()).thenReturn(compositeBuckets);
 
-        return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(InternalAggregations.from(composite)).build();
+        return new SearchResponse(
+            SearchHits.EMPTY_WITH_TOTAL_HITS,
+            InternalAggregations.from(composite),
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            1,
+            1,
+            0,
+            0,
+            ShardSearchFailure.EMPTY_ARRAY,
+            null
+        );
     }
 
     private static CompositeAggregationBuilder getCompositeAggregationBuilder(SearchSourceBuilder builder) {

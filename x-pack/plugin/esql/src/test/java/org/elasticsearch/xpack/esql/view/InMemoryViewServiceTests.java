@@ -135,6 +135,77 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM logs*, -logs-nginx")));
     }
 
+    public void testExclusionMultipleViews() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        addView("view3", "FROM emp3");
+        LogicalPlan plan = query("FROM view*, -view1, -view3");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp2")));
+    }
+
+    public void testExclusionAllViews() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*, -view1, -view2");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view*, -view1, -view2")));
+    }
+
+    public void testExclusionKeepingViewWithPipeBody() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2 | WHERE emp.age > 30");
+        LogicalPlan plan = query("FROM view*, -view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp2 | WHERE emp.age > 30")));
+    }
+
+    public void testExclusionWithWildcardExclusionPattern() {
+        addView("view_a1", "FROM emp1");
+        addView("view_a2", "FROM emp2");
+        addView("view_b1", "FROM emp3");
+        LogicalPlan plan = query("FROM view_*, -view_a*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp3")));
+    }
+
+    public void testExclusionPreservesNestedViewReference() {
+        addView("view_inner", "FROM emp1");
+        addView("view_outer", "FROM view_inner");
+        LogicalPlan plan = query("FROM view_*, -view_inner");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1")));
+    }
+
+    public void testExclusionWithMultiplePipeBodies() {
+        addView("view1", "FROM emp1 | WHERE emp.age > 30");
+        addView("view2", "FROM emp2 | WHERE emp.age < 40");
+        addView("view3", "FROM emp3 | WHERE emp.salary > 50000");
+        LogicalPlan plan = query("FROM view*, -view2");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> subqueries = rewritten.children();
+        assertThat(subqueries.size(), equalTo(2));
+        assertThat(
+            subqueries,
+            containsInAnyOrder(
+                matchesPlan(query("FROM emp1 | WHERE emp.age > 30")),
+                matchesPlan(query("FROM emp3 | WHERE emp.salary > 50000"))
+            )
+        );
+    }
+
+    public void testExclusionWithIndex() {
+        addIndex("viewX");
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*, -view2");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view*,emp1")));
+    }
+
+    public void testExclusionAllViewsWithIndex() {
+        addIndex("viewX");
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*, -view1, -view2");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view*, -view1, -view2")));
+    }
+
     public void testFailureSelector() {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");

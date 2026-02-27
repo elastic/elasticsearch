@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
@@ -220,6 +224,62 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
             }
             default -> throw new IllegalStateException("Unexpected value: " + fieldToMutate);
         };
+    }
+
+    public void testToXContent_WritesUserAndHeaders() throws IOException {
+        var settings = create("user", Map.of("key", "value"));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        settings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "user": "user",
+                "headers": {"key": "value"}
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testToXContent_WritesOnlyUser_WhenHeadersIsNull() throws IOException {
+        var settings = create("user", null);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        settings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "user": "user"
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testToXContent_WritesOnlyHeaders_WhenUserIsNull() throws IOException {
+        var settings = create(null, Map.of("key", "value"));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        settings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+        var expected = XContentHelper.stripWhitespace("""
+            {
+                "headers": {"key": "value"}
+            }
+            """);
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testToXContent_WritesEmptyObject_WhenBothNull() throws IOException {
+        var settings = create(null, null);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        settings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is("{}"));
     }
 
     protected abstract T create(@Nullable String user, @Nullable Map<String, String> headers);

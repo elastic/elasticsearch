@@ -29,7 +29,9 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +43,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -53,16 +56,20 @@ import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -84,6 +91,43 @@ public class SearchTimeoutIT extends ESIntegTestCase {
     protected void setupSuiteScopeCluster() throws Exception {
         super.setupSuiteScopeCluster();
         indexRandom(true, "test", randomIntBetween(20, 50));
+
+        // Index documents with dense vector fields for KNN / DFS timeout testing
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("vector")
+            .field("type", "dense_vector")
+            .field("dims", 3)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .endObject()
+            .endObject();
+
+        assertAcked(prepareCreate("test_knn").setMapping(mapping));
+
+        int numKnnDocs = randomIntBetween(20, 100);
+        List<IndexRequestBuilder> knnDocs = new ArrayList<>();
+        for (int i = 0; i < numKnnDocs; i++) {
+            knnDocs.add(
+                prepareIndex("test_knn").setSource(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "value")
+                        .startArray("vector")
+                        .value(randomFloat())
+                        .value(randomFloat())
+                        .value(randomFloat())
+                        .endArray()
+                        .endObject()
+                )
+            );
+        }
+        indexRandom(true, knnDocs);
     }
 
     /**
@@ -287,12 +331,56 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         assertEquals(429, ex.status().getStatus());
     }
 
+    public void testDfsKnnTimeoutWithPartialResults() {
+        SearchRequestBuilder searchRequestBuilder = prepareSearch("test_knn").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+            .setTimeout(new TimeValue(10, TimeUnit.SECONDS))
+            .setKnnSearch(
+                List.of(
+                    new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, 100, null, null, null).addFilterQuery(
+                        new DfsKnnTimeoutQuery()
+                    )
+                )
+            );
+        ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
+            assertThat(searchResponse.isTimedOut(), equalTo(true));
+            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getFailedShards());
+            assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
+            assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
+        });
+    }
+
+    public void testPartialResultsIntolerantDfsKnnTimeout() {
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            prepareSearch("test_knn").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setTimeout(new TimeValue(10, TimeUnit.SECONDS))
+                .setKnnSearch(
+                    List.of(
+                        new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, 100, null, null, null).addFilterQuery(
+                            new DfsKnnTimeoutQuery()
+                        )
+                    )
+                )
+                .setAllowPartialSearchResults(false)
+        );
+        assertTrue(ex.toString().contains("Time exceeded"));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS.getStatus(), ex.status().getStatus());
+    }
+
     public static final class SearchTimeoutPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {
-            return Collections.singletonList(new QuerySpec<QueryBuilder>("timeout", BulkScorerTimeoutQuery::new, parser -> {
-                throw new UnsupportedOperationException();
-            }));
+            return List.of(
+                new QuerySpec<QueryBuilder>(
+                    "timeout",
+                    BulkScorerTimeoutQuery::new,
+                    parser -> { throw new UnsupportedOperationException(); }
+                ),
+                new QuerySpec<QueryBuilder>("dfs_knn_timeout", DfsKnnTimeoutQuery::new, parser -> {
+                    throw new UnsupportedOperationException();
+                })
+            );
         }
 
         @Override
@@ -438,6 +526,94 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         @Override
         public String getWriteableName() {
             return "timeout";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return null;
+        }
+    }
+
+    public static final class DfsKnnTimeoutQuery extends AbstractQueryBuilder<DfsKnnTimeoutQuery> {
+
+        DfsKnnTimeoutQuery() {}
+
+        DfsKnnTimeoutQuery(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {}
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) {}
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) {
+            return new Query() {
+                @Override
+                public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+                    if (searcher instanceof ContextIndexSearcher contextIndexSearcher) {
+                        contextIndexSearcher.throwTimeExceededException();
+                    }
+                    return new ConstantScoreWeight(this, boost) {
+                        @Override
+                        public ScorerSupplier scorerSupplier(LeafReaderContext ctx) {
+                            return new ScorerSupplier() {
+                                @Override
+                                public Scorer get(long leadCost) throws IOException {
+                                    return new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.empty());
+                                }
+
+                                @Override
+                                public long cost() {
+                                    return 0;
+                                }
+                            };
+                        }
+
+                        @Override
+                        public boolean isCacheable(LeafReaderContext ctx) {
+                            return false;
+                        }
+                    };
+                }
+
+                @Override
+                public String toString(String field) {
+                    return "dfs knn timeout query";
+                }
+
+                @Override
+                public void visit(QueryVisitor visitor) {
+                    visitor.visitLeaf(this);
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    return sameClassAs(obj);
+                }
+
+                @Override
+                public int hashCode() {
+                    return classHash();
+                }
+            };
+        }
+
+        @Override
+        protected boolean doEquals(DfsKnnTimeoutQuery other) {
+            return true;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "dfs_knn_timeout";
         }
 
         @Override

@@ -377,9 +377,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
   method: testTsIndexConflictingTypes {null}
   issue: https://github.com/elastic/elasticsearch/issues/142410
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/142739
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField
   issue: https://github.com/elastic/elasticsearch/issues/141202
@@ -410,9 +407,6 @@ tests:
 - class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
   method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/nested compound retrievers with min_score correctly compute total_hits}
   issue: https://github.com/elastic/elasticsearch/issues/142997
-- class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
-  method: testDirectoryMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/143061
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023
@@ -452,6 +446,39 @@ tests:
 - class: org.elasticsearch.index.mapper.ShortFieldMapperTests
   method: testSyntheticSourceWithTranslogSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/143196
+- class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
+  method: testStandardIndexWithTSDBDocValuesFormatSetting
+  issue: https://github.com/elastic/elasticsearch/issues/143197
+- class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
+  method: testTSDBIndexUsesCorrectDocValuesFormat
+  issue: https://github.com/elastic/elasticsearch/issues/143198
+- class: org.elasticsearch.snapshots.SnapshotStressTestsIT
+  method: testRandomActivities
+  issue: https://github.com/elastic/elasticsearch/issues/143199
+- class: org.elasticsearch.index.mapper.GeoPointFieldMapperTests
+  method: testSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/143201
+- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
+  method: testSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/143202
+- class: org.elasticsearch.index.mapper.DateFieldMapperTests
+  method: testSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/143203
+- class: org.elasticsearch.index.mapper.IpFieldMapperTests
+  method: testSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/143204
+- class: org.elasticsearch.index.mapper.IpFieldMapperTests
+  method: testSyntheticSourceInObject
+  issue: https://github.com/elastic/elasticsearch/issues/143212
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:docs.DocsBitLength}
+  issue: https://github.com/elastic/elasticsearch/issues/143222
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:eval.DocsByteLength}
+  issue: https://github.com/elastic/elasticsearch/issues/143223
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:eval.DocsLength}
+  issue: https://github.com/elastic/elasticsearch/issues/143224
 
 # Examples:
 #

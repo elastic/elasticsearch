@@ -9,8 +9,6 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -20,7 +18,6 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -69,11 +66,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeByte
 public class VectorScorerByteBulkBenchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-        if (supportsHeapSegments() == false) {
-            final Logger LOG = LogManager.getLogger(VectorScorerByteBulkBenchmark.class);
-            LOG.warn("*Query targets cannot run on " + "JDK " + Runtime.version());
-        }
+        BenchmarkUtils.configureBenchmarkLogging();
     }
 
     @Param({ "1024" })

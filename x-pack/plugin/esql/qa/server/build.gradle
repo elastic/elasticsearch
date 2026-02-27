@@ -18,4 +18,8 @@ dependencies {
   
   // Access to test utilities including IcebergS3FixtureUtils
   api(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
+
+  // Compression libs for generating .gz, .zst, .bz2 fixtures on the fly
+  implementation "com.github.luben:zstd-jni:1.5.7-6"
+  implementation "org.apache.commons:commons-compress:1.26.1"
 }

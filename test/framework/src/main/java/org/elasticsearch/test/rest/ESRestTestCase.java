@@ -1090,10 +1090,38 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public void waitForClusterUpdates() throws Exception {
         logger.info("Waiting for all cluster updates up to this moment to be processed");
+        final Predicate<ResponseException> isTransientMasterNotDiscovered = exception -> {
+            if (exception.getResponse().getStatusLine().getStatusCode() != HttpStatus.SC_SERVICE_UNAVAILABLE) {
+                return false;
+            }
+            final HttpEntity entity = exception.getResponse().getEntity();
+            if (entity == null) {
+                return false;
+            }
+            try {
+                return EntityUtils.toString(entity).contains("\"type\":\"master_not_discovered_exception\"");
+            } catch (IOException ioException) {
+                return false;
+            }
+        };
 
         try {
             assertOK(cleanupClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
         } catch (ResponseException e) {
+            if (isTransientMasterNotDiscovered.test(e)) {
+                logger.info("Master not discovered while waiting for cluster updates, retrying briefly");
+                assertBusy(() -> {
+                    try {
+                        assertOK(cleanupClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
+                    } catch (ResponseException retryException) {
+                        if (isTransientMasterNotDiscovered.test(retryException)) {
+                            throw new AssertionError("Master not discovered while waiting for cluster updates", retryException);
+                        }
+                        throw retryException;
+                    }
+                });
+                return;
+            }
             if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
                 StringBuilder logMessage = new StringBuilder("Timed out waiting for cluster updates to be processed.");
                 final var pendingTasks = getPendingClusterStateTasks();

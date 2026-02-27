@@ -45,7 +45,7 @@ import java.util.regex.Pattern;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
@@ -262,7 +262,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     public static final List<String> METADATA_INDICES = List.of("employees", "apps", "ul_logs");
 
     // These are lookup indices, we want them on both remotes and locals
-    public static final Set<String> LOOKUP_INDICES = CSV_DATASET_MAP.values()
+    public static final Set<String> LOOKUP_INDICES = CSV_DATASET.values()
         .stream()
         .filter(td -> td.settingFileName() != null && td.settingFileName().equals("lookup-settings.json"))
         .map(CsvTestsDataLoader.TestDataset::indexName)
@@ -270,7 +270,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     public static final Set<String> LOOKUP_ENDPOINTS = LOOKUP_INDICES.stream().map(i -> "/" + i + "/_bulk").collect(toSet());
 
-    public static final Set<String> ENRICH_ENDPOINTS = ENRICH_POLICIES.stream().map(p -> "/" + p.index() + "/_bulk").collect(toSet());
+    public static final Set<String> ENRICH_ENDPOINTS = ENRICH_POLICIES.values()
+        .stream()
+        .map(p -> "/" + p.index() + "/_bulk")
+        .collect(toSet());
 
     /**
      * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk, _query,
@@ -355,7 +358,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
         // Check if query contains enrich source indices - these are loaded into both clusters,
         // so we should use onlyRemotes=true to avoid duplicates
-        var enrichSourceIndices = ENRICH_POLICIES.stream().map(CsvTestsDataLoader.EnrichConfig::index).collect(toSet());
+        var enrichSourceIndices = ENRICH_POLICIES.values().stream().map(CsvTestsDataLoader.EnrichConfig::index).collect(toSet());
         if (onlyRemotes == false && EsqlTestUtils.queryContainsIndices(query, enrichSourceIndices)) {
             onlyRemotes = true;
         }

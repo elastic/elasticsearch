@@ -127,12 +127,11 @@ public final class PipelineSelector {
 
         // NOTE: when xorMaxBits is at most half of rawMaxBits, the previous-value XOR
         // already produces compact residuals — the ring buffer won't improve much but
-        // costs 7 bits per value for the index. Streaming Chimp saves that overhead.
-        // When xorMaxBits is large, the previous value is a poor reference and Chimp128's
-        // ring buffer may find dramatically better matches from previous cycles.
+        // costs index bits per value. Streaming Chimp saves that overhead.
         if (profile.xorMaxBits() <= profile.rawMaxBits() / 2) {
             return PipelineConfig.forDoubles(blockSize).chimp();
         }
+
         return PipelineConfig.forDoubles(blockSize).chimp128();
     }
 
@@ -187,6 +186,7 @@ public final class PipelineSelector {
         if (profile.xorMaxBits() <= profile.rawMaxBits() / 2) {
             return PipelineConfig.forFloats(blockSize).chimp();
         }
+
         return PipelineConfig.forFloats(blockSize).chimp128();
     }
 }

@@ -26,22 +26,25 @@ public final class Chimp128FloatEncodeStage implements PayloadEncoder {
     private static final int BIT_BUFFER_OFFSET = 0;
     private static final int BITS_IN_BUFFER_OFFSET = 8;
 
+    // NOTE: bufferSize is set to min(blockSize / 2, 128) so the ring buffer always
+    // wraps before the block ends, acting as a proper sliding window. Without this,
+    // bufferSize = blockSize would mean the ring never wraps, paying full index bits
+    // per value for no lookback advantage over streaming Chimp.
+    private static final int MAX_BUFFER_SIZE = 128;
+
     private final int bufferSize;
     private final int bufferMask;
     private final int indexBits;
     private final long[] ring;
     private final byte[] bitState = new byte[BIT_STATE_SIZE];
 
-    public Chimp128FloatEncodeStage() {
-        this(128);
-    }
-
-    public Chimp128FloatEncodeStage(final int bufferSize) {
-        assert bufferSize > 0 && (bufferSize & (bufferSize - 1)) == 0 : "bufferSize must be a power of 2";
-        this.bufferSize = bufferSize;
-        this.bufferMask = bufferSize - 1;
-        this.indexBits = bufferSize == 1 ? 0 : 32 - Integer.numberOfLeadingZeros(bufferSize - 1);
-        this.ring = new long[bufferSize];
+    public Chimp128FloatEncodeStage(int blockSize) {
+        final int bs = Math.min(Integer.highestOneBit(blockSize / 2), MAX_BUFFER_SIZE);
+        assert bs > 0 && (bs & (bs - 1)) == 0 : "bufferSize must be a power of 2: " + bs;
+        this.bufferSize = bs;
+        this.bufferMask = bs - 1;
+        this.indexBits = bs == 1 ? 0 : 32 - Integer.numberOfLeadingZeros(bs - 1);
+        this.ring = new long[bs];
     }
 
     @Override

@@ -254,26 +254,14 @@ public sealed interface StageSpec {
         }
     }
 
-    record Chimp128DoublePayload(int bufferSize) implements StageSpec {
-        private static final int DEFAULT_BUFFER_SIZE = 128;
-
-        public Chimp128DoublePayload() {
-            this(DEFAULT_BUFFER_SIZE);
-        }
-
+    record Chimp128DoublePayload() implements StageSpec {
         @Override
         public StageId stageId() {
             return StageId.CHIMP128_DOUBLE_PAYLOAD;
         }
     }
 
-    record Chimp128FloatPayload(int bufferSize) implements StageSpec {
-        private static final int DEFAULT_BUFFER_SIZE = 128;
-
-        public Chimp128FloatPayload() {
-            this(DEFAULT_BUFFER_SIZE);
-        }
-
+    record Chimp128FloatPayload() implements StageSpec {
         @Override
         public StageId stageId() {
             return StageId.CHIMP128_FLOAT_PAYLOAD;

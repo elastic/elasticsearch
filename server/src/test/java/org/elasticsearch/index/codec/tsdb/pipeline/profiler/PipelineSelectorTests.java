@@ -178,7 +178,6 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testDoubleCounterHighXorSelectsChimp128() {
-        // NOTE: xorMaxBits=20 > rawMaxBits/2=15, so Chimp128's ring buffer may find better refs
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
 
@@ -388,9 +387,15 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testXorDoubleHighXorSelectsChimp128() {
-        // NOTE: xorMaxBits=20 > rawMaxBits/2=15
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
+
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
+    }
+
+    public void testXorDoubleHighXorSmallBlockSelectsChimp128() {
+        final BlockProfile profile = new BlockProfile(128, 0L, 100L, 100L, 1L, 1L, false, false, 120, 30, 20, 10, 30);
+        final PipelineConfig config = selector.select(profile, 128, PipelineConfig.DataType.DOUBLE, null, null);
 
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
     }
@@ -412,6 +417,13 @@ public class PipelineSelectorTests extends ESTestCase {
     public void testXorFloatHighXorSelectsChimp128() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
+
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
+    }
+
+    public void testXorFloatHighXorSmallBlockSelectsChimp128() {
+        final BlockProfile profile = new BlockProfile(128, 0L, 100L, 100L, 1L, 1L, false, false, 120, 30, 20, 10, 30);
+        final PipelineConfig config = selector.select(profile, 128, PipelineConfig.DataType.FLOAT, null, null);
 
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
     }

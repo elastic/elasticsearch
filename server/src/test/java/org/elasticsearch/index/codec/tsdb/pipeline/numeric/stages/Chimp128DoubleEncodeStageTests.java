@@ -130,7 +130,7 @@ public class Chimp128DoubleEncodeStageTests extends ESTestCase {
         final byte[] buffer = new byte[data.length * 16 + 256];
         final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
         final EncodingContext encContext = new EncodingContext(BLOCK_SIZE, 1);
-        new Chimp128DoubleEncodeStage().encode(data.clone(), data.length, out, encContext);
+        new Chimp128DoubleEncodeStage(BLOCK_SIZE).encode(data.clone(), data.length, out, encContext);
 
         assertTrue("all-zero XOR should encode compactly, got " + out.getPosition(), out.getPosition() <= 140);
     }
@@ -192,7 +192,7 @@ public class Chimp128DoubleEncodeStageTests extends ESTestCase {
     }
 
     public void testStageId() {
-        assertThat(new Chimp128DoubleEncodeStage().id(), equalTo(StageId.CHIMP128_DOUBLE_PAYLOAD.id));
+        assertThat(new Chimp128DoubleEncodeStage(BLOCK_SIZE).id(), equalTo(StageId.CHIMP128_DOUBLE_PAYLOAD.id));
         assertThat(new Chimp128DoubleDecodeStage().id(), equalTo(StageId.CHIMP128_DOUBLE_PAYLOAD.id));
     }
 
@@ -205,27 +205,27 @@ public class Chimp128DoubleEncodeStageTests extends ESTestCase {
         assertRoundTrip(data);
     }
 
-    public void testCustomBufferSize() throws IOException {
-        final long[] data = new long[BLOCK_SIZE];
-        for (int i = 0; i < BLOCK_SIZE; i++) {
-            data[i] = NumericUtils.doubleToSortableLong(randomDoubleBetween(0.0, 100.0, true));
-        }
-        for (int bufferSize : new int[] { 8, 32, 64, 256 }) {
+    public void testVariousBlockSizes() throws IOException {
+        for (int bs : new int[] { 16, 64, 128, 512 }) {
+            final long[] data = new long[bs];
+            for (int i = 0; i < bs; i++) {
+                data[i] = NumericUtils.doubleToSortableLong(randomDoubleBetween(0.0, 100.0, true));
+            }
             final byte[] buffer = new byte[data.length * 16 + 256];
             final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
 
-            final EncodingContext encContext = new EncodingContext(BLOCK_SIZE, 1);
-            final DecodingContext decContext = new DecodingContext(BLOCK_SIZE, 1);
+            final EncodingContext encContext = new EncodingContext(bs, 1);
+            final DecodingContext decContext = new DecodingContext(bs, 1);
 
-            new Chimp128DoubleEncodeStage(bufferSize).encode(data.clone(), data.length, out, encContext);
+            new Chimp128DoubleEncodeStage(bs).encode(data.clone(), data.length, out, encContext);
 
             final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
-            final long[] decoded = new long[BLOCK_SIZE];
+            final long[] decoded = new long[bs];
             final int decodedCount = new Chimp128DoubleDecodeStage().decode(decoded, in, decContext);
 
-            assertThat("Value count mismatch for bufferSize=" + bufferSize, decodedCount, equalTo(data.length));
+            assertThat("Value count mismatch for blockSize=" + bs, decodedCount, equalTo(data.length));
             for (int i = 0; i < data.length; i++) {
-                assertThat("Value mismatch at index " + i + " for bufferSize=" + bufferSize, decoded[i], equalTo(data[i]));
+                assertThat("Value mismatch at index " + i + " for blockSize=" + bs, decoded[i], equalTo(data[i]));
             }
         }
     }
@@ -246,7 +246,7 @@ public class Chimp128DoubleEncodeStageTests extends ESTestCase {
         final byte[] chimp128Buffer = new byte[data.length * 16 + 256];
         final ByteArrayDataOutput chimp128Out = new ByteArrayDataOutput(chimp128Buffer);
         final EncodingContext chimp128EncContext = new EncodingContext(BLOCK_SIZE, 1);
-        new Chimp128DoubleEncodeStage().encode(data.clone(), data.length, chimp128Out, chimp128EncContext);
+        new Chimp128DoubleEncodeStage(BLOCK_SIZE).encode(data.clone(), data.length, chimp128Out, chimp128EncContext);
         final int chimp128Size = chimp128Out.getPosition();
 
         assertThat(
@@ -267,7 +267,7 @@ public class Chimp128DoubleEncodeStageTests extends ESTestCase {
         final EncodingContext encContext = new EncodingContext(blockSize, 1);
         final DecodingContext decContext = new DecodingContext(blockSize, 1);
 
-        new Chimp128DoubleEncodeStage().encode(original.clone(), original.length, out, encContext);
+        new Chimp128DoubleEncodeStage(blockSize).encode(original.clone(), original.length, out, encContext);
 
         final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
         final long[] decoded = new long[Math.max(blockSize, original.length)];

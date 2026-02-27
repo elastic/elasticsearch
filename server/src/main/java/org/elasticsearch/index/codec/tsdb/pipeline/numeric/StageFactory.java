@@ -150,8 +150,8 @@ public final class StageFactory {
                 : new AlpRdFloatEncodeStage(blockSize);
             case StageSpec.ChimpDoublePayload() -> new ChimpDoubleEncodeStage();
             case StageSpec.ChimpFloatPayload() -> new ChimpFloatEncodeStage();
-            case StageSpec.Chimp128DoublePayload(int bs) -> new Chimp128DoubleEncodeStage(bs);
-            case StageSpec.Chimp128FloatPayload(int bs) -> new Chimp128FloatEncodeStage(bs);
+            case StageSpec.Chimp128DoublePayload() -> new Chimp128DoubleEncodeStage(blockSize);
+            case StageSpec.Chimp128FloatPayload() -> new Chimp128FloatEncodeStage(blockSize);
             default -> throw new IllegalArgumentException("Not a payload stage: " + spec);
         };
     }

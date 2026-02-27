@@ -166,8 +166,18 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gorilla.class)));
     }
 
-    public void testDoubleCounterDefaultSelectsChimp128() {
+    public void testDoubleCounterLowXorSelectsChimp() {
+        // NOTE: xorMaxBits=10 <= rawMaxBits/2=15, so streaming Chimp saves index overhead
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
+
+        assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpDoublePayload.class)));
+    }
+
+    public void testDoubleCounterHighXorSelectsChimp128() {
+        // NOTE: xorMaxBits=20 > rawMaxBits/2=15, so Chimp128's ring buffer may find better refs
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
@@ -210,8 +220,16 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.GorillaFloat.class)));
     }
 
-    public void testFloatCounterDefaultSelectsChimp128() {
+    public void testFloatCounterLowXorSelectsChimp() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
+
+        assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
+    }
+
+    public void testFloatCounterHighXorSelectsChimp128() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
@@ -359,8 +377,17 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gorilla.class)));
     }
 
-    public void testXorDoubleDefaultSelectsChimp128() {
+    public void testXorDoubleLowXorSelectsChimp() {
+        // NOTE: xorMaxBits=10 <= rawMaxBits/2=15
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
+
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpDoublePayload.class)));
+    }
+
+    public void testXorDoubleHighXorSelectsChimp128() {
+        // NOTE: xorMaxBits=20 > rawMaxBits/2=15
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
 
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
@@ -373,8 +400,15 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.GorillaFloat.class)));
     }
 
-    public void testXorFloatDefaultSelectsChimp128() {
+    public void testXorFloatLowXorSelectsChimp() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 30);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
+
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
+    }
+
+    public void testXorFloatHighXorSelectsChimp128() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
 
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
@@ -395,10 +429,11 @@ public class PipelineSelectorTests extends ESTestCase {
 
     public void testSpeedWidensFpcThresholdForDouble() {
         // NOTE: deltaDeltaMaxBits=20 is between default(16) and SPEED(24) thresholds
+        // xorMaxBits=10 <= rawMaxBits/2=15, so default falls to streaming Chimp
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 20);
 
         final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
-        assertThat(defaultConfig.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
+        assertThat(defaultConfig.specs(), hasItem(instanceOf(StageSpec.ChimpDoublePayload.class)));
 
         final PipelineConfig speedConfig = selector.select(
             profile,
@@ -414,7 +449,7 @@ public class PipelineSelectorTests extends ESTestCase {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 20);
 
         final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
-        assertThat(defaultConfig.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
+        assertThat(defaultConfig.specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
 
         final PipelineConfig speedConfig = selector.select(
             profile,
@@ -428,6 +463,7 @@ public class PipelineSelectorTests extends ESTestCase {
 
     public void testSpeedRaisesGorillaThresholdForDouble() {
         // NOTE: xorZeroFraction = 260/511 ≈ 0.509, between default(0.4) and SPEED(0.6) thresholds
+        // xorMaxBits=10 <= rawMaxBits/2=15, so SPEED fallback goes to streaming Chimp
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 260, 30);
 
         final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
@@ -440,7 +476,7 @@ public class PipelineSelectorTests extends ESTestCase {
             PipelineResolver.OptimizeFor.SPEED,
             null
         );
-        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
+        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.ChimpDoublePayload.class)));
     }
 
     public void testSpeedRaisesGorillaThresholdForFloat() {
@@ -456,7 +492,7 @@ public class PipelineSelectorTests extends ESTestCase {
             PipelineResolver.OptimizeFor.SPEED,
             null
         );
-        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
+        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
     }
 
     // -- Round-trip tests: verify which delta stages fire and that encode→decode is lossless --

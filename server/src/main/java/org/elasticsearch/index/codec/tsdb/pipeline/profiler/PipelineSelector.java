@@ -127,13 +127,19 @@ public final class PipelineSelector {
             }
         }
 
-        // NOTE: Chimp128 is the general-purpose XOR fallback. It maintains a ring buffer
-        // of the last 128 values and selects the reference that maximizes trailing zeros
-        // in the XOR. For periodic data the ring buffer contains exact matches from previous
-        // cycles, achieving near-zero encoding cost.
+        // NOTE: when xorMaxBits is at most half of rawMaxBits, the previous-value XOR
+        // already produces compact residuals — the ring buffer won't improve much but
+        // costs 7 bits per value for the index. Streaming Chimp saves that overhead.
+        // When xorMaxBits is large, the previous value is a poor reference and Chimp128's
+        // ring buffer may find dramatically better matches from previous cycles.
+        if (profile.xorMaxBits() <= profile.rawMaxBits() / 2) {
+            return PipelineConfig.forDoubles(blockSize).chimp();
+        }
         return PipelineConfig.forDoubles(blockSize).chimp128();
     }
 
+    // NOTE: mirrors selectDouble with float-specific builder and stage types.
+    // See selectDouble for detailed rationale on each decision point.
     private static PipelineConfig selectFloat(
         final BlockProfile profile,
         int blockSize,
@@ -183,6 +189,9 @@ public final class PipelineSelector {
             }
         }
 
+        if (profile.xorMaxBits() <= profile.rawMaxBits() / 2) {
+            return PipelineConfig.forFloats(blockSize).chimp();
+        }
         return PipelineConfig.forFloats(blockSize).chimp128();
     }
 }

@@ -2,5 +2,5 @@ area: Machine Learning
 issues:
  - 107831
 pr: 143077
-summary: "Fix: `required_native_memory_bytes` Calculated with Wrong Allocation Count"
+summary: "Fix: `required_native_memory_bytes` calculated with wrong allocation count"
 type: bug

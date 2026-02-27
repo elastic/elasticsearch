@@ -233,6 +233,10 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this.expandedModelIdsWithAliases;
             }
 
+            /**
+             * Sets the model size stats map. Keys are deployment IDs for deployed PyTorch models (per-deployment stats),
+             * otherwise model IDs for undeployed or non-PyTorch models.
+             */
             public Builder setModelSizeStatsByModelId(Map<String, TrainedModelSizeStats> modelSizeStatsByModelId) {
                 this.modelSizeStatsMap = modelSizeStatsByModelId;
                 return this;
@@ -270,6 +274,15 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
 
                 if (inferenceStatsMap == null) {
                     inferenceStatsMap = Collections.emptyMap();
+                }
+                if (modelSizeStatsMap == null) {
+                    modelSizeStatsMap = Collections.emptyMap();
+                }
+                if (assignmentStatsMap == null) {
+                    assignmentStatsMap = Collections.emptyMap();
+                }
+                if (ingestStatsMap == null) {
+                    ingestStatsMap = Collections.emptyMap();
                 }
 
                 List<TrainedModelStats> trainedModelStats = new ArrayList<>(numResponses);
@@ -327,7 +340,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                             : modelStats1.getDeploymentStats().getDeploymentId();
                         var deploymentId2 = modelStats2.getDeploymentStats() == null
                             ? null
-                            : modelStats1.getDeploymentStats().getDeploymentId();
+                            : modelStats2.getDeploymentStats().getDeploymentId();
 
                         assert deploymentId1 != null && deploymentId2 != null
                             : "2 results for model " + modelStats1.getModelId() + " both should have deployment stats";

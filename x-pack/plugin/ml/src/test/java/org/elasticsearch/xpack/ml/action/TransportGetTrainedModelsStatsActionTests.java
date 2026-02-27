@@ -459,6 +459,62 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         assertThat(results.get(0).getModelSizeStats().getRequiredNativeMemoryBytes(), equalTo(5000L));
     }
 
+    public void testBuilderSortsByModelIdThenDeploymentId() {
+        AssignmentStats dep1 = new AssignmentStats(
+            "dep1",
+            "modelA",
+            1,
+            2,
+            null,
+            null,
+            null,
+            Instant.now(),
+            List.of(),
+            Priority.NORMAL
+        );
+        AssignmentStats dep2 = new AssignmentStats(
+            "dep2",
+            "modelA",
+            1,
+            3,
+            null,
+            null,
+            null,
+            Instant.now(),
+            List.of(),
+            Priority.NORMAL
+        );
+
+        Map<String, AssignmentStats> assignmentStatsMap = Map.of("dep1", dep1, "dep2", dep2);
+
+        Map<String, TrainedModelSizeStats> modelSizeStatsMap = Map.of(
+            "dep1",
+            new TrainedModelSizeStats(1000L, 2000L),
+            "dep2",
+            new TrainedModelSizeStats(1000L, 3000L)
+        );
+
+        Map<String, Set<String>> expandedModelIdsWithAliases = Map.of("modelA", Set.of());
+        Map<String, Set<String>> modelToDeploymentIds = Map.of("modelA", Set.of("dep1", "dep2"));
+
+        GetTrainedModelsStatsAction.Response.Builder builder = new GetTrainedModelsStatsAction.Response.Builder();
+        builder.setTotalModelCount(1);
+        builder.setExpandedModelIdsWithAliases(expandedModelIdsWithAliases);
+        builder.setModelSizeStatsByModelId(modelSizeStatsMap);
+        builder.setIngestStatsByModelId(Map.of());
+        builder.setInferenceStatsByModelId(Map.of());
+        builder.setDeploymentStatsByDeploymentId(assignmentStatsMap);
+
+        GetTrainedModelsStatsAction.Response response = builder.build(modelToDeploymentIds);
+
+        List<GetTrainedModelsStatsAction.Response.TrainedModelStats> results = response.getResources().results();
+        assertThat(results.size(), equalTo(2));
+        assertThat(results.get(0).getModelId(), equalTo("modelA"));
+        assertThat(results.get(0).getDeploymentStats().getDeploymentId(), equalTo("dep1"));
+        assertThat(results.get(1).getModelId(), equalTo("modelA"));
+        assertThat(results.get(1).getDeploymentStats().getDeploymentId(), equalTo("dep2"));
+    }
+
     public void testBuilderFallsBackToModelIdWhenDeploymentIdNotInSizeStatsMap() {
         AssignmentStats deployment = new AssignmentStats(
             "dep1",

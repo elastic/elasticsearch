@@ -312,66 +312,25 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         ActionListener<Map<String, TrainedModelSizeStats>> listener,
         Map<String, AssignmentStats> deploymentStatsByDeploymentId
     ) {
-        ActionListener<List<TrainedModelConfig>> modelsListener = ActionListener.wrap(models -> {
-            final List<String> pytorchModelIds = models.stream()
-                .filter(m -> m.getModelType() == TrainedModelType.PYTORCH)
-                .map(TrainedModelConfig::getModelId)
-                .toList();
-            definitionLengths(pytorchModelIds, parentTaskId, ActionListener.wrap(pytorchTotalDefinitionLengthsByModelId -> {
-                Map<String, TrainedModelSizeStats> modelSizeStatsByKey = new HashMap<>();
-
-                Map<String, List<String>> modelIdToDeploymentIds = new HashMap<>();
-                for (AssignmentStats stats : deploymentStatsByDeploymentId.values()) {
-                    modelIdToDeploymentIds.computeIfAbsent(stats.getModelId(), k -> new ArrayList<>()).add(stats.getDeploymentId());
-                }
-
-                for (TrainedModelConfig model : models) {
-                    if (model.getModelType() == TrainedModelType.PYTORCH) {
-                        long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
-                        List<String> deploymentIds = modelIdToDeploymentIds.get(model.getModelId());
-
-                        if (deploymentIds != null && deploymentIds.isEmpty() == false) {
-                            for (String deploymentId : deploymentIds) {
-                                AssignmentStats assignmentStats = deploymentStatsByDeploymentId.get(deploymentId);
-                                int numberOfAllocations = assignmentStats.getNumberOfAllocations() != null
-                                    ? assignmentStats.getNumberOfAllocations()
-                                    : 0;
-                                long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
-                                    ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                                        model.getModelId(),
-                                        totalDefinitionLength,
-                                        model.getPerDeploymentMemoryBytes(),
-                                        model.getPerAllocationMemoryBytes(),
-                                        numberOfAllocations
-                                    )
-                                    : 0L;
-                                modelSizeStatsByKey.put(
-                                    deploymentId,
-                                    new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
-                                );
-                            }
-                        } else {
-                            long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
-                                ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                                    model.getModelId(),
-                                    totalDefinitionLength,
-                                    model.getPerDeploymentMemoryBytes(),
-                                    model.getPerAllocationMemoryBytes(),
-                                    0
-                                )
-                                : 0L;
-                            modelSizeStatsByKey.put(
-                                model.getModelId(),
-                                new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
-                            );
-                        }
-                    } else {
-                        modelSizeStatsByKey.put(model.getModelId(), new TrainedModelSizeStats(model.getModelSize(), 0));
-                    }
-                }
-                listener.onResponse(modelSizeStatsByKey);
-            }, listener::onFailure));
-        }, listener::onFailure);
+        ActionListener<List<TrainedModelConfig>> modelsListener = ActionListener.wrap(
+            models -> {
+                final List<String> pytorchModelIds = models.stream()
+                    .filter(m -> m.getModelType() == TrainedModelType.PYTORCH)
+                    .map(TrainedModelConfig::getModelId)
+                    .toList();
+                definitionLengths(
+                    pytorchModelIds,
+                    parentTaskId,
+                    ActionListener.wrap(
+                        pytorchTotalDefinitionLengthsByModelId -> listener.onResponse(
+                            buildModelSizeStatsByKey(models, pytorchTotalDefinitionLengthsByModelId, deploymentStatsByDeploymentId)
+                        ),
+                        listener::onFailure
+                    )
+                );
+            },
+            listener::onFailure
+        );
 
         trainedModelProvider.getTrainedModels(
             expandedIdsWithAliases,
@@ -379,6 +338,66 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
             allowNoResources,
             parentTaskId,
             modelsListener
+        );
+    }
+
+    /**
+     * Builds a map of model size stats keyed by deployment ID (for deployed PyTorch models) or model ID (for undeployed
+     * or non-PyTorch). Only includes deployments present in {@code deploymentStatsByDeploymentId} (i.e. matching the
+     * request).
+     */
+    static Map<String, TrainedModelSizeStats> buildModelSizeStatsByKey(
+        List<TrainedModelConfig> models,
+        Map<String, Long> pytorchTotalDefinitionLengthsByModelId,
+        Map<String, AssignmentStats> deploymentStatsByDeploymentId
+    ) {
+        Map<String, TrainedModelSizeStats> modelSizeStatsByKey = new HashMap<>();
+        Map<String, List<String>> modelIdToDeploymentIds = new HashMap<>();
+        for (AssignmentStats stats : deploymentStatsByDeploymentId.values()) {
+            modelIdToDeploymentIds.computeIfAbsent(stats.getModelId(), k -> new ArrayList<>()).add(stats.getDeploymentId());
+        }
+
+        for (TrainedModelConfig model : models) {
+            if (model.getModelType() == TrainedModelType.PYTORCH) {
+                long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
+                List<String> deploymentIds = modelIdToDeploymentIds.get(model.getModelId());
+
+                if (deploymentIds != null && deploymentIds.isEmpty() == false) {
+                    for (String deploymentId : deploymentIds) {
+                        AssignmentStats assignmentStats = deploymentStatsByDeploymentId.get(deploymentId);
+                        int numberOfAllocations = assignmentStats.getNumberOfAllocations() != null
+                            ? assignmentStats.getNumberOfAllocations()
+                            : 0;
+                        long estimatedMemoryUsageBytes = estimatedMemoryUsageBytes(model, totalDefinitionLength, numberOfAllocations);
+                        modelSizeStatsByKey.put(
+                            deploymentId,
+                            new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
+                        );
+                    }
+                } else {
+                    long estimatedMemoryUsageBytes = estimatedMemoryUsageBytes(model, totalDefinitionLength, 0);
+                    modelSizeStatsByKey.put(
+                        model.getModelId(),
+                        new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
+                    );
+                }
+            } else {
+                modelSizeStatsByKey.put(model.getModelId(), new TrainedModelSizeStats(model.getModelSize(), 0));
+            }
+        }
+        return modelSizeStatsByKey;
+    }
+
+    private static long estimatedMemoryUsageBytes(TrainedModelConfig model, long totalDefinitionLength, int numberOfAllocations) {
+        if (totalDefinitionLength <= 0L) {
+            return 0L;
+        }
+        return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+            model.getModelId(),
+            totalDefinitionLength,
+            model.getPerDeploymentMemoryBytes(),
+            model.getPerAllocationMemoryBytes(),
+            numberOfAllocations
         );
     }
 

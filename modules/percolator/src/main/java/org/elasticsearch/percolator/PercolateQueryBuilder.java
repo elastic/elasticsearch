@@ -576,7 +576,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     // AutoPrefilteringScope in a way that is not thread safe. For other
                     // queries this is not a problem, but Percolate will call the returned
                     // PercolateQuery.QueryStore function from multiple threads.
-                    // Use a cloned SearchExecutionContext for each thread.
+                    // The context's NestedScope is also vulnerable to concurrent modification.
+                    // Use a cloned SearchExecutionContext for each thread with new instances of
+                    // the mutable fields.
                     var safeContext = context.copyForConcurrentUse();
                     queryBuilder = Rewriteable.rewrite(queryBuilder, safeContext);
                     // toQuery will access localAutoPrefilteringScope

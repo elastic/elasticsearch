@@ -9,8 +9,10 @@
 
 package org.elasticsearch.reindex.remote;
 
+import org.apache.http.ContentTooLongException;
 import org.apache.http.HttpEntity;
 import org.apache.http.RequestLine;
+import org.apache.http.StatusLine;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
@@ -20,6 +22,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -100,7 +104,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         assertNotNull("missing test resource [" + resource + "]", url);
 
         HttpEntity entity = new InputStreamEntity(FileSystemUtils.openFileURLStream(url), ContentType.APPLICATION_JSON);
-        org.elasticsearch.client.Response response = mock(org.elasticsearch.client.Response.class);
+        Response response = mock(Response.class);
         when(response.getEntity()).thenReturn(entity);
 
         mockSuccess(response);
@@ -125,7 +129,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             null
         );
 
-        org.elasticsearch.client.Response response = mock(org.elasticsearch.client.Response.class);
+        Response response = mock(Response.class);
         when(response.getEntity()).thenReturn(entity);
         mockSuccess(response);
 
@@ -155,7 +159,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         Response response = mock(Response.class);
         when(response.getEntity()).thenReturn(null);
 
-        org.apache.http.StatusLine statusLine = mock(org.apache.http.StatusLine.class);
+        StatusLine statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(RestStatus.TOO_MANY_REQUESTS.getStatus());
         when(response.getStatusLine()).thenReturn(statusLine);
 
@@ -163,7 +167,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RequestLine requestLine = mock(RequestLine.class);
         when(requestLine.getMethod()).thenReturn("mock");
         when(response.getRequestLine()).thenReturn(requestLine);
-        mockFailure(new org.elasticsearch.client.ResponseException(response));
+        mockFailure(new ResponseException(response));
 
         RemoteReindexingUtils.lookupRemoteVersion(
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> fail("unexpected failure"), e -> rejected.set(true)),
@@ -177,7 +181,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
      * Verifies that non-429 HTTP errors are routed to onFailure.
      */
     public void testLookupRemoteVersionHttpErrorTriggersFailure() throws Exception {
-        org.apache.http.StatusLine statusLine = mock(org.apache.http.StatusLine.class);
+        StatusLine statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(RestStatus.BAD_REQUEST.getStatus());
         Response response = mock(Response.class);
         when(response.getStatusLine()).thenReturn(statusLine);
@@ -187,7 +191,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         RequestLine requestLine = mock(RequestLine.class);
         when(requestLine.getMethod()).thenReturn("mock");
         when(response.getRequestLine()).thenReturn(requestLine);
-        mockFailure(new org.elasticsearch.client.ResponseException(response));
+        mockFailure(new ResponseException(response));
 
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> fail(), ex -> {
             assertTrue(ex instanceof ElasticsearchException);
@@ -199,7 +203,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
      * Verifies that ContentTooLongException is translated into a user-facing IllegalArgumentException.
      */
     public void testContentTooLongExceptionIsWrapped() {
-        mockFailure(new org.apache.http.ContentTooLongException("too large"));
+        mockFailure(new ContentTooLongException("too large"));
 
         RemoteReindexingUtils.lookupRemoteVersion(RejectAwareActionListener.wrap(v -> fail(), ex -> {
             assertTrue(ex instanceof IllegalArgumentException);
@@ -318,9 +322,9 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         AtomicInteger callCount = new AtomicInteger(0);
 
         doAnswer(inv -> {
-            org.elasticsearch.client.ResponseListener listener = inv.getArgument(1);
+            ResponseListener listener = inv.getArgument(1);
             if (callCount.getAndIncrement() == 0) {
-                listener.onFailure(new org.elasticsearch.client.ResponseException(rejectionResponse));
+                listener.onFailure(new ResponseException(rejectionResponse));
             } else {
                 listener.onSuccess(successResponse);
             }
@@ -353,9 +357,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     public void testLookupRemoteVersionWithRetriesExhaustedPropagatesFailure() throws Exception {
         Response rejectionResponse = rejectionResponse429();
         doAnswer(inv -> {
-            ((org.elasticsearch.client.ResponseListener) inv.getArgument(1)).onFailure(
-                new org.elasticsearch.client.ResponseException(rejectionResponse)
-            );
+            ((ResponseListener) inv.getArgument(1)).onFailure(new ResponseException(rejectionResponse));
             return null;
         }).when(client).performRequestAsync(any(), any());
 
@@ -383,7 +385,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
      */
     public void testLookupRemoteVersionWithRetriesNon429DoesNotRetry() throws Exception {
         Response badRequestResponse = mock(Response.class);
-        org.apache.http.StatusLine statusLine = mock(org.apache.http.StatusLine.class);
+        StatusLine statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(RestStatus.INTERNAL_SERVER_ERROR.getStatus());
         when(badRequestResponse.getStatusLine()).thenReturn(statusLine);
         when(badRequestResponse.getEntity()).thenReturn(new StringEntity("error", ContentType.TEXT_PLAIN));
@@ -391,7 +393,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         when(requestLine.getMethod()).thenReturn("GET");
         when(badRequestResponse.getRequestLine()).thenReturn(requestLine);
 
-        mockFailure(new org.elasticsearch.client.ResponseException(badRequestResponse));
+        mockFailure(new ResponseException(badRequestResponse));
 
         RemoteReindexingUtils.lookupRemoteVersionWithRetries(
             logger,
@@ -445,7 +447,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     private Response rejectionResponse429() {
         Response response = mock(Response.class);
         when(response.getEntity()).thenReturn(null);
-        org.apache.http.StatusLine statusLine = mock(org.apache.http.StatusLine.class);
+        StatusLine statusLine = mock(StatusLine.class);
         when(statusLine.getStatusCode()).thenReturn(RestStatus.TOO_MANY_REQUESTS.getStatus());
         when(response.getStatusLine()).thenReturn(statusLine);
         RequestLine requestLine = mock(RequestLine.class);
@@ -456,14 +458,14 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
 
     private void mockSuccess(Response response) {
         doAnswer(inv -> {
-            ((org.elasticsearch.client.ResponseListener) inv.getArgument(1)).onSuccess(response);
+            ((ResponseListener) inv.getArgument(1)).onSuccess(response);
             return null;
         }).when(client).performRequestAsync(any(), any());
     }
 
     private void mockFailure(Exception e) {
         doAnswer(inv -> {
-            ((org.elasticsearch.client.ResponseListener) inv.getArgument(1)).onFailure(e);
+            ((ResponseListener) inv.getArgument(1)).onFailure(e);
             return null;
         }).when(client).performRequestAsync(any(), any());
     }

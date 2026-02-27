@@ -18,6 +18,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -109,7 +110,7 @@ public class RemoteReindexingUtils {
         try {
             client.performRequestAsync(request, new ResponseListener() {
                 @Override
-                public void onSuccess(org.elasticsearch.client.Response response) {
+                public void onSuccess(Response response) {
                     // Restore the thread context to get the precious headers
                     try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
                         assert ctx != null; // eliminates compiler warning

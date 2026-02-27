@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -79,7 +81,37 @@ public final class MappingParser {
 
     static Map<String, Object> convertToMap(CompressedXContent source) {
         Objects.requireNonNull(source, "source cannot be null");
-        return XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
+        BytesReference uncompressed = source.uncompressed();
+        byte[] bytes = BytesReference.toBytes(uncompressed);
+        if (sanitizeLoneSurrogates(bytes)) {
+            uncompressed = new BytesArray(bytes);
+        }
+        return XContentHelper.convertToMap(uncompressed, false, XContentType.JSON).v2();
+    }
+
+    /**
+     * Scans a UTF-8 byte array and replaces lone surrogates ({@code U+D800}–{@code U+DFFF}) with the Unicode
+     * replacement character ({@code U+FFFD}). In UTF-8, surrogates are encoded as 3-byte sequences
+     * ({@code ED [A0-BF] [80-BF]}) which are invalid per RFC 3629 but were accepted by Jackson 2.17.2.
+     * Jackson 2.21.0 rejects them, so mappings stored before the upgrade need sanitization on read.
+     * <p>
+     * Both the surrogate encoding and the replacement character are 3 bytes, so the replacement is done in-place
+     * without changing the array length.
+     *
+     * @return {@code true} if any modifications were made
+     */
+    static boolean sanitizeLoneSurrogates(byte[] bytes) {
+        boolean modified = false;
+        for (int i = 0; i < bytes.length - 2; i++) {
+            if ((bytes[i] & 0xFF) == 0xED && (bytes[i + 1] & 0xFF) >= 0xA0 && (bytes[i + 2] & 0xC0) == 0x80) {
+                bytes[i] = (byte) 0xEF;
+                bytes[i + 1] = (byte) 0xBF;
+                bytes[i + 2] = (byte) 0xBD;
+                modified = true;
+                i += 2;
+            }
+        }
+        return modified;
     }
 
     Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {

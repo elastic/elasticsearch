@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -356,5 +358,56 @@ public class MappingParserTests extends MapperServiceTestCase {
             XContentBuilder builder = runtimeMapping(b -> b.startObject(fieldName).field("type", "keyword").endObject());
             mappingParser.parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
         }
+    }
+
+    public void testConvertToMapWithLoneSurrogateInFieldName() throws IOException {
+        byte[] json = buildMappingJsonWithSurrogateFieldName();
+        CompressedXContent compressed = new CompressedXContent(new BytesArray(json));
+        Map<String, Object> map = MappingParser.convertToMap(compressed);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> doc = (Map<String, Object>) map.get("_doc");
+        assertNotNull(doc);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) doc.get("properties");
+        assertNotNull(properties);
+        String sanitizedName = "field_\uFFFD";
+        assertTrue("Expected sanitized field name in: " + properties.keySet(), properties.containsKey(sanitizedName));
+    }
+
+    /**
+     * Builds raw JSON bytes for a mapping where a field name contains a lone high surrogate (U+D83C),
+     * simulating data written by Jackson 2.17.2 before the upgrade to 2.21.0.
+     */
+    private static byte[] buildMappingJsonWithSurrogateFieldName() {
+        String template = "{\"_doc\":{\"properties\":{\"field_PLACEHOLDER\":{\"type\":\"keyword\"}}}}";
+        byte[] templateBytes = template.getBytes(StandardCharsets.UTF_8);
+        byte[] surrogate = new byte[] { (byte) 0xED, (byte) 0xA0, (byte) 0xBC };
+        byte[] placeholderBytes = "PLACEHOLDER".getBytes(StandardCharsets.UTF_8);
+
+        int placeholderIdx = indexOf(templateBytes, placeholderBytes);
+        byte[] result = new byte[templateBytes.length - placeholderBytes.length + surrogate.length];
+        System.arraycopy(templateBytes, 0, result, 0, placeholderIdx);
+        System.arraycopy(surrogate, 0, result, placeholderIdx, surrogate.length);
+        System.arraycopy(
+            templateBytes,
+            placeholderIdx + placeholderBytes.length,
+            result,
+            placeholderIdx + surrogate.length,
+            templateBytes.length - placeholderIdx - placeholderBytes.length
+        );
+        return result;
+    }
+
+    private static int indexOf(byte[] haystack, byte[] needle) {
+        outer: for (int i = 0; i <= haystack.length - needle.length; i++) {
+            for (int j = 0; j < needle.length; j++) {
+                if (haystack[i + j] != needle[j]) {
+                    continue outer;
+                }
+            }
+            return i;
+        }
+        return -1;
     }
 }

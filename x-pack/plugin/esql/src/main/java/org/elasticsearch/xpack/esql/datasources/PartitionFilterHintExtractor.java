@@ -172,25 +172,15 @@ public final class PartitionFilterHintExtractor {
     }
 
     private static Operator toOperator(EsqlBinaryComparison comparison, boolean reversed) {
-        if (comparison instanceof Equals) {
-            return Operator.EQUALS;
-        }
-        if (comparison instanceof NotEquals) {
-            return Operator.NOT_EQUALS;
-        }
-        if (comparison instanceof GreaterThan) {
-            return reversed ? Operator.LESS_THAN : Operator.GREATER_THAN;
-        }
-        if (comparison instanceof GreaterThanOrEqual) {
-            return reversed ? Operator.LESS_THAN_OR_EQUAL : Operator.GREATER_THAN_OR_EQUAL;
-        }
-        if (comparison instanceof LessThan) {
-            return reversed ? Operator.GREATER_THAN : Operator.LESS_THAN;
-        }
-        if (comparison instanceof LessThanOrEqual) {
-            return reversed ? Operator.GREATER_THAN_OR_EQUAL : Operator.LESS_THAN_OR_EQUAL;
-        }
-        return null;
+        return switch (comparison) {
+            case Equals ignored -> Operator.EQUALS;
+            case NotEquals ignored -> Operator.NOT_EQUALS;
+            case GreaterThan ignored -> reversed ? Operator.LESS_THAN : Operator.GREATER_THAN;
+            case GreaterThanOrEqual ignored -> reversed ? Operator.LESS_THAN_OR_EQUAL : Operator.GREATER_THAN_OR_EQUAL;
+            case LessThan ignored -> reversed ? Operator.GREATER_THAN : Operator.LESS_THAN;
+            case LessThanOrEqual ignored -> reversed ? Operator.GREATER_THAN_OR_EQUAL : Operator.LESS_THAN_OR_EQUAL;
+            default -> null;
+        };
     }
 
     private static String extractPath(UnresolvedExternalRelation rel) {

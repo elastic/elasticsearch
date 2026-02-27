@@ -19,11 +19,13 @@ import org.junit.ClassRule;
 import java.util.List;
 
 /**
- * Parameterized integration tests for gzip-compressed NDJSON files (.ndjson.gz).
- * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS).
+ * Parameterized integration tests for compressed NDJSON files (.ndjson.gz, .ndjson.zst, .ndjson.zstd, .ndjson.bz2, .ndjson.bz).
+ * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS) and compression format.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
+
+    private static final List<String> COMPRESSED_FORMATS = List.of("ndjson.gz", "ndjson.zst", "ndjson.zstd", "ndjson.bz2", "ndjson.bz");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
@@ -35,9 +37,10 @@ public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTest
         Integer lineNumber,
         CsvTestCase testCase,
         String instructions,
+        String format,
         StorageBackend storageBackend
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "ndjson.gz");
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
     @Override
@@ -45,8 +48,8 @@ public class NdJsonCompressedFormatSpecIT extends AbstractExternalSourceSpecTest
         return cluster.getHttpAddresses();
     }
 
-    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-ndjson.csv-spec");
+        return readExternalSpecTestsWithFormats(COMPRESSED_FORMATS, "/external-ndjson.csv-spec");
     }
 }

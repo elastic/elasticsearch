@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -65,8 +66,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -210,6 +213,61 @@ public class ComputeService {
             return plan;
         }
         return SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+    }
+
+    static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {
+        String value = pragmas.externalDistribution();
+        return switch (value) {
+            case "", "adaptive" -> new AdaptiveStrategy();
+            case "coordinator_only" -> CoordinatorOnlyStrategy.INSTANCE;
+            case "round_robin" -> new RoundRobinStrategy();
+            default -> {
+                LOGGER.warn("unknown external_distribution pragma value [{}]; falling back to adaptive", value);
+                yield new AdaptiveStrategy();
+            }
+        };
+    }
+
+    PhysicalPlan applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
+        List<ExternalSplit> externalSplits = collectExternalSplits(plan);
+        if (externalSplits.isEmpty()) {
+            return plan;
+        }
+
+        ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
+        ExternalDistributionContext context = new ExternalDistributionContext(
+            plan,
+            externalSplits,
+            clusterService.state().nodes(),
+            configuration.pragmas()
+        );
+
+        ExternalDistributionPlan distributionPlan = strategy.planDistribution(context);
+
+        if (distributionPlan.distributed()) {
+            // TODO: PR5 will insert ExchangeExec and break the plan for data node dispatch.
+            // Until then, external sources always execute on the coordinator.
+            LOGGER.debug("external distribution requested but not yet supported; falling back to coordinator-only");
+        }
+
+        // Safety net: remove any ExchangeExec wrapping ExternalSourceExec to prevent
+        // the plan from being incorrectly split between coordinator and data nodes.
+        return collapseExternalSourceExchanges(plan);
+    }
+
+    private static List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
+        List<ExternalSplit> splits = new ArrayList<>();
+        plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
+        return splits;
+    }
+
+    static PhysicalPlan collapseExternalSourceExchanges(PhysicalPlan plan) {
+        return plan.transformUp(ExchangeExec.class, exchange -> {
+            if (exchange.child() instanceof ExternalSourceExec) {
+                return exchange.child();
+            }
+            return exchange;
+        });
     }
 
     public void execute(
@@ -361,7 +419,8 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile
     ) {
-        final PhysicalPlan resolvedPlan = discoverSplits(physicalPlan);
+        final PhysicalPlan splitPlan = discoverSplits(physicalPlan);
+        final PhysicalPlan resolvedPlan = applyExternalDistributionStrategy(splitPlan, configuration);
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             resolvedPlan,
             configuration

@@ -218,7 +218,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
-        for (CsvTestsDataLoader.EnrichConfig enrich : CsvTestsDataLoader.ENRICH_POLICIES) {
+        for (CsvTestsDataLoader.EnrichConfig enrich : CsvTestsDataLoader.ENRICH_POLICIES.values()) {
             try {
                 adminClient().performRequest(new Request("DELETE", "/_enrich/policy/" + enrich.policyName()));
             } catch (ResponseException e) {

@@ -2189,6 +2189,12 @@ public class EsqlCapabilities {
         METRICS_INFO_COMMAND,
 
         /**
+         * Produce a {@code warning} and {@code null} when you run
+         * {@code ABS} on {@code Long.MIN_VALUE}.
+         */
+        FN_ABS_MIN_WARNING,
+
+        /**
          * Supports the REGISTERED_DOMAIN command.
          */
         REGISTERED_DOMAIN_COMMAND,

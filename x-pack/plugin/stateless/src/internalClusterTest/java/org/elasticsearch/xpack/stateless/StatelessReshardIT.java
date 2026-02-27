@@ -3195,6 +3195,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numShards = randomIntBetween(1, 10);
+        int numShardsAfter = 2 * numShards;
         createIndex(indexName, indexSettings(numShards, 1).build());
         ensureGreen(indexName);
 
@@ -3203,11 +3204,14 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         refresh(indexName);
         assertHitCount(prepareSearch(indexName), numDocs);
 
-        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, numShardsAfter)).actionGet();
         waitForReshardCompletion(indexName);
 
         var telemetryPlugin = getTelemetryPlugin(indexNode);
         assertThat(getTotalLongCounterValue(ReshardMetrics.RESHARD_COUNT, getTelemetryPlugin(indexNode)), equalTo(1L));
+
+        var reshardTargetShardCountHistogram = telemetryPlugin.getLongHistogramMeasurement(ReshardMetrics.RESHARD_TARGET_SHARD_COUNT);
+        assertEquals(List.of((long) numShardsAfter), reshardTargetShardCountHistogram.stream().map(Measurement::getLong).toList());
 
         var cloneDurationHistogram = telemetryPlugin.getDoubleHistogramMeasurement(ReshardMetrics.RESHARD_TARGET_CLONE_DURATION);
         assertEquals(numShards, cloneDurationHistogram.size());

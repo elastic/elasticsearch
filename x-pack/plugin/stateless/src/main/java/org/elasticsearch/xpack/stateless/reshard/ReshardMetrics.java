@@ -26,6 +26,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 // see https://www.elastic.co/docs/reference/apm/agents/java/config-metrics#config-custom-metrics-histogram-boundaries
 public record ReshardMetrics(
     LongCounter reshardStartedCounter,
+    LongHistogram reshardTargetShardCountHistogram,
     LongHistogram indexingBlockedDurationHistogram,
     DoubleHistogram targetCloneDurationHistogram,
     LongHistogram targetHandoffDurationHistogram,
@@ -36,6 +37,7 @@ public record ReshardMetrics(
     public static ReshardMetrics NOOP = new ReshardMetrics(MeterRegistry.NOOP);
 
     public static final String RESHARD_COUNT = "es.reshard.total";
+    public static final String RESHARD_TARGET_SHARD_COUNT = "es.reshard.target_shards.total";
     public static final String RESHARD_INDEXING_BLOCKED_DURATION = "es.reshard.indexing_blocked_time.histogram";
     public static final String RESHARD_TARGET_CLONE_DURATION = "es.reshard.target.clone.duration.histogram";
     public static final String RESHARD_TARGET_HANDOFF_DURATION = "es.reshard.target.handoff.duration.histogram";
@@ -44,6 +46,7 @@ public record ReshardMetrics(
     public ReshardMetrics(MeterRegistry meterRegistry) {
         this(
             meterRegistry.registerLongCounter(RESHARD_COUNT, "reshard operations", "count"),
+            meterRegistry.registerLongHistogram(RESHARD_TARGET_SHARD_COUNT, "target shard count per reshard operation", "count"),
             meterRegistry.registerLongHistogram(RESHARD_INDEXING_BLOCKED_DURATION, "indexing blocked duration", "ms"),
             meterRegistry.registerDoubleHistogram(RESHARD_TARGET_CLONE_DURATION, "reshard target clone duration", "s"),
             meterRegistry.registerLongHistogram(RESHARD_TARGET_HANDOFF_DURATION, "reshard target handoff duration", "ms"),

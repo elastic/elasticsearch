@@ -198,6 +198,7 @@ public class ReshardIndexService {
         onlyReshardIndex(masterNodeTimeout, request, listener.delegateFailureAndWrap((delegate, response) -> {
             logger.trace("[{}] index reshard acknowledged", request.index().getName());
             reshardMetrics.reshardStartedCounter().increment();
+            reshardMetrics.reshardTargetShardCountHistogram().record(request.getNewShardCount());
             delegate.onResponse(null);
         }));
     }

@@ -41,7 +41,7 @@ public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory i
                 throw new IllegalArgumentException("icu_transform filter [" + name + "] has invalid ruleset: " + e.getMessage(), e);
             }
         } else {
-            this.transliterator = Transliterator.getInstance(id, dir);
+            this.transliterator = Transliterator.getInstance(id != null ? id : "Null", dir);
         }
     }
 

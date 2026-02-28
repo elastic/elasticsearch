@@ -1240,7 +1240,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             greaterThanOrEqualTo(1)
         );
         readersBuiltMatcher = readersBuiltMatcher.entry(
-            "message:row_stride:[Delegating[to=message.keyword, impl=BytesRefsFromOrds.Singleton]/BlockSourceReader.Bytes]",
+            "message:row_stride:[Delegating[to=message.keyword, impl=BytesRefsFromOrds.RowStride]/BlockSourceReader.Bytes]",
             greaterThanOrEqualTo(1)
         );
         assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));

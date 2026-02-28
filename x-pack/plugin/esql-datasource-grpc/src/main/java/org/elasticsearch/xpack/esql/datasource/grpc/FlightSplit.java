@@ -46,9 +46,7 @@ public class FlightSplit implements ExternalSplit {
             throw new IllegalArgumentException("ticketBytes must not be null or empty");
         }
         if (ticketBytes.length > MAX_TICKET_SIZE) {
-            throw new IllegalArgumentException(
-                "ticketBytes length [" + ticketBytes.length + "] exceeds maximum [" + MAX_TICKET_SIZE + "]"
-            );
+            throw new IllegalArgumentException("ticketBytes length [" + ticketBytes.length + "] exceeds maximum [" + MAX_TICKET_SIZE + "]");
         }
         this.ticketBytes = ticketBytes;
         this.location = location;
@@ -104,7 +102,9 @@ public class FlightSplit implements ExternalSplit {
             return false;
         }
         FlightSplit that = (FlightSplit) o;
-        return estimatedRows == that.estimatedRows && Arrays.equals(ticketBytes, that.ticketBytes) && Objects.equals(location, that.location);
+        return estimatedRows == that.estimatedRows
+            && Arrays.equals(ticketBytes, that.ticketBytes)
+            && Objects.equals(location, that.location);
     }
 
     @Override

@@ -82,12 +82,7 @@ public class AsyncConnectorSourceOperatorFactorySplitTests extends ESTestCase {
         LegacySplitCapturingConnector connector = new LegacySplitCapturingConnector(receivedSplits);
         QueryRequest baseRequest = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
 
-        AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(
-            connector,
-            baseRequest,
-            10,
-            Runnable::run
-        );
+        AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(connector, baseRequest, 10, Runnable::run);
 
         DriverContext driverContext = mockDriverContext();
         SourceOperator operator = factory.get(driverContext);

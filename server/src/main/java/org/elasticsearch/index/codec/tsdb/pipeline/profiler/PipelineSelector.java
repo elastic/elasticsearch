@@ -77,11 +77,12 @@ public final class PipelineSelector {
         }
 
         // NOTE: SPEED bypasses ALP entirely — ALP's (e,f) search is the most expensive
-        // encode step, and for speed we prefer the simpler XOR chain even when XOR reduction
-        // is below the 25% gate. The XOR chain terminates at Chimp128, which handles varied
-        // data patterns with reasonable compression and fast sequential encode/decode.
+        // encode step. Instead, previous-value XOR exploits bit-level similarity between
+        // consecutive sortable-long representations of close doubles, producing compact
+        // residuals that the integer pipeline (delta, offset, gcd, pfor, bitpack) handles
+        // efficiently with fast bulk encode/decode.
         if (hint == OptimizeFor.SPEED) {
-            return selectXorDouble(profile, blockSize, hint);
+            return PipelineConfig.forDoubles(blockSize).xor().delta().offset().gcd().patchedPFor().bitPack();
         }
 
         // NOTE: ALP exploits decimal structure in the IEEE domain — it finds integer
@@ -153,7 +154,7 @@ public final class PipelineSelector {
         }
 
         if (hint == OptimizeFor.SPEED) {
-            return selectXorFloat(profile, blockSize, hint);
+            return PipelineConfig.forFloats(blockSize).xor().delta().offset().gcd().patchedPFor().bitPack();
         }
 
         return selectAlpFloat(blockSize, hint);

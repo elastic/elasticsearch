@@ -136,9 +136,9 @@ public class PipelineSelectorTests extends ESTestCase {
         assertAlpMaxError(config, 1e-6);
     }
 
-    public void testNoisyDoubleSpeedBypassesAlpForXor() {
-        // NOTE: SPEED bypasses ALP entirely — even when XOR reduction is below the 25% gate,
-        // SPEED prefers the XOR chain (terminates at Chimp128) over ALP's expensive (e,f) search.
+    public void testNoisyDoubleSpeedSelectsXorIntegerPipeline() {
+        // NOTE: SPEED bypasses ALP entirely — previous-value XOR followed by the integer
+        // pipeline (delta, offset, gcd, pfor, bitpack) for fast bulk encode/decode.
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(
             profile,
@@ -149,9 +149,15 @@ public class PipelineSelectorTests extends ESTestCase {
         );
 
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.AlpDoubleStage.class))));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Xor.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
-    public void testNoisyFloatSpeedBypassesAlpForXor() {
+    public void testNoisyFloatSpeedSelectsXorIntegerPipeline() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(
             profile,
@@ -162,6 +168,12 @@ public class PipelineSelectorTests extends ESTestCase {
         );
 
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.AlpFloatStage.class))));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Xor.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
     public void testDoubleCounterDefaultSelectsFpc() {
@@ -696,6 +708,54 @@ public class PipelineSelectorTests extends ESTestCase {
         final PipelineConfig config = PipelineConfig.forLongs(BS).offset().bitPack();
         final int bytes = measureAndLog("random-long", config, values);
         assertTrue("random longs should still fit in raw bits, got " + bytes, bytes <= RAW_LONG_BYTES);
+    }
+
+    public void testXorPipelineDoubleRoundTrip() throws IOException {
+        final long[] original = smoothDoubles(BS, 100.0, 0.1);
+        final PipelineConfig config = PipelineConfig.forDoubles(BS).xor().delta().offset().gcd().patchedPFor().bitPack();
+
+        final long[] block = Arrays.copyOf(original, BS);
+        final byte[] buffer = new byte[BS * Long.BYTES * 8];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+        encoder.newBlockEncoder().encode(block, BS, out);
+
+        final long[] decoded = new long[BS];
+        final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+        final int decodedCount = NumericDecoder.fromDescriptor(encoder.descriptor()).newBlockDecoder().decode(decoded, in);
+
+        assertEquals(BS, decodedCount);
+        assertArrayEquals(original, decoded);
+    }
+
+    public void testXorPipelineFloatRoundTrip() throws IOException {
+        final long[] original = decimalFloats(BS, 20.0f, 5.0f);
+        final PipelineConfig config = PipelineConfig.forFloats(BS).xor().delta().offset().gcd().patchedPFor().bitPack();
+
+        final long[] block = Arrays.copyOf(original, BS);
+        final byte[] buffer = new byte[BS * Long.BYTES * 8];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+        encoder.newBlockEncoder().encode(block, BS, out);
+
+        final long[] decoded = new long[BS];
+        final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+        final int decodedCount = NumericDecoder.fromDescriptor(encoder.descriptor()).newBlockDecoder().decode(decoded, in);
+
+        assertEquals(BS, decodedCount);
+        assertArrayEquals(original, decoded);
+    }
+
+    public void testEncodedSizeXorPipelineDouble() throws IOException {
+        final long[] randomWalk = smoothDoubles(BS, 100.0, 0.1);
+        final long[] monotonic = monotonicDoubles(BS, 1000.0, 0.5);
+        final PipelineConfig config = PipelineConfig.forDoubles(BS).xor().delta().offset().gcd().patchedPFor().bitPack();
+
+        final int walkBytes = measureAndLog("xor-pipeline-randomwalk-double", config, randomWalk);
+        final int monotonicBytes = measureAndLog("xor-pipeline-monotonic-double", config, monotonic);
+
+        assertTrue("xor pipeline should compress random walk doubles, got " + walkBytes, walkBytes < RAW_LONG_BYTES);
+        assertTrue("xor pipeline should compress monotonic doubles, got " + monotonicBytes, monotonicBytes < RAW_LONG_BYTES);
     }
 
     public void testEncodedSizeXorDoublesOnRandomWalk() throws IOException {

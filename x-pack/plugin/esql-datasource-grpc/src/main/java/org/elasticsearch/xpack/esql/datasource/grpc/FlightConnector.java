@@ -16,6 +16,7 @@ import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
@@ -42,11 +43,25 @@ class FlightConnector implements Connector {
 
     @Override
     public ResultCursor execute(QueryRequest request, Split split) {
-        FlightInfo info = client.getInfo(FlightDescriptor.path(request.target()));
-        if (info.getEndpoints().isEmpty()) {
-            throw new IllegalStateException("Flight server returned no endpoints for target: " + request.target());
+        return doExecute(request, null);
+    }
+
+    @Override
+    public ResultCursor execute(QueryRequest request, ExternalSplit split) {
+        return doExecute(request, split instanceof FlightSplit fs ? fs : null);
+    }
+
+    private ResultCursor doExecute(QueryRequest request, FlightSplit flightSplit) {
+        Ticket ticket;
+        if (flightSplit != null) {
+            ticket = new Ticket(flightSplit.ticketBytes());
+        } else {
+            FlightInfo info = client.getInfo(FlightDescriptor.path(request.target()));
+            if (info.getEndpoints().isEmpty()) {
+                throw new IllegalStateException("Flight server returned no endpoints for target: " + request.target());
+            }
+            ticket = info.getEndpoints().get(0).getTicket();
         }
-        Ticket ticket = info.getEndpoints().get(0).getTicket();
         FlightStream stream = client.getStream(ticket);
         return new FlightResultCursor(stream, request.attributes(), request.blockFactory());
     }

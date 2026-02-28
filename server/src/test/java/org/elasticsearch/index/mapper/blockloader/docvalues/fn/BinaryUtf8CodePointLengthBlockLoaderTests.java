@@ -80,7 +80,7 @@ public class BinaryUtf8CodePointLengthBlockLoaderTests extends AbstractBlockLoad
                     var codePointsReader = codePointsLoader.reader(breaker, ctx);
                 ) {
                     assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts"));
-                    try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs);) {
+                    try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs)) {
                         checkBlocks(strings, codePoints);
                     }
                     assertThat(warnings.warnings(), equalTo(expectedWarnings));
@@ -97,7 +97,7 @@ public class BinaryUtf8CodePointLengthBlockLoaderTests extends AbstractBlockLoad
                             docsArray[d] = i + d;
                         }
                         docs = TestBlock.docs(docsArray);
-                        try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs);) {
+                        try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs)) {
                             checkBlocks(strings, codePoints);
                         }
                     }
@@ -112,7 +112,7 @@ public class BinaryUtf8CodePointLengthBlockLoaderTests extends AbstractBlockLoad
                 ) {
                     for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
                         docs = TestBlock.docs(docId);
-                        try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs);) {
+                        try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(codePointsReader, docs)) {
                             checkBlocks(strings, codePoints);
                         }
                     }

@@ -18,6 +18,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.SpecReader;
+import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils;
+import org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.DataSourcesAzureHttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.DataSourcesS3HttpFixture;
 import org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.S3RequestLog;
@@ -40,9 +42,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 
+import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.ACCOUNT;
+import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.CONTAINER;
+import static org.elasticsearch.xpack.esql.datasources.AzureFixtureUtils.KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY;
@@ -81,14 +87,17 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         /** Local file system storage (direct classpath resource access) */
         LOCAL,
         /** Google Cloud Storage via GoogleCloudStorageHttpFixture */
-        GCS
+        GCS,
+        /** Azure Blob Storage via AzureHttpFixture */
+        AZURE
     }
 
     private static final List<StorageBackend> BACKENDS = List.of(
         StorageBackend.S3,
         StorageBackend.HTTP,
         StorageBackend.LOCAL,
-        StorageBackend.GCS
+        StorageBackend.GCS,
+        StorageBackend.AZURE
     );
 
     /**
@@ -153,6 +162,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     @ClassRule
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
+    @ClassRule
+    public static DataSourcesAzureHttpFixture azureFixture = new DataSourcesAzureHttpFixture();
+
     /** GCS bucket name used by the GCS fixture */
     protected static final String GCS_BUCKET = "test-gcs-bucket";
 
@@ -180,6 +192,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     public static void loadExternalSourceFixtures() {
         s3Fixture.loadFixturesFromResources();
         loadGcsFixtures();
+        azureFixture.loadFixturesFromResources();
         generateCompressedFixtures();
         resolveLocalFixturesPath();
     }
@@ -207,7 +220,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /**
      * Generate compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson fixtures
-     * on the fly and add them to the S3 and GCS fixtures. This avoids checking in binary
+     * on the fly and add them to the S3, GCS, and Azure fixtures. This avoids checking in binary
      * compressed files.
      */
     private static void generateCompressedFixtures() {
@@ -227,6 +240,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
                     addBlobToFixture(key, compressed);
                     gcsFixture.getHandler().putBlob(key, new BytesArray(compressed));
+                    AzureFixtureUtils.addBlobToFixture(azureFixture.getAddress(), key, compressed);
                     generated[0]++;
                 }
             });
@@ -329,6 +343,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         logger.info("=== External Source Test Setup Verification ===");
         logger.info("S3 Fixture endpoint: {}", s3Fixture.getAddress());
         logger.info("GCS Fixture endpoint: {}", gcsFixture.getAddress());
+        logger.info("Azure Fixture endpoint: {}", azureFixture.getAddress());
         logger.info("Local fixtures path: {}", localFixturesPath);
     }
 
@@ -409,6 +424,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             query = injectGcsParams(query);
         }
 
+        // Inject endpoint and credentials for Azure backend
+        if (storageBackend == StorageBackend.AZURE && isExternalQuery(query) && hasEndpointParam(query) == false) {
+            query = injectAzureParams(query);
+        }
+
         logger.debug("Transformed query for {} backend: {}", storageBackend, query);
         doTest(query);
     }
@@ -477,6 +497,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             case GCS:
                 // GCS path: gs://bucket/warehouse/standalone/employees.parquet
                 return "gs://" + GCS_BUCKET + "/" + WAREHOUSE + "/" + relativePath;
+
+            case AZURE:
+                // Azure path: wasbs://account.blob.core.windows.net/container/warehouse/standalone/employees.parquet
+                return "wasbs://" + ACCOUNT + ".blob.core.windows.net/" + CONTAINER + "/" + WAREHOUSE + "/" + relativePath;
 
             default:
                 throw new IllegalArgumentException("Unknown storage backend: " + storageBackend);
@@ -547,6 +571,34 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Inject Azure endpoint and credentials into the query.
+     */
+    private String injectAzureParams(String query) {
+        String trimmed = query.trim();
+        int pipeIndex = findFirstPipeAfterExternal(trimmed);
+
+        String externalPart;
+        String restOfQuery;
+
+        if (pipeIndex == -1) {
+            externalPart = trimmed;
+            restOfQuery = "";
+        } else {
+            externalPart = trimmed.substring(0, pipeIndex).trim();
+            restOfQuery = " " + trimmed.substring(pipeIndex);
+        }
+
+        StringBuilder params = new StringBuilder();
+        params.append(" WITH { ");
+        params.append("\"endpoint\": \"").append(azureFixture.getAddress()).append("\", ");
+        params.append("\"account\": \"").append(ACCOUNT).append("\", ");
+        params.append("\"key\": \"").append(KEY).append("\"");
+        params.append(" }");
+
+        return externalPart + params.toString() + restOfQuery;
+    }
+
+    /**
      * Check if query starts with EXTERNAL command.
      */
     private static boolean isExternalQuery(String query) {
@@ -601,6 +653,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     protected static String getGcsEndpoint() {
         return gcsFixture.getAddress();
+    }
+
+    protected static String getAzureEndpoint() {
+        return azureFixture.getAddress();
     }
 
     protected static List<S3RequestLog> getRequestLogs() {

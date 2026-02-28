@@ -177,9 +177,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that dotted env vars are respected
     */
     public void test013DottedEnvVarsPersist() throws Exception {
-        installation = runContainer(
-            distribution(),
-            builder().envVar("discovery.seed_hosts", "host1").envVar("ELASTIC_PASSWORD", PASSWORD));
+        installation = runContainer(distribution(), builder().envVar("discovery.seed_hosts", "host1").envVar("ELASTIC_PASSWORD", PASSWORD));
         waitForElasticsearch(installation);
         Result result = sh.run("env | grep discovery");
         assertThat(result.stdout(), containsString("discovery.seed_hosts=host1"));

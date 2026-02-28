@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -15,7 +16,6 @@ import java.io.IOException;
 import java.net.ConnectException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Retry policy with exponential backoff and jitter for transient storage failures.
@@ -53,7 +53,7 @@ class RetryPolicy {
         }
         long baseDelay = initialDelayMs * (1L << attempt);
         long capped = Math.min(baseDelay, maxDelayMs);
-        long jitter = ThreadLocalRandom.current().nextLong(capped / 4 + 1);
+        long jitter = Randomness.get().nextLong(capped / 4 + 1);
         return capped + jitter;
     }
 

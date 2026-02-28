@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -35,14 +36,14 @@ public class RetryableStorageProviderTests extends ESTestCase {
             if (streamCalls.incrementAndGet() < 2) {
                 throw new SocketTimeoutException("timeout");
             }
-            return new ByteArrayInputStream("data".getBytes());
+            return new ByteArrayInputStream("data".getBytes(StandardCharsets.UTF_8));
         });
         StorageProvider delegate = stubProvider(inner);
         RetryableStorageProvider provider = new RetryableStorageProvider(delegate, new RetryPolicy(3, 1, 10));
 
         StorageObject obj = provider.newObject(StoragePath.of("s3://bucket/file.csv"));
         InputStream stream = obj.newStream();
-        assertEquals("data", new String(stream.readAllBytes()));
+        assertEquals("data", new String(stream.readAllBytes(), StandardCharsets.UTF_8));
         assertEquals(2, streamCalls.get());
     }
 
@@ -52,14 +53,14 @@ public class RetryableStorageProviderTests extends ESTestCase {
             if (streamCalls.incrementAndGet() < 2) {
                 throw new SocketTimeoutException("timeout");
             }
-            return new ByteArrayInputStream("data".getBytes());
+            return new ByteArrayInputStream("data".getBytes(StandardCharsets.UTF_8));
         });
         StorageProvider delegate = stubProvider(inner);
         RetryableStorageProvider provider = new RetryableStorageProvider(delegate, new RetryPolicy(3, 1, 10));
 
         StorageObject obj = provider.newObject(StoragePath.of("s3://bucket/file.csv"), 100);
         InputStream stream = obj.newStream();
-        assertEquals("data", new String(stream.readAllBytes()));
+        assertEquals("data", new String(stream.readAllBytes(), StandardCharsets.UTF_8));
     }
 
     public void testListObjectsRetriesOnTransientFailure() throws IOException {
@@ -126,12 +127,12 @@ public class RetryableStorageProviderTests extends ESTestCase {
         StorageObject inner = new StorageObject() {
             @Override
             public InputStream newStream() {
-                return new ByteArrayInputStream("data".getBytes());
+                return new ByteArrayInputStream("data".getBytes(StandardCharsets.UTF_8));
             }
 
             @Override
             public InputStream newStream(long position, long length) {
-                return new ByteArrayInputStream("data".getBytes());
+                return new ByteArrayInputStream("data".getBytes(StandardCharsets.UTF_8));
             }
 
             @Override
@@ -159,7 +160,7 @@ public class RetryableStorageProviderTests extends ESTestCase {
                 if (asyncCalls.incrementAndGet() < 3) {
                     listener.onFailure(new SocketTimeoutException("timeout"));
                 } else {
-                    listener.onResponse(ByteBuffer.wrap("async-data".getBytes()));
+                    listener.onResponse(ByteBuffer.wrap("async-data".getBytes(StandardCharsets.UTF_8)));
                 }
             }
         };
@@ -174,7 +175,7 @@ public class RetryableStorageProviderTests extends ESTestCase {
             ByteBuffer result = future.actionGet();
             byte[] bytes = new byte[result.remaining()];
             result.get(bytes);
-            assertEquals("async-data", new String(bytes));
+            assertEquals("async-data", new String(bytes, StandardCharsets.UTF_8));
             assertEquals(3, asyncCalls.get());
         } finally {
             exec.shutdown();

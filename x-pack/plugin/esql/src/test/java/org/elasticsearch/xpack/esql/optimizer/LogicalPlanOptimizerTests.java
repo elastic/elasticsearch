@@ -3386,6 +3386,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(subProject.child(), EsRelation.class);
     }
 
+
+    /**
+     * Expects
+     * <pre>{@code
+     * Project[[_meta_field{f}#18, $$emp_no$temp_name$28{r$}#29 AS salary#27, first_name{f}#13, gender{f}#14, hire_date{f}#19
+     * , job{f}#20, job.raw{f}#21, languages{f}#15 AS x#5, last_name{f}#16, long_noidx{f}#22, language_code{r}#25, language_name{r}#26]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[emp_no{f}#12,$$emp_no$temp_name$28{r$}#29]
+     *     \_Enrich[ANY,languages_idx[KEYWORD],languages{f}#15,{"match":{"indices":[],"match_field":"id","enrich_fields":["language_c
+     * ode","language_name"]}},{=languages_idx},[language_code{r}#25, language_name{r}#26]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[employees][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     * }</pre>
+     */
+    public void testPushDownMvExpandPastProject8() {
+        LogicalPlan plan = optimizedPlan("""
+            from employees
+            | rename languages AS x
+            | enrich languages_idx on x
+            | rename emp_no AS salary
+            | mv_expand salary
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
+        var mvExpand = as(limit.child(), MvExpand.class);
+        var enrich = as(mvExpand.child(), Enrich.class);
+        limit = asLimit(enrich.child(), 1000, false);
+        as(limit.child(), EsRelation.class);
+    }
+
     public void testTopNEnrich() {
         LogicalPlan plan = optimizedPlan("""
             from test

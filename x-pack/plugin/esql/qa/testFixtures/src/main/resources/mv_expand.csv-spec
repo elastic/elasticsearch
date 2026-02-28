@@ -664,3 +664,22 @@ salary:keyword | tmp:keyword
 25976          | 25976          
 25976          | 25976       
 ;
+
+
+testPushDownMvExpandPastProject8
+required_capability: enrich_load
+required_capability: push_down_mv_expand_past_project
+from employees
+| rename languages AS x
+| enrich languages_policy on x
+| rename last_name AS emp_no
+| mv_expand emp_no
+| keep emp_no
+| sort emp_no
+| limit 2
+;
+
+emp_no:keyword
+Awdeh         
+Azuma  
+;

@@ -453,6 +453,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomKeywordFieldsInSubqueryIntermediateResults
   issue: https://github.com/elastic/elasticsearch/issues/143314
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  method: testConcurrentDynamicIgnoreBeyondLimitUpdates
+  issue: https://github.com/elastic/elasticsearch/issues/143326
 
 # Examples:
 #

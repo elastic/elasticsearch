@@ -152,6 +152,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
         });
 
+        private final Parameter<Boolean> storeRoot = Parameter.boolParam("store_root", false, m -> builder(m).storeRoot.get(), false);
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
 
@@ -245,6 +246,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] {
                 indexed,
+                storeRoot,
                 hasDocValues,
                 depthLimit,
                 nullValue,
@@ -1105,7 +1107,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.depthLimit.get(),
             builder.ignoreAbove.get(),
             builder.nullValue.get(),
-            builder.usesBinaryDocValues
+            builder.usesBinaryDocValues,
+            builder.storeRoot.get()
         );
     }
 

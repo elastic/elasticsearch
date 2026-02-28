@@ -596,6 +596,7 @@ public class LocalExecutionPlanner {
                 asList(encoders),
                 orders,
                 context.pageSize(topNExec, rowSize),
+                context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNExec.inputOrdering(),
                 topNExec.minCompetitive()
             ),

@@ -82,6 +82,18 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.orc'
 }
 
+// OrcFixtureGenerator has minimal classpath (no Lucene); es-all-signatures references
+// org.apache.lucene.util.IOUtils. Use only JDK signatures to avoid parse failures.
+tasks.named('forbiddenApisOrcFixtureGenerator').configure { task ->
+  def resourcesDir = task.resourcesDir
+  task.setSignaturesFiles(
+    project.files(
+      new File(resourcesDir, 'forbidden/jdk-signatures.txt'),
+      new File(resourcesDir, 'forbidden/jdk-deprecated.txt')
+    )
+  )
+}
+
 // Generate the employees.orc fixture file before tests run.
 // The OrcFixtureGenerator reads the canonical employees.csv and writes an equivalent ORC file.
 def orcFixtureDir = file("src/javaRestTest/resources/iceberg-fixtures/standalone")

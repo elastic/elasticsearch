@@ -20,6 +20,7 @@ import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -134,6 +135,8 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
      * {@link #LOCAL_CLUSTER_GROUP_KEY}. The returned map is mutable.
      *
      * This method supports excluding clusters by using the {@code -cluster:*} index expression.
+     * Expressions are processed left to right, and order is significant: a cluster can only be excluded if it has been included
+     * by a preceding expression, and including a cluster after it has been excluded adds it back.
      * For example, if requestIndices is [blogs, *:blogs, -remote1:*] and *:blogs resolves to "remote1:blogs, remote2:blogs"
      * the map returned by the function will not have the remote1 entry. It will have only {"":blogs, remote2:blogs}.
      * The index for the excluded cluster must be '*' to clarify that the entire cluster should be removed.
@@ -148,6 +151,7 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
      */
     protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
+        Set<String> everIncluded = new HashSet<>();
         boolean hasExclusions = false;
         for (String index : requestIndices) {
             // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
@@ -185,7 +189,8 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                     hasExclusions = true;
                     List<String> excludeFailed = new ArrayList<>();
                     for (String cluster : clusters) {
-                        if (perClusterIndices.remove(cluster) == null) {
+                        perClusterIndices.remove(cluster);
+                        if (everIncluded.contains(cluster) == false) {
                             excludeFailed.add(cluster);
                         }
                     }
@@ -202,6 +207,7 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                 } else {
                     for (String clusterName : clusters) {
                         perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
+                        everIncluded.add(clusterName);
                     }
                 }
             } else {

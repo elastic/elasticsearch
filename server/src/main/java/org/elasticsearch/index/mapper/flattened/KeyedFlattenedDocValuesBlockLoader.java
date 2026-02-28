@@ -50,7 +50,7 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
 
     @Override
     public Builder builder(BlockFactory factory, int expectedCount) {
-        return null;
+        return factory.bytesRefs(expectedCount);
     }
 
     private abstract static class KeyedBlockDocValuesReader extends BlockDocValuesReader {

@@ -68,7 +68,8 @@ dependencies {
   testImplementation project(path: xpackModule('esql-datasource-gzip'))
   testImplementation project(path: xpackModule('esql-datasource-zstd'))
   testImplementation project(path: xpackModule('esql-datasource-bzip2'))
-  testImplementation "org.apache.commons:commons-compress:1.26.1"
+  testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  testImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')

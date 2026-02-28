@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -61,6 +62,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FileSet fileSet;
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
+    private final ExternalSliceQueue sliceQueue;
 
     public AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -72,7 +74,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Executor executor,
         FileSet fileSet,
         Set<String> partitionColumnNames,
-        Map<String, Object> partitionValues
+        Map<String, Object> partitionValues,
+        ExternalSliceQueue sliceQueue
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -106,6 +109,34 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.fileSet = fileSet;
         this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
+        this.sliceQueue = sliceQueue;
+    }
+
+    public AsyncExternalSourceOperatorFactory(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        StoragePath path,
+        List<Attribute> attributes,
+        int batchSize,
+        int maxBufferSize,
+        Executor executor,
+        FileSet fileSet,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues
+    ) {
+        this(
+            storageProvider,
+            formatReader,
+            path,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            executor,
+            fileSet,
+            partitionColumnNames,
+            partitionValues,
+            null
+        );
     }
 
     public AsyncExternalSourceOperatorFactory(
@@ -118,7 +149,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Executor executor,
         FileSet fileSet
     ) {
-        this(storageProvider, formatReader, path, attributes, batchSize, maxBufferSize, executor, fileSet, null, null);
+        this(storageProvider, formatReader, path, attributes, batchSize, maxBufferSize, executor, fileSet, null, null, null);
     }
 
     public AsyncExternalSourceOperatorFactory(
@@ -130,30 +161,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxBufferSize,
         Executor executor
     ) {
-        this(storageProvider, formatReader, path, attributes, batchSize, maxBufferSize, executor, null, null, null);
+        this(storageProvider, formatReader, path, attributes, batchSize, maxBufferSize, executor, null, null, null, null);
     }
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        VirtualColumnInjector injector = null;
-        List<String> projectedColumns;
-
-        if (partitionColumnNames.isEmpty() == false) {
-            injector = new VirtualColumnInjector(attributes, partitionColumnNames, partitionValues, driverContext.blockFactory());
-            projectedColumns = injector.dataColumnNames();
-        } else {
-            projectedColumns = new ArrayList<>(attributes.size());
-            for (Attribute attr : attributes) {
-                projectedColumns.add(attr.name());
-            }
-        }
-
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferSize);
         driverContext.addAsyncAction();
 
-        if (fileSet != null && fileSet.isResolved()) {
+        if (sliceQueue != null) {
+            startSliceQueueRead(buffer, driverContext);
+        } else if (fileSet != null && fileSet.isResolved()) {
+            VirtualColumnInjector injector = buildInjector(driverContext);
+            List<String> projectedColumns = projectedColumns(injector);
             startMultiFileRead(projectedColumns, buffer, driverContext, injector);
         } else {
+            VirtualColumnInjector injector = buildInjector(driverContext);
+            List<String> projectedColumns = projectedColumns(injector);
             StorageObject storageObject = storageProvider.newObject(path);
             if (formatReader.supportsNativeAsync()) {
                 startNativeAsyncRead(storageObject, projectedColumns, buffer, driverContext, injector);
@@ -163,6 +187,60 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
 
         return new AsyncExternalSourceOperator(buffer);
+    }
+
+    private VirtualColumnInjector buildInjector(DriverContext driverContext) {
+        if (partitionColumnNames.isEmpty() == false) {
+            return new VirtualColumnInjector(attributes, partitionColumnNames, partitionValues, driverContext.blockFactory());
+        }
+        return null;
+    }
+
+    private List<String> projectedColumns(VirtualColumnInjector injector) {
+        if (injector != null) {
+            return injector.dataColumnNames();
+        }
+        List<String> cols = new ArrayList<>(attributes.size());
+        for (Attribute attr : attributes) {
+            cols.add(attr.name());
+        }
+        return cols;
+    }
+
+    private void startSliceQueueRead(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
+        executor.execute(() -> {
+            try {
+                ExternalSplit split;
+                while ((split = sliceQueue.nextSplit()) != null) {
+                    if (buffer.noMoreInputs()) {
+                        break;
+                    }
+                    if (split instanceof FileSplit fileSplit) {
+                        VirtualColumnInjector injector = null;
+                        if (partitionColumnNames.isEmpty() == false) {
+                            injector = new VirtualColumnInjector(
+                                attributes,
+                                partitionColumnNames,
+                                fileSplit.partitionValues(),
+                                driverContext.blockFactory()
+                            );
+                        }
+                        List<String> cols = projectedColumns(injector);
+                        StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
+                        try (CloseableIterator<Page> pages = formatReader.read(obj, cols, batchSize)) {
+                            drainPages(pages, buffer, injector);
+                        }
+                    } else {
+                        throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
+                    }
+                }
+                buffer.finish(false);
+            } catch (Exception e) {
+                buffer.onFailure(e);
+            } finally {
+                driverContext.removeAsyncAction();
+            }
+        });
     }
 
     private void startMultiFileRead(
@@ -353,5 +431,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     public Map<String, Object> partitionValues() {
         return partitionValues;
+    }
+
+    public ExternalSliceQueue sliceQueue() {
+        return sliceQueue;
     }
 }

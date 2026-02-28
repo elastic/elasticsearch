@@ -399,21 +399,18 @@ public final class S3FixtureUtils {
         public void loadFixturesFromResources() {
             try {
                 URL resourceUrl = getClass().getResource(FIXTURES_RESOURCE_PATH);
-                if (resourceUrl == null) {
-                    fixtureLogger.warn("Fixtures resource path not found: {}", FIXTURES_RESOURCE_PATH);
-                    return;
-                }
-
-                if (resourceUrl.getProtocol().equals("file")) {
-                    Path fixturesPath = Paths.get(resourceUrl.toURI());
-                    loadFixturesFromPath(fixturesPath);
-                } else {
-                    fixtureLogger.warn("Cannot load fixtures from non-file URL: {}", resourceUrl);
-                }
+                assert resourceUrl != null : "Fixtures resource path not found: + FIXTURES_RESOURCE_PATH";
+                assert resourceUrl.getProtocol().equals("file") : "Fixtures resource path must be a file: " + resourceUrl;
+                Path fixturesPath = Paths.get(resourceUrl.toURI());
+                loadFixturesFromPath(fixturesPath);
             } catch (Exception e) {
                 fixtureLogger.error("Failed to load fixtures from resources", e);
+                throw new RuntimeException(e);
             }
         }
+
+        /** Compressed extensions generated on the fly; skip loading from disk */
+        private static final Set<String> COMPRESSED_EXTENSIONS = Set.of(".gz", ".zst", ".zstd", ".bz2", ".bz");
 
         private void loadFixturesFromPath(Path fixturesPath) throws IOException {
             if (Files.exists(fixturesPath) == false) {
@@ -426,6 +423,10 @@ public final class S3FixtureUtils {
             Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    String name = file.getFileName().toString();
+                    if (COMPRESSED_EXTENSIONS.stream().anyMatch(name::endsWith)) {
+                        return FileVisitResult.CONTINUE;
+                    }
                     String relativePath = fixturesPath.relativize(file).toString();
                     String key = WAREHOUSE + "/" + relativePath;
 

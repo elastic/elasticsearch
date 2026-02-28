@@ -69,8 +69,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
      * is 128k, or if the number of values is 1024. These values are a tradeoff between the high compression ratio and decompression
      * speed of large blocks, and the ability to avoid decompressing unneeded values provided by small blocks.
       */
-    public static final int BLOCK_BYTES_THRESHOLD = 128 * 1024;
-    public static final int BLOCK_COUNT_THRESHOLD = 1024;
+    public static final int BLOCK_BYTES_THRESHOLD = 1024 * 1024;
+    public static final int BLOCK_COUNT_THRESHOLD = 8192;
 
     // number of documents in an interval
     static final int DEFAULT_SKIP_INDEX_INTERVAL_SIZE = 4096;

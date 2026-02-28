@@ -156,6 +156,7 @@ public class TopNBenchmark {
             encoders,
             sortOrders,
             8 * 1024,
+            Long.MAX_VALUE,
             sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED,
             minCompetitive // This is optional, but doesn't add much overhead either way
         );

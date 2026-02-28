@@ -114,15 +114,15 @@ public class OrcFormatReader implements FormatReader {
             for (String columnName : projectedColumns) {
                 Attribute attr = attributeMap.get(columnName);
                 if (attr != null) {
-                    projectedAttributes.add(attr);
                     Integer idx = nameToIndex.get(columnName);
                     if (idx != null) {
                         TypeDescription child = schema.getChildren().get(idx);
                         include[child.getId()] = true;
                     }
                 } else {
-                    projectedAttributes.add(new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL));
+                    attr = new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL);
                 }
+                projectedAttributes.add(attr);
             }
         }
 

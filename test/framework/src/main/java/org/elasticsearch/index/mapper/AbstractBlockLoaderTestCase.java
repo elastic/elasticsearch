@@ -96,7 +96,7 @@ public abstract class AbstractBlockLoaderTestCase extends ESTestCase {
      *     to load after a TopN.
      * </p>
      */
-    protected final TestBlock read(BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
+    protected final TestBlock read(BlockLoader.ColumnAtATimeReader reader, BlockLoader.Docs docs) throws IOException {
         if (randomBoolean()) {
             return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
         }

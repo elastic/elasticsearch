@@ -76,13 +76,18 @@ public final class PipelineSelector {
             return selectXorDouble(profile, blockSize, hint);
         }
 
+        // NOTE: SPEED bypasses ALP entirely — ALP's (e,f) search is the most expensive
+        // encode step, and for speed we prefer the simpler XOR chain even when XOR reduction
+        // is below the 25% gate. The XOR chain terminates at Chimp128, which handles varied
+        // data patterns with reasonable compression and fast sequential encode/decode.
+        if (hint == OptimizeFor.SPEED) {
+            return selectXorDouble(profile, blockSize, hint);
+        }
+
         // NOTE: ALP exploits decimal structure in the IEEE domain — it finds integer
         // exponent/factor pairs (e,f) that convert doubles to integers with minimal
         // exceptions. This works regardless of XOR statistics and is the right choice
         // when data originates from decimal sources (sensor readings, prices, percentages).
-        // Quantization aggressiveness is graduated by the optimize_for hint. SPEED does not
-        // bypass ALP here — we already know XOR reduction is insufficient (< 25% of raw bits),
-        // so an XOR-integer pipeline would compress worse than ALP's decimal transform.
         return selectAlpDouble(blockSize, hint);
     }
 
@@ -144,6 +149,10 @@ public final class PipelineSelector {
 
         final long xorReduction = profile.rawMaxBits() - profile.xorMaxBits();
         if (xorReduction >= profile.rawMaxBits() / 4) {
+            return selectXorFloat(profile, blockSize, hint);
+        }
+
+        if (hint == OptimizeFor.SPEED) {
             return selectXorFloat(profile, blockSize, hint);
         }
 

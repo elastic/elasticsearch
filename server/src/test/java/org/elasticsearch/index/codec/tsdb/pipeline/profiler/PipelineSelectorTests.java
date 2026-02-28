@@ -136,9 +136,9 @@ public class PipelineSelectorTests extends ESTestCase {
         assertAlpMaxError(config, 1e-6);
     }
 
-    public void testNoisyDoubleSpeedSelectsLosslessAlp() {
-        // NOTE: xorMaxBits == rawMaxBits (30 == 30) → no XOR benefit, so SPEED still
-        // falls through to ALP. SPEED only affects the XOR path (wider FPC/Gorilla thresholds).
+    public void testNoisyDoubleSpeedBypassesAlpForXor() {
+        // NOTE: SPEED bypasses ALP entirely — even when XOR reduction is below the 25% gate,
+        // SPEED prefers the XOR chain (terminates at Chimp128) over ALP's expensive (e,f) search.
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(
             profile,
@@ -148,8 +148,20 @@ public class PipelineSelectorTests extends ESTestCase {
             null
         );
 
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
-        assertAlpMaxError(config, -1.0);
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.AlpDoubleStage.class))));
+    }
+
+    public void testNoisyFloatSpeedBypassesAlpForXor() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
+        final PipelineConfig config = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.FLOAT,
+            PipelineResolver.OptimizeFor.SPEED,
+            null
+        );
+
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.AlpFloatStage.class))));
     }
 
     public void testDoubleCounterDefaultSelectsFpc() {

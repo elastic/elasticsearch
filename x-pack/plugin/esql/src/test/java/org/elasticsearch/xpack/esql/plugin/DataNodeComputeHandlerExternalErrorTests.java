@@ -95,11 +95,7 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
             sourcePath,
             sourceType,
             List.of(
-                new FieldAttribute(
-                    Source.EMPTY,
-                    "id",
-                    new EsField("id", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
-                )
+                new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
             ),
             Map.of(),
             Map.of(),

@@ -34,9 +34,7 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
     public void testUncheckedIOExceptionWrappedWithContext() {
         ExternalSourceExec exec = createExternalSourceExec("s3://bucket/data/*.parquet", "parquet");
-        SplitProvider failingProvider = ctx -> {
-            throw new UncheckedIOException(new IOException("connection reset by peer"));
-        };
+        SplitProvider failingProvider = ctx -> { throw new UncheckedIOException(new IOException("connection reset by peer")); };
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,

@@ -211,12 +211,13 @@ $if(BytesRef)$
         }
         return BASE_RAM_BYTES_USED + valuesSize;
     }
+
 $else$
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
-$endif$
 
+$endif$
 $if(int)$
     /**
      * The minimum value in the block.

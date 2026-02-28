@@ -174,6 +174,16 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Checks that dotted env vars are respected
+     */
+    public void test013DottedEnvVarsPersist() throws Exception {
+        runContainer(distribution(), builder().volume(tempDir, "/usr/share/elasticsearch/config").envVar("discovery.seed_hosts", "host1"));
+        waitForElasticsearch(installation);
+        Result result = sh.run("env | grep discovery");
+        assertThat(result.stdout(), containsString("discovery.seed_hosts=host1"));
+    }
+
+    /**
      * Checks that no plugins are initially active.
      */
     public void test020PluginsListWithNoPlugins() {

@@ -162,6 +162,168 @@ public class RemoteClusterAwareTests extends ESTestCase {
 
     }
 
+    public void testGroupClusterIndicesOnlyExclusion() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> remoteClusterAware.groupClusterIndices(remoteClusterNames, new String[] { "-cluster1:*" })
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("Attempt to exclude cluster [cluster1] failed as it is not included in the list of clusters to be included")
+        );
+    }
+
+    public void testGroupClusterIndicesInclusionThenExclusion() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
+        Map<String, List<String>> result = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "*:logs", "-cluster1:*" }
+        );
+        assertThat(result.size(), equalTo(1));
+        assertThat(result, hasKey("cluster2"));
+        assertThat(result.get("cluster2"), contains("logs"));
+    }
+
+    public void testGroupClusterIndicesInclusionUnrelatedExclusion() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> remoteClusterAware.groupClusterIndices(remoteClusterNames, new String[] { "cluster1:logs", "-cluster2:*" })
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("Attempt to exclude cluster [cluster2] failed as it is not included in the list of clusters to be included")
+        );
+    }
+
+    public void testGroupClusterIndicesInclusionMultipleExclusions() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2", "cluster3");
+        Map<String, List<String>> result = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "*:logs", "-cluster1:*", "-cluster2:*" }
+        );
+        assertThat(result.size(), equalTo(1));
+        assertThat(result, hasKey("cluster3"));
+        assertThat(result.get("cluster3"), contains("logs"));
+    }
+
+    public void testGroupClusterIndicesMixedWithIndexExclusions() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster", "cluster-2", "cluster-3");
+        Map<String, List<String>> result = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "*:logs", "-cluster:*", "cluster-2:-*" }
+        );
+        assertThat(result.size(), equalTo(2));
+        assertThat(result, not(hasKey("cluster")));
+        assertThat(result, hasKey("cluster-2"));
+        assertThat(result, hasKey("cluster-3"));
+        assertThat(result.get("cluster-2"), containsInAnyOrder("logs", "-*"));
+        assertThat(result.get("cluster-3"), contains("logs"));
+    }
+
+    public void testGroupClusterIndicesReinclusionAfterExclusion() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
+        Map<String, List<String>> result = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "*:logs", "-cluster1:*", "cluster1:other-logs" }
+        );
+        assertThat(result.size(), equalTo(2));
+        assertThat(result, hasKey("cluster1"));
+        assertThat(result, hasKey("cluster2"));
+        assertThat(result.get("cluster1"), contains("other-logs"));
+        assertThat(result.get("cluster2"), contains("logs"));
+    }
+
+    public void testGroupClusterIndicesExcludeReincludeExclude() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
+        Map<String, List<String>> result = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "*:logs", "-cluster1:*", "cluster1:metrics", "-cluster1:*" }
+        );
+        assertThat(result.size(), equalTo(1));
+        assertThat(result, hasKey("cluster2"));
+        assertThat(result, not(hasKey("cluster1")));
+        assertThat(result.get("cluster2"), contains("logs"));
+    }
+
+    public void testGroupClusterIndicesDoubleExclusionFails() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> remoteClusterAware.groupClusterIndices(remoteClusterNames, new String[] { "*:logs", "-cluster1:*", "-cluster1:*" })
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("Attempt to exclude cluster [cluster1] failed as it is not included in the list of clusters to be included")
+        );
+    }
+
+    public void testGroupClusterIndicesWildcardExclusionPartialMatch() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2", "cluster3");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> remoteClusterAware.groupClusterIndices(
+                remoteClusterNames,
+                new String[] { "cluster1:logs", "cluster2:logs", "-cluster*:*" }
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("Attempt to exclude cluster [cluster3] failed as it is not included in the list of clusters to be included")
+        );
+    }
+
+    public void testGroupClusterIndicesMultipleInclusionsThenExclusion() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
+        Map<String, List<String>> result = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "cluster1:logs", "cluster1:metrics", "cluster2:data", "-cluster1:*" }
+        );
+        assertThat(result.size(), equalTo(1));
+        assertThat(result, not(hasKey("cluster1")));
+        assertThat(result, hasKey("cluster2"));
+        assertThat(result.get("cluster2"), contains("data"));
+    }
+
+    public void testGroupClusterIndicesAllRemoteExcludedLocalSurvives() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
+        Map<String, List<String>> result = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "index1", "*:logs", "-cluster1:*", "-cluster2:*" }
+        );
+        assertThat(result.size(), equalTo(1));
+        assertThat(result, hasKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
+        assertThat(result, not(hasKey("cluster1")));
+        assertThat(result, not(hasKey("cluster2")));
+        assertThat(result.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY), contains("index1"));
+    }
+
+    public void testGroupClusterIndicesWildcardReinclusionAfterExclusion() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
+        Map<String, List<String>> result = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "*:logs", "-cluster1:*", "cluster*:metrics" }
+        );
+        assertThat(result.size(), equalTo(2));
+        assertThat(result, hasKey("cluster1"));
+        assertThat(result, hasKey("cluster2"));
+        assertThat(result.get("cluster1"), contains("metrics"));
+        assertThat(result.get("cluster2"), containsInAnyOrder("logs", "metrics"));
+    }
+
     public void testGetRemoteIndexExpressions() {
         {
             List<String> remoteIndexExpressions = RemoteClusterAware.getRemoteIndexExpressions("index-1");

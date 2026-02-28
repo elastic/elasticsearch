@@ -20,11 +20,9 @@ import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Base class for services and components that utilize linked projects.
@@ -150,7 +148,7 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
      */
     protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
-        Set<String> clustersToRemove = new HashSet<>();
+        boolean hasExclusions = false;
         for (String index : requestIndices) {
             // ensure that `index` is a remote name and not a datemath expression which includes ':' symbol
             // Remote names can not start with '<' so we are assuming that if the first character is '<' then it is a datemath expression.
@@ -181,13 +179,26 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                     }
                     if (selectorString != null) {
                         throw new IllegalArgumentException(
+                            Strings.format("To exclude a cluster you must not specify a selector, but found selector: [%s]", selectorString)
+                        );
+                    }
+                    hasExclusions = true;
+                    List<String> excludeFailed = new ArrayList<>();
+                    for (String cluster : clusters) {
+                        if (perClusterIndices.remove(cluster) == null) {
+                            excludeFailed.add(cluster);
+                        }
+                    }
+                    if (excludeFailed.isEmpty() == false) {
+                        throw new IllegalArgumentException(
                             Strings.format(
-                                "To exclude a cluster you must not specify the a selector, but found selector: [%s]",
-                                selectorString
+                                "Attempt to exclude cluster%s %s failed as %s not included in the list of clusters to be included",
+                                excludeFailed.size() == 1 ? "" : "s",
+                                excludeFailed,
+                                excludeFailed.size() == 1 ? "it is" : "they are"
                             )
                         );
                     }
-                    clustersToRemove.addAll(clusters);
                 } else {
                     for (String clusterName : clusters) {
                         perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
@@ -197,25 +208,7 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                 perClusterIndices.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
             }
         }
-        List<String> excludeFailed = new ArrayList<>();
-        for (String exclude : clustersToRemove) {
-            List<String> removed = perClusterIndices.remove(exclude);
-            if (removed == null) {
-                excludeFailed.add(exclude);
-            }
-        }
-        if (excludeFailed.size() > 0) {
-            String warning = Strings.format(
-                "Attempt to exclude cluster%s %s failed as %s not included in the list of clusters to be included: %s. Input: [%s]",
-                excludeFailed.size() == 1 ? "" : "s",
-                excludeFailed,
-                excludeFailed.size() == 1 ? "it is" : "they are",
-                perClusterIndices.keySet().stream().map(s -> s.equals("") ? "(local)" : s).collect(Collectors.toList()),
-                String.join(",", requestIndices)
-            );
-            throw new IllegalArgumentException(warning);
-        }
-        if (clustersToRemove.size() > 0 && perClusterIndices.size() == 0) {
+        if (hasExclusions && perClusterIndices.isEmpty()) {
             throw new IllegalArgumentException(
                 "The '-' exclusions in the index expression list excludes all indexes. Nothing to search. Input: ["
                     + String.join(",", requestIndices)

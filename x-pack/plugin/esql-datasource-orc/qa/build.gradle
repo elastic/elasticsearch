@@ -13,6 +13,13 @@ apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecomm
 apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
 apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
 
+configurations {
+  // Separate classpath for OrcFixtureGenerator to avoid jar hell: hadoop-client-runtime
+  // bundles javax.xml.bind (multi-release) which conflicts with jakarta.xml.bind-api from
+  // repository-azure (transitive via esql:qa:server).
+  orcFixtureGenerator
+}
+
 dependencies {
   // Test fixtures and spec reader infrastructure
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
@@ -30,12 +37,22 @@ dependencies {
   // S3 datasource provider for discovery tests
   javaRestTestImplementation project(xpackModule('esql-datasource-s3'))
 
-  // ORC support for generating test fixtures and for the ORC plugin itself
-  javaRestTestImplementation("org.apache.orc:orc-core:2.2.2")
-  javaRestTestImplementation('org.apache.hive:hive-storage-api:2.8.1')
-  javaRestTestImplementation('com.google.protobuf:protobuf-java:3.25.8')
-  javaRestTestImplementation('org.apache.hadoop:hadoop-client-api:3.4.2')
-  javaRestTestImplementation('org.apache.hadoop:hadoop-client-runtime:3.4.2')
+  // ORC/Hadoop for OrcFixtureGenerator - compileOnly so tests avoid jar hell at runtime
+  // (hadoop-client-runtime's javax.xml.bind conflicts with jakarta.xml.bind-api from repository-azure)
+  javaRestTestCompileOnly("org.apache.orc:orc-core:2.2.2") { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  javaRestTestCompileOnly('org.apache.hive:hive-storage-api:2.8.1')
+  javaRestTestCompileOnly('com.google.protobuf:protobuf-java:3.25.8')
+  javaRestTestCompileOnly('org.apache.hadoop:hadoop-client-api:3.4.2') { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  javaRestTestCompileOnly('org.apache.hadoop:hadoop-client-runtime:3.4.2') { exclude group: 'org.slf4j', module: 'slf4j-api' }
+
+  // Same deps for OrcFixtureGenerator JavaExec (separate classpath to avoid jar hell in test JVM)
+  orcFixtureGenerator("org.apache.orc:orc-core:2.2.2") { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  orcFixtureGenerator('org.apache.hive:hive-storage-api:2.8.1')
+  orcFixtureGenerator('com.google.protobuf:protobuf-java:3.25.8')
+  orcFixtureGenerator('org.apache.hadoop:hadoop-client-api:3.4.2') { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  orcFixtureGenerator('org.apache.hadoop:hadoop-client-runtime:3.4.2') { exclude group: 'org.slf4j', module: 'slf4j-api' }
+  orcFixtureGenerator "org.slf4j:slf4j-api:${versions.slf4j}"
+  orcFixtureGenerator project(':libs:core')
 
   // Repository S3 module for cluster
   clusterModules project(':modules:repository-s3')
@@ -73,14 +90,13 @@ def orcFixtureCsv = file("${orcFixtureDir}/employees.csv")
 
 tasks.register('generateOrcFixture', JavaExec) {
   dependsOn tasks.named('javaRestTestClasses')
-  classpath = sourceSets.javaRestTest.runtimeClasspath
+  // Use orcFixtureGenerator config to avoid jar hell (hadoop vs jakarta.xml.bind in test classpath)
+  classpath = configurations.orcFixtureGenerator + sourceSets.javaRestTest.output
   mainClass = 'org.elasticsearch.xpack.esql.qa.orc.OrcFixtureGenerator'
   args = [orcFixtureFile.absolutePath]
   inputs.file(orcFixtureCsv)
   outputs.file(orcFixtureFile)
-  // Route SLF4J (used by Hadoop) to the NOP provider to avoid Log4j2 initialization errors:
-  // the test classpath includes log4j2-test.properties referencing Elasticsearch's
-  // HeaderWarningAppender plugin, which is not loadable in this standalone JavaExec context.
+  // Route SLF4J (used by Hadoop) to the NOP provider to avoid Log4j2 initialization errors
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
 }
 

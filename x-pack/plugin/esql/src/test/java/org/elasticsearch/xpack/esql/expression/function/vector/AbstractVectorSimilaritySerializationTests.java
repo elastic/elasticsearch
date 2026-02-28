@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public abstract class AbstractVectorSimilaritySerializationTests<T extends VectorSimilarityFunction>
-    extends AbstractExpressionSerializationTests<T> {
+public abstract class AbstractVectorSimilaritySerializationTests<T extends VectorSimilarityFunction> extends
+    AbstractExpressionSerializationTests<T> {
 
     protected abstract T create(Source source, Expression left, Expression right);
 

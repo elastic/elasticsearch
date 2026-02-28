@@ -27,7 +27,7 @@ public class StSimplifySerializationTests extends AbstractExpressionSerializatio
     protected StSimplify mutateInstance(StSimplify instance) throws IOException {
         Source source = instance.source();
         Expression geometry = instance.spatialField();
-        Expression tolerance = instance.children().get(1);
+        Expression tolerance = instance.tolerance();
         if (randomBoolean()) {
             geometry = randomValueOtherThan(geometry, AbstractUnaryScalarSerializationTests::randomChild);
         } else {

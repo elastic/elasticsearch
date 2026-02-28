@@ -31,8 +31,8 @@ public class ChunkSerializationTests extends AbstractExpressionSerializationTest
     @Override
     protected Chunk mutateInstance(Chunk instance) throws IOException {
         Source source = instance.source();
-        Expression field = instance.children().get(0);
-        Expression chunkingSettings = instance.children().size() > 1 ? instance.children().get(1) : null;
+        Expression field = instance.field();
+        Expression chunkingSettings = instance.chunkingSettings();
         switch (between(0, 1)) {
             case 0 -> field = randomValueOtherThan(field, AbstractUnaryScalarSerializationTests::randomChild);
             case 1 -> chunkingSettings = randomValueOtherThan(chunkingSettings, () -> randomBoolean() ? null : randomChunkingSettings());

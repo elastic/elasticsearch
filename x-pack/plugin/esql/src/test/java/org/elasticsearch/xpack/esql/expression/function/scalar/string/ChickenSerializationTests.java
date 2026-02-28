@@ -31,8 +31,8 @@ public class ChickenSerializationTests extends AbstractExpressionSerializationTe
     @Override
     protected Chicken mutateInstance(Chicken instance) throws IOException {
         Source source = instance.source();
-        Expression message = instance.children().get(0);
-        Expression options = instance.children().size() > 1 ? instance.children().get(1) : null;
+        Expression message = instance.message();
+        Expression options = instance.options();
         switch (between(0, 1)) {
             case 0 -> message = randomValueOtherThan(message, AbstractUnaryScalarSerializationTests::randomChild);
             case 1 -> options = randomValueOtherThan(options, () -> randomBoolean() ? null : randomOptions());

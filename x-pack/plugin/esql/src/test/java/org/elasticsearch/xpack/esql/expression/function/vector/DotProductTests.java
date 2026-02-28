@@ -19,9 +19,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 @FunctionName("v_dot_product")
-public class DotProductSimilarityTests extends AbstractVectorSimilarityFunctionTestCase {
+public class DotProductTests extends AbstractVectorSimilarityFunctionTestCase {
 
-    public DotProductSimilarityTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public DotProductTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         super(testCaseSupplier);
     }
 

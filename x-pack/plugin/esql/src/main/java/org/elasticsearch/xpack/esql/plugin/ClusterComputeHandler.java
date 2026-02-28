@@ -288,7 +288,9 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
             );
             try (Releasable ignored = exchangeSource.addEmptySink()) {
-                exchangeSink.addCompletionListener(computeListener.acquireAvoid());
+                exchangeSink.addCompletionListener(
+                    ActionListener.runBefore(computeListener.acquireAvoid(), () -> exchangeService.finishSinkHandler(globalSessionId, null))
+                );
                 computeService.runCompute(
                     parentTask,
                     new ComputeContext(

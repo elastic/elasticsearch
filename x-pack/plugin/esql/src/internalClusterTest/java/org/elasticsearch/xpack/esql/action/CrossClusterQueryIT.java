@@ -24,9 +24,13 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.test.FailingFieldPlugin;
+import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
+import org.junit.After;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -58,6 +62,26 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     protected static final String IDX_ALIAS = "alias1";
     protected static final String FILTERED_IDX_ALIAS = "alias-filtered-1";
+
+    @After
+    public void ensureExchangesAreReleased() throws Exception {
+        for (Map.Entry<String, InternalTestCluster> entry : clusters().entrySet()) {
+            String clusterAlias = entry.getKey();
+            InternalTestCluster testCluster = entry.getValue();
+            for (String node : testCluster.getNodeNames()) {
+                TransportEsqlQueryAction esqlQueryAction = testCluster.getInstance(TransportEsqlQueryAction.class, node);
+                ExchangeService exchangeService = esqlQueryAction.exchangeService();
+                assertBusy(() -> {
+                    if (exchangeService.lifecycleState() == Lifecycle.State.STARTED) {
+                        assertTrue(
+                            "Leftover exchanges " + exchangeService + " on node " + node + " in cluster " + clusterAlias,
+                            exchangeService.isEmpty()
+                        );
+                    }
+                }, 5, TimeUnit.SECONDS);
+            }
+        }
+    }
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {

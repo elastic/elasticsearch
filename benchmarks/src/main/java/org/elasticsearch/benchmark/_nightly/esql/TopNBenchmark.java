@@ -10,9 +10,9 @@
 package org.elasticsearch.benchmark._nightly.esql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -57,9 +57,6 @@ import java.util.stream.Stream;
 @State(Scope.Thread)
 @Fork(1)
 public class TopNBenchmark {
-    static {
-        LogConfigurator.configureESLogging();
-    }
 
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop"),
@@ -80,7 +77,7 @@ public class TopNBenchmark {
     private static final String AND = "_and_";
 
     static {
-        LogConfigurator.configureESLogging();
+        Utils.configureBenchmarkLogging();
         // Smoke test all the expected values and force loading subclasses more like prod
         selfTest();
     }
@@ -159,6 +156,7 @@ public class TopNBenchmark {
             encoders,
             sortOrders,
             8 * 1024,
+            Long.MAX_VALUE,
             sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED,
             minCompetitive // This is optional, but doesn't add much overhead either way
         );

@@ -55,11 +55,6 @@ public abstract class MultiValuedBinaryWithSeparateCountsLengthReader extends Bl
     }
 
     @Override
-    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-        appendLength(docId, (BlockLoader.IntBuilder) builder);
-    }
-
-    @Override
     public int docId() {
         return counts.docValues().docID();
     }

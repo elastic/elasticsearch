@@ -205,8 +205,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
             BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
         );
+        long bytesRefRamOverestimateThreshold = PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.get(settings).getBytes();
+        double bytesRefRamOverestimateFactor = PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.get(settings);
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
-        var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
+        var blockFactoryProvider = blockFactoryProvider(
+            circuitBreaker,
+            bigArrays,
+            maxPrimitiveArrayBlockSize,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
+        );
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
@@ -266,8 +274,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return components;
     }
 
-    protected BlockFactoryProvider blockFactoryProvider(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
-        return new BlockFactoryProvider(new BlockFactory(breaker, bigArrays, maxPrimitiveArraySize));
+    protected BlockFactoryProvider blockFactoryProvider(
+        CircuitBreaker breaker,
+        BigArrays bigArrays,
+        ByteSizeValue maxPrimitiveArraySize,
+        long bytesRefRamOverestimateThreshold,
+        double bytesRefRamOverestimateFactor
+    ) {
+        return new BlockFactoryProvider(
+            new BlockFactory(breaker, bigArrays, maxPrimitiveArraySize, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor)
+        );
     }
 
     // to be overriden by tests

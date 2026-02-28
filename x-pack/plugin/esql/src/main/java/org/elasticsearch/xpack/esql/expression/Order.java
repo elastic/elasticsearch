@@ -141,7 +141,7 @@ public class Order extends Expression {
 
         public static NullsPosition readFrom(StreamInput in) throws IOException {
             int ord = in.readVInt();
-            if (DROP_ALL.supports(in.getTransportVersion()) == false) {
+            if (in.getTransportVersion().supports(DROP_ALL) == false) {
                 if (ord == 2) {
                     return NullsPosition.LAST;
                 }

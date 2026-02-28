@@ -85,4 +85,8 @@ public abstract class AbstractBlockLoaderTestCase extends ESTestCase {
 
     protected abstract void test(CircuitBreaker breaker, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrap)
         throws IOException;
+
+    protected final TestBlock read(BlockLoader.ColumnAtATimeReader reader, BlockLoader.Docs docs) throws IOException {
+        return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
+    }
 }

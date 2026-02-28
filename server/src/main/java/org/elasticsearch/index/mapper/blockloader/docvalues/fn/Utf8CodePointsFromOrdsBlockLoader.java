@@ -70,7 +70,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         SortedDvSingletonOrSet dv = SortedDvSingletonOrSet.get(breaker, size, context, fieldName);
         if (dv != null) {
             if (dv.singleton() != null) {
@@ -86,7 +86,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         }
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, false);
         if (bc == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());
     }
@@ -152,15 +152,6 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                 return buildFromCache(factory, cache, ords);
             } finally {
                 factory.adjustBreaker(-RamUsageEstimator.sizeOf(ords));
-            }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            if (ordinals.docValues().advanceExact(docId)) {
-                ((IntBuilder) builder).appendInt(codePointsAtOrd(ordinals.docValues().ordValue()));
-            } else {
-                builder.appendNull();
             }
         }
 
@@ -318,20 +309,6 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         }
 
         @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            if (ordinals.docValues().advanceExact(docId) == false) {
-                builder.appendNull();
-                return;
-            }
-            if (ordinals.docValues().docValueCount() != 1) {
-                registerSingleValueWarning(warnings);
-                builder.appendNull();
-                return;
-            }
-            ((IntBuilder) builder).appendInt(codePointsAtOrd(Math.toIntExact(ordinals.docValues().nextOrd())));
-        }
-
-        @Override
         public int docId() {
             return ordinals.docValues().docID();
         }
@@ -477,11 +454,6 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
                     factory.adjustBreaker(-RamUsageEstimator.shallowSizeOf(counts));
                 }
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (IntBuilder) builder);
         }
 
         private void read(int docId, IntBuilder builder) throws IOException {

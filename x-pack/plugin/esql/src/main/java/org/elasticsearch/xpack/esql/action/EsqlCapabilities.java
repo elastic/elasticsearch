@@ -1023,6 +1023,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_DEFAULT_METRIC,
 
         /**
+         * Support avg as a possible default metric for aggregate_metric_double
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG_AS_DEFAULT_METRIC,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -2187,6 +2192,12 @@ public class EsqlCapabilities {
          * Support for the METRICS_INFO command.
          */
         METRICS_INFO_COMMAND,
+
+        /**
+         * Produce a {@code warning} and {@code null} when you run
+         * {@code ABS} on {@code Long.MIN_VALUE}.
+         */
+        FN_ABS_MIN_WARNING,
 
         /**
          * Supports the REGISTERED_DOMAIN command.

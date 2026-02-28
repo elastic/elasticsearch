@@ -426,15 +426,62 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(gauge.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
     }
 
-    public void testNonMonotonicDoubleCounterFallsThroughToNormalProfiling() {
-        // NOTE: non-monotonic data falls through to the normal XOR gate / ALP profiling
-        // regardless of the metric type annotation — the profile data is the ground truth.
+    public void testNonMonotonicDoubleCounterDefaultSelectsLosslessAlp() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 10);
 
         final PipelineConfig counter = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
         final PipelineConfig gauge = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.GAUGE);
         assertEquals(counter, gauge);
         assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
+        assertAlpMaxError(counter, -1.0);
+    }
+
+    public void testNonMonotonicDoubleCounterStorageSelectsLosslessAlp() {
+        // NOTE: counters must never be quantized — precision artifacts break rate calculations.
+        // Even with STORAGE hint, counter fields get lossless ALP.
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 10);
+
+        final PipelineConfig counter = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.DOUBLE,
+            PipelineResolver.OptimizeFor.STORAGE,
+            MetricType.COUNTER
+        );
+        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
+        assertAlpMaxError(counter, -1.0);
+
+        final PipelineConfig gauge = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.DOUBLE,
+            PipelineResolver.OptimizeFor.STORAGE,
+            MetricType.GAUGE
+        );
+        assertAlpMaxError(gauge, 1e-2);
+    }
+
+    public void testNonMonotonicDoubleCounterBalancedSelectsLosslessAlp() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 10);
+
+        final PipelineConfig counter = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.DOUBLE,
+            PipelineResolver.OptimizeFor.BALANCED,
+            MetricType.COUNTER
+        );
+        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
+        assertAlpMaxError(counter, -1.0);
+
+        final PipelineConfig gauge = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.DOUBLE,
+            PipelineResolver.OptimizeFor.BALANCED,
+            MetricType.GAUGE
+        );
+        assertAlpMaxError(gauge, 1e-6);
     }
 
     public void testMonotonicFloatSelectsXorRegardlessOfMetricType() {
@@ -448,13 +495,60 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(gauge.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
     }
 
-    public void testNonMonotonicFloatCounterFallsThroughToNormalProfiling() {
+    public void testNonMonotonicFloatCounterDefaultSelectsLosslessAlp() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 10);
 
         final PipelineConfig counter = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
         final PipelineConfig gauge = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.GAUGE);
         assertEquals(counter, gauge);
         assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
+        assertAlpMaxError(counter, -1.0);
+    }
+
+    public void testNonMonotonicFloatCounterStorageSelectsLosslessAlp() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 10);
+
+        final PipelineConfig counter = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.FLOAT,
+            PipelineResolver.OptimizeFor.STORAGE,
+            MetricType.COUNTER
+        );
+        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
+        assertAlpMaxError(counter, -1.0);
+
+        final PipelineConfig gauge = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.FLOAT,
+            PipelineResolver.OptimizeFor.STORAGE,
+            MetricType.GAUGE
+        );
+        assertAlpMaxError(gauge, 1e-2);
+    }
+
+    public void testNonMonotonicFloatCounterBalancedSelectsLosslessAlp() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 10);
+
+        final PipelineConfig counter = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.FLOAT,
+            PipelineResolver.OptimizeFor.BALANCED,
+            MetricType.COUNTER
+        );
+        assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
+        assertAlpMaxError(counter, -1.0);
+
+        final PipelineConfig gauge = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.FLOAT,
+            PipelineResolver.OptimizeFor.BALANCED,
+            MetricType.GAUGE
+        );
+        assertAlpMaxError(gauge, 1e-6);
     }
 
     public void testHighRepeatDoubleSelectsGorilla() {

@@ -33,8 +33,8 @@ public final class PipelineSelector {
     ) {
         return switch (dataType) {
             case LONG -> selectLong(blockSize);
-            case DOUBLE -> selectDouble(profile, blockSize, hint);
-            case FLOAT -> selectFloat(profile, blockSize, hint);
+            case DOUBLE -> selectDouble(profile, blockSize, hint, metricType);
+            case FLOAT -> selectFloat(profile, blockSize, hint, metricType);
         };
     }
 
@@ -47,7 +47,12 @@ public final class PipelineSelector {
         return PipelineConfig.forLongs(blockSize).delta().delta().offset().gcd().patchedPFor().bitPack();
     }
 
-    private static PipelineConfig selectDouble(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
+    private static PipelineConfig selectDouble(
+        final BlockProfile profile,
+        int blockSize,
+        @Nullable OptimizeFor hint,
+        @Nullable MetricType metricType
+    ) {
         // NOTE: constant data has no decimal structure for ALP, no trends for FPC,
         // and no XOR variation for Gorilla/Chimp128. The wide integer pipeline handles
         // it trivially: delta produces zeros, offset stores the base, everything else skips.
@@ -91,7 +96,9 @@ public final class PipelineSelector {
         // exponent/factor pairs (e,f) that convert doubles to integers with minimal
         // exceptions. This works regardless of XOR statistics and is the right choice
         // when data originates from decimal sources (sensor readings, prices, percentages).
-        return selectAlpDouble(blockSize, hint);
+        // Counters must never be quantized — precision artifacts break rate calculations
+        // (rate = (c[t2] - c[t1]) / dt). Force lossless ALP for counter fields.
+        return selectAlpDouble(blockSize, metricType == MetricType.COUNTER ? null : hint);
     }
 
     private static PipelineConfig selectAlpDouble(int blockSize, @Nullable OptimizeFor hint) {
@@ -135,7 +142,12 @@ public final class PipelineSelector {
 
     // NOTE: mirrors selectDouble with float-specific builder and stage types.
     // See selectDouble for detailed rationale on each decision point.
-    private static PipelineConfig selectFloat(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
+    private static PipelineConfig selectFloat(
+        final BlockProfile profile,
+        int blockSize,
+        @Nullable OptimizeFor hint,
+        @Nullable MetricType metricType
+    ) {
         if (profile.range() == 0) {
             return PipelineConfig.forFloats(blockSize).delta().delta().offset().gcd().patchedPFor().bitPack();
         }
@@ -156,7 +168,8 @@ public final class PipelineSelector {
             return selectXorFloat(profile, blockSize);
         }
 
-        return selectAlpFloat(blockSize, hint);
+        // NOTE: see selectDouble for rationale — counters must never be quantized.
+        return selectAlpFloat(blockSize, metricType == MetricType.COUNTER ? null : hint);
     }
 
     private static PipelineConfig selectAlpFloat(int blockSize, @Nullable OptimizeFor hint) {

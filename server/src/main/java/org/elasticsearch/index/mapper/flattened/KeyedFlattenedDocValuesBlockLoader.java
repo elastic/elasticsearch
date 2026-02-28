@@ -33,7 +33,7 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         if (usesBinaryDocValues) {
             MultiValuedSortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(context.reader(), keyedFieldName);
             SortedBinaryDocValues filtered = BinaryKeyedFlattenedLeafFieldData.getKeyFilteredSortedBinaryDocValues(dv, key);
@@ -41,7 +41,7 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
         } else {
             SortedSetDocValues dv = DocValues.getSortedSet(context.reader(), keyedFieldName);
             if (dv.getValueCount() == 0) {
-                return ConstantNull.READER;
+                return ConstantNull.COLUMN_READER;
             }
             SortedSetDocValues filtered = KeyedFlattenedLeafFieldData.getKeyFilteredSortedSetDocValues(dv, key);
             return new SortedSetKeyedBlockDocValuesReader(breaker, filtered);
@@ -68,11 +68,6 @@ public class KeyedFlattenedDocValuesBlockLoader extends BlockDocValuesReader.Doc
                 }
                 return builder.build();
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BlockLoader.BytesRefBuilder) builder);
         }
 
         @Override

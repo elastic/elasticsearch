@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +33,20 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
         StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.csv.gz"));
         DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+        try (InputStream stream = decompressing.newStream()) {
+            byte[] decompressed = stream.readAllBytes();
+            assertArrayEquals(original, decompressed);
+        }
+    }
+
+    public void testDecompressStreamBzip2() throws IOException {
+        byte[] original = "hello,world\n1,2".getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = bzip2(original);
+
+        StorageObject rawObject = new BytesStorageObject(compressed, StoragePath.of("file:///data.csv.bz2"));
+        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec();
 
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
         try (InputStream stream = decompressing.newStream()) {
@@ -83,9 +99,17 @@ public class DecompressingStorageObjectTests extends ESTestCase {
     }
 
     private static byte[] gzip(byte[] input) throws IOException {
-        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (GZIPOutputStream gzipOut = new GZIPOutputStream(baos)) {
             gzipOut.write(input);
+        }
+        return baos.toByteArray();
+    }
+
+    private static byte[] bzip2(byte[] input) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (BZip2CompressorOutputStream bzip2Out = new BZip2CompressorOutputStream(baos)) {
+            bzip2Out.write(input);
         }
         return baos.toByteArray();
     }

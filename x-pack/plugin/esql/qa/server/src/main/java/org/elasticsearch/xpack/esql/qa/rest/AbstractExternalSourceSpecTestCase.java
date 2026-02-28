@@ -273,8 +273,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                     return FileVisitResult.CONTINUE;
                 }
             });
-            assertTrue(generated[0] > 0);
-            logger.info("Generated {} compressed fixture variants on the fly", generated[0]);
+            // Not all modules will need .csv/.ndjson in iceberg-fixtures.
+            logger.info("Generated {} compressed fixture variants", generated[0]);
         } catch (Exception e) {
             logger.error("Failed to generate compressed fixtures", e);
             throw new RuntimeException(e);

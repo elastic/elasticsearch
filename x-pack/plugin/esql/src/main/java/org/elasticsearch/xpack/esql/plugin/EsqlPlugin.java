@@ -77,9 +77,11 @@ import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -203,8 +205,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
             BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
         );
+        long bytesRefRamOverestimateThreshold = PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.get(settings).getBytes();
+        double bytesRefRamOverestimateFactor = PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.get(settings);
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
-        var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
+        var blockFactoryProvider = blockFactoryProvider(
+            circuitBreaker,
+            bigArrays,
+            maxPrimitiveArrayBlockSize,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
+        );
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
@@ -264,8 +274,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return components;
     }
 
-    protected BlockFactoryProvider blockFactoryProvider(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
-        return new BlockFactoryProvider(new BlockFactory(breaker, bigArrays, maxPrimitiveArraySize));
+    protected BlockFactoryProvider blockFactoryProvider(
+        CircuitBreaker breaker,
+        BigArrays bigArrays,
+        ByteSizeValue maxPrimitiveArraySize,
+        long bytesRefRamOverestimateThreshold,
+        double bytesRefRamOverestimateFactor
+    ) {
+        return new BlockFactoryProvider(
+            new BlockFactory(breaker, bigArrays, maxPrimitiveArraySize, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor)
+        );
     }
 
     // to be overriden by tests
@@ -387,9 +405,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
+        entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
         entries.add(LinearScoreEvalOperator.Status.ENTRY);
         entries.add(MMROperator.Status.ENTRY);
+
+        entries.add(FileSplit.ENTRY);
 
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);

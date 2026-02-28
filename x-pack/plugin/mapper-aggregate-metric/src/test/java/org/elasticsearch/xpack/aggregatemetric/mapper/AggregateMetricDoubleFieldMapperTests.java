@@ -475,8 +475,8 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         {
             expected.startArray("field");
             expected.startObject().field("min", 10.0).field("max", 100.0).endObject();
-            expected.startObject().field("max", 200).field("min", 20).endObject();
             expected.value(randomString);
+            expected.startObject().field("max", 200).field("min", 20).endObject();
             expected.endArray();
         }
         expected.endObject();

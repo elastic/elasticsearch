@@ -806,6 +806,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     prefixLen = computeLCP(cur, next);
                 }
                 prefixAccumStarts[numPrefixes] = prefixAccumPos;
+                if (prefixAccumPos + prefixLen > prefixAccumBuf.length) {
+                    prefixAccumBuf = ArrayUtil.grow(prefixAccumBuf, prefixAccumPos + prefixLen);
+                }
                 System.arraycopy(cur.bytes, cur.offset, prefixAccumBuf, prefixAccumPos, prefixLen);
                 prefixAccumPos += prefixLen;
                 System.arraycopy(cur.bytes, cur.offset, currentPrefixBytes, 0, prefixLen);
@@ -821,12 +824,10 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     prefixId = numPrefixes - 1;
                     prefixLen = currentPrefixLen;
                 } else {
-                    int chosenLen = backwardLcp;
-                    if (next != null) {
-                        int forwardLcp = computeLCP(cur, next);
-                        chosenLen = Math.max(backwardLcp, forwardLcp);
-                    }
-                    prefixLen = chosenLen;
+                    // Use forwardLcp only (not max with backwardLcp) so that the next
+                    // term is guaranteed to match, eliminating singleton prefix entries.
+                    int forwardLcp = (next != null) ? computeLCP(cur, next) : 0;
+                    prefixLen = forwardLcp;
                     if (prefixAccumPos + prefixLen > prefixAccumBuf.length) {
                         prefixAccumBuf = ArrayUtil.grow(prefixAccumBuf, prefixAccumPos + prefixLen);
                     }
@@ -1009,7 +1010,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         long suffixOffsetsMetaSize = suffixOffsetsMetaBuffer.size();
         long prefixIdsMetaSize = prefixIdsMetaBuffer.size();
 
-        if (logger.isInfoEnabled()) {
+        if (logger.isDebugEnabled()) {
             long symbolTableSize = symbolTableEnd - symbolTableStart;
             long suffixDataSize = suffixDataEnd - suffixDataStart;
             long prefixDataSize = prefixDataEnd - prefixDataStart;
@@ -1020,7 +1021,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             long totalTermsDict = symbolTableSize + suffixDataSize + prefixDataSize + suffixOffsetsDataSize + prefixIdsDataSize
                 + prefixOffsetsDataSize + termsIndexSize;
 
-            logger.info(
+            logger.debug(
                 "TermsDict space breakdown for field [{}]: "
                     + "numTerms=[{}], numPrefixes=[{}], totalSize=[{}] bytes\n"
                     + "  Symbol table:           [{}] bytes\n"
@@ -1097,6 +1098,17 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             }
         }
         return len;
+    }
+
+    /** Returns the number of leading bytes of {@code term} that match {@code prefixBytes[0..prefixLen)}. */
+    private static int computePrefixMatch(BytesRef term, byte[] prefixBytes, int prefixLen) {
+        int limit = Math.min(prefixLen, term.length);
+        for (int i = 0; i < limit; i++) {
+            if (term.bytes[term.offset + i] != prefixBytes[i]) {
+                return i;
+            }
+        }
+        return limit;
     }
 
     private void writeTermsIndex(SortedSetDocValues values) throws IOException {

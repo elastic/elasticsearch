@@ -136,9 +136,9 @@ public class PipelineSelectorTests extends ESTestCase {
         assertAlpMaxError(config, 1e-6);
     }
 
-    public void testNoisyDoubleSpeedSelectsXorIntegerPipeline() {
-        // NOTE: SPEED bypasses ALP entirely — previous-value XOR followed by the integer
-        // pipeline (delta, offset, gcd, pfor, bitpack) for fast bulk encode/decode.
+    public void testNoisyDoubleSpeedSelectsFpcPipeline() {
+        // NOTE: SPEED bypasses ALP entirely — non-monotonic data uses FPC whose FCM/DFCM
+        // predictors learn value patterns via hash lookups, feeding into the integer pipeline.
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(
             profile,
@@ -149,7 +149,7 @@ public class PipelineSelectorTests extends ESTestCase {
         );
 
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.AlpDoubleStage.class))));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Xor.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
@@ -157,7 +157,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
-    public void testNoisyFloatSpeedSelectsXorIntegerPipeline() {
+    public void testNoisyFloatSpeedSelectsFpcPipeline() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(
             profile,
@@ -168,8 +168,46 @@ public class PipelineSelectorTests extends ESTestCase {
         );
 
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.AlpFloatStage.class))));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Xor.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
+    }
+
+    public void testMonotonicDoubleSpeedSelectsDeltaPipeline() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 10, 12, 10);
+        final PipelineConfig config = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.DOUBLE,
+            PipelineResolver.OptimizeFor.SPEED,
+            null
+        );
+
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.FpcDoubleStage.class))));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.AlpDoubleStage.class))));
+        assertEquals(2, config.specs().stream().filter(s -> s instanceof StageSpec.Delta).count());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
+    }
+
+    public void testMonotonicFloatSpeedSelectsDeltaPipeline() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 10, 12, 10);
+        final PipelineConfig config = selector.select(
+            profile,
+            512,
+            PipelineConfig.DataType.FLOAT,
+            PipelineResolver.OptimizeFor.SPEED,
+            null
+        );
+
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.FpcFloatStage.class))));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.AlpFloatStage.class))));
+        assertEquals(2, config.specs().stream().filter(s -> s instanceof StageSpec.Delta).count());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
@@ -489,9 +527,9 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
-    public void testSpeedWidensFpcThresholdForDouble() {
-        // NOTE: deltaDeltaMaxBits=20 is between default(16) and SPEED(24) thresholds
-        // xorMaxBits=10 <= rawMaxBits/2=15, so default falls to streaming Chimp
+    public void testSpeedNonMonotonicWithHighXorReductionStillSelectsFpc() {
+        // NOTE: even with high XOR reduction (xorReduction=20 >= rawMaxBits/4=7.5),
+        // SPEED always uses FPC — it never routes to selectXorDouble.
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 20);
 
         final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
@@ -507,41 +545,9 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
     }
 
-    public void testSpeedWidensFpcThresholdForFloat() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 20);
-
-        final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
-        assertThat(defaultConfig.specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
-
-        final PipelineConfig speedConfig = selector.select(
-            profile,
-            512,
-            PipelineConfig.DataType.FLOAT,
-            PipelineResolver.OptimizeFor.SPEED,
-            null
-        );
-        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
-    }
-
-    public void testSpeedRaisesGorillaThresholdForDouble() {
-        // NOTE: xorZeroFraction = 260/511 ≈ 0.509, between default(0.4) and SPEED(0.6) thresholds
-        // xorMaxBits=10 <= rawMaxBits/2=15, so SPEED fallback goes to streaming Chimp
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 260, 30);
-
-        final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
-        assertThat(defaultConfig.specs(), hasItem(instanceOf(StageSpec.Gorilla.class)));
-
-        final PipelineConfig speedConfig = selector.select(
-            profile,
-            512,
-            PipelineConfig.DataType.DOUBLE,
-            PipelineResolver.OptimizeFor.SPEED,
-            null
-        );
-        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.ChimpDoublePayload.class)));
-    }
-
-    public void testSpeedRaisesGorillaThresholdForFloat() {
+    public void testSpeedNonMonotonicWithHighRepeatStillSelectsFpc() {
+        // NOTE: even with high repeat fraction (xorZeroFraction=260/511≈0.509 >= GORILLA_THRESHOLD),
+        // SPEED always uses FPC — it never routes to selectXorFloat/selectXorDouble.
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 260, 30);
 
         final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
@@ -554,7 +560,7 @@ public class PipelineSelectorTests extends ESTestCase {
             PipelineResolver.OptimizeFor.SPEED,
             null
         );
-        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
+        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
     }
 
     // -- Round-trip tests: verify which delta stages fire and that encode→decode is lossless --
@@ -710,9 +716,27 @@ public class PipelineSelectorTests extends ESTestCase {
         assertTrue("random longs should still fit in raw bits, got " + bytes, bytes <= RAW_LONG_BYTES);
     }
 
-    public void testXorPipelineDoubleRoundTrip() throws IOException {
+    public void testDeltaPipelineMonotonicDoubleRoundTrip() throws IOException {
+        final long[] original = monotonicDoubles(BS, 1000.0, 0.5);
+        final PipelineConfig config = PipelineConfig.forDoubles(BS).delta().delta().offset().gcd().patchedPFor().bitPack();
+
+        final long[] block = Arrays.copyOf(original, BS);
+        final byte[] buffer = new byte[BS * Long.BYTES * 8];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+        encoder.newBlockEncoder().encode(block, BS, out);
+
+        final long[] decoded = new long[BS];
+        final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+        final int decodedCount = NumericDecoder.fromDescriptor(encoder.descriptor()).newBlockDecoder().decode(decoded, in);
+
+        assertEquals(BS, decodedCount);
+        assertArrayEquals(original, decoded);
+    }
+
+    public void testFpcPipelineNoisyDoubleRoundTrip() throws IOException {
         final long[] original = smoothDoubles(BS, 100.0, 0.1);
-        final PipelineConfig config = PipelineConfig.forDoubles(BS).xor().delta().offset().gcd().patchedPFor().bitPack();
+        final PipelineConfig config = PipelineConfig.forDoubles(BS).fpcStage().delta().offset().gcd().patchedPFor().bitPack();
 
         final long[] block = Arrays.copyOf(original, BS);
         final byte[] buffer = new byte[BS * Long.BYTES * 8];
@@ -728,34 +752,18 @@ public class PipelineSelectorTests extends ESTestCase {
         assertArrayEquals(original, decoded);
     }
 
-    public void testXorPipelineFloatRoundTrip() throws IOException {
-        final long[] original = decimalFloats(BS, 20.0f, 5.0f);
-        final PipelineConfig config = PipelineConfig.forFloats(BS).xor().delta().offset().gcd().patchedPFor().bitPack();
-
-        final long[] block = Arrays.copyOf(original, BS);
-        final byte[] buffer = new byte[BS * Long.BYTES * 8];
-        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
-        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
-        encoder.newBlockEncoder().encode(block, BS, out);
-
-        final long[] decoded = new long[BS];
-        final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
-        final int decodedCount = NumericDecoder.fromDescriptor(encoder.descriptor()).newBlockDecoder().decode(decoded, in);
-
-        assertEquals(BS, decodedCount);
-        assertArrayEquals(original, decoded);
-    }
-
-    public void testEncodedSizeXorPipelineDouble() throws IOException {
-        final long[] randomWalk = smoothDoubles(BS, 100.0, 0.1);
+    public void testEncodedSizeSpeedPipelines() throws IOException {
         final long[] monotonic = monotonicDoubles(BS, 1000.0, 0.5);
-        final PipelineConfig config = PipelineConfig.forDoubles(BS).xor().delta().offset().gcd().patchedPFor().bitPack();
+        final long[] randomWalk = smoothDoubles(BS, 100.0, 0.1);
 
-        final int walkBytes = measureAndLog("xor-pipeline-randomwalk-double", config, randomWalk);
-        final int monotonicBytes = measureAndLog("xor-pipeline-monotonic-double", config, monotonic);
+        final PipelineConfig deltaPipeline = PipelineConfig.forDoubles(BS).delta().delta().offset().gcd().patchedPFor().bitPack();
+        final PipelineConfig fpcPipeline = PipelineConfig.forDoubles(BS).fpcStage().delta().offset().gcd().patchedPFor().bitPack();
 
-        assertTrue("xor pipeline should compress random walk doubles, got " + walkBytes, walkBytes < RAW_LONG_BYTES);
-        assertTrue("xor pipeline should compress monotonic doubles, got " + monotonicBytes, monotonicBytes < RAW_LONG_BYTES);
+        final int deltaMonotonic = measureAndLog("speed-delta-monotonic-double", deltaPipeline, monotonic);
+        final int fpcRandomWalk = measureAndLog("speed-fpc-randomwalk-double", fpcPipeline, randomWalk);
+
+        assertTrue("delta pipeline should compress monotonic doubles, got " + deltaMonotonic, deltaMonotonic < RAW_LONG_BYTES);
+        assertTrue("fpc pipeline should compress random walk doubles, got " + fpcRandomWalk, fpcRandomWalk < RAW_LONG_BYTES);
     }
 
     public void testEncodedSizeXorDoublesOnRandomWalk() throws IOException {

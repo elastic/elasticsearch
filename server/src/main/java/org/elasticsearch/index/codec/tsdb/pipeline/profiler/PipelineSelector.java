@@ -19,10 +19,8 @@ public final class PipelineSelector {
     private static final double QUANTIZE_2_DECIMALS = 1e-2;
     private static final double QUANTIZE_6_DECIMALS = 1e-6;
 
-    private static final int FPC_THRESHOLD_DEFAULT = 16;
-    private static final int FPC_THRESHOLD_SPEED = 24;
-    private static final double GORILLA_THRESHOLD_DEFAULT = 0.4;
-    private static final double GORILLA_THRESHOLD_SPEED = 0.6;
+    private static final int FPC_THRESHOLD = 16;
+    private static final double GORILLA_THRESHOLD = 0.4;
 
     public static final PipelineSelector INSTANCE = new PipelineSelector();
 
@@ -57,13 +55,26 @@ public final class PipelineSelector {
             return PipelineConfig.forDoubles(blockSize).delta().delta().offset().gcd().patchedPFor().bitPack();
         }
 
+        // NOTE: SPEED uses a self-contained fast path that avoids ALP's expensive (e,f)
+        // search entirely. Monotonic data (counters) goes through the integer delta pipeline
+        // which exploits near-constant strides in sortable-long space — no predictor tables
+        // or warm-up cost. Non-monotonic data uses FPC whose FCM/DFCM predictors learn
+        // value patterns via simple hash lookups, feeding residuals into the same fast
+        // integer pipeline.
+        if (hint == OptimizeFor.SPEED) {
+            if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
+                return PipelineConfig.forDoubles(blockSize).delta().delta().offset().gcd().patchedPFor().bitPack();
+            }
+            return PipelineConfig.forDoubles(blockSize).fpcStage().delta().offset().gcd().patchedPFor().bitPack();
+        }
+
         // NOTE: monotonic data (e.g. counters, cumulative metrics) has constant or
         // near-constant strides with no decimal structure — ALP's (e,f) search would waste
         // time and fall back to raw encoding. XOR-based prediction (especially FPC's DFCM)
         // is the right family because it learns the stride and produces near-zero residuals.
         // This is purely data-driven: we trust the profile, not the metric type annotation.
         if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
-            return selectXorDouble(profile, blockSize, hint);
+            return selectXorDouble(profile, blockSize);
         }
 
         // NOTE: the XOR gate decides whether consecutive-value XOR produces meaningfully
@@ -73,16 +84,7 @@ public final class PipelineSelector {
         // out marginal cases where ALP would do as well or better via decimal structure.
         final long xorReduction = profile.rawMaxBits() - profile.xorMaxBits();
         if (xorReduction >= profile.rawMaxBits() / 4) {
-            return selectXorDouble(profile, blockSize, hint);
-        }
-
-        // NOTE: SPEED bypasses ALP entirely — ALP's (e,f) search is the most expensive
-        // encode step. Instead, previous-value XOR exploits bit-level similarity between
-        // consecutive sortable-long representations of close doubles, producing compact
-        // residuals that the integer pipeline (delta, offset, gcd, pfor, bitpack) handles
-        // efficiently with fast bulk encode/decode.
-        if (hint == OptimizeFor.SPEED) {
-            return PipelineConfig.forDoubles(blockSize).xor().delta().offset().gcd().patchedPFor().bitPack();
+            return selectXorDouble(profile, blockSize);
         }
 
         // NOTE: ALP exploits decimal structure in the IEEE domain — it finds integer
@@ -102,27 +104,21 @@ public final class PipelineSelector {
         return PipelineConfig.forDoubles(blockSize).alpDoubleStage().delta().offset().gcd().patchedPFor().bitPack();
     }
 
-    private static PipelineConfig selectXorDouble(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
+    private static PipelineConfig selectXorDouble(final BlockProfile profile, int blockSize) {
         // NOTE: deltaDeltaMaxBits measures the max bit-width of second-order differences
         // (values[i] - 2*values[i-1] + values[i-2]). When small, the stride between
         // consecutive values is nearly constant — exactly the pattern FPC's DFCM predictor
         // learns. DFCM converges by i=3 for constant strides, producing near-zero residuals.
-        // When hint is SPEED, widen the threshold — FPC's downstream BitPack uses SIMD bulk
-        // operations, making FPC+BitPack faster to decode than Chimp128's sequential decode.
-        final int fpcThreshold = (hint == OptimizeFor.SPEED) ? FPC_THRESHOLD_SPEED : FPC_THRESHOLD_DEFAULT;
-        if (profile.deltaDeltaMaxBits() <= fpcThreshold) {
+        if (profile.deltaDeltaMaxBits() <= FPC_THRESHOLD) {
             return PipelineConfig.forDoubles(blockSize).fpcStage().delta().offset().gcd().patchedPFor().bitPack();
         }
 
         // NOTE: xorZeroCount counts consecutive identical values (XOR = 0). Gorilla's
         // Case 0 encodes these in just 1 bit — no other algorithm matches this for
-        // repeated values. When hint is SPEED, raise the threshold — Gorilla's sequential
-        // bit-stream decode is slower than FPC+BitPack, so we only pick Gorilla when the
-        // repeat advantage is overwhelming enough to outweigh the decode speed cost.
+        // repeated values.
         if (profile.valueCount() > 1) {
             final double xorZeroFraction = (double) profile.xorZeroCount() / (profile.valueCount() - 1);
-            final double gorillaThreshold = (hint == OptimizeFor.SPEED) ? GORILLA_THRESHOLD_SPEED : GORILLA_THRESHOLD_DEFAULT;
-            if (xorZeroFraction >= gorillaThreshold) {
+            if (xorZeroFraction >= GORILLA_THRESHOLD) {
                 return PipelineConfig.forDoubles(blockSize).gorilla();
             }
         }
@@ -144,17 +140,20 @@ public final class PipelineSelector {
             return PipelineConfig.forFloats(blockSize).delta().delta().offset().gcd().patchedPFor().bitPack();
         }
 
+        if (hint == OptimizeFor.SPEED) {
+            if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
+                return PipelineConfig.forFloats(blockSize).delta().delta().offset().gcd().patchedPFor().bitPack();
+            }
+            return PipelineConfig.forFloats(blockSize).fpcStage().delta().offset().gcd().patchedPFor().bitPack();
+        }
+
         if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
-            return selectXorFloat(profile, blockSize, hint);
+            return selectXorFloat(profile, blockSize);
         }
 
         final long xorReduction = profile.rawMaxBits() - profile.xorMaxBits();
         if (xorReduction >= profile.rawMaxBits() / 4) {
-            return selectXorFloat(profile, blockSize, hint);
-        }
-
-        if (hint == OptimizeFor.SPEED) {
-            return PipelineConfig.forFloats(blockSize).xor().delta().offset().gcd().patchedPFor().bitPack();
+            return selectXorFloat(profile, blockSize);
         }
 
         return selectAlpFloat(blockSize, hint);
@@ -170,16 +169,14 @@ public final class PipelineSelector {
         return PipelineConfig.forFloats(blockSize).alpFloatStage().delta().offset().gcd().patchedPFor().bitPack();
     }
 
-    private static PipelineConfig selectXorFloat(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
-        final int fpcThreshold = (hint == OptimizeFor.SPEED) ? FPC_THRESHOLD_SPEED : FPC_THRESHOLD_DEFAULT;
-        if (profile.deltaDeltaMaxBits() <= fpcThreshold) {
+    private static PipelineConfig selectXorFloat(final BlockProfile profile, int blockSize) {
+        if (profile.deltaDeltaMaxBits() <= FPC_THRESHOLD) {
             return PipelineConfig.forFloats(blockSize).fpcStage().delta().offset().gcd().patchedPFor().bitPack();
         }
 
         if (profile.valueCount() > 1) {
             final double xorZeroFraction = (double) profile.xorZeroCount() / (profile.valueCount() - 1);
-            final double gorillaThreshold = (hint == OptimizeFor.SPEED) ? GORILLA_THRESHOLD_SPEED : GORILLA_THRESHOLD_DEFAULT;
-            if (xorZeroFraction >= gorillaThreshold) {
+            if (xorZeroFraction >= GORILLA_THRESHOLD) {
                 return PipelineConfig.forFloats(blockSize).gorilla();
             }
         }

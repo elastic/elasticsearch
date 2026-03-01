@@ -76,7 +76,7 @@ public class ES93HnswBinaryQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             Locale.ROOT,
             expected,
             "ES93BinaryQuantizedVectorsFormat(name=ES93BinaryQuantizedVectorsFormat, rawVectorFormat=%s,"
-                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate={}))"
+                + " scorer=ES818BinaryFlatVectorsScorer(nonQuantizedDelegate=ES93FlatVectorScorer(delegate={})))"
         );
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
         expected = format(

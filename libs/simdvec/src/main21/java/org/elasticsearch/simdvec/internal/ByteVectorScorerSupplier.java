@@ -11,7 +11,6 @@ package org.elasticsearch.simdvec.internal;
 
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
@@ -30,13 +29,13 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
 
     final int dims;
     final int maxOrd;
-    final MemorySegmentAccessInput input;
+    final MemorySegmentAccessor input;
     final ByteVectorValues values;
     final VectorSimilarityFunction fallbackScorer;
 
     static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
-    protected ByteVectorScorerSupplier(MemorySegmentAccessInput input, ByteVectorValues values, VectorSimilarityFunction fallbackScorer) {
+    protected ByteVectorScorerSupplier(MemorySegmentAccessor input, ByteVectorValues values, VectorSimilarityFunction fallbackScorer) {
         this.input = input;
         this.values = values;
         this.dims = values.dimension();
@@ -51,7 +50,7 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
     }
 
     final void bulkScoreFromOrds(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
-        MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
+        MemorySegment vectorsSeg = input.entireSegmentOrNull();
         if (vectorsSeg == null) {
             // we might be able to get segments for individual vectors, so try separately
             scoreSeparately(firstOrd, ordinals, scores, numNodes);
@@ -77,10 +76,9 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
     }
 
     private void scoreSeparately(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
-        long firstByteOffset = (long) firstOrd * dims;
         byte[] firstVector = null;
 
-        MemorySegment firstSeg = input.segmentSliceOrNull(firstByteOffset, dims);
+        MemorySegment firstSeg = input.segmentForEntryOrNull(firstOrd);
         if (firstSeg == null) {
             firstVector = values.vectorValue(firstOrd).clone();
             for (int i = 0; i < numNodes; i++) {
@@ -88,8 +86,7 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
             }
         } else {
             for (int i = 0; i < numNodes; i++) {
-                long secondByteOffset = (long) ordinals[i] * dims;
-                MemorySegment secondSeg = input.segmentSliceOrNull(secondByteOffset, dims);
+                MemorySegment secondSeg = input.segmentForEntryOrNull(ordinals[i]);
                 if (secondSeg == null) {
                     if (firstVector == null) {
                         firstVector = values.vectorValue(firstOrd).clone();
@@ -103,15 +100,12 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
     }
 
     final float scoreFromOrds(int firstOrd, int secondOrd) throws IOException {
-        long firstByteOffset = (long) firstOrd * dims;
-        long secondByteOffset = (long) secondOrd * dims;
-
-        MemorySegment firstSeg = input.segmentSliceOrNull(firstByteOffset, dims);
+        MemorySegment firstSeg = input.segmentForEntryOrNull(firstOrd);
         if (firstSeg == null) {
             return fallbackScore(firstOrd, secondOrd);
         }
 
-        MemorySegment secondSeg = input.segmentSliceOrNull(secondByteOffset, dims);
+        MemorySegment secondSeg = input.segmentForEntryOrNull(secondOrd);
         if (secondSeg == null) {
             return fallbackScore(firstOrd, secondOrd);
         }
@@ -163,7 +157,7 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
 
     public static final class CosineSupplier extends ByteVectorScorerSupplier {
 
-        public CosineSupplier(MemorySegmentAccessInput input, ByteVectorValues values) {
+        public CosineSupplier(MemorySegmentAccessor input, ByteVectorValues values) {
             super(input, values, COSINE);
         }
 
@@ -204,7 +198,7 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
 
     public static final class EuclideanSupplier extends ByteVectorScorerSupplier {
 
-        public EuclideanSupplier(MemorySegmentAccessInput input, ByteVectorValues values) {
+        public EuclideanSupplier(MemorySegmentAccessor input, ByteVectorValues values) {
             super(input, values, EUCLIDEAN);
         }
 
@@ -243,7 +237,7 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
 
         private final float denom = (float) (dims * (1 << 15));
 
-        public DotProductSupplier(MemorySegmentAccessInput input, ByteVectorValues values) {
+        public DotProductSupplier(MemorySegmentAccessor input, ByteVectorValues values) {
             super(input, values, DOT_PRODUCT);
         }
 
@@ -284,7 +278,7 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
 
     public static final class MaxInnerProductSupplier extends ByteVectorScorerSupplier {
 
-        public MaxInnerProductSupplier(MemorySegmentAccessInput input, ByteVectorValues values) {
+        public MaxInnerProductSupplier(MemorySegmentAccessor input, ByteVectorValues values) {
             super(input, values, MAXIMUM_INNER_PRODUCT);
         }
 

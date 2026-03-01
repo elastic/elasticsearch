@@ -36,16 +36,17 @@ public class ES93FlatVectorScorer implements FlatVectorsScorer {
         VectorSimilarityFunction similarityFunction,
         KnnVectorValues vectorValues
     ) throws IOException {
-        if (FACTORY != null && vectorValues instanceof HasIndexSlice sl) {
+        if (FACTORY != null) {
+            var indexInput = vectorValues instanceof HasIndexSlice ? ((HasIndexSlice) vectorValues).getSlice() : null;
             Optional<RandomVectorScorerSupplier> scorer = switch (vectorValues.getEncoding()) {
                 case BYTE -> FACTORY.getByteVectorScorerSupplier(
                     VectorSimilarityType.of(similarityFunction),
-                    sl.getSlice(),
+                    indexInput,
                     (ByteVectorValues) vectorValues
                 );
                 case FLOAT32 -> FACTORY.getFloatVectorScorerSupplier(
                     VectorSimilarityType.of(similarityFunction),
-                    sl.getSlice(),
+                    indexInput,
                     (FloatVectorValues) vectorValues
                 );
             };

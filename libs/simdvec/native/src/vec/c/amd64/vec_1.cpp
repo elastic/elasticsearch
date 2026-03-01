@@ -578,9 +578,9 @@ EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCou
     return result;
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*)>
+template <typename TData, const f32_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t)>
 static inline void sqrf32_inner_bulk(
-    const f32_t* a,
+    const TData* a,
     const f32_t* b,
     const int32_t dims,
     const int32_t pitch,
@@ -591,10 +591,10 @@ static inline void sqrf32_inner_bulk(
     const int vec_size = pitch / sizeof(f32_t);
     int c = 0;
     for (; c + 3 < count; c += 4) {
-        const f32_t* a0 = a + mapper(c + 0, offsets) * vec_size;
-        const f32_t* a1 = a + mapper(c + 1, offsets) * vec_size;
-        const f32_t* a2 = a + mapper(c + 2, offsets) * vec_size;
-        const f32_t* a3 = a + mapper(c + 3, offsets) * vec_size;
+        const f32_t* a0 = mapper(a, c + 0, offsets, vec_size);
+        const f32_t* a1 = mapper(a, c + 1, offsets, vec_size);
+        const f32_t* a2 = mapper(a, c + 2, offsets, vec_size);
+        const f32_t* a3 = mapper(a, c + 3, offsets, vec_size);
 
         __m256 sum0 = _mm256_setzero_ps();
         __m256 sum1 = _mm256_setzero_ps();
@@ -644,13 +644,13 @@ static inline void sqrf32_inner_bulk(
 
     // vectors tail
     for (; c < count; c++) {
-        const f32_t* a0 = a + mapper(c, offsets) * vec_size;
+        const f32_t* a0 = mapper(a, c, offsets, vec_size);
         results[c] = vec_sqrf32(a0, b, dims);
     }
 }
 
 EXPORT void vec_sqrf32_bulk(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqrf32_inner_bulk<identity_mapper>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
+    sqrf32_inner_bulk<f32_t, identity_mapper_2>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
 }
 
 EXPORT void vec_sqrf32_bulk_offsets(
@@ -661,7 +661,16 @@ EXPORT void vec_sqrf32_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    sqrf32_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    sqrf32_inner_bulk<f32_t, array_mapper_2>(a, b, dims, pitch, offsets, count, results);
+}
+
+EXPORT void vec_sqrf32_bulk_sparse(
+    f32_t* const* a,
+    const f32_t* b,
+    const int32_t dims,
+    const int32_t count,
+    f32_t* results) {
+    sqrf32_inner_bulk<f32_t*, sparse_mapper_2>(a, b, dims, dims * sizeof(f32_t), NULL, count, results);
 }
 
 // Fast AVX2 popcount, based on "Faster Population Counts Using AVX2 Instructions"

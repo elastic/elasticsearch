@@ -49,6 +49,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
     static final MethodHandle applyCorrectionsMaxInnerProductBulk$mh;
     static final MethodHandle applyCorrectionsDotProductBulk$mh;
 
+    static final MethodHandle sqrf32BulkSparse$mh;
+
     private static final JdkVectorSimilarityFunctions INSTANCE;
 
     /**
@@ -186,6 +188,15 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 applyCorrectionsMaxInnerProductBulk$mh = bindFunction("diskbbq_apply_corrections_maximum_inner_product_bulk", caps, score);
                 applyCorrectionsDotProductBulk$mh = bindFunction("diskbbq_apply_corrections_dot_product_bulk", caps, score);
 
+                FunctionDescriptor bulkSparse = FunctionDescriptor.ofVoid(
+                    ADDRESS,  // f32_t* const* a
+                    ADDRESS,  // const f32_t* b
+                    JAVA_INT, // const int32_t dims
+                    JAVA_INT, // const int32_t count
+                    ADDRESS   // f32_t* results
+                );
+                sqrf32BulkSparse$mh = bindFunction("vec_sqrf32_bulk_sparse", caps, bulkSparse);
+
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
                 if (caps < 0) {
@@ -197,6 +208,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 applyCorrectionsEuclideanBulk$mh = null;
                 applyCorrectionsMaxInnerProductBulk$mh = null;
                 applyCorrectionsDotProductBulk$mh = null;
+                sqrf32BulkSparse$mh = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -527,11 +539,20 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
+        private static void sqrf32BulkSparse(MemorySegment a, MemorySegment b, int dimensions, int count, MemorySegment results) {
+            try {
+                sqrf32BulkSparse$mh.invokeExact(a, b, dimensions, count, results);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
         private static final Map<OperationSignature<?>, MethodHandle> HANDLES_WITH_CHECKS;
 
         static final MethodHandle APPLY_CORRECTIONS_EUCLIDEAN_HANDLE_BULK;
         static final MethodHandle APPLY_CORRECTIONS_MAX_INNER_PRODUCT_HANDLE_BULK;
         static final MethodHandle APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
+        static final MethodHandle SQUARE_DISTANCE_F32_BULK_SPARSE;
 
         static {
             MethodHandles.Lookup lookup = MethodHandles.lookup();
@@ -719,6 +740,20 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     "applyCorrectionsDotProductBulk",
                     scoringFunction
                 );
+
+                MethodType bulkSparseFunction = MethodType.methodType(
+                    void.class,
+                    MemorySegment.class,
+                    MemorySegment.class,
+                    int.class,
+                    int.class,
+                    MemorySegment.class
+                );
+                SQUARE_DISTANCE_F32_BULK_SPARSE = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "sqrf32BulkSparse",
+                    bulkSparseFunction
+                );
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError(e);
             }
@@ -753,6 +788,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
         @Override
         public MethodHandle applyCorrectionsDotProductBulk() {
             return APPLY_CORRECTIONS_DOT_PRODUCT_HANDLE_BULK;
+        }
+
+        @Override
+        public MethodHandle squareDistanceF32BulkSparse() {
+            return SQUARE_DISTANCE_F32_BULK_SPARSE;
         }
     }
 }

@@ -45,7 +45,12 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     private static final DirectIOCapableFlatVectorsFormat defaultVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93FlatVectorScorer.INSTANCE
-    );
+    ) {
+        @Override
+        public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+            return new ES93FlatVectorsWriter(state, flatVectorsScorer());
+        }
+    };
     private static final DirectIOCapableFlatVectorsFormat bitVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93FlatBitVectorScorer.INSTANCE
     ) {

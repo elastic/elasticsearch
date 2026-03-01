@@ -1316,6 +1316,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final LongValues suffixOffsets;
         final RandomAccessInput prefixData;
         final RandomAccessInput suffixData;
+        final RandomAccessInput prefixTrimData;
         final LongValues indexAddresses;
         final RandomAccessInput indexBytes;
         final BytesRef term;
@@ -1345,6 +1346,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
             prefixData = data.randomAccessSlice(entry.prefixDataOffset, entry.prefixDataLength);
             suffixData = data.randomAccessSlice(entry.suffixDataOffset, entry.suffixDataLength);
+            prefixTrimData = data.randomAccessSlice(entry.prefixTrimDataOffset, entry.prefixTrimDataLength);
 
             RandomAccessInput indexAddressesSlice = data.randomAccessSlice(
                 entry.termsIndexAddressesOffset,
@@ -1372,6 +1374,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
                 prefixData.readBytes(prefixStart, compressedBuf, 0, prefixCompLen);
                 termLen = FSST.decompress(compressedBuf, 0, prefixCompLen, fsstDecoder, decompressBuf);
+                int trim = prefixTrimData.readByte(targetOrd) & 0xFF;
+                termLen -= trim;
                 System.arraycopy(decompressBuf, 0, term.bytes, 0, termLen);
             }
 
@@ -1924,6 +1928,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         entry.prefixIdsDataLength = meta.readLong();
         entry.prefixOffsetsDataOffset = meta.readLong();
         entry.prefixOffsetsDataLength = meta.readLong();
+        entry.prefixTrimDataOffset = meta.readLong();
+        entry.prefixTrimDataLength = meta.readLong();
 
         entry.termsDictIndexShift = meta.readInt();
         final long indexSize = (size + (1L << entry.termsDictIndexShift) - 1) >>> entry.termsDictIndexShift;
@@ -2615,6 +2621,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         DirectMonotonicReader.Meta prefixOffsetsMeta;
         long prefixOffsetsDataOffset;
         long prefixOffsetsDataLength;
+
+        long prefixTrimDataOffset;
+        long prefixTrimDataLength;
 
         int termsDictIndexShift;
         DirectMonotonicReader.Meta termsIndexAddressesMeta;

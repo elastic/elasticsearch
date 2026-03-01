@@ -782,6 +782,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         byte[] currentPrefixBytes = new byte[maxLength + 1];
         int currentPrefixLen = 0;
 
+        // Per-term prefix trim: number of bytes to remove from the end of the
+        // assigned prefix. Allows reusing a prefix_id when a term partially
+        // matches the current prefix (the shared portion is a prefix of the
+        // stored prefix). Stored as one byte per term (max trim = 255).
+        byte[] prefixTrimBuf = new byte[Math.max((int) Math.min(size, 1024), 1)];
+
         BytesRefBuilder prevTerm = new BytesRefBuilder();
         BytesRefBuilder currentTerm = new BytesRefBuilder();
 
@@ -798,6 +804,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             BytesRef next = rawTerm;
             int prefixLen;
             int prefixId;
+            int trim = 0;
 
             if (ord == 0) {
                 if (size == 1) {
@@ -824,30 +831,46 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     prefixId = numPrefixes - 1;
                     prefixLen = currentPrefixLen;
                 } else {
-                    // Use forwardLcp only (not max with backwardLcp) so that the next
-                    // term is guaranteed to match, eliminating singleton prefix entries.
                     int forwardLcp = (next != null) ? computeLCP(cur, next) : 0;
-                    prefixLen = forwardLcp;
-                    if (prefixAccumPos + prefixLen > prefixAccumBuf.length) {
-                        prefixAccumBuf = ArrayUtil.grow(prefixAccumBuf, prefixAccumPos + prefixLen);
+                    int matchLen = computePrefixMatch(cur, currentPrefixBytes, currentPrefixLen);
+                    int trimDelta = currentPrefixLen - forwardLcp;
+
+                    if (forwardLcp <= matchLen && trimDelta > 0 && trimDelta <= 255) {
+                        // The forwardLcp-length prefix is contained within the current
+                        // stored prefix — reuse prefix_id with a trim value instead of
+                        // creating a new prefix entry.
+                        prefixId = numPrefixes - 1;
+                        prefixLen = forwardLcp;
+                        trim = trimDelta;
+                    } else {
+                        prefixLen = forwardLcp;
+                        if (prefixAccumPos + prefixLen > prefixAccumBuf.length) {
+                            prefixAccumBuf = ArrayUtil.grow(prefixAccumBuf, prefixAccumPos + prefixLen);
+                        }
+                        if (numPrefixes >= prefixAccumStarts.length) {
+                            prefixAccumStarts = ArrayUtil.grow(prefixAccumStarts, numPrefixes + 1);
+                        }
+                        prefixAccumStarts[numPrefixes] = prefixAccumPos;
+                        System.arraycopy(cur.bytes, cur.offset, prefixAccumBuf, prefixAccumPos, prefixLen);
+                        prefixAccumPos += prefixLen;
+                        if (prefixLen > currentPrefixBytes.length) {
+                            currentPrefixBytes = new byte[prefixLen];
+                        }
+                        System.arraycopy(cur.bytes, cur.offset, currentPrefixBytes, 0, prefixLen);
+                        currentPrefixLen = prefixLen;
+                        prefixId = numPrefixes;
+                        numPrefixes++;
                     }
-                    if (numPrefixes >= prefixAccumStarts.length) {
-                        prefixAccumStarts = ArrayUtil.grow(prefixAccumStarts, numPrefixes + 1);
-                    }
-                    prefixAccumStarts[numPrefixes] = prefixAccumPos;
-                    System.arraycopy(cur.bytes, cur.offset, prefixAccumBuf, prefixAccumPos, prefixLen);
-                    prefixAccumPos += prefixLen;
-                    if (prefixLen > currentPrefixBytes.length) {
-                        currentPrefixBytes = new byte[prefixLen];
-                    }
-                    System.arraycopy(cur.bytes, cur.offset, currentPrefixBytes, 0, prefixLen);
-                    currentPrefixLen = prefixLen;
-                    prefixId = numPrefixes;
-                    numPrefixes++;
                 }
             }
 
             prefixIdsWriter.add(prefixId);
+
+            // Store trim value for this term
+            if (ord >= prefixTrimBuf.length) {
+                prefixTrimBuf = ArrayUtil.grow(prefixTrimBuf, (int) (ord + 1));
+            }
+            prefixTrimBuf[(int) ord] = (byte) trim;
 
             // Add suffix to batch
             int suffixLen = cur.length - prefixLen;
@@ -988,6 +1011,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         prefixOffsetsData.copyTo(data);
         long prefixOffsetsDataEnd = data.getFilePointer();
 
+        // Write per-term prefix trim bytes
+        long prefixTrimDataStart = data.getFilePointer();
+        int trimLen = (int) Math.min(size, prefixTrimBuf.length);
+        data.writeBytes(prefixTrimBuf, 0, trimLen);
+        long prefixTrimDataEnd = data.getFilePointer();
+
         // Write remaining metadata
         meta.writeInt(maxLength);
         meta.writeLong(symbolTableStart);
@@ -1002,6 +1031,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         meta.writeLong(prefixIdsDataEnd - prefixIdsDataStart);
         meta.writeLong(prefixOffsetsDataStart);
         meta.writeLong(prefixOffsetsDataEnd - prefixOffsetsDataStart);
+        meta.writeLong(prefixTrimDataStart);
+        meta.writeLong(prefixTrimDataEnd - prefixTrimDataStart);
 
         long termsIndexStart = data.getFilePointer();
         writeTermsIndex(values);
@@ -1017,9 +1048,10 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             long suffixOffsetsDataSize = suffixOffsetsDataEnd - suffixOffsetsDataStart;
             long prefixIdsDataSize = prefixIdsDataEnd - prefixIdsDataStart;
             long prefixOffsetsDataSize = prefixOffsetsDataEnd - prefixOffsetsDataStart;
+            long prefixTrimDataSize = prefixTrimDataEnd - prefixTrimDataStart;
             long termsIndexSize = termsIndexEnd - termsIndexStart;
             long totalTermsDict = symbolTableSize + suffixDataSize + prefixDataSize + suffixOffsetsDataSize + prefixIdsDataSize
-                + prefixOffsetsDataSize + termsIndexSize;
+                + prefixOffsetsDataSize + prefixTrimDataSize + termsIndexSize;
 
             logger.debug(
                 "TermsDict space breakdown for field [{}]: "
@@ -1030,6 +1062,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     + "  Prefix data (FSST):     [{}] bytes (uncompressed: [{}] bytes, ratio: [{}]x)\n"
                     + "  Prefix offsets (DMW):    [{}] bytes data\n"
                     + "  Prefix IDs (DMW):        [{}] bytes data + [{}] bytes meta\n"
+                    + "  Prefix trim data:       [{}] bytes\n"
                     + "  Terms index:            [{}] bytes\n",
                 "sorted/sortedset",
                 size,
@@ -1049,6 +1082,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 prefixOffsetsDataSize,
                 prefixIdsDataSize,
                 prefixIdsMetaSize,
+                prefixTrimDataSize,
                 termsIndexSize
             );
         }

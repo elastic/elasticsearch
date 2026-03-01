@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossProjectSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateActionResponseTests.randomCrossProjectStats;
 import static org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateActionResponseTests.randomRunningState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -98,14 +100,8 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
             new ExponentialAverageCalculationContext(50.0, null, null)
         );
 
-        Response.DatafeedStats stats = new Response.DatafeedStats(
-            "df-id",
-            DatafeedState.STARTED,
-            node,
-            null,
-            timingStats,
-            randomRunningState()
-        );
+        GetDatafeedRunningStateAction.Response.RunningState runningState = randomRunningState();
+        Response.DatafeedStats stats = new Response.DatafeedStats("df-id", DatafeedState.STARTED, node, null, timingStats, runningState);
 
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytes;
@@ -116,7 +112,8 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
 
         Map<String, Object> dfStatsMap = XContentHelper.convertToMap(bytes, randomBoolean(), xContentType).v2();
 
-        assertThat(dfStatsMap.size(), is(equalTo(5)));
+        int expectedFields = runningState.getCrossProjectStats() != null ? 6 : 5;
+        assertThat(dfStatsMap.size(), is(equalTo(expectedFields)));
         assertThat(dfStatsMap, hasEntry("datafeed_id", "df-id"));
         assertThat(dfStatsMap, hasEntry("state", "started"));
         assertThat(dfStatsMap, hasKey("node"));
@@ -147,5 +144,58 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         assertThat(timingStatsMap, hasEntry("total_search_time_ms", 100.0));
         assertThat(timingStatsMap, hasEntry("average_search_time_per_bucket_ms", 10.0));
         assertThat(timingStatsMap, hasEntry("exponential_average_search_time_per_hour_ms", 50.0));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCrossProjectStatsRenderedAtTopLevel() throws IOException {
+        CrossProjectSearchStatsSnapshot cpsStats = randomCrossProjectStats();
+        Response.DatafeedStats stats = new Response.DatafeedStats(
+            "df-id",
+            DatafeedState.STARTED,
+            null,
+            null,
+            null,
+            new GetDatafeedRunningStateAction.Response.RunningState(true, true, null, cpsStats)
+        );
+
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference bytes;
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            bytes = BytesReference.bytes(builder);
+        }
+
+        Map<String, Object> dfStatsMap = XContentHelper.convertToMap(bytes, randomBoolean(), xContentType).v2();
+        assertThat(dfStatsMap, hasKey("cross_project_stats"));
+
+        Map<String, Object> cpsMap = (Map<String, Object>) dfStatsMap.get("cross_project_stats");
+        assertThat(cpsMap, hasKey("total_projects"));
+        assertThat(cpsMap, hasKey("available_projects"));
+        assertThat(cpsMap, hasKey("skipped_projects"));
+        assertThat(cpsMap, hasKey("availability_ratio"));
+        assertThat(cpsMap, hasKey("stabilized_project_aliases"));
+        assertThat(cpsMap, hasKey("per_project_consecutive_skips"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCrossProjectStatsAbsentWhenNull() throws IOException {
+        Response.DatafeedStats stats = new Response.DatafeedStats(
+            "df-id",
+            DatafeedState.STARTED,
+            null,
+            null,
+            null,
+            new GetDatafeedRunningStateAction.Response.RunningState(true, true, null, null)
+        );
+
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference bytes;
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            bytes = BytesReference.bytes(builder);
+        }
+
+        Map<String, Object> dfStatsMap = XContentHelper.convertToMap(bytes, randomBoolean(), xContentType).v2();
+        assertFalse(dfStatsMap.containsKey("cross_project_stats"));
     }
 }

@@ -250,8 +250,12 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         stats.update(List.of(available("origin"), available("P1"), available("P2")));
 
+        Instant firstChangeTime = null;
         for (int i = 1; i <= 11; i++) {
             clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
+            if (firstChangeTime == null) {
+                firstChangeTime = clock.get();
+            }
             stats.update(List.of(available("origin"), available("P1"), available("P3")));
         }
 
@@ -262,6 +266,7 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         assertThat(result.newlyStabilizedProjects(), equalTo(Set.of("P3")));
         assertThat(result.confirmedRemovals(), equalTo(Set.of("P2")));
         assertThat(stats.getStabilizedProjectAliases(), containsInAnyOrder("origin", "P1", "P3"));
+        assertThat(result.changeTimestamp(), equalTo(firstChangeTime));
     }
 
     public void testMultipleProjectsStabilizingSimultaneously() {
@@ -595,5 +600,67 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
         CycleResult result = new CycleResult(Set.of("Z1", "A1", "M1"), Set.of(), true, Instant.EPOCH);
         String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
         assertThat(msg, containsString("[A1, M1, Z1]"));
+    }
+
+    public void testUnlinkingConfirmationDoesNotRepeat() {
+        AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
+        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+
+        stats.update(List.of(available("origin"), available("P1")));
+
+        int confirmedAtCycle = -1;
+        for (int i = 1; i <= 13; i++) {
+            clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
+            CycleResult result = stats.update(List.of(available("origin")));
+            if (result.scopeChanged()) {
+                confirmedAtCycle = i;
+                break;
+            }
+        }
+        assertTrue("Should have confirmed unlinking", confirmedAtCycle > 0);
+
+        for (int i = confirmedAtCycle + 1; i <= confirmedAtCycle + 10; i++) {
+            clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
+            CycleResult result = stats.update(List.of(available("origin")));
+            assertFalse("Post-confirmation cycle " + i + " should not re-trigger", result.scopeChanged());
+        }
+    }
+
+    public void testMultipleProjectsUnlinkingSimultaneously() {
+        AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
+        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+
+        stats.update(List.of(available("origin"), available("P1"), available("P2"), available("P3")));
+
+        for (int i = 1; i <= 11; i++) {
+            clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
+            stats.update(List.of(available("origin")));
+        }
+
+        clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(12)));
+        CycleResult result = stats.update(List.of(available("origin")));
+
+        assertTrue(result.scopeChanged());
+        assertThat(result.confirmedRemovals(), containsInAnyOrder("P1", "P2", "P3"));
+        assertThat(stats.getStabilizedProjectAliases(), equalTo(Set.of("origin")));
+    }
+
+    public void testMixedSkippedAndFailedStates() {
+        AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
+        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get);
+
+        stats.update(List.of(available("origin"), available("P1")));
+
+        for (int i = 1; i <= 6; i++) {
+            clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
+            stats.update(List.of(available("origin"), skipped("P1")));
+        }
+
+        for (int i = 7; i <= 12; i++) {
+            clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
+            stats.update(List.of(available("origin"), failed("P1")));
+        }
+
+        assertThat(stats.getConsecutiveSkips(), hasEntry("P1", 12));
     }
 }

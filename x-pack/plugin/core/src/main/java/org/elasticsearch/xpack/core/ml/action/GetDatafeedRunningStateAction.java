@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -19,6 +20,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossProjectSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 
 import java.io.IOException;
@@ -81,25 +83,47 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
 
         public static class RunningState implements Writeable, ToXContentObject {
 
-            // Is the datafeed a "realtime" datafeed, meaning it was started without an end_time
+            private static final TransportVersion CROSS_PROJECT_STATS_ADDED = TransportVersion.fromName("ml_datafeed_cross_project_stats");
+
             private final boolean realTimeConfigured;
-            // Has the look back finished and are we now running on "real-time" data
             private final boolean realTimeRunning;
 
-            // The current time interval that datafeed is searching
             @Nullable
             private final SearchInterval searchInterval;
 
+            @Nullable
+            private final CrossProjectSearchStatsSnapshot crossProjectStats;
+
             public RunningState(boolean realTimeConfigured, boolean realTimeRunning, @Nullable SearchInterval searchInterval) {
+                this(realTimeConfigured, realTimeRunning, searchInterval, null);
+            }
+
+            public RunningState(
+                boolean realTimeConfigured,
+                boolean realTimeRunning,
+                @Nullable SearchInterval searchInterval,
+                @Nullable CrossProjectSearchStatsSnapshot crossProjectStats
+            ) {
                 this.realTimeConfigured = realTimeConfigured;
                 this.realTimeRunning = realTimeRunning;
                 this.searchInterval = searchInterval;
+                this.crossProjectStats = crossProjectStats;
             }
 
             public RunningState(StreamInput in) throws IOException {
                 this.realTimeConfigured = in.readBoolean();
                 this.realTimeRunning = in.readBoolean();
                 this.searchInterval = in.readOptionalWriteable(SearchInterval::new);
+                if (in.getTransportVersion().supports(CROSS_PROJECT_STATS_ADDED)) {
+                    this.crossProjectStats = in.readOptionalWriteable(CrossProjectSearchStatsSnapshot::new);
+                } else {
+                    this.crossProjectStats = null;
+                }
+            }
+
+            @Nullable
+            public CrossProjectSearchStatsSnapshot getCrossProjectStats() {
+                return crossProjectStats;
             }
 
             @Override
@@ -109,12 +133,13 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 RunningState that = (RunningState) o;
                 return realTimeConfigured == that.realTimeConfigured
                     && realTimeRunning == that.realTimeRunning
-                    && Objects.equals(searchInterval, that.searchInterval);
+                    && Objects.equals(searchInterval, that.searchInterval)
+                    && Objects.equals(crossProjectStats, that.crossProjectStats);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(realTimeConfigured, realTimeRunning, searchInterval);
+                return Objects.hash(realTimeConfigured, realTimeRunning, searchInterval, crossProjectStats);
             }
 
             @Override
@@ -122,6 +147,9 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 out.writeBoolean(realTimeConfigured);
                 out.writeBoolean(realTimeRunning);
                 out.writeOptionalWriteable(searchInterval);
+                if (out.getTransportVersion().supports(CROSS_PROJECT_STATS_ADDED)) {
+                    out.writeOptionalWriteable(crossProjectStats);
+                }
             }
 
             @Override

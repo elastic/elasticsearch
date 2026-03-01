@@ -18,11 +18,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * A helper class for {@link FlattenedFieldMapper} parses a JSON object
@@ -44,6 +46,8 @@ class FlattenedFieldParser {
     private final boolean usesBinaryDocValues;
     private final boolean storeRoot;
 
+    private final Map<String, KeywordFieldMapper> mappedFields;
+
     FlattenedFieldParser(
         String rootFieldFullPath,
         String keyedFieldFullPath,
@@ -53,8 +57,8 @@ class FlattenedFieldParser {
         int ignoreAbove,
         String nullValue,
         boolean usesBinaryDocValues,
-        boolean storeRoot
-    ) {
+        boolean storeRoot,
+        Map<String, KeywordFieldMapper> mappedFields) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
         this.keyedIgnoredValuesFieldFullPath = keyedIgnoredValuesFieldFullPath;
@@ -64,6 +68,7 @@ class FlattenedFieldParser {
         this.nullValue = nullValue;
         this.usesBinaryDocValues = usesBinaryDocValues;
         this.storeRoot = storeRoot;
+        this.mappedFields = mappedFields;
     }
 
     public void parse(final DocumentParserContext documentParserContext) throws IOException {
@@ -134,6 +139,12 @@ class FlattenedFieldParser {
             throw new IllegalArgumentException(
                 "Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [" + key + "]."
             );
+        }
+
+        KeywordFieldMapper keywordFieldMapper = mappedFields.get(key);
+        if (keywordFieldMapper != null) {
+            keywordFieldMapper.indexValue(context.documentParserContext(), value);
+            return;
         }
 
         String keyedValue = createKeyedValue(key, value);

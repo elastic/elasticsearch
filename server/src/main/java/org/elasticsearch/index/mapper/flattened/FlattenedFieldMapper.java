@@ -33,9 +33,11 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -89,8 +91,10 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -285,7 +289,28 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 nullValue.get(),
                 context.isSourceSynthetic()
             );
-            return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
+
+            // HACK:
+            Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreatedVersion)
+                // .put(IndexSettings.MODE.getKey(), indexMode)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build();
+            IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("bla").settings(settings).build(), settings);
+            var hostName = new KeywordFieldMapper.Builder(leafName() + ".host.name", indexSettings).indexed(false)
+                .docValues(true)
+                .build(context);
+            var serviceName = new KeywordFieldMapper.Builder(leafName() + ".service.name", indexSettings).indexed(false)
+                .docValues(true)
+                .build(context);
+            // resource.attributes.log.file.path
+            var logFilePath = new KeywordFieldMapper.Builder(leafName() + ".log.file.path", indexSettings).indexed(false)
+                .docValues(true)
+                .build(context);
+            // END HACK
+
+            return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this, hostName, serviceName, logFilePath);
         }
     }
 
@@ -1095,10 +1120,23 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
+    private final Map<String, KeywordFieldMapper> mappedFields;
 
-    private FlattenedFieldMapper(String leafName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+    private FlattenedFieldMapper(
+        String leafName,
+        MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
+        Builder builder,
+        KeywordFieldMapper hostName,
+        KeywordFieldMapper serviceName,
+        KeywordFieldMapper logFilePath
+    ) {
         super(leafName, mappedFieldType, builderParams);
         this.builder = builder;
+        this.mappedFields = new HashMap<>();
+        mappedFields.put(hostName.leafName().replace(leafName + ".", ""), hostName);
+        mappedFields.put(serviceName.leafName().replace(leafName + ".", ""), serviceName);
+        mappedFields.put(logFilePath.leafName().replace(leafName + ".", ""), logFilePath);
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
@@ -1108,7 +1146,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             builder.ignoreAbove.get(),
             builder.nullValue.get(),
             builder.usesBinaryDocValues,
-            builder.storeRoot.get()
+            builder.storeRoot.get(),
+            mappedFields
         );
     }
 
@@ -1174,6 +1213,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
+            // TODO: include mapped fields
             return new SyntheticSourceSupport.Native(
                 () -> new FlattenedDocValuesSyntheticFieldLoader(
                     fullPath(),
@@ -1186,5 +1226,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         return super.syntheticSourceSupport();
+    }
+
+    @Override
+    public Iterator<Mapper> iterator() {
+        return mappedFields.values().stream().map(m -> (Mapper) m).iterator();
     }
 }

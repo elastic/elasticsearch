@@ -1320,7 +1320,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.fieldType().scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
-    private boolean indexValue(DocumentParserContext context, String value) {
+    public boolean indexValue(DocumentParserContext context, String value) {
         return indexValue(context, new Text(value));
     }
 

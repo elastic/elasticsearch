@@ -957,7 +957,6 @@ class NodeConstruction {
             forbidPrivateIndexSettings,
             indexSettingProviders
         );
-        clusterService.addListener(metadataCreateIndexService);
 
         final MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(
             clusterService,

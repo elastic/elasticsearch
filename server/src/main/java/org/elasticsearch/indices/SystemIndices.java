@@ -746,6 +746,25 @@ public class SystemIndices {
     }
 
     /**
+     * Builds a single automaton that matches any index name that fits the patterns of the features' associated index descriptors.
+     * @return determinized automaton matching any of the descriptors' patterns, or an empty automaton if the collection is empty
+     */
+    public CharacterRunAutomaton buildAssociatedIndicesAutomaton() {
+        List<Automaton> automata = this.getFeatures()
+            .stream()
+            .map(SystemIndices.Feature::getAssociatedIndexDescriptors)
+            .flatMap(Collection::stream)
+            .map(AssociatedIndexDescriptor::getIndexPatternAutomaton)
+            .toList();
+
+        if (automata.isEmpty()) {
+            return new CharacterRunAutomaton(Automata.makeEmpty());
+        }
+
+        return new CharacterRunAutomaton(Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
+    }
+
+    /**
      * Describes an Elasticsearch system feature that keeps state in protected indices and data streams.
      *
      * <p>This is an internal class that closely follows the model of {@link SystemIndexPlugin}. See that class’s documents for high-level

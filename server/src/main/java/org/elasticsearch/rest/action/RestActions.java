@@ -40,6 +40,15 @@ import java.util.Locale;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 
+/**
+ * Utility class providing shared helper methods for REST action handlers.
+ * <p>
+ * Centralises common REST-layer concerns such as parsing document version
+ * information from request parameters or HTTP headers, building standard
+ * {@code _shards} XContent response headers for broadcast API responses,
+ * and translating URI query-string parameters into a {@link QueryBuilder}.
+ * All methods are static; the class is not meant to be instantiated.
+ */
 public class RestActions {
 
     public static final ParseField _SHARDS_FIELD = new ParseField("_shards");
@@ -50,6 +59,15 @@ public class RestActions {
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
     public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
+    /**
+     * Parses the document version from the REST request.
+     * The version is read from the {@code version} query-string parameter first;
+     * if absent, the {@code If-Match} HTTP header is used. Returns
+     * {@link Versions#MATCH_ANY} when neither is present.
+     *
+     * @param request the incoming REST request
+     * @return the parsed version, or {@link Versions#MATCH_ANY} if not specified
+     */
     public static long parseVersion(RestRequest request) {
         if (request.hasParam("version")) {
             return request.paramAsLong("version", Versions.MATCH_ANY);
@@ -61,6 +79,14 @@ public class RestActions {
         return Versions.MATCH_ANY;
     }
 
+    /**
+     * Parses the document version from the REST request, returning
+     * {@code defaultVersion} when none is explicitly provided.
+     *
+     * @param request        the incoming REST request
+     * @param defaultVersion the version to use when none is specified
+     * @return the parsed version, or {@code defaultVersion} if not specified
+     */
     public static long parseVersion(RestRequest request, long defaultVersion) {
         long version = parseVersion(request);
         return (version == Versions.MATCH_ANY) ? defaultVersion : version;

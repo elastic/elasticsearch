@@ -131,3 +131,17 @@ Return of the King Being the Third Part of The Lord of the Rings
 A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
 The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;
+
+testMultiMatchAfterMvExpandNotAllowed
+required_capability: multi_match_function
+
+FROM languages
+| KEEP language_code_long, language_code
+| MV_EXPAND language_code
+| WHERE MULTI_MATCH("test", language_code_long)
+| KEEP language_code_long
+;
+
+error:
+cannot be used after mv_expand
+;

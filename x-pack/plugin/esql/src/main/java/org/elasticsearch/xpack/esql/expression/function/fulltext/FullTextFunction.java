@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -225,9 +226,32 @@ public abstract class FullTextFunction extends Function
         }
     }
 
-    private static void checkFullTextFunctionsInFilter(Filter filter, Failures failures, boolean checkFullTextFunctionsAboveSubqueries) {
+    private static void checkFullTextFunctionsInFilter(
+        Filter filter,
+        Failures failures,
+        boolean checkFullTextFunctionsAboveSubqueries
+    ) {
         Expression condition = filter.condition();
-        checkFullTextQueryFunctionForCondition(filter, failures, condition, false, checkFullTextFunctionsAboveSubqueries);
+        if (filter.child() instanceof MvExpand mvExpand) {
+            condition.forEachDown(FullTextFunction.class, ftf -> {
+                failures.add(
+                    fail(
+                        ftf,
+                        "[{}] {} cannot be used after mv_expand because it requires document-level execution",
+                        ftf.functionName(),
+                        ftf.functionType()
+                    )
+                );
+            });
+        }
+
+        checkFullTextQueryFunctionForCondition(
+            filter,
+            failures,
+            condition,
+            false,
+            checkFullTextFunctionsAboveSubqueries
+        );
     }
 
     private static void checkFullTextQueryFunctionForCondition(
@@ -496,7 +520,13 @@ public abstract class FullTextFunction extends Function
         // the check for LookupJoin or the score function may fail at LogicalVerifier.
         return (logicalPlan, failures) -> {
             if (logicalPlan instanceof Filter f) {
-                checkFullTextFunctionsInFilter(f, failures, true);
+                checkFullTextQueryFunctionForCondition(
+                    f,
+                    failures,
+                    f.condition(),
+                    false,
+                    true
+                );
             }
         };
     }

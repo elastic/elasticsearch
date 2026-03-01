@@ -226,8 +226,8 @@ public class ESVectorUtil {
         float lambda,
         int[] quantize
     ) {
-        assert upperInterval >= lowerInterval :
-            "upperInterval must be greater than or equal to lowerInterval, but was: " + upperInterval + " < " + lowerInterval;
+        assert upperInterval >= lowerInterval
+            : "upperInterval must be greater than or equal to lowerInterval, but was: " + upperInterval + " < " + lowerInterval;
         float step = ((upperInterval - lowerInterval) / (points - 1.0F));
         float invStep = 1f / step;
         return IMPL.calculateOSQLoss(target, lowerInterval, upperInterval, step, invStep, norm2, lambda, quantize);

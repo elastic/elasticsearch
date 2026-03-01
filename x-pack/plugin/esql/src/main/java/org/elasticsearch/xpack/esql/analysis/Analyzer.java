@@ -1452,11 +1452,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
 
             // Deduplicate: last definition wins (same shadowing semantics as EVAL)
-            LinkedHashMap<String, Alias> deduped = new LinkedHashMap<>();
-            for (Alias field : resolved.fields) {
-                deduped.put(field.name(), field);
+            Set<String> seen = new HashSet<>();
+            List<Alias> dedupedFields = new ArrayList<>();
+            for (Alias field : resolved.fields.reversed()) {
+                if (seen.add(field.name())) {
+                    dedupedFields.addFirst(field);
+                }
             }
-            List<Alias> dedupedFields = new ArrayList<>(deduped.values());
             boolean changed = resolved.changed || dedupedFields.size() != resolved.fields.size();
 
             return changed ? new Row(row.source(), dedupedFields) : row;

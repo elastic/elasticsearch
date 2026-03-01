@@ -175,7 +175,11 @@ public sealed interface StageSpec {
         }
     }
 
-    record Gorilla() implements StageSpec {
+    record Gorilla(double maxError) implements StageSpec {
+        public Gorilla() {
+            this(-1);
+        }
+
         @Override
         public StageId stageId() {
             return StageId.GORILLA_PAYLOAD;
@@ -240,7 +244,11 @@ public sealed interface StageSpec {
         }
     }
 
-    record ChimpDoublePayload() implements StageSpec {
+    record ChimpDoublePayload(double maxError) implements StageSpec {
+        public ChimpDoublePayload() {
+            this(-1);
+        }
+
         @Override
         public StageId stageId() {
             return StageId.CHIMP_DOUBLE_PAYLOAD;
@@ -254,7 +262,11 @@ public sealed interface StageSpec {
         }
     }
 
-    record Chimp128DoublePayload() implements StageSpec {
+    record Chimp128DoublePayload(double maxError) implements StageSpec {
+        public Chimp128DoublePayload() {
+            this(-1);
+        }
+
         @Override
         public StageId stageId() {
             return StageId.CHIMP128_DOUBLE_PAYLOAD;

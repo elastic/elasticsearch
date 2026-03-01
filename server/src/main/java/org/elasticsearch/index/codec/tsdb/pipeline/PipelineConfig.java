@@ -301,6 +301,11 @@ public final class PipelineConfig {
             return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
         }
 
+        public PipelineConfig gorilla(double maxError) {
+            specs.add(new StageSpec.Gorilla(maxError));
+            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+        }
+
         public PipelineConfig alpDouble() {
             specs.add(new StageSpec.AlpDouble());
             return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
@@ -326,8 +331,18 @@ public final class PipelineConfig {
             return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
         }
 
+        public PipelineConfig chimp(double maxError) {
+            specs.add(new StageSpec.ChimpDoublePayload(maxError));
+            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+        }
+
         public PipelineConfig chimp128() {
             specs.add(new StageSpec.Chimp128DoublePayload());
+            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+        }
+
+        public PipelineConfig chimp128(double maxError) {
+            specs.add(new StageSpec.Chimp128DoublePayload(maxError));
             return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
         }
     }

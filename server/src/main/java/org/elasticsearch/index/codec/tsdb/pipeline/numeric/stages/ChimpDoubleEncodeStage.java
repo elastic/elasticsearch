@@ -32,7 +32,17 @@ public final class ChimpDoubleEncodeStage implements PayloadEncoder {
     private static final int BIT_BUFFER_OFFSET = 0;
     private static final int BITS_IN_BUFFER_OFFSET = 8;
 
+    private final double quantizeStep;
     private final byte[] bitState = new byte[BIT_STATE_SIZE];
+
+    public ChimpDoubleEncodeStage() {
+        this.quantizeStep = 0.0;
+    }
+
+    public ChimpDoubleEncodeStage(double maxError) {
+        assert maxError > 0 : "maxError must be positive: " + maxError;
+        this.quantizeStep = 2.0 * maxError;
+    }
 
     @Override
     public byte id() {
@@ -53,6 +63,10 @@ public final class ChimpDoubleEncodeStage implements PayloadEncoder {
         if (valueCount == 0) {
             out.writeVInt(0);
             return;
+        }
+
+        if (quantizeStep > 0) {
+            QuantizeUtils.quantizeDoubles(values, valueCount, quantizeStep);
         }
 
         for (int i = 0; i < valueCount; i++) {

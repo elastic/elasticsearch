@@ -32,7 +32,17 @@ public final class GorillaEncodeStage implements PayloadEncoder {
     private static final int BIT_BUFFER_OFFSET = 0;
     private static final int BITS_IN_BUFFER_OFFSET = 8;
 
+    private final double quantizeStep;
     private final byte[] bitState = new byte[BIT_STATE_SIZE];
+
+    public GorillaEncodeStage() {
+        this.quantizeStep = 0.0;
+    }
+
+    public GorillaEncodeStage(double maxError) {
+        assert maxError > 0 : "maxError must be positive: " + maxError;
+        this.quantizeStep = 2.0 * maxError;
+    }
 
     @Override
     public byte id() {
@@ -56,8 +66,10 @@ public final class GorillaEncodeStage implements PayloadEncoder {
             return;
         }
 
-        // NOTE: Convert sortable-longs to raw IEEE-754 bits so that XOR
-        // produces small deltas for consecutive similar doubles.
+        if (quantizeStep > 0) {
+            QuantizeUtils.quantizeDoubles(values, valueCount, quantizeStep);
+        }
+
         for (int i = 0; i < valueCount; i++) {
             values[i] = NumericUtils.sortableDoubleBits(values[i]);
         }

@@ -32,6 +32,7 @@ public final class Chimp128DoubleEncodeStage implements PayloadEncoder {
     // per value for no lookback advantage over streaming Chimp.
     private static final int MAX_BUFFER_SIZE = 128;
 
+    private final double quantizeStep;
     private final int bufferSize;
     private final int bufferMask;
     private final int indexBits;
@@ -39,6 +40,12 @@ public final class Chimp128DoubleEncodeStage implements PayloadEncoder {
     private final byte[] bitState = new byte[BIT_STATE_SIZE];
 
     public Chimp128DoubleEncodeStage(int blockSize) {
+        this(blockSize, 0.0);
+    }
+
+    public Chimp128DoubleEncodeStage(int blockSize, double maxError) {
+        assert maxError <= 0 || maxError > 0 : "maxError must be positive when set";
+        this.quantizeStep = maxError > 0 ? 2.0 * maxError : 0.0;
         final int bs = Math.min(Integer.highestOneBit(blockSize / 2), MAX_BUFFER_SIZE);
         assert bs > 0 && (bs & (bs - 1)) == 0 : "bufferSize must be a power of 2: " + bs;
         this.bufferSize = bs;
@@ -64,6 +71,10 @@ public final class Chimp128DoubleEncodeStage implements PayloadEncoder {
         if (valueCount == 0) {
             out.writeVInt(0);
             return;
+        }
+
+        if (quantizeStep > 0) {
+            QuantizeUtils.quantizeDoubles(values, valueCount, quantizeStep);
         }
 
         for (int i = 0; i < valueCount; i++) {

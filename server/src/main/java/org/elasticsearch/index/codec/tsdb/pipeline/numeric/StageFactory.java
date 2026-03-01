@@ -133,7 +133,7 @@ public final class StageFactory {
             case StageSpec.BitPack() -> new BitPackCodecStage(blockSize);
             case StageSpec.Zstd() -> new ZstdEncodeStage(blockSize, ZstdEncodeStage.DEFAULT_COMPRESSION_LEVEL);
             case StageSpec.Lz4(boolean highCompression) -> new Lz4EncodeStage(blockSize, highCompression);
-            case StageSpec.Gorilla() -> new GorillaEncodeStage();
+            case StageSpec.Gorilla(double maxError) -> maxError > 0 ? new GorillaEncodeStage(maxError) : new GorillaEncodeStage();
             case StageSpec.GorillaFloat() -> new GorillaFloatEncodeStage();
             case StageSpec.RlePayload() -> RlePayloadCodecStage.INSTANCE;
             case StageSpec.AlpDouble(double maxError) -> maxError > 0
@@ -148,9 +148,13 @@ public final class StageFactory {
             case StageSpec.AlpRdFloat(double maxError) -> maxError > 0
                 ? new AlpRdFloatEncodeStage(blockSize, maxError)
                 : new AlpRdFloatEncodeStage(blockSize);
-            case StageSpec.ChimpDoublePayload() -> new ChimpDoubleEncodeStage();
+            case StageSpec.ChimpDoublePayload(double maxError) -> maxError > 0
+                ? new ChimpDoubleEncodeStage(maxError)
+                : new ChimpDoubleEncodeStage();
             case StageSpec.ChimpFloatPayload() -> new ChimpFloatEncodeStage();
-            case StageSpec.Chimp128DoublePayload() -> new Chimp128DoubleEncodeStage(blockSize);
+            case StageSpec.Chimp128DoublePayload(double maxError) -> maxError > 0
+                ? new Chimp128DoubleEncodeStage(blockSize, maxError)
+                : new Chimp128DoubleEncodeStage(blockSize);
             case StageSpec.Chimp128FloatPayload() -> new Chimp128FloatEncodeStage(blockSize);
             default -> throw new IllegalArgumentException("Not a payload stage: " + spec);
         };
@@ -161,16 +165,16 @@ public final class StageFactory {
             case StageSpec.BitPack() -> new BitPackCodecStage(blockSize);
             case StageSpec.Zstd() -> new ZstdDecodeStage(blockSize);
             case StageSpec.Lz4 lz4 -> new Lz4DecodeStage(blockSize);
-            case StageSpec.Gorilla() -> new GorillaDecodeStage();
+            case StageSpec.Gorilla gorilla -> new GorillaDecodeStage();
             case StageSpec.GorillaFloat() -> new GorillaFloatDecodeStage();
             case StageSpec.RlePayload() -> RlePayloadCodecStage.INSTANCE;
             case StageSpec.AlpDouble alpDouble -> new AlpDoubleDecodeStage(blockSize);
             case StageSpec.AlpRdDouble alpRdDouble -> new AlpRdDoubleDecodeStage(blockSize);
             case StageSpec.AlpFloat alpFloat -> new AlpFloatDecodeStage(blockSize);
             case StageSpec.AlpRdFloat alpRdFloat -> new AlpRdFloatDecodeStage(blockSize);
-            case StageSpec.ChimpDoublePayload() -> new ChimpDoubleDecodeStage();
+            case StageSpec.ChimpDoublePayload chimpDoublePayload -> new ChimpDoubleDecodeStage();
             case StageSpec.ChimpFloatPayload() -> new ChimpFloatDecodeStage();
-            case StageSpec.Chimp128DoublePayload chimp128DoublePayload -> new Chimp128DoubleDecodeStage();
+            case StageSpec.Chimp128DoublePayload chimp128 -> new Chimp128DoubleDecodeStage();
             case StageSpec.Chimp128FloatPayload chimp128FloatPayload -> new Chimp128FloatDecodeStage();
             default -> throw new IllegalArgumentException("Not a payload stage: " + spec);
         };

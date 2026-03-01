@@ -69,7 +69,7 @@ public class Cache<Key, Value> {
     private final ToLongBiFunction<Key, Value> weigher;
     private final RemovalListener<Key, Value> removalListener;
 
-    private final ExecutorService siever = Executors.newSingleThreadExecutor();
+    private final ExecutorService siever;
     private volatile Iterator<EntryHolder<Key, Value>> sieve;
     // positive if entries have an expiration
     private final long expireAfterAccessNanos;
@@ -81,11 +81,11 @@ public class Cache<Key, Value> {
     private final boolean entriesExpireAfterWrite;
 
     public Cache() {
-        this(null,null,null,null, -1, -1);
+        this(null,null,null,null, -1, -1, null);
     }
 
     public Cache(Long maxCapacity, Long maxWeight, RemovalListener<Key, Value> removalListener, ToLongBiFunction<Key, Value> weigher) {
-        this(maxCapacity, maxWeight, removalListener, weigher, -1, -1);
+        this(maxCapacity, maxWeight, removalListener, weigher, -1, -1, null);
     }
 
     public Cache(
@@ -94,7 +94,8 @@ public class Cache<Key, Value> {
         RemovalListener<Key, Value> removalListener,
         ToLongBiFunction<Key, Value> weigher,
         long expireAfterAccessNanos,
-        long expireAfterWriteNanos
+        long expireAfterWriteNanos,
+        ExecutorService siever
     ) {
         this.maxCapacity = maxCapacity;
         this.maxWeight = maxWeight;
@@ -104,6 +105,7 @@ public class Cache<Key, Value> {
         this.entriesExpireAfterAccess = expireAfterAccessNanos > 0;
         this.expireAfterWriteNanos = expireAfterWriteNanos;
         this.entriesExpireAfterWrite = expireAfterWriteNanos > 0;
+        this.siever = siever != null ? siever : Executors.newVirtualThreadPerTaskExecutor();
     }
 
     public Value get(Key key) {

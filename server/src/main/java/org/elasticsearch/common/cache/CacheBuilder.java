@@ -12,6 +12,7 @@ package org.elasticsearch.common.cache;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 import java.util.function.ToLongBiFunction;
 
 public class CacheBuilder<K, V> {
@@ -20,6 +21,7 @@ public class CacheBuilder<K, V> {
     private long expireAfterWriteNanos = -1;
     private ToLongBiFunction<K, V> weigher;
     private RemovalListener<K, V> removalListener;
+    private ExecutorService threadpool;
 
     public static <K, V> CacheBuilder<K, V> builder() {
         return new CacheBuilder<>();
@@ -79,13 +81,21 @@ public class CacheBuilder<K, V> {
         return this;
     }
 
+    public CacheBuilder<K, V> setThreadpool(ExecutorService threadpool) {
+        Objects.requireNonNull(threadpool);
+        this.threadpool = threadpool;
+        return this;
+    }
+
     public Cache<K, V> build() {
-        Cache<K, V> cache = new Cache<>(
+        return new Cache<>(
             null,
             (maximumWeight != -1) ? maximumWeight : null,
             removalListener,
-            weigher
+            weigher,
+            expireAfterAccessNanos,
+            expireAfterWriteNanos,
+            threadpool
         );
-        return cache;
     }
 }

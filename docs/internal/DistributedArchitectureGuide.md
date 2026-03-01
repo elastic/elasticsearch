@@ -1225,7 +1225,7 @@ flowchart TD
     G -- No --> I[Return response]
 
     B -- No --> J{Master known?}
-    J -- Yes --> L{"local term ≥<br/>request masterTerm?"}
+    J -- Yes --> L{"Local term ≥<br/>request masterTerm?"}
     L -- No --> M[Retry until local term catches up]
     L -- Yes --> N[Forward request to master node]
     N --> O{Transport error?}

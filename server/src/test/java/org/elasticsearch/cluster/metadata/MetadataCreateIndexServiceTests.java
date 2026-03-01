@@ -328,9 +328,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(tuple.v1()))
                 .build();
 
-            Collection<String> patterns = List.of(
-                ".Mesopotamia", ".Sumerians", ".Indus", ".Yangtze", ".Theban", ".Euphrates"
-            );
+            Collection<String> patterns = List.of(".Mesopotamia", ".Sumerians", ".Indus", ".Yangtze", ".Theban", ".Euphrates");
 
             List<SystemIndices.Feature> features = patterns.stream()
                 .map(pattern -> newFeature(List.of(new AssociatedIndexDescriptor(pattern + "*", "Description"))))
@@ -379,7 +377,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             }
 
             // Feature associated indices are exempt from the limit
-            for(int i = 0; i < patterns.size(); i++) {
+            for (int i = 0; i < patterns.size(); i++) {
                 var index = randomFrom(patterns) + randomIndexName();
                 CreateIndexClusterStateUpdateRequest featureIndexCreateRequest = new CreateIndexClusterStateUpdateRequest(
                     "test",

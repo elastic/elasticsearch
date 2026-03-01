@@ -133,12 +133,10 @@ public class PipelineSelectorTests extends ESTestCase {
         );
 
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
-        assertAlpMaxError(config, 1e-6);
+        assertAlpMaxError(config, 1e-4);
     }
 
-    public void testNoisyDoubleSpeedSelectsFpcPipeline() {
-        // NOTE: SPEED bypasses ALP entirely — non-monotonic data uses FPC whose FCM/DFCM
-        // predictors learn value patterns via hash lookups, feeding into the integer pipeline.
+    public void testNoisyDoubleSpeedSelectsIntegerPipeline() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(
             profile,
@@ -149,7 +147,7 @@ public class PipelineSelectorTests extends ESTestCase {
         );
 
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.AlpDoubleStage.class))));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.FpcDoubleStage.class))));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
@@ -157,7 +155,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
-    public void testNoisyFloatSpeedSelectsFpcPipeline() {
+    public void testNoisyFloatSpeedSelectsIntegerPipeline() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(
             profile,
@@ -168,7 +166,7 @@ public class PipelineSelectorTests extends ESTestCase {
         );
 
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.AlpFloatStage.class))));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.FpcFloatStage.class))));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
@@ -239,12 +237,12 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpDoublePayload.class)));
     }
 
-    public void testDoubleCounterHighXorSelectsChimp128() {
+    public void testDoubleCounterHighXorSelectsChimp() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpDoublePayload.class)));
     }
 
     public void testSmoothFloatSelectsFpc() {
@@ -291,12 +289,12 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
     }
 
-    public void testFloatCounterHighXorSelectsChimp128() {
+    public void testFloatCounterHighXorSelectsChimp() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
     }
 
     public void testDeterministic() {
@@ -487,7 +485,7 @@ public class PipelineSelectorTests extends ESTestCase {
             PipelineResolver.OptimizeFor.BALANCED,
             MetricType.GAUGE
         );
-        assertAlpMaxError(gauge, 1e-6);
+        assertAlpMaxError(gauge, 1e-4);
     }
 
     public void testMonotonicFloatWithGoodXorSelectsXor() {
@@ -535,7 +533,7 @@ public class PipelineSelectorTests extends ESTestCase {
             PipelineResolver.OptimizeFor.STORAGE,
             MetricType.GAUGE
         );
-        assertAlpMaxError(gauge, 1e-2);
+        assertAlpMaxError(gauge, -1.0);
     }
 
     public void testNonMonotonicFloatCounterBalancedSelectsLosslessAlp() {
@@ -558,7 +556,7 @@ public class PipelineSelectorTests extends ESTestCase {
             PipelineResolver.OptimizeFor.BALANCED,
             MetricType.GAUGE
         );
-        assertAlpMaxError(gauge, 1e-6);
+        assertAlpMaxError(gauge, -1.0);
     }
 
     public void testHighRepeatDoubleSelectsGorilla() {
@@ -576,18 +574,18 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpDoublePayload.class)));
     }
 
-    public void testXorDoubleHighXorSelectsChimp128() {
+    public void testXorDoubleHighXorSelectsChimp() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
 
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpDoublePayload.class)));
     }
 
-    public void testXorDoubleHighXorSmallBlockSelectsChimp128() {
+    public void testXorDoubleHighXorSmallBlockSelectsChimp() {
         final BlockProfile profile = new BlockProfile(128, 0L, 100L, 100L, 1L, 1L, false, false, 120, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 128, PipelineConfig.DataType.DOUBLE, null, null);
 
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpDoublePayload.class)));
     }
 
     public void testHighRepeatFloatSelectsGorilla() {
@@ -604,18 +602,18 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
     }
 
-    public void testXorFloatHighXorSelectsChimp128() {
+    public void testXorFloatHighXorSelectsChimp() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
 
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
     }
 
-    public void testXorFloatHighXorSmallBlockSelectsChimp128() {
+    public void testXorFloatHighXorSmallBlockSelectsChimp() {
         final BlockProfile profile = new BlockProfile(128, 0L, 100L, 100L, 1L, 1L, false, false, 120, 30, 20, 10, 30);
         final PipelineConfig config = selector.select(profile, 128, PipelineConfig.DataType.FLOAT, null, null);
 
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
     }
 
     public void testConstantFloatUsesWidePipeline() {
@@ -631,9 +629,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
-    public void testSpeedNonMonotonicWithHighXorReductionStillSelectsFpc() {
-        // NOTE: even with high XOR reduction (xorReduction=20 >= rawMaxBits/4=7.5),
-        // SPEED always uses FPC — it never routes to selectXorDouble.
+    public void testSpeedNonMonotonicWithHighXorReductionStillSelectsIntegerPipeline() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 10, 20);
 
         final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
@@ -646,12 +642,12 @@ public class PipelineSelectorTests extends ESTestCase {
             PipelineResolver.OptimizeFor.SPEED,
             null
         );
-        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
+        assertThat(speedConfig.specs(), not(hasItem(instanceOf(StageSpec.FpcDoubleStage.class))));
+        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
+        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
-    public void testSpeedNonMonotonicWithHighRepeatStillSelectsFpc() {
-        // NOTE: even with high repeat fraction (xorZeroFraction=260/511≈0.509 >= GORILLA_THRESHOLD),
-        // SPEED always uses FPC — it never routes to selectXorFloat/selectXorDouble.
+    public void testSpeedNonMonotonicWithHighRepeatStillSelectsIntegerPipeline() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 260, 30);
 
         final PipelineConfig defaultConfig = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
@@ -664,7 +660,9 @@ public class PipelineSelectorTests extends ESTestCase {
             PipelineResolver.OptimizeFor.SPEED,
             null
         );
-        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
+        assertThat(speedConfig.specs(), not(hasItem(instanceOf(StageSpec.FpcFloatStage.class))));
+        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
+        assertThat(speedConfig.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
     // -- Round-trip tests: verify which delta stages fire and that encode→decode is lossless --

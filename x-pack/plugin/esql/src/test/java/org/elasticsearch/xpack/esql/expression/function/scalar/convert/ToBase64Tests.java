@@ -24,8 +24,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
 
 @FunctionName("to_base64")
 public class ToBase64Tests extends AbstractScalarFunctionTestCase {
@@ -36,27 +35,11 @@ public class ToBase64Tests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType dataType : DataType.stringTypes()) {
-            suppliers.add(new TestCaseSupplier(List.of(dataType), () -> {
-                BytesRef input = (BytesRef) randomLiteral(dataType).value();
-                return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(input, dataType, "string")),
-                    "ToBase64Evaluator[field=Attribute[channel=0]]",
-                    DataType.KEYWORD,
-                    equalTo(new BytesRef(Base64.getEncoder().encode(input.utf8ToString().getBytes(StandardCharsets.UTF_8))))
-                );
-            }));
-        }
-
-        suppliers.add(new TestCaseSupplier(List.of(DataType.TSID_DATA_TYPE), () -> {
-            BytesRef input = (BytesRef) randomLiteral(DataType.TSID_DATA_TYPE).value();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(input, DataType.TSID_DATA_TYPE, "string")),
-                "ToBase64Evaluator[field=Attribute[channel=0]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(base64Encode(input).getBytes(StandardCharsets.UTF_8)))
-            );
-        }));
+        var base = unary().expectedOutputType(DataType.KEYWORD).evaluatorToString("ToBase64Evaluator[field=%0]");
+        base.strings()
+            .expectedFromString(s -> new BytesRef(Base64.getEncoder().encode(s.getBytes(StandardCharsets.UTF_8))))
+            .build(suppliers);
+        base.tsid().expectedBytesRef(b -> new BytesRef(base64Encode(b).getBytes(StandardCharsets.UTF_8))).build(suppliers);
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

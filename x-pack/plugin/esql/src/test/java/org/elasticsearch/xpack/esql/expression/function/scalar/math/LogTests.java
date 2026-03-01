@@ -15,9 +15,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.util.List;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
 
 public class LogTests extends AbstractScalarFunctionTestCase {
     public LogTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -40,26 +43,9 @@ public class LogTests extends AbstractScalarFunctionTestCase {
         );
 
         // Positive natural logarithm
-        suppliers.addAll(
-            TestCaseSupplier.forUnaryCastingToDouble(
-                "LogConstantEvaluator",
-                "value",
-                Math::log,
-                Math.nextUp(1d),
-                Double.POSITIVE_INFINITY,
-                List.of()
-            )
-        );
-
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "LogConstantEvaluator[value=Attribute[channel=0]]",
-            DataType.DOUBLE,
-            Math::log,
-            Math.nextUp(0d),
-            Math.nextDown(1d),
-            List.of()
-        );
+        UnaryTestCaseHelper helper = unary().expectedOutputType(DataType.DOUBLE).evaluatorToString("LogConstantEvaluator[value=%0]");
+        helper.expectedFromDouble(Math::log).castingToDouble(Math.nextUp(1d), Double.POSITIVE_INFINITY, false, suppliers);
+        helper.expectedFromDouble(Math::log).doubles(Math.nextUp(0d), Math.nextDown(1d)).build(suppliers);
 
         // Positive 0 < base < 1, 0 < value < 1
         suppliers.addAll(
@@ -173,19 +159,8 @@ public class LogTests extends AbstractScalarFunctionTestCase {
         );
 
         // Negative Unary value <=0
-        suppliers.addAll(
-            TestCaseSupplier.forUnaryCastingToDouble(
-                "LogConstantEvaluator",
-                "value",
-                v -> null,
-                Double.NEGATIVE_INFINITY,
-                0d,
-                List.of(
-                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
-                )
-            )
-        );
+        helper.expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: Log of non-positive number"))
+            .castingToDouble(Double.NEGATIVE_INFINITY, 0d, true, suppliers);
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }

@@ -991,6 +991,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
     }
 
+    /**
+     * Make a helper for building tests for unary functions.
+     */
+    public static UnaryTestCaseHelper unary() {
+        return new UnaryTestCaseHelper();
+    }
+
     public static void unary(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -1014,7 +1021,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 return testCase;
             }));
         }
-
     }
 
     public static void unary(

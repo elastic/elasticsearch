@@ -92,13 +92,17 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         AZURE
     }
 
-    private static final List<StorageBackend> BACKENDS = List.of(
-        StorageBackend.S3,
-        StorageBackend.HTTP,
-        StorageBackend.LOCAL,
-        StorageBackend.GCS,
-        StorageBackend.AZURE
-    );
+    private static final List<StorageBackend> BACKENDS;
+
+    static {
+        List<StorageBackend> backends = new ArrayList<>(
+            List.of(StorageBackend.S3, StorageBackend.HTTP, StorageBackend.GCS, StorageBackend.AZURE)
+        );
+        if (S3FixtureUtils.resolveLocalFixturesPath(AbstractExternalSourceSpecTestCase.class) != null) {
+            backends.add(StorageBackend.LOCAL);
+        }
+        BACKENDS = List.copyOf(backends);
+    }
 
     /**
      * Load csv-spec files matching the given patterns and cross-product each test with all storage backends.

@@ -160,14 +160,14 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
         }
 
         @Override
-        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             if (sumFieldType == null || countFieldType == null) {
-                return ConstantNull.READER;
+                return ConstantNull.COLUMN_READER;
             }
             NumericDvSingletonOrSorted dvSumValues = NumericDvSingletonOrSorted.get(breaker, context, sumFieldType.name());
             NumericDvSingletonOrSorted dvValueCountValues = NumericDvSingletonOrSorted.get(breaker, context, countFieldType.name());
             if (dvSumValues == null || dvValueCountValues == null) {
-                return ConstantNull.READER;
+                return ConstantNull.COLUMN_READER;
             }
             assert dvSumValues.sorted() == null && dvValueCountValues.sorted() == null
                 : "aggregate metric doubles shouldn't have multi-values";
@@ -220,19 +220,6 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
                             }
                         }
                         return builder.build();
-                    }
-                }
-
-                @Override
-                public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-                    DoubleBuilder blockBuilder = (DoubleBuilder) builder;
-                    if (sumValues.advanceExact(docId) && valueCountValues.advanceExact(docId)) {
-                        this.docID = docId;
-                        var sum = NumericUtils.sortableLongToDouble(sumValues.longValue());
-                        var count = valueCountValues.longValue();
-                        blockBuilder.appendDouble(sum / count);
-                    } else {
-                        blockBuilder.appendNull();
                     }
                 }
             };

@@ -893,6 +893,107 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
         prefixAccumStarts[numPrefixes] = prefixAccumPos;
 
+        // ---- Post-grouping merge pass ----
+        // Greedily merge adjacent prefix groups when the cost of eliminating
+        // a prefix entry outweighs the cost of longer suffixes.
+        if (numPrefixes > 1 && size > 0) {
+            final double PREFIX_COMPRESSION_RATIO = 1.63;
+            final double SUFFIX_COMPRESSION_RATIO = 1.49;
+            final double SAFETY_FACTOR = PREFIX_COMPRESSION_RATIO / SUFFIX_COMPRESSION_RATIO;
+            final double OFFSET_COST_BYTES = 2.5;
+
+            // Build group boundaries: groups are contiguous in term order
+            int[] groupStart = new int[numPrefixes];
+            int[] groupEnd = new int[numPrefixes];
+            Arrays.fill(groupStart, -1);
+            for (int i = 0; i < (int) size; i++) {
+                int pid = assignedPrefixIds[i];
+                if (groupStart[pid] == -1) {
+                    groupStart[pid] = i;
+                }
+                groupEnd[pid] = i + 1;
+            }
+
+            boolean[] eliminated = new boolean[numPrefixes];
+
+            int prevActiveGroup = 0;
+            for (int g = 1; g < numPrefixes; g++) {
+                if (groupStart[g] == -1) continue;
+
+                int prevG = prevActiveGroup;
+                int prevStoredStart = prefixAccumStarts[prevG];
+                int prevStoredLen = prefixAccumStarts[prevG + 1] - prevStoredStart;
+                int curPrefixStart = prefixAccumStarts[g];
+                int curPrefixLen = prefixAccumStarts[g + 1] - curPrefixStart;
+
+                int sharedLen = computeLCPBytes(prefixAccumBuf, prevStoredStart, prevStoredLen, prefixAccumBuf, curPrefixStart, curPrefixLen);
+
+                int trimNeeded = prevStoredLen - sharedLen;
+                if (sharedLen == 0 || trimNeeded > 255) {
+                    prevActiveGroup = g;
+                    continue;
+                }
+
+                double savingsCompressed = curPrefixLen / PREFIX_COMPRESSION_RATIO + OFFSET_COST_BYTES;
+
+                long extraSuffixBytes = 0;
+                for (int i = groupStart[g]; i < groupEnd[g]; i++) {
+                    int curEffective = effectivePrefixLens[i] & 0xFFFF;
+                    if (curEffective > sharedLen) {
+                        extraSuffixBytes += curEffective - sharedLen;
+                    }
+                }
+                double costCompressed = extraSuffixBytes / SUFFIX_COMPRESSION_RATIO;
+
+                if (savingsCompressed > costCompressed * SAFETY_FACTOR) {
+                    for (int i = groupStart[g]; i < groupEnd[g]; i++) {
+                        assignedPrefixIds[i] = prevG;
+                        int eff = effectivePrefixLens[i] & 0xFFFF;
+                        if (eff > sharedLen) {
+                            effectivePrefixLens[i] = (short) sharedLen;
+                        }
+                    }
+                    // Extend prevG's group boundary to include merged terms
+                    groupEnd[prevG] = groupEnd[g];
+                    eliminated[g] = true;
+                } else {
+                    prevActiveGroup = g;
+                }
+            }
+
+            // Compact: renumber prefix IDs to remove gaps
+            int[] idRemap = new int[numPrefixes];
+            int newNumPrefixes = 0;
+            int newAccumPos = 0;
+            int[] newAccumStarts = new int[numPrefixes + 1];
+            for (int g = 0; g < numPrefixes; g++) {
+                if (eliminated[g] == false) {
+                    idRemap[g] = newNumPrefixes;
+                    newAccumStarts[newNumPrefixes] = newAccumPos;
+                    int gLen = prefixAccumStarts[g + 1] - prefixAccumStarts[g];
+                    System.arraycopy(prefixAccumBuf, prefixAccumStarts[g], prefixAccumBuf, newAccumPos, gLen);
+                    newAccumPos += gLen;
+                    newNumPrefixes++;
+                } else {
+                    // Find the active group this was merged into
+                    int target = g - 1;
+                    while (target >= 0 && eliminated[target]) {
+                        target--;
+                    }
+                    idRemap[g] = idRemap[target];
+                }
+            }
+            newAccumStarts[newNumPrefixes] = newAccumPos;
+
+            for (int i = 0; i < (int) size; i++) {
+                assignedPrefixIds[i] = idRemap[assignedPrefixIds[i]];
+            }
+
+            prefixAccumStarts = newAccumStarts;
+            prefixAccumPos = newAccumPos;
+            numPrefixes = newNumPrefixes;
+        }
+
         // Compute per-term trim from precomputed assignments
         byte[] prefixTrimBuf = new byte[Math.max((int) Math.min(size, 1), 1)];
         if (size > 0) {
@@ -1208,6 +1309,16 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     }
 
     /** Returns the number of leading bytes of {@code term} that match {@code prefixBytes[0..prefixLen)}. */
+    private static int computeLCPBytes(byte[] a, int aOff, int aLen, byte[] b, int bOff, int bLen) {
+        int len = Math.min(aLen, bLen);
+        for (int i = 0; i < len; i++) {
+            if (a[aOff + i] != b[bOff + i]) {
+                return i;
+            }
+        }
+        return len;
+    }
+
     private static int computePrefixMatch(BytesRef term, byte[] prefixBytes, int prefixLen) {
         int limit = Math.min(prefixLen, term.length);
         for (int i = 0; i < limit; i++) {

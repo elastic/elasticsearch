@@ -54,7 +54,7 @@ class RetryPolicy {
         long baseDelay = initialDelayMs * (1L << attempt);
         long capped = Math.min(baseDelay, maxDelayMs);
         long jitter = Randomness.get().nextLong(capped / 4 + 1);
-        return capped + jitter;
+        return Math.min(maxDelayMs, capped + jitter);
     }
 
     boolean isRetryable(Throwable t) {

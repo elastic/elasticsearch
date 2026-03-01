@@ -45,12 +45,12 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, StorageProviderFactory> factories = new ConcurrentHashMap<>();
     private final Map<String, StorageProvider> providers = new ConcurrentHashMap<>();
     private final List<StorageProvider> createdProviders = new ArrayList<>();
+    private static final RetryPolicy RETRY_POLICY = RetryPolicy.DEFAULT;
+
     private final Settings settings;
-    private final RetryPolicy retryPolicy;
 
     public StorageProviderRegistry(Settings settings) {
         this.settings = settings != null ? settings : Settings.EMPTY;
-        this.retryPolicy = RetryPolicy.DEFAULT;
     }
 
     public void registerFactory(String scheme, StorageProviderFactory factory) {
@@ -124,7 +124,7 @@ public class StorageProviderRegistry implements Closeable {
         if ("file".equals(scheme)) {
             return provider;
         }
-        return new RetryableStorageProvider(provider, retryPolicy);
+        return new RetryableStorageProvider(provider, RETRY_POLICY);
     }
 
     @Override

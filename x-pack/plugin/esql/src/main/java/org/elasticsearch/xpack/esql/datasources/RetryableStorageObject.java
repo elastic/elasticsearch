@@ -44,7 +44,7 @@ class RetryableStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
-        return retryPolicy.execute(() -> delegate.newStream(), "newStream", delegate.path());
+        return retryPolicy.execute(delegate::newStream, "newStream", delegate.path());
     }
 
     @Override
@@ -54,17 +54,17 @@ class RetryableStorageObject implements StorageObject {
 
     @Override
     public long length() throws IOException {
-        return retryPolicy.execute(() -> delegate.length(), "length", delegate.path());
+        return retryPolicy.execute(delegate::length, "length", delegate.path());
     }
 
     @Override
     public Instant lastModified() throws IOException {
-        return retryPolicy.execute(() -> delegate.lastModified(), "lastModified", delegate.path());
+        return retryPolicy.execute(delegate::lastModified, "lastModified", delegate.path());
     }
 
     @Override
     public boolean exists() throws IOException {
-        return retryPolicy.execute(() -> delegate.exists(), "exists", delegate.path());
+        return retryPolicy.execute(delegate::exists, "exists", delegate.path());
     }
 
     @Override

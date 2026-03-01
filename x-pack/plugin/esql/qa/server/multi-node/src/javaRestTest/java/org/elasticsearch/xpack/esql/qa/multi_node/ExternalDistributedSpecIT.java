@@ -87,9 +87,6 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-        // External source tests require datasource connector plugins (esql-datasource-s3, etc.)
-        // which are not available in serverless mode. Detect this by running a trivial EXTERNAL
-        // query and checking if any connectors are registered.
         assumeTrue("External source connectors not available", hasExternalSourceConnectors());
     }
 
@@ -104,7 +101,6 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
             if (msg != null && msg.contains("Unsupported storage scheme")) {
                 return false;
             }
-            // Other errors (e.g. file not found) mean connectors ARE loaded
             return true;
         }
     }

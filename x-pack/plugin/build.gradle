@@ -61,6 +61,7 @@ tasks.withType(StandaloneRestIntegTestTask).configureEach {
 
 tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }
 
 tasks.register('enforceApiSpecsConvention').configure {

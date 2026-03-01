@@ -58,7 +58,8 @@ class FlattenedFieldParser {
         String nullValue,
         boolean usesBinaryDocValues,
         boolean storeRoot,
-        Map<String, KeywordFieldMapper> mappedFields) {
+        Map<String, KeywordFieldMapper> mappedFields
+    ) {
         this.rootFieldFullPath = rootFieldFullPath;
         this.keyedFieldFullPath = keyedFieldFullPath;
         this.keyedIgnoredValuesFieldFullPath = keyedIgnoredValuesFieldFullPath;

@@ -1202,6 +1202,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 return resolvedIndexExpressions;
             }));
 
+        /*
+         * Projects that do not host the indices participating in a search should not appear in
+         * the search response's metadata. For MRT=false, this is handled by reconcileProjects().
+         * For MRT=true, we handle it here.
+         */
+        boolean includeOriginProjectInMetadata = rewritten.getResolvedIndexExpressions()
+            .expressions()
+            .stream()
+            .anyMatch(e -> e.localExpressions().localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS);
+
         var ex = CrossProjectIndexResolutionValidator.validate(
             rewritten.indicesOptions(),
             rewritten.getProjectRouting(),
@@ -1212,8 +1222,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             listener.onFailure(ex);
         } else {
             listener.onResponse(
+                /*
+                 * resolveWithIndexExpressions() ensures that only those linked projects are included
+                 * that host the indices that are targeted in this search.
+                 */
                 ResolvedIndices.resolveWithIndexExpressions(
-                    originalResolvedIndices.getLocalIndices(),
+                    includeOriginProjectInMetadata ? originalResolvedIndices.getLocalIndices() : null,
                     originalResolvedIndices.getConcreteLocalIndicesMetadata(),
                     resolvedExpressions,
                     resolutionIdxOpts

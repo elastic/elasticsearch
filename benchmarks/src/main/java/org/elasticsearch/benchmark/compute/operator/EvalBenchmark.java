@@ -10,8 +10,8 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
@@ -98,7 +98,7 @@ public class EvalBenchmark {
     static final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
 
     static {
-        LogConfigurator.configureESLogging();
+        Utils.configureBenchmarkLogging();
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             // Smoke test all the expected values and force loading subclasses more like prod
             selfTest();

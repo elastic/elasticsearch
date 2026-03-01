@@ -359,7 +359,7 @@ public class SystemIndicesTests extends ESTestCase {
         }
     }
 
-    private SystemIndices.Feature newFeature(List<AssociatedIndexDescriptor> associatedIndexDescriptors) {
+    public static SystemIndices.Feature newFeature(List<AssociatedIndexDescriptor> associatedIndexDescriptors) {
         return new SystemIndices.Feature(
             randomIdentifier(),
             "Silicone",

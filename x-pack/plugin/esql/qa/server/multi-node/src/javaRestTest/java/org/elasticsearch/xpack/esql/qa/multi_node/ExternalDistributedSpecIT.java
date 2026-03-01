@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.qa.multi_node;
 
+import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
@@ -27,8 +28,18 @@ import java.util.List;
  * three modes produce identical results for every query; divergence flags a split
  * assignment, exchange, or aggregation bug.
  */
-@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
+@ThreadLeakFilters(filters = { TestClustersThreadFilter.class, ExternalDistributedSpecIT.AzureReactorThreadFilter.class })
 public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCase {
+
+    /** Filters Azure SDK reactor-netty threads started by the Azure blob fixture. */
+    public static class AzureReactorThreadFilter implements ThreadFilter {
+        @Override
+        public boolean reject(Thread t) {
+            return t.getName().startsWith("reactor-http-nio-")
+                || t.getName().startsWith("boundedElastic-")
+                || t.getName().startsWith("azure-sdk-");
+        }
+    }
 
     private static final List<String> DISTRIBUTION_MODES = List.of("coordinator_only", "round_robin", "adaptive");
 

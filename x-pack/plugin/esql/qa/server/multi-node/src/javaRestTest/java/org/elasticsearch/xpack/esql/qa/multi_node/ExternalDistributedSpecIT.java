@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -80,6 +83,31 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
             }
         }
         return parameterizedTests;
+    }
+
+    @Override
+    protected void shouldSkipTest(String testName) throws IOException {
+        super.shouldSkipTest(testName);
+        // External source tests require datasource connector plugins (esql-datasource-s3, etc.)
+        // which are not available in serverless mode. Detect this by running a trivial EXTERNAL
+        // query and checking if any connectors are registered.
+        assumeTrue("External source connectors not available", hasExternalSourceConnectors());
+    }
+
+    private boolean hasExternalSourceConnectors() {
+        try {
+            Request request = new Request("POST", "/_query");
+            request.setJsonEntity("{\"query\": \"EXTERNAL \\\"s3://probe/test.parquet\\\"\"}");
+            Response response = client().performRequest(request);
+            return true;
+        } catch (Exception e) {
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("Unsupported storage scheme")) {
+                return false;
+            }
+            // Other errors (e.g. file not found) mean connectors ARE loaded
+            return true;
+        }
     }
 
     @Override

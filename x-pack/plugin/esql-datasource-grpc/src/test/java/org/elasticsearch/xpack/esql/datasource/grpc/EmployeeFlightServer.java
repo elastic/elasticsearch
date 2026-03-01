@@ -44,7 +44,13 @@ import java.util.concurrent.TimeUnit;
 /**
  * In-memory Arrow Flight server that serves employee data from the employees.csv test fixture.
  * Uses a subset of columns: emp_no, first_name, last_name, salary, still_hired, height.
- * Serves all rows via a single endpoint (no multi-split).
+ *
+ * Supports two modes:
+ * <ul>
+ *   <li>Single-endpoint: all rows via one ticket ({@code new EmployeeFlightServer(0)})</li>
+ *   <li>Multi-endpoint: rows partitioned across N endpoints, each with its own ticket
+ *       ({@code new EmployeeFlightServer(0, numEndpoints)})</li>
+ * </ul>
  */
 public class EmployeeFlightServer implements Closeable {
 
@@ -62,17 +68,26 @@ public class EmployeeFlightServer implements Closeable {
     private final BufferAllocator allocator;
     private final FlightServer server;
     private final Location location;
-    private final List<int[]> empNos = new ArrayList<>();
-    private final List<String> firstNames = new ArrayList<>();
-    private final List<String> lastNames = new ArrayList<>();
-    private final List<int[]> salaries = new ArrayList<>();
-    private final List<boolean[]> stillHired = new ArrayList<>();
-    private final List<double[]> heights = new ArrayList<>();
+    private final int numEndpoints;
+    private int[] allEmpNos;
+    private String[] allFirstNames;
+    private String[] allLastNames;
+    private int[] allSalaries;
+    private boolean[] allStillHired;
+    private double[] allHeights;
     private int totalRows;
 
     public EmployeeFlightServer(int port) throws IOException {
+        this(port, 1);
+    }
+
+    public EmployeeFlightServer(int port, int numEndpoints) throws IOException {
+        if (numEndpoints < 1) {
+            throw new IllegalArgumentException("numEndpoints must be >= 1, got: " + numEndpoints);
+        }
         this.allocator = new RootAllocator();
         this.location = Location.forGrpcInsecure("localhost", port);
+        this.numEndpoints = numEndpoints;
         loadEmployees();
         this.server = FlightServer.builder(allocator, location, new EmployeeProducer()).build();
         this.server.start();
@@ -84,6 +99,10 @@ public class EmployeeFlightServer implements Closeable {
 
     public int totalRows() {
         return totalRows;
+    }
+
+    public int numEndpoints() {
+        return numEndpoints;
     }
 
     private void loadEmployees() throws IOException {
@@ -117,31 +136,36 @@ public class EmployeeFlightServer implements Closeable {
             }
             totalRows = rows.size();
 
-            int batchSize = totalRows;
-            int[] empNoArr = new int[batchSize];
-            String[] firstNameArr = new String[batchSize];
-            String[] lastNameArr = new String[batchSize];
-            int[] salaryArr = new int[batchSize];
-            boolean[] stillHiredArr = new boolean[batchSize];
-            double[] heightArr = new double[batchSize];
+            allEmpNos = new int[totalRows];
+            allFirstNames = new String[totalRows];
+            allLastNames = new String[totalRows];
+            allSalaries = new int[totalRows];
+            allStillHired = new boolean[totalRows];
+            allHeights = new double[totalRows];
 
             for (int i = 0; i < totalRows; i++) {
                 String[] fields = rows.get(i);
-                empNoArr[i] = Integer.parseInt(fields[empNoIdx].trim());
-                firstNameArr[i] = fields[firstNameIdx].trim();
-                lastNameArr[i] = fields[lastNameIdx].trim();
-                salaryArr[i] = Integer.parseInt(fields[salaryIdx].trim());
-                stillHiredArr[i] = org.elasticsearch.core.Booleans.parseBoolean(fields[stillHiredIdx].trim());
-                heightArr[i] = Double.parseDouble(fields[heightIdx].trim());
+                allEmpNos[i] = Integer.parseInt(fields[empNoIdx].trim());
+                allFirstNames[i] = fields[firstNameIdx].trim();
+                allLastNames[i] = fields[lastNameIdx].trim();
+                allSalaries[i] = Integer.parseInt(fields[salaryIdx].trim());
+                allStillHired[i] = org.elasticsearch.core.Booleans.parseBoolean(fields[stillHiredIdx].trim());
+                allHeights[i] = Double.parseDouble(fields[heightIdx].trim());
             }
-
-            empNos.add(empNoArr);
-            firstNames.addAll(List.of(firstNameArr));
-            lastNames.addAll(List.of(lastNameArr));
-            salaries.add(salaryArr);
-            stillHired.add(stillHiredArr);
-            heights.add(heightArr);
         }
+    }
+
+    private int partitionStart(int partitionIndex) {
+        int partSize = totalRows / numEndpoints;
+        return partitionIndex * partSize;
+    }
+
+    private int partitionEnd(int partitionIndex) {
+        int partSize = totalRows / numEndpoints;
+        if (partitionIndex == numEndpoints - 1) {
+            return totalRows;
+        }
+        return (partitionIndex + 1) * partSize;
     }
 
     private class EmployeeProducer extends NoOpFlightProducer {
@@ -153,18 +177,47 @@ public class EmployeeFlightServer implements Closeable {
 
         @Override
         public FlightInfo getFlightInfo(FlightProducer.CallContext context, FlightDescriptor descriptor) {
-            FlightEndpoint endpoint = new FlightEndpoint(new Ticket("employees".getBytes(StandardCharsets.UTF_8)), location);
-            return new FlightInfo(SCHEMA, descriptor, Collections.singletonList(endpoint), -1, totalRows);
+            if (numEndpoints == 1) {
+                FlightEndpoint endpoint = new FlightEndpoint(new Ticket("employees".getBytes(StandardCharsets.UTF_8)), location);
+                return new FlightInfo(SCHEMA, descriptor, Collections.singletonList(endpoint), -1, totalRows);
+            }
+            List<FlightEndpoint> endpoints = new ArrayList<>(numEndpoints);
+            for (int i = 0; i < numEndpoints; i++) {
+                String ticketId = "employees-part-" + i;
+                endpoints.add(new FlightEndpoint(new Ticket(ticketId.getBytes(StandardCharsets.UTF_8)), location));
+            }
+            return new FlightInfo(SCHEMA, descriptor, endpoints, -1, totalRows);
         }
 
         @Override
         public void getStream(FlightProducer.CallContext context, Ticket ticket, FlightProducer.ServerStreamListener listener) {
             String ticketStr = new String(ticket.getBytes(), StandardCharsets.UTF_8);
-            if ("employees".equals(ticketStr) == false) {
+
+            int startRow;
+            int endRow;
+            if ("employees".equals(ticketStr)) {
+                startRow = 0;
+                endRow = totalRows;
+            } else if (ticketStr.startsWith("employees-part-")) {
+                int partIndex;
+                try {
+                    partIndex = Integer.parseInt(ticketStr.substring("employees-part-".length()));
+                } catch (NumberFormatException e) {
+                    listener.error(CallStatus.NOT_FOUND.withDescription("Invalid partition ticket: " + ticketStr).toRuntimeException());
+                    return;
+                }
+                if (partIndex < 0 || partIndex >= numEndpoints) {
+                    listener.error(CallStatus.NOT_FOUND.withDescription("Partition index out of range: " + partIndex).toRuntimeException());
+                    return;
+                }
+                startRow = partitionStart(partIndex);
+                endRow = partitionEnd(partIndex);
+            } else {
                 listener.error(CallStatus.NOT_FOUND.withDescription("Unknown ticket: " + ticketStr).toRuntimeException());
                 return;
             }
 
+            int rowCount = endRow - startRow;
             try (VectorSchemaRoot root = VectorSchemaRoot.create(SCHEMA, allocator)) {
                 listener.start(root);
 
@@ -175,21 +228,17 @@ public class EmployeeFlightServer implements Closeable {
                 BitVector stillHiredVec = (BitVector) root.getVector("still_hired");
                 Float8Vector heightVec = (Float8Vector) root.getVector("height");
 
-                int[] empNoArr = empNos.get(0);
-                int[] salaryArr = salaries.get(0);
-                boolean[] stillHiredArr = EmployeeFlightServer.this.stillHired.get(0);
-                double[] heightArr = EmployeeFlightServer.this.heights.get(0);
-
                 root.allocateNew();
-                for (int i = 0; i < totalRows; i++) {
-                    empNoVec.setSafe(i, empNoArr[i]);
-                    firstNameVec.setSafe(i, firstNames.get(i).getBytes(StandardCharsets.UTF_8));
-                    lastNameVec.setSafe(i, lastNames.get(i).getBytes(StandardCharsets.UTF_8));
-                    salaryVec.setSafe(i, salaryArr[i]);
-                    stillHiredVec.setSafe(i, stillHiredArr[i] ? 1 : 0);
-                    heightVec.setSafe(i, heightArr[i]);
+                for (int i = 0; i < rowCount; i++) {
+                    int srcIdx = startRow + i;
+                    empNoVec.setSafe(i, allEmpNos[srcIdx]);
+                    firstNameVec.setSafe(i, allFirstNames[srcIdx].getBytes(StandardCharsets.UTF_8));
+                    lastNameVec.setSafe(i, allLastNames[srcIdx].getBytes(StandardCharsets.UTF_8));
+                    salaryVec.setSafe(i, allSalaries[srcIdx]);
+                    stillHiredVec.setSafe(i, allStillHired[srcIdx] ? 1 : 0);
+                    heightVec.setSafe(i, allHeights[srcIdx]);
                 }
-                root.setRowCount(totalRows);
+                root.setRowCount(rowCount);
                 listener.putNext();
                 listener.completed();
             }

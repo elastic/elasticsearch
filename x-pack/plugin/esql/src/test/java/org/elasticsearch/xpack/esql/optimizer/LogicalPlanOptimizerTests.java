@@ -5384,7 +5384,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Project project = new Project(EMPTY, eval, List.of(aliasA));
 
         // OrderBy sorts on original `a` attribute; after pushing down it should sort on aTemp.
-        OrderBy orderBy = new OrderBy(EMPTY, project, List.of(new Order(EMPTY, a, Order.OrderDirection.ASC, Order.NullsPosition.ANY)));
+        OrderBy orderBy = new OrderBy(EMPTY, project, List.of(new Order(EMPTY, a, Order.OrderDirection.ASC, Order.NullsPosition.FIRST)));
 
         LogicalPlan optimized = new PushDownAndCombineOrderBy().apply(orderBy);
 

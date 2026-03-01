@@ -201,7 +201,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 fields,
                 readers,
                 reuseColumnLoaders,
-                docChannel
+                docChannel,
+                plannerSettings.sourceReservationFactor()
             ),
             layout.build()
         );

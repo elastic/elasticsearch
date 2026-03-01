@@ -710,26 +710,204 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         final long size = values.getValueCount();
         meta.writeVLong(size);
 
-        // First pass: sample terms for FSST training
+        // ---- Pass 1: prefix assignment + FSST sampling ----
+        // Compute prefix groups (with trim shortening and extension) and sample
+        // the actual suffix/prefix bytes that will be FSST-compressed.
         ReservoirSampler sampler = new ReservoirSampler(FSST_BULK_BUFFER_SIZE);
         int maxLength = 0;
+
+        // Prefix accumulator (populated during pass 1, used for FSST compression in pass 2)
+        byte[] prefixAccumBuf = new byte[FSST_BULK_BUFFER_SIZE];
+        int[] prefixAccumStarts = new int[1024];
+        int prefixAccumPos = 0;
+        int numPrefixes = 0;
+
+        // Per-term precomputed assignments
+        int[] assignedPrefixIds = new int[Math.max((int) Math.min(size, 1024), 1)];
+        short[] effectivePrefixLens = new short[assignedPrefixIds.length];
+
+        // Current prefix tracking
+        byte[] currentPrefixBytes = new byte[256];
+        int currentPrefixLen = 0;
+
+        // Extension tracking: cumulative bytes the current prefix has been extended,
+        // and the maximum trim any term in the current group currently has.
+        int groupMaxTrim = 0;
+
         {
-            TermsEnum sampleIterator = values.termsEnum();
-            for (BytesRef term = sampleIterator.next(); term != null; term = sampleIterator.next()) {
-                sampler.processLine(term.bytes, term.offset, term.length);
-                maxLength = Math.max(maxLength, term.length);
+            BytesRefBuilder prevTerm = new BytesRefBuilder();
+            BytesRefBuilder currentTerm = new BytesRefBuilder();
+
+            TermsEnum iterator = values.termsEnum();
+            BytesRef rawTerm = iterator.next();
+            if (rawTerm != null) {
+                currentTerm.copyBytes(rawTerm);
+                rawTerm = iterator.next();
+            }
+
+            for (long ord = 0; ord < size; ord++) {
+                BytesRef cur = currentTerm.get();
+                BytesRef next = rawTerm;
+                maxLength = Math.max(maxLength, cur.length);
+                int prefixLen;
+                int prefixId;
+
+                if (ord == 0) {
+                    prefixLen = (size == 1) ? cur.length : computeLCP(cur, next);
+                    prefixAccumStarts[numPrefixes] = prefixAccumPos;
+                    if (prefixAccumPos + prefixLen > prefixAccumBuf.length) {
+                        prefixAccumBuf = ArrayUtil.grow(prefixAccumBuf, prefixAccumPos + prefixLen);
+                    }
+                    System.arraycopy(cur.bytes, cur.offset, prefixAccumBuf, prefixAccumPos, prefixLen);
+                    prefixAccumPos += prefixLen;
+                    if (prefixLen > currentPrefixBytes.length) {
+                        currentPrefixBytes = new byte[prefixLen];
+                    }
+                    System.arraycopy(cur.bytes, cur.offset, currentPrefixBytes, 0, prefixLen);
+                    currentPrefixLen = prefixLen;
+                    prefixId = 0;
+                    numPrefixes = 1;
+                    groupMaxTrim = 0;
+
+                    sampler.processLine(cur.bytes, cur.offset + prefixLen, cur.length - prefixLen);
+                } else {
+                    int backwardLcp = computeLCP(prevTerm.get(), cur);
+                    boolean matchesCurrent = (backwardLcp == currentPrefixLen)
+                        && Arrays.equals(
+                            cur.bytes,
+                            cur.offset,
+                            cur.offset + currentPrefixLen,
+                            currentPrefixBytes,
+                            0,
+                            currentPrefixLen
+                        );
+
+                    if (matchesCurrent) {
+                        prefixId = numPrefixes - 1;
+                        prefixLen = currentPrefixLen;
+
+                        sampler.processLine(cur.bytes, cur.offset + prefixLen, cur.length - prefixLen);
+                    } else {
+                        int forwardLcp = (next != null) ? computeLCP(cur, next) : 0;
+                        int matchLen = computePrefixMatch(cur, currentPrefixBytes, currentPrefixLen);
+
+                        if (forwardLcp <= matchLen && currentPrefixLen > forwardLcp
+                            && (currentPrefixLen - forwardLcp) <= 255) {
+                            // Shortening trim: new prefix is contained in current prefix
+                            prefixId = numPrefixes - 1;
+                            prefixLen = forwardLcp;
+
+                            sampler.processLine(cur.bytes, cur.offset + prefixLen, cur.length - prefixLen);
+                        } else if (matchLen == currentPrefixLen && forwardLcp > currentPrefixLen
+                            && (forwardLcp - currentPrefixLen + groupMaxTrim) <= 255) {
+                                // Extension: current prefix is contained in the new longer prefix.
+                                // Extend the stored prefix and increase trims for all prior terms.
+                                int extensionDelta = forwardLcp - currentPrefixLen;
+                                if (prefixAccumPos + extensionDelta > prefixAccumBuf.length) {
+                                    prefixAccumBuf = ArrayUtil.grow(prefixAccumBuf, prefixAccumPos + extensionDelta);
+                                }
+                                System.arraycopy(
+                                    cur.bytes,
+                                    cur.offset + currentPrefixLen,
+                                    prefixAccumBuf,
+                                    prefixAccumPos,
+                                    extensionDelta
+                                );
+                                prefixAccumPos += extensionDelta;
+                                if (forwardLcp > currentPrefixBytes.length) {
+                                    currentPrefixBytes = ArrayUtil.grow(currentPrefixBytes, forwardLcp);
+                                }
+                                System.arraycopy(cur.bytes, cur.offset, currentPrefixBytes, 0, forwardLcp);
+                                currentPrefixLen = forwardLcp;
+                                groupMaxTrim += extensionDelta;
+
+                                prefixId = numPrefixes - 1;
+                                prefixLen = forwardLcp;
+
+                                sampler.processLine(cur.bytes, cur.offset + prefixLen, cur.length - prefixLen);
+                            } else {
+                                // Sample the finalized prefix (once per unique prefix)
+                                int finalPrefixStart = prefixAccumStarts[numPrefixes - 1];
+                                int finalPrefixLen = prefixAccumPos - finalPrefixStart;
+                                if (finalPrefixLen > 0) {
+                                    sampler.processLine(prefixAccumBuf, finalPrefixStart, finalPrefixLen);
+                                }
+
+                                // Divergent: create new prefix
+                                prefixLen = forwardLcp;
+                                if (prefixAccumPos + prefixLen > prefixAccumBuf.length) {
+                                    prefixAccumBuf = ArrayUtil.grow(prefixAccumBuf, prefixAccumPos + prefixLen);
+                                }
+                                if (numPrefixes >= prefixAccumStarts.length) {
+                                    prefixAccumStarts = ArrayUtil.grow(prefixAccumStarts, numPrefixes + 1);
+                                }
+                                prefixAccumStarts[numPrefixes] = prefixAccumPos;
+                                System.arraycopy(cur.bytes, cur.offset, prefixAccumBuf, prefixAccumPos, prefixLen);
+                                prefixAccumPos += prefixLen;
+                                if (prefixLen > currentPrefixBytes.length) {
+                                    currentPrefixBytes = ArrayUtil.grow(currentPrefixBytes, prefixLen);
+                                }
+                                System.arraycopy(cur.bytes, cur.offset, currentPrefixBytes, 0, prefixLen);
+                                currentPrefixLen = prefixLen;
+                                prefixId = numPrefixes;
+                                numPrefixes++;
+                                groupMaxTrim = 0;
+
+                                sampler.processLine(cur.bytes, cur.offset + prefixLen, cur.length - prefixLen);
+                            }
+                    }
+                }
+
+                // Store precomputed assignment
+                if (ord >= assignedPrefixIds.length) {
+                    assignedPrefixIds = ArrayUtil.grow(assignedPrefixIds, (int) (ord + 1));
+                    effectivePrefixLens = ArrayUtil.growExact(effectivePrefixLens, assignedPrefixIds.length);
+                }
+                assignedPrefixIds[(int) ord] = prefixId;
+                effectivePrefixLens[(int) ord] = (short) prefixLen;
+
+                prevTerm.copyBytes(cur);
+                if (rawTerm != null) {
+                    currentTerm.copyBytes(rawTerm);
+                    rawTerm = iterator.next();
+                }
+            }
+
+            // Sample the last prefix
+            if (numPrefixes > 0) {
+                int finalPrefixStart = prefixAccumStarts[numPrefixes - 1];
+                int finalPrefixLen = prefixAccumPos - finalPrefixStart;
+                if (finalPrefixLen > 0) {
+                    sampler.processLine(prefixAccumBuf, finalPrefixStart, finalPrefixLen);
+                }
             }
         }
 
+        // Build FSST symbol table from suffix + prefix samples
         FSST.SymbolTable symbolTable = FSST.SymbolTable.buildSymbolTable(sampler.getSample());
         byte[] symbolTableBytes = symbolTable.exportToBytes();
 
-        // Write meta that we know upfront: blockShift
+        // Finalize prefix accumulator
+        if (numPrefixes >= prefixAccumStarts.length) {
+            prefixAccumStarts = ArrayUtil.grow(prefixAccumStarts, numPrefixes + 1);
+        }
+        prefixAccumStarts[numPrefixes] = prefixAccumPos;
+
+        // Compute per-term trim from precomputed assignments
+        byte[] prefixTrimBuf = new byte[Math.max((int) Math.min(size, 1), 1)];
+        if (size > 0) {
+            prefixTrimBuf = new byte[(int) size];
+            for (int i = 0; i < (int) size; i++) {
+                int pid = assignedPrefixIds[i];
+                int storedPrefixLen = prefixAccumStarts[pid + 1] - prefixAccumStarts[pid];
+                int effectiveLen = effectivePrefixLens[i] & 0xFFFF;
+                prefixTrimBuf[i] = (byte) (storedPrefixLen - effectiveLen);
+            }
+        }
+
+        // ---- Pass 2: FSST compression and data writing ----
         meta.writeInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
 
-        // Use temp buffers for DMW metadata to avoid interleaving on the shared meta stream.
-        // Both writers flush per-block metadata during add() calls, so writing to the real meta
-        // directly would interleave their blocks. We buffer each separately, then copy in order.
         ByteBuffersDataOutput suffixOffsetsMetaBuffer = new ByteBuffersDataOutput();
         ByteBuffersIndexOutput suffixOffsetsMetaOutput = new ByteBuffersIndexOutput(suffixOffsetsMetaBuffer, "temp", "temp");
         ByteBuffersDataOutput suffixOffsetsData = new ByteBuffersDataOutput();
@@ -758,10 +936,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         data.writeBytes(symbolTableBytes, 0, symbolTableBytes.length);
         long symbolTableEnd = data.getFilePointer();
 
-        // Second pass: iterate terms with one-term lookahead
-        TermsEnum iterator = values.termsEnum();
+        // Iterate terms again, writing suffix data using precomputed assignments
+        TermsEnum writeIterator = values.termsEnum();
 
-        // Suffix batch buffers (same pattern as old flat approach)
         byte[] batchBytes = new byte[FSST_BULK_BUFFER_SIZE + maxLength];
         int batchPos = 0;
         int batchCount = 0;
@@ -772,107 +949,15 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         long suffixBatchBase = 0;
         long totalUncompressedSuffixBytes = 0;
 
-        // Prefix accumulator
-        byte[] prefixAccumBuf = new byte[FSST_BULK_BUFFER_SIZE];
-        int[] prefixAccumStarts = new int[1024];
-        int prefixAccumPos = 0;
-        int numPrefixes = 0;
-
-        // Current prefix tracking
-        byte[] currentPrefixBytes = new byte[maxLength + 1];
-        int currentPrefixLen = 0;
-
-        // Per-term prefix trim: number of bytes to remove from the end of the
-        // assigned prefix. Allows reusing a prefix_id when a term partially
-        // matches the current prefix (the shared portion is a prefix of the
-        // stored prefix). Stored as one byte per term (max trim = 255).
-        byte[] prefixTrimBuf = new byte[Math.max((int) Math.min(size, 1024), 1)];
-
-        BytesRefBuilder prevTerm = new BytesRefBuilder();
-        BytesRefBuilder currentTerm = new BytesRefBuilder();
-
         long suffixDataStart = data.getFilePointer();
 
-        BytesRef rawTerm = iterator.next();
-        if (rawTerm != null) {
-            currentTerm.copyBytes(rawTerm);
-            rawTerm = iterator.next();
-        }
-
         for (long ord = 0; ord < size; ord++) {
-            BytesRef cur = currentTerm.get();
-            BytesRef next = rawTerm;
-            int prefixLen;
-            int prefixId;
-            int trim = 0;
-
-            if (ord == 0) {
-                if (size == 1) {
-                    prefixLen = cur.length;
-                } else {
-                    prefixLen = computeLCP(cur, next);
-                }
-                prefixAccumStarts[numPrefixes] = prefixAccumPos;
-                if (prefixAccumPos + prefixLen > prefixAccumBuf.length) {
-                    prefixAccumBuf = ArrayUtil.grow(prefixAccumBuf, prefixAccumPos + prefixLen);
-                }
-                System.arraycopy(cur.bytes, cur.offset, prefixAccumBuf, prefixAccumPos, prefixLen);
-                prefixAccumPos += prefixLen;
-                System.arraycopy(cur.bytes, cur.offset, currentPrefixBytes, 0, prefixLen);
-                currentPrefixLen = prefixLen;
-                prefixId = 0;
-                numPrefixes = 1;
-            } else {
-                int backwardLcp = computeLCP(prevTerm.get(), cur);
-                boolean matchesCurrent = (backwardLcp == currentPrefixLen)
-                    && Arrays.equals(cur.bytes, cur.offset, cur.offset + currentPrefixLen, currentPrefixBytes, 0, currentPrefixLen);
-
-                if (matchesCurrent) {
-                    prefixId = numPrefixes - 1;
-                    prefixLen = currentPrefixLen;
-                } else {
-                    int forwardLcp = (next != null) ? computeLCP(cur, next) : 0;
-                    int matchLen = computePrefixMatch(cur, currentPrefixBytes, currentPrefixLen);
-                    int trimDelta = currentPrefixLen - forwardLcp;
-
-                    if (forwardLcp <= matchLen && trimDelta > 0 && trimDelta <= 255) {
-                        // The forwardLcp-length prefix is contained within the current
-                        // stored prefix — reuse prefix_id with a trim value instead of
-                        // creating a new prefix entry.
-                        prefixId = numPrefixes - 1;
-                        prefixLen = forwardLcp;
-                        trim = trimDelta;
-                    } else {
-                        prefixLen = forwardLcp;
-                        if (prefixAccumPos + prefixLen > prefixAccumBuf.length) {
-                            prefixAccumBuf = ArrayUtil.grow(prefixAccumBuf, prefixAccumPos + prefixLen);
-                        }
-                        if (numPrefixes >= prefixAccumStarts.length) {
-                            prefixAccumStarts = ArrayUtil.grow(prefixAccumStarts, numPrefixes + 1);
-                        }
-                        prefixAccumStarts[numPrefixes] = prefixAccumPos;
-                        System.arraycopy(cur.bytes, cur.offset, prefixAccumBuf, prefixAccumPos, prefixLen);
-                        prefixAccumPos += prefixLen;
-                        if (prefixLen > currentPrefixBytes.length) {
-                            currentPrefixBytes = new byte[prefixLen];
-                        }
-                        System.arraycopy(cur.bytes, cur.offset, currentPrefixBytes, 0, prefixLen);
-                        currentPrefixLen = prefixLen;
-                        prefixId = numPrefixes;
-                        numPrefixes++;
-                    }
-                }
-            }
+            BytesRef cur = writeIterator.next();
+            int prefixId = assignedPrefixIds[(int) ord];
+            int prefixLen = effectivePrefixLens[(int) ord] & 0xFFFF;
 
             prefixIdsWriter.add(prefixId);
 
-            // Store trim value for this term
-            if (ord >= prefixTrimBuf.length) {
-                prefixTrimBuf = ArrayUtil.grow(prefixTrimBuf, (int) (ord + 1));
-            }
-            prefixTrimBuf[(int) ord] = (byte) trim;
-
-            // Add suffix to batch
             int suffixLen = cur.length - prefixLen;
             if (batchCount > 0 && batchPos + suffixLen > FSST_BULK_BUFFER_SIZE) {
                 totalUncompressedSuffixBytes += batchPos;
@@ -899,12 +984,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             System.arraycopy(cur.bytes, cur.offset + prefixLen, batchBytes, batchPos, suffixLen);
             batchPos += suffixLen;
             batchCount++;
-
-            prevTerm.copyBytes(cur);
-            if (rawTerm != null) {
-                currentTerm.copyBytes(rawTerm);
-                rawTerm = iterator.next();
-            }
         }
 
         // Flush remaining suffix batch
@@ -936,12 +1015,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         long suffixDataEnd = data.getFilePointer();
 
         // Compress and write all accumulated prefix data
-        if (numPrefixes >= prefixAccumStarts.length) {
-            prefixAccumStarts = ArrayUtil.grow(prefixAccumStarts, numPrefixes + 1);
-        }
-        prefixAccumStarts[numPrefixes] = prefixAccumPos;
-
-        // Write numPrefixes and prefix offsets DMW meta to meta (deferred until now)
+        // (prefixAccumStarts[numPrefixes] already set during pass 1)
         meta.writeVLong(numPrefixes);
 
         ByteBuffersDataOutput prefixOffsetsData = new ByteBuffersDataOutput();
@@ -1013,8 +1087,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         // Write per-term prefix trim bytes
         long prefixTrimDataStart = data.getFilePointer();
-        int trimLen = (int) Math.min(size, prefixTrimBuf.length);
-        data.writeBytes(prefixTrimBuf, 0, trimLen);
+        data.writeBytes(prefixTrimBuf, 0, (int) size);
         long prefixTrimDataEnd = data.getFilePointer();
 
         // Write remaining metadata

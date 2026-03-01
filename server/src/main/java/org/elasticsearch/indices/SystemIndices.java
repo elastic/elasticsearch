@@ -1034,17 +1034,15 @@ public class SystemIndices {
             }
         }
 
+        // Visible for testing
         // No-op pre-migration function to be used as the default in case none are provided.
-        private static void noopPreMigrationFunction(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
+        static void noopPreMigrationFunction(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
             listener.onResponse(Collections.emptyMap());
         }
 
+        // Visible for testing
         // No-op pre-migration function to be used as the default in case none are provided.
-        private static void noopPostMigrationFunction(
-            Map<String, Object> preUpgradeMetadata,
-            Client client,
-            ActionListener<Boolean> listener
-        ) {
+        static void noopPostMigrationFunction(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener) {
             listener.onResponse(true);
         }
 

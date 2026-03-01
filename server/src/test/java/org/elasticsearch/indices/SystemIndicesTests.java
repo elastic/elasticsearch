@@ -9,16 +9,19 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.indices.SystemIndices.Feature.cleanUpFeature;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 import static org.hamcrest.Matchers.allOf;
@@ -328,4 +331,54 @@ public class SystemIndicesTests extends ESTestCase {
         assertThat(systemIndices.isSystemIndexBackingDataStream(dataStreamName), equalTo(false));
         assertThat(systemIndices.isSystemIndexBackingDataStream(dataStreamName + "-2025.03.07-000001"), equalTo(false));
     }
+
+    public void testBuildAssociatedIndicesAutomaton() {
+        Collection<String> models = List.of(
+            ".DeepSeek-V32",
+            ".MiMo-V2-Flash",
+            ".Kimi-K25",
+            ".GLM-47",
+            ".gpt-oss-120b",
+            ".Qwen3-235B-A22B-Instruct-2507",
+            ".MiniMax-M21",
+            ".Ling-1T",
+            ".Llama-4-Scout-and-Maverick"
+        );
+
+        List<SystemIndices.Feature> features = models.stream()
+            .map(pattern -> newFeature(List.of(new AssociatedIndexDescriptor(pattern + "*", "Description"))))
+            .toList();
+        SystemIndices systemIndices = new SystemIndices(features);
+
+        CharacterRunAutomaton characterRunAutomaton = systemIndices.buildAssociatedIndicesAutomaton();
+
+        for (int i = 0; i < randomIntBetween(20, 30); i++) {
+            assertThat(characterRunAutomaton.run(randomFrom(models) + randomIndexName()), equalTo(true));
+            // with prefix "index-"
+            assertThat(characterRunAutomaton.run(randomIndexName()), equalTo(false));
+        }
+    }
+
+    private SystemIndices.Feature newFeature(List<AssociatedIndexDescriptor> associatedIndexDescriptors) {
+        return new SystemIndices.Feature(
+            randomIdentifier(),
+            "Silicone",
+            Collections.emptyList(),
+            Collections.emptyList(),
+            associatedIndexDescriptors,
+            (clusterService, projectResolver, client, masterNodeTimeout, listener) -> cleanUpFeature(
+                Collections.emptyList(),
+                Collections.emptyList(),
+                "Model",
+                clusterService,
+                projectResolver,
+                client,
+                masterNodeTimeout,
+                listener
+            ),
+            SystemIndices.Feature::noopPreMigrationFunction,
+            SystemIndices.Feature::noopPostMigrationFunction
+        );
+    }
+
 }

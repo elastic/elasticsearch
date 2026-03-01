@@ -51,14 +51,12 @@ template:
           mapping:
             type: double
             time_series_metric: counter
-            optimize_for: balanced
             meta:
               unit: "{{unit}}"
       - gauge_double:
           mapping:
             type: double
             time_series_metric: gauge
-            optimize_for: balanced
             meta:
               unit: "{{unit}}"
       - summary:

@@ -188,6 +188,10 @@ public class OptimizedScalarQuantizer {
             if ((Math.abs(initInterval[0] - aOpt) < 1e-8 && Math.abs(initInterval[1] - bOpt) < 1e-8)) {
                 return true;
             }
+            if (bOpt < aOpt) {
+                // This can happen if the optimal interval is very small and we have numerical instability, in which case we can stop
+                return true;
+            }
             double newLoss = ESVectorUtil.calculateOSQLoss(vector, aOpt, bOpt, points, norm2, lambda, destination);
             // If the new loss is worse, don't update the interval and exit
             // This optimization, unlike kMeans, does not always converge to better loss

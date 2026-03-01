@@ -773,14 +773,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 } else {
                     int backwardLcp = computeLCP(prevTerm.get(), cur);
                     boolean matchesCurrent = (backwardLcp == currentPrefixLen)
-                        && Arrays.equals(
-                            cur.bytes,
-                            cur.offset,
-                            cur.offset + currentPrefixLen,
-                            currentPrefixBytes,
-                            0,
-                            currentPrefixLen
-                        );
+                        && Arrays.equals(cur.bytes, cur.offset, cur.offset + currentPrefixLen, currentPrefixBytes, 0, currentPrefixLen);
 
                     if (matchesCurrent) {
                         prefixId = numPrefixes - 1;
@@ -791,14 +784,14 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                         int forwardLcp = (next != null) ? computeLCP(cur, next) : 0;
                         int matchLen = computePrefixMatch(cur, currentPrefixBytes, currentPrefixLen);
 
-                        if (forwardLcp <= matchLen && currentPrefixLen > forwardLcp
-                            && (currentPrefixLen - forwardLcp) <= 255) {
+                        if (forwardLcp <= matchLen && currentPrefixLen > forwardLcp && (currentPrefixLen - forwardLcp) <= 255) {
                             // Shortening trim: new prefix is contained in current prefix
                             prefixId = numPrefixes - 1;
                             prefixLen = forwardLcp;
 
                             sampler.processLine(cur.bytes, cur.offset + prefixLen, cur.length - prefixLen);
-                        } else if (matchLen == currentPrefixLen && forwardLcp > currentPrefixLen
+                        } else if (matchLen == currentPrefixLen
+                            && forwardLcp > currentPrefixLen
                             && (forwardLcp - currentPrefixLen + groupMaxTrim) <= 255) {
                                 // Extension: current prefix is contained in the new longer prefix.
                                 // Extend the stored prefix and increase trims for all prior terms.
@@ -806,13 +799,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                                 if (prefixAccumPos + extensionDelta > prefixAccumBuf.length) {
                                     prefixAccumBuf = ArrayUtil.grow(prefixAccumBuf, prefixAccumPos + extensionDelta);
                                 }
-                                System.arraycopy(
-                                    cur.bytes,
-                                    cur.offset + currentPrefixLen,
-                                    prefixAccumBuf,
-                                    prefixAccumPos,
-                                    extensionDelta
-                                );
+                                System.arraycopy(cur.bytes, cur.offset + currentPrefixLen, prefixAccumBuf, prefixAccumPos, extensionDelta);
                                 prefixAccumPos += extensionDelta;
                                 if (forwardLcp > currentPrefixBytes.length) {
                                     currentPrefixBytes = ArrayUtil.grow(currentPrefixBytes, forwardLcp);
@@ -926,7 +913,14 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 int curPrefixStart = prefixAccumStarts[g];
                 int curPrefixLen = prefixAccumStarts[g + 1] - curPrefixStart;
 
-                int sharedLen = computeLCPBytes(prefixAccumBuf, prevStoredStart, prevStoredLen, prefixAccumBuf, curPrefixStart, curPrefixLen);
+                int sharedLen = computeLCPBytes(
+                    prefixAccumBuf,
+                    prevStoredStart,
+                    prevStoredLen,
+                    prefixAccumBuf,
+                    curPrefixStart,
+                    curPrefixLen
+                );
 
                 int trimNeeded = prevStoredLen - sharedLen;
                 if (sharedLen == 0 || trimNeeded > 255) {

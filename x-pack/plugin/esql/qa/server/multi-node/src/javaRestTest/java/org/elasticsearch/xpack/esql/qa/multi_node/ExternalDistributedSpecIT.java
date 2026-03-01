@@ -12,8 +12,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -31,16 +31,15 @@ import java.util.List;
  * three modes produce identical results for every query; divergence flags a split
  * assignment, exchange, or aggregation bug.
  */
-@ThreadLeakFilters(filters = { TestClustersThreadFilter.class, ExternalDistributedSpecIT.AzureReactorThreadFilter.class })
+@ThreadLeakFilters(
+    filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class, ExternalDistributedSpecIT.AzureSdkThreadFilter.class }
+)
 public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCase {
 
-    /** Filters Azure SDK reactor-netty threads started by the Azure blob fixture. */
-    public static class AzureReactorThreadFilter implements ThreadFilter {
+    public static class AzureSdkThreadFilter implements ThreadFilter {
         @Override
         public boolean reject(Thread t) {
-            return t.getName().startsWith("reactor-http-nio-")
-                || t.getName().startsWith("boundedElastic-")
-                || t.getName().startsWith("azure-sdk-");
+            return t.getName().startsWith("azure-sdk-");
         }
     }
 
@@ -98,7 +97,7 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
         try {
             Request request = new Request("POST", "/_query");
             request.setJsonEntity("{\"query\": \"EXTERNAL \\\"s3://probe/test.parquet\\\"\"}");
-            Response response = client().performRequest(request);
+            client().performRequest(request);
             return true;
         } catch (Exception e) {
             String msg = e.getMessage();

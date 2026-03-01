@@ -73,20 +73,13 @@ public final class PipelineSelector {
             return PipelineConfig.forDoubles(blockSize).fpcStage().delta().offset().gcd().patchedPFor().bitPack();
         }
 
-        // NOTE: monotonic data (e.g. counters, cumulative metrics) has constant or
-        // near-constant strides with no decimal structure — ALP's (e,f) search would waste
-        // time and fall back to raw encoding. XOR-based prediction (especially FPC's DFCM)
-        // is the right family because it learns the stride and produces near-zero residuals.
-        // This is purely data-driven: we trust the profile, not the metric type annotation.
-        if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
-            return selectXorDouble(profile, blockSize);
-        }
-
         // NOTE: the XOR gate decides whether consecutive-value XOR produces meaningfully
         // smaller residuals than the raw bit-width. A simple "xorMaxBits < rawMaxBits"
         // is too permissive — saving 1-2 bits doesn't justify the overhead of XOR algorithms
         // vs ALP's simpler integer arithmetic path. Requiring at least 25% reduction filters
         // out marginal cases where ALP would do as well or better via decimal structure.
+        // This applies equally to monotonic and non-monotonic data — monotonic counters with
+        // poor XOR statistics but good decimal structure benefit from lossless ALP.
         final long xorReduction = profile.rawMaxBits() - profile.xorMaxBits();
         if (xorReduction >= profile.rawMaxBits() / 4) {
             return selectXorDouble(profile, blockSize);
@@ -159,16 +152,12 @@ public final class PipelineSelector {
             return PipelineConfig.forFloats(blockSize).fpcStage().delta().offset().gcd().patchedPFor().bitPack();
         }
 
-        if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
-            return selectXorFloat(profile, blockSize);
-        }
-
+        // NOTE: see selectDouble for rationale on XOR gate and counter protection.
         final long xorReduction = profile.rawMaxBits() - profile.xorMaxBits();
         if (xorReduction >= profile.rawMaxBits() / 4) {
             return selectXorFloat(profile, blockSize);
         }
 
-        // NOTE: see selectDouble for rationale — counters must never be quantized.
         return selectAlpFloat(blockSize, metricType == MetricType.COUNTER ? null : hint);
     }
 

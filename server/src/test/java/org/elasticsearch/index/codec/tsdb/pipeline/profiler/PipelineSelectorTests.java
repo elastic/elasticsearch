@@ -413,17 +413,23 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
     }
 
-    public void testMonotonicDoubleSelectsXorRegardlessOfMetricType() {
-        // NOTE: routing is purely data-driven — monotonic data goes to XOR path
-        // regardless of whether the mapping says COUNTER, GAUGE, or nothing.
+    public void testMonotonicDoubleWithGoodXorSelectsXor() {
+        // NOTE: monotonic data with good XOR reduction still routes to XOR path.
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 10, 12, 10);
+
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
+    }
+
+    public void testMonotonicDoubleWithPoorXorSelectsAlp() {
+        // NOTE: monotonic data with poor XOR reduction (xorMaxBits ≈ rawMaxBits) falls
+        // through to ALP — lossless ALP on decimal-structured counters may compress better
+        // than Chimp128 as a fallback.
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 30, 12, 10);
 
-        final PipelineConfig gauge = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.GAUGE);
-        final PipelineConfig counter = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, MetricType.COUNTER);
-        final PipelineConfig noType = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
-        assertEquals(gauge, counter);
-        assertEquals(gauge, noType);
-        assertThat(gauge.specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null, null);
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
+        assertAlpMaxError(config, -1.0);
     }
 
     public void testNonMonotonicDoubleCounterDefaultSelectsLosslessAlp() {
@@ -484,15 +490,19 @@ public class PipelineSelectorTests extends ESTestCase {
         assertAlpMaxError(gauge, 1e-6);
     }
 
-    public void testMonotonicFloatSelectsXorRegardlessOfMetricType() {
+    public void testMonotonicFloatWithGoodXorSelectsXor() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 10, 12, 10);
+
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
+    }
+
+    public void testMonotonicFloatWithPoorXorSelectsAlp() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, true, false, 500, 30, 30, 12, 10);
 
-        final PipelineConfig gauge = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.GAUGE);
-        final PipelineConfig counter = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, MetricType.COUNTER);
-        final PipelineConfig noType = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
-        assertEquals(gauge, counter);
-        assertEquals(gauge, noType);
-        assertThat(gauge.specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null, null);
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
+        assertAlpMaxError(config, -1.0);
     }
 
     public void testNonMonotonicFloatCounterDefaultSelectsLosslessAlp() {

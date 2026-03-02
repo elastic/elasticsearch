@@ -155,4 +155,20 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         builder.endObject();
         return builder;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EmbeddingQueryVectorBuilder that = (EmbeddingQueryVectorBuilder) o;
+        return Objects.equals(inferenceId, that.inferenceId)
+            && type == that.type
+            && format == that.format
+            && Objects.equals(value, that.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(inferenceId, type, format, value);
+    }
 }

@@ -1,5 +1,0 @@
-pr: 139966
-summary: "[Inference API] Fix auth exception listener not called bug"
-area: Inference
-type: bug
-issues: []

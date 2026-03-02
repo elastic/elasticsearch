@@ -28,6 +28,9 @@ public @interface Param {
 
     boolean optional() default false;
 
+    // version since which the parameter is available
+    String since() default "";
+
     @Nullable
     Hint hint() default @Hint(entityType = Hint.ENTITY_TYPE.NONE);
 

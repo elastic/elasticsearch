@@ -201,6 +201,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.io;
     exports org.elasticsearch.common.io.stream;
     exports org.elasticsearch.common.logging;
+    exports org.elasticsearch.common.logging.activity;
     exports org.elasticsearch.common.lucene;
     exports org.elasticsearch.common.lucene.index;
     exports org.elasticsearch.common.lucene.search;
@@ -404,7 +405,8 @@ module org.elasticsearch.server {
             org.elasticsearch.internal.security,
             org.elasticsearch.xpack.core,
             org.elasticsearch.xpack.gpu,
-            org.elasticsearch.xpack.diskbbq;
+            org.elasticsearch.xpack.diskbbq,
+            org.elasticsearch.xpack.stateless;
 
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;
@@ -455,7 +457,9 @@ module org.elasticsearch.server {
     provides org.apache.lucene.codecs.DocValuesFormat
         with
             org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat,
-            org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+            org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat,
+            org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat,
+            org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
@@ -490,7 +494,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.routing.allocation.shards
         to
             org.elasticsearch.shardhealth,
-            org.elasticsearch.serverless.shardhealth,
+            org.elasticsearch.xpack.stateless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
     exports org.elasticsearch.inference.configuration;
@@ -512,4 +516,10 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.mapper.blockloader;
     exports org.elasticsearch.index.mapper.blockloader.docvalues;
     exports org.elasticsearch.index.mapper.blockloader.docvalues.fn;
+    exports org.elasticsearch.index.mapper.blockloader.docvalues.tracking;
+    exports org.elasticsearch.index.mapper.blockloader.script;
+    exports org.elasticsearch.readiness to org.elasticsearch.internal.sigterm;
+    exports org.elasticsearch.inference.metadata;
+    exports org.elasticsearch.search.diversification.mmr;
+    exports org.elasticsearch.inference.completion;
 }

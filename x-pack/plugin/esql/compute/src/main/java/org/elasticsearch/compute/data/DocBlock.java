@@ -44,8 +44,8 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
     }
 
     @Override
-    public Block filter(int... positions) {
-        return new DocBlock(vector.filter(positions));
+    public Block filter(boolean mayContainDuplicates, int... positions) {
+        return new DocBlock(vector.filter(mayContainDuplicates, positions));
     }
 
     @Override
@@ -112,7 +112,7 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
         private final IntVector.Builder shards;
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
-        private IndexedByShardId<? extends RefCounted> shardRefCounters = null;
+        private IndexedByShardId<? extends RefCounted> shardRefCounters = AlwaysReferencedIndexedByShardId.INSTANCE;
 
         public Builder shardRefCounters(IndexedByShardId<? extends RefCounted> shardRefCounters) {
             this.shardRefCounters = shardRefCounters;
@@ -196,7 +196,10 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
         @Override
         public DocBlock build() {
-            // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
+            return build(DocVector.config());
+        }
+
+        public DocBlock build(DocVector.Config config) {
             IntVector shards = null;
             IntVector segments = null;
             IntVector docs = null;
@@ -205,13 +208,7 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
                 shards = this.shards.build();
                 segments = this.segments.build();
                 docs = this.docs.build();
-                result = new DocVector(
-                    shardRefCounters == null ? AlwaysReferencedIndexedByShardId.INSTANCE : shardRefCounters,
-                    shards,
-                    segments,
-                    docs,
-                    null
-                );
+                result = new DocVector(shardRefCounters, shards, segments, docs, config);
                 return result.asBlock();
             } finally {
                 if (result == null) {

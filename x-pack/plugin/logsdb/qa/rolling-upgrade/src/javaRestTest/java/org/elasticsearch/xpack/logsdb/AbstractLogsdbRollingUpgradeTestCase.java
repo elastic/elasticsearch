@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -48,12 +49,16 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         return oldClusterTestFeatureService.clusterHasFeature(featureId);
     }
 
+    protected static boolean oldClusterHasFeature(NodeFeature feature) {
+        return oldClusterHasFeature(feature.id());
+    }
+
     @ClassRule
     public static final ElasticsearchCluster cluster = Clusters.oldVersionCluster(USER, PASS);
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
+        return getCluster().getHttpAddresses();
     }
 
     protected Settings restClientSettings() {
@@ -71,8 +76,12 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
 
         var upgradeVersion = newClusterVersion != null ? Version.fromString(newClusterVersion) : Version.CURRENT;
         logger.info("Upgrading node {} to version {}", n, upgradeVersion);
-        cluster.upgradeNodeToVersion(n, upgradeVersion);
+        getCluster().upgradeNodeToVersion(n, upgradeVersion);
         initClient();
+    }
+
+    protected ElasticsearchCluster getCluster() {
+        return cluster;
     }
 
     static String formatInstant(Instant instant) {

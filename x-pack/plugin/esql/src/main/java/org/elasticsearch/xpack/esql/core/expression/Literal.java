@@ -149,6 +149,11 @@ public class Literal extends LeafExpression implements Accountable {
 
     @Override
     public String toString() {
+        return toString(NodeStringFormat.LIMITED);
+    }
+
+    @Override
+    public String toString(NodeStringFormat format) {
         String str;
         if (dataType == KEYWORD || dataType == TEXT) {
             str = BytesRefs.toString(value);
@@ -164,15 +169,15 @@ public class Literal extends LeafExpression implements Accountable {
         if (str == null) {
             str = "null";
         }
-        if (str.length() > 500) {
+        if (str.length() > 500 && format == NodeStringFormat.LIMITED) {
             return str.substring(0, 500) + "...";
         }
         return str;
     }
 
     @Override
-    public String nodeString() {
-        return toString() + "[" + dataType + "]";
+    public String nodeString(NodeStringFormat format) {
+        return toString(format) + "[" + dataType + "]";
     }
 
     @Override

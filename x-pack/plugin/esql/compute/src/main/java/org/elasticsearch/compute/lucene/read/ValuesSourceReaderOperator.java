@@ -9,24 +9,33 @@ package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,16 +48,25 @@ import java.util.function.IntFunction;
  * and outputs them to a new column.
  */
 public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOperator {
+    private static final Logger log = LogManager.getLogger(ValuesSourceReaderOperator.class);
+
     /**
      * Creates a factory for {@link ValuesSourceReaderOperator}.
      * @param fields fields to load
      * @param shardContexts per-shard loading information
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public record Factory(ByteSizeValue jumboSize, List<FieldInfo> fields, IndexedByShardId<ShardContext> shardContexts, int docChannel)
-        implements
-            OperatorFactory {
-        public Factory {
+    public record Factory(
+        ByteSizeValue jumboSize,
+        List<FieldInfo> fields,
+        IndexedByShardId<ShardContext> shardContexts,
+        boolean reuseColumnLoaders,
+        int docChannel,
+        double sourceReservationFactor
+    ) implements OperatorFactory {
+        public Factory
+
+        {
             if (fields.isEmpty()) {
                 throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
             }
@@ -56,7 +74,15 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(driverContext.blockFactory(), jumboSize.getBytes(), fields, shardContexts, docChannel);
+            return new ValuesSourceReaderOperator(
+                driverContext,
+                jumboSize.getBytes(),
+                fields,
+                shardContexts,
+                reuseColumnLoaders,
+                docChannel,
+                sourceReservationFactor
+            );
         }
 
         @Override
@@ -89,9 +115,30 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      *                      For example, "FROM index | WHERE x != null | STATS sum(x)", after filtering out documents
      *                      without value for field x, all target documents returned from the source operator
      *                      will have a value for field x whether x is dense or sparse in the index.
-     * @param blockLoader   maps shard index to the {@link BlockLoader}s which load the actual blocks.
+     * @param loaderAndConverter   maps shard index to the {@link BlockLoader} which load the actual blocks and an
+     *                             optional type converter.
      */
-    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, IntFunction<BlockLoader> blockLoader) {}
+    public record FieldInfo(String name, ElementType type, boolean nullsFiltered, IntFunction<LoaderAndConverter> loaderAndConverter) {}
+
+    /**
+     * Singleton to load constant {@code null}s.
+     */
+    public static final LoaderAndConverter LOAD_CONSTANT_NULLS = new LoaderAndConverter(ConstantNull.INSTANCE, null);
+
+    /**
+     * Loads directly from the {@code loader}.
+     */
+    public static LoaderAndConverter load(BlockLoader loader) {
+        return new LoaderAndConverter(loader, null);
+    }
+
+    /**
+     * Loads from the {@code loader} and then converts the values using the {@code converter}.
+     *
+     */
+    public static LoaderAndConverter loadAndConvert(BlockLoader loader, ConverterFactory converter) {
+        return new LoaderAndConverter(loader, converter);
+    }
 
     public record ShardContext(
         IndexReader reader,
@@ -99,7 +146,15 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         double storedFieldsSequentialProportion
     ) {}
 
-    final BlockFactory blockFactory;
+    final DriverContext driverContext;
+
+    /**
+     * Owns the "evaluators" of type conversions that be performed on load.
+     * Converters are built on first need and kept until the {@link ValuesSourceReaderOperator}
+     * is {@link #close closed}.
+     */
+    private final ConverterEvaluators converterEvaluators = new ConverterEvaluators();
+
     /**
      * When the loaded fields {@link Block}s' estimated size grows larger than this,
      * we finish loading the {@linkplain Page} and return it, even if
@@ -113,7 +168,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     final long jumboBytes;
     final FieldWork[] fields;
     final IndexedByShardId<? extends ShardContext> shardContexts;
+    private final boolean reuseColumnLoaders;
     private final int docChannel;
+
+    /**
+     * Multiplier applied to {@link #lastKnownSourceSize} to pre-reserve memory on the circuit
+     * breaker before loading {@code _source}. A factor of 3.0 covers the large untracked
+     * allocations from source parsing such as the scratch buffer, SourceFilter.filterBytes() and
+     * JSON parsing overhead. This is a heuristic and can be adjusted based on observed
+     * memory usage patterns.
+     */
+    final double sourceReservationFactor;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
@@ -122,34 +187,90 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private int lastSegment = -1;
 
     /**
+     * The maximum raw byte size of _source observed so far. This persists across pages so
+     * the pre-reservation for source parsing overhead can protect even the first (and only)
+     * document in a page. On a 512MB JVM, jumboBytes is ~512KB, so each 5MB text field
+     * creates a 1-doc page. Without persisting this, every page starts with 0 reservation.
+     */
+    long lastKnownSourceSize;
+
+    /**
+     * Persistent reservation on the circuit breaker for the expected overhead of _source
+     * parsing. Held while this operator is active and loading large documents. When multiple
+     * operators load large _source concurrently, their persistent reservations accumulate
+     * on the shared circuit breaker, causing it to trip before the aggregate untracked
+     * temporaries from concurrent loads can overwhelm the heap.
+     */
+    private long sourceLoadingReservation;
+
+    /**
      * Creates a new extractor
      * @param fields fields to load
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
     public ValuesSourceReaderOperator(
-        BlockFactory blockFactory,
+        DriverContext driverContext,
         long jumboBytes,
         List<FieldInfo> fields,
         IndexedByShardId<? extends ShardContext> shardContexts,
-        int docChannel
+        boolean reuseColumnLoaders,
+        int docChannel,
+        double sourceReservationFactor
     ) {
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
         }
-        this.blockFactory = blockFactory;
+        this.driverContext = driverContext;
         this.jumboBytes = jumboBytes;
-        this.fields = fields.stream().map(FieldWork::new).toArray(FieldWork[]::new);
+        this.fields = new FieldWork[fields.size()];
+        for (int i = 0; i < this.fields.length; i++) {
+            this.fields[i] = new FieldWork(fields.get(i), i);
+        }
         this.shardContexts = shardContexts;
+        this.reuseColumnLoaders = reuseColumnLoaders;
         this.docChannel = docChannel;
+        this.sourceReservationFactor = sourceReservationFactor;
     }
 
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
+        acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
         return appendBlockArrays(
             page,
             docVector.singleSegment() ? new ValuesFromSingleReader(this, docVector) : new ValuesFromManyReader(this, docVector)
         );
+    }
+
+    /**
+     * Acquires or increases the persistent source loading reservation on the circuit breaker.
+     * Called at the start of each page and after each row load that updates
+     * {@link #lastKnownSourceSize}. If the breaker trips, the exception propagates and
+     * prevents further loading, limiting concurrent large _source operations.
+     */
+    void acquireSourceLoadingReservation() {
+        long needed = (long) (lastKnownSourceSize * sourceReservationFactor);
+        long additional = needed - sourceLoadingReservation;
+        if (additional > 0) {
+            driverContext.blockFactory().adjustBreaker(additional);
+            sourceLoadingReservation = needed;
+            if (log.isDebugEnabled()) {
+                log.debug("reserve {}/{} bytes on circuit breaker for source loading", additional, sourceLoadingReservation);
+            }
+        }
+    }
+
+    /**
+     * Updates the source loading reservation if the source bytes from the current document
+     * exceed what we've seen before, then releases the parsed source to free memory.
+     */
+    void trackSourceBytesAndRelease(BlockLoaderStoredFieldsFromLeafLoader storedFields) {
+        long sourceBytes = storedFields.lastSourceBytesSize();
+        if (sourceBytes > lastKnownSourceSize) {
+            lastKnownSourceSize = sourceBytes;
+            acquireSourceLoadingReservation();
+        }
+        storedFields.releaseParsedSource();
     }
 
     void positionFieldWork(int shard, int segment, int firstDoc) {
@@ -207,48 +328,85 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         );
     }
 
-    protected class FieldWork {
+    @Override
+    public void close() {
+        if (sourceLoadingReservation > 0) {
+            driverContext.blockFactory().adjustBreaker(-sourceLoadingReservation);
+            sourceLoadingReservation = 0;
+            if (log.isDebugEnabled()) {
+                log.debug("release {} bytes from circuit breaker after source loading", sourceLoadingReservation);
+            }
+        }
+        Releasables.close(super::close, converterEvaluators, Releasables.wrap(fields));
+    }
+
+    protected class FieldWork implements Releasable {
         final FieldInfo info;
+        private final int fieldIdx;
 
         BlockLoader loader;
+        // TODO rework this bit of mutable state into something harder to forget
+        // Seriously, I've tripped over this twice.
+        @Nullable
+        ConverterEvaluator converter;
+        @Nullable
         BlockLoader.ColumnAtATimeReader columnAtATime;
+        @Nullable
         BlockLoader.RowStrideReader rowStride;
 
-        FieldWork(FieldInfo info) {
+        FieldWork(FieldInfo info, int fieldIdx) {
             this.info = info;
+            this.fieldIdx = fieldIdx;
         }
 
         void sameSegment(int firstDoc) {
             if (columnAtATime != null && columnAtATime.canReuse(firstDoc) == false) {
+                // TODO count the number of times we can't reuse?
+                columnAtATime.close();
                 columnAtATime = null;
             }
             if (rowStride != null && rowStride.canReuse(firstDoc) == false) {
+                rowStride.close();
                 rowStride = null;
             }
         }
 
         void sameShardNewSegment() {
-            columnAtATime = null;
-            rowStride = null;
+            closeReaders();
         }
 
         void newShard(int shard) {
-            loader = info.blockLoader.apply(shard);
-            columnAtATime = null;
-            rowStride = null;
+            LoaderAndConverter l = info.loaderAndConverter.apply(shard);
+            loader = l.loader;
+            converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
+            log.debug("moved to shard {} {} {}", shard, loader, converter);
+            sameShardNewSegment();
         }
 
         BlockLoader.ColumnAtATimeReader columnAtATime(LeafReaderContext ctx) throws IOException {
             if (columnAtATime == null) {
-                columnAtATime = loader.columnAtATimeReader(ctx);
-                trackReader("column_at_a_time", this.columnAtATime);
+                IOFunction<CircuitBreaker, BlockLoader.ColumnAtATimeReader> fn = loader.columnAtATimeReader(ctx);
+                if (fn == null) {
+                    trackReader("column_at_a_time", null);
+                    return null;
+                }
+                if (reuseColumnLoaders) {
+                    columnAtATime = fn.apply(driverContext.breaker());
+                    trackReader("column_at_a_time", columnAtATime);
+                } else {
+                    columnAtATime = new ColumnAtATimeReaderWithoutReuse(
+                        driverContext.breaker(),
+                        fn,
+                        r -> trackReader("column_at_a_time", r)
+                    );
+                }
             }
             return columnAtATime;
         }
 
         BlockLoader.RowStrideReader rowStride(LeafReaderContext ctx) throws IOException {
             if (rowStride == null) {
-                rowStride = loader.rowStrideReader(ctx);
+                rowStride = loader.rowStrideReader(driverContext.breaker(), ctx);
                 trackReader("row_stride", this.rowStride);
             }
             return rowStride;
@@ -256,6 +414,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         private void trackReader(String type, BlockLoader.Reader reader) {
             readersBuilt.merge(info.name + ":" + type + ":" + reader, 1, (prev, one) -> prev + one);
+        }
+
+        @Override
+        public void close() {
+            closeReaders();
+        }
+
+        private void closeReaders() {
+            Releasables.close(columnAtATime, rowStride);
+            columnAtATime = null;
+            rowStride = null;
         }
     }
 
@@ -293,6 +462,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     ) {
         return new ValuesSourceReaderOperatorStatus(
             new TreeMap<>(readersBuilt),
+            converterEvaluators.used(),
             processNanos,
             pagesReceived,
             pagesEmitted,
@@ -334,5 +504,78 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     private String sanityCheckBlockErrorPrefix(Object loader, Block block, int field) {
         return fields[field].info.name + "[" + loader + "]: " + block;
+    }
+
+    class ConverterEvaluators implements Releasable {
+        private final Map<Key, ConverterAndCount> built = new HashMap<>();
+
+        public ConverterEvaluator get(int shard, int fieldIdx, String field, ConverterFactory converter) {
+            ConverterAndCount evaluator = built.computeIfAbsent(
+                new Key(shard, fieldIdx, field),
+                unused -> new ConverterAndCount(converter.build(driverContext))
+            );
+            evaluator.used++;
+            return evaluator.evaluator;
+        }
+
+        public Map<String, Integer> used() {
+            Map<String, Integer> used = new TreeMap<>();
+            for (var e : built.entrySet()) {
+                used.merge(e.getKey().field + ":" + e.getValue().evaluator, e.getValue().used, Integer::sum);
+            }
+            return used;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(built.values());
+        }
+    }
+
+    record Key(int shard, int fieldIdx, String field) {}
+
+    private static class ConverterAndCount implements Releasable {
+        private final ConverterEvaluator evaluator;
+        private int used;
+
+        private ConverterAndCount(ConverterEvaluator evaluator) {
+            this.evaluator = evaluator;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(evaluator);
+        }
+    }
+
+    public static class LoaderAndConverter {
+        private final BlockLoader loader;
+        /**
+         * An optional conversion function to apply after loading
+         */
+        @Nullable
+        private final ConverterFactory converter;
+
+        private LoaderAndConverter(BlockLoader loader, @Nullable ConverterFactory converter) {
+            this.loader = loader;
+            this.converter = converter;
+        }
+
+        public BlockLoader loader() {
+            return loader;
+        }
+    }
+
+    public interface ConverterFactory {
+        ConverterEvaluator build(DriverContext context);
+    }
+
+    /**
+     * Evaluator for any type conversions that must be performed on load. These are
+     * built lazily on first need and kept until the {@link ValuesSourceReaderOperator}
+     * is {@link #close closed}.
+     */
+    public interface ConverterEvaluator extends Releasable {
+        Block convert(Block block);
     }
 }

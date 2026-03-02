@@ -1,0 +1,103 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+
+import java.io.IOException;
+
+import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingleValueWarning;
+
+public abstract class MultiValuedBinaryWithSeparateCountsLengthReader extends BlockDocValuesReader {
+    private final Warnings warnings;
+    private final TrackingNumericDocValues counts;
+    private final TrackingBinaryDocValues values;
+
+    MultiValuedBinaryWithSeparateCountsLengthReader(Warnings warnings, TrackingNumericDocValues counts, TrackingBinaryDocValues values) {
+        super(null);
+        this.warnings = warnings;
+        this.counts = counts;
+        this.values = values;
+    }
+
+    abstract int length(BytesRef bytesRef);
+
+    public abstract String toString();
+
+    @Override
+    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+        throws IOException {
+        int count = docs.count() - offset;
+        if (count == 1) {
+            return blockForSingleDoc(factory, docs.get(offset));
+        }
+
+        try (BlockLoader.IntBuilder builder = factory.ints(count)) {
+            for (int i = offset; i < docs.count(); i++) {
+                int doc = docs.get(i);
+                appendLength(doc, builder);
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public int docId() {
+        return counts.docValues().docID();
+    }
+
+    private void appendLength(int docId, BlockLoader.IntBuilder builder) throws IOException {
+        if (counts.docValues().advanceExact(docId) == false) {
+            builder.appendNull();
+        } else {
+            int valueCount = Math.toIntExact(counts.docValues().longValue());
+            if (valueCount == 1) {
+                boolean advanced = values.docValues().advanceExact(docId);
+                assert advanced;
+
+                BytesRef bytes = values.docValues().binaryValue();
+                builder.appendInt(length(bytes));
+            } else {
+                registerSingleValueWarning(warnings);
+                builder.appendNull();
+            }
+        }
+    }
+
+    private BlockLoader.Block blockForSingleDoc(BlockLoader.BlockFactory factory, int docId) throws IOException {
+        if (counts.docValues().advanceExact(docId) == false) {
+            return factory.constantNulls(1);
+        } else {
+            int valueCount = Math.toIntExact(counts.docValues().longValue());
+            if (valueCount == 1) {
+                boolean advanced = values.docValues().advanceExact(docId);
+                assert advanced;
+
+                BytesRef bytes = values.docValues().binaryValue();
+                int length = length(bytes);
+                return factory.constantInt(length, 1);
+            } else {
+                registerSingleValueWarning(warnings);
+                return factory.constantNulls(1);
+            }
+        }
+    }
+
+    @Override
+    public final void close() {
+        Releasables.close(counts, values);
+    }
+}

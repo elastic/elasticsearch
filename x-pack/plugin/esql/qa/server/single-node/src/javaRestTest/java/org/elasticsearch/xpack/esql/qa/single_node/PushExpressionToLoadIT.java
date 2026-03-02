@@ -379,7 +379,13 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
                 )
             ),
-            sig -> {}
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -414,11 +420,17 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                         // Pushed down function
                         matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
                         // Field
-                        matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
+                        matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
                     )
                     : List.of(matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1))
             ),
-            sig -> {}
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneTopNSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -443,10 +455,19 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     // Pushed down function
                     matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
                     // TODO It should not load the field value on the data node, but just on the node_reduce phase
-                    matchesMap().entry("test:row_stride:BytesRefsFromOrds.Singleton", 1)
+                    matchesMap().entry("test:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
                 )
             ),
-            sig -> {}
+            sig -> assertMap(
+                sig,
+                matchesList().item("LuceneSourceOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("EvalOperator")
+                    .item("TopNOperator")
+                    .item("ValuesSourceReaderOperator")
+                    .item("ProjectOperator")
+                    .item("ExchangeSinkOperator")
+            )
         );
     }
 
@@ -472,7 +493,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 sig,
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                    .item("LookupOperator")
+                    .item("StreamingLookupOperator")
                     .item("EvalOperator") // this one just renames the field
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
@@ -504,7 +525,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 sig,
                 matchesList().item("LuceneSourceOperator")
                     .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                    .item("LookupOperator")
+                    .item("StreamingLookupOperator")
                     .item("EvalOperator") // this one just renames the field
                     .item("AggregationOperator")
                     .item("ExchangeSinkOperator")
@@ -768,6 +789,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                     .entry("dependency_resolution", matchesMap().extraOk())
                     .entry("analysis", matchesMap().extraOk())
                     .entry("query", matchesMap().extraOk())
+                    .entry("field_caps_calls", instanceOf(Integer.class))
                     .entry("minimumTransportVersion", instanceOf(Integer.class))
             ),
             columnMatcher,

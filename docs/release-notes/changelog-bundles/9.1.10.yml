@@ -1,0 +1,61 @@
+version: 9.1.10
+released: true
+generated: 2026-01-13T18:08:36.973971557Z
+changelogs:
+  - pr: 139221
+    summary: Upgrade lz4 dependency to 1.10.1
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 139442
+    summary: "ESQL: Fix multi-value constant propagation after `STATS`"
+    area: ES|QL
+    type: bug
+    issues:
+      - 135926
+  - pr: 139467
+    summary: Ensure initial state discovery does not block indefinitely on startup
+    area: Infra/Node Lifecycle
+    type: bug
+    issues: []
+  - pr: 139569
+    summary: Revert "Attempt to clean up index before remote transfer"
+    area: Recovery
+    type: bug
+    issues: []
+  - pr: 139669
+    summary: Upgrade Netty to 4.1.130.Final
+    area: Security
+    type: upgrade
+    issues: []
+  - pr: 139679
+    summary: "Bug fix: the filter of a data stream alias is not always properly removed"
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 139712
+    summary: Making sure that failure store document converter does not hang on unexpected exceptions
+    area: Data streams
+    type: bug
+    issues:
+      - 139707
+  - pr: 139857
+    summary: Reduce task match load
+    area: Transform
+    type: bug
+    issues:
+      - 139252
+  - pr: 139966
+    summary: "[Inference API] Fix auth exception listener not called bug"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 140046
+    summary: "[Axonius] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+    area: Authorization
+    type: enhancement
+  - pr: 140118
+    summary: Skip frozen nodes on disk watermark check
+    area: Infra/Core
+    type: bug
+    issues: []

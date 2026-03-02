@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -159,6 +160,27 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             ) {
                 assertThat(getValuesList(resp), hasSize(0));
                 assertThat(queriedIndices, empty());
+                queriedIndices.clear();
+            }
+
+            try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("""
+                from events_*
+                | WHERE @timestamp >= date_parse("yyyy-MM-dd", "2023-01-01")
+                | STATS count() BY DATE_FORMAT("yyyy-MM-dd", @timestamp)
+                """).pragmas(randomPragmas()))) {
+                assertThat(getValuesList(resp), hasSize(4));
+                assertThat(queriedIndices, equalTo(Set.of("events_2023")));
+                queriedIndices.clear();
+            }
+            try (
+                EsqlQueryResponse resp = run(
+                    syncEsqlQueryRequest("from events_* | STATS count() BY DATE_FORMAT(\"yyyy-MM-dd\", @timestamp)").pragmas(
+                        randomPragmas()
+                    ).filter(new RangeQueryBuilder("@timestamp").gte("2023-01-01"))
+                )
+            ) {
+                assertThat(getValuesList(resp), hasSize(4));
+                assertThat(queriedIndices, equalTo(Set.of("events_2023")));
                 queriedIndices.clear();
             }
         } finally {
@@ -388,6 +410,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testSkipOnTierName() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
         var tiers = List.of("hot", "warm", "cold");
         for (String tier : tiers) {
             assertAcked(

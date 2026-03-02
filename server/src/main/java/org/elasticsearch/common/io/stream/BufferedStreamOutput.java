@@ -28,6 +28,34 @@ import static org.elasticsearch.common.io.stream.StreamOutputHelper.putVInt;
  * be acquired or allocated up-front. Apart from the costs of the buffer creation &amp; release a {@link BufferedStreamOutput} is likely
  * more performant than an {@link OutputStreamStreamOutput} because it writes all fields directly to its local buffer and only copies data
  * to the underlying stream when the buffer fills up.
+ *
+ * <hr>
+ *
+ * <h2>Wrapping a {@linkplain java.io.ByteArrayOutputStream}</h2>
+ *
+ * A {@link java.io.ByteArrayOutputStream} collects data in an underlying {@code byte[]} collector which typically doubles in size each time
+ * it receives a write operation which exhausts the remaining space in the existing collector. This works well if wrapped with a
+ * {@link BufferedStreamOutput} especially if the object is expected to be small enough to fit entirely into the buffer, because then
+ * there's only one slightly-oversized {@code byte[]} allocation to create the collector, plus another right-sized {@code byte[]} allocation
+ * to extract the result, assuming the buffer is not allocated afresh each time. However, subsequent flushes may need to allocate a larger
+ * collector, copying over the existing data to the new collector, so this can perform badly for larger objects. For objects larger than
+ * half the G1 region size (8MiB on a 32GiB heap) each reallocation will require a
+ * <a href="https://www.oracle.com/technical-resources/articles/java/g1gc.html">humongous allocation</a> which can be stressful for the
+ * garbage collector, so it's better to split the bytes into several smaller pages using utilities such as {@linkplain BytesStreamOutput},
+ * {@linkplain ReleasableBytesStreamOutput} or {@linkplain RecyclerBytesStreamOutput} in those cases.
+ * <p>
+ * A {@link BufferedStreamOutput} around a {@link java.io.ByteArrayOutputStream} is also good if the in-memory serialized representation
+ * will have a long lifetime, because the resulting {@code byte[]} is exactly the correct size. When using other approaches such as a
+ * {@linkplain BytesStreamOutput}, {@linkplain ReleasableBytesStreamOutput} or {@linkplain RecyclerBytesStreamOutput} there will be some
+ * amount of unused overhead bytes which may be particularly undesirable for long-lived objects.
+ * <p>
+ * An {@link OutputStreamStreamOutput} wrapper is almost certainly worse than a {@link BufferedStreamOutput} because it will make the
+ * {@link java.io.ByteArrayOutputStream} perform significantly more allocations and copies until the collecting buffer gets large enough.
+ * Most writes to a {@link OutputStreamStreamOutput} use a thread-local intermediate buffer (itself somewhat expensive) and then copy that
+ * intermediate buffer directly to the output.
+ * <p>
+ * Any memory allocated in this way is untracked by the {@link org.elasticsearch.common.breaker} subsystem unless the caller takes steps to
+ * add this tracking themselves.
  */
 public class BufferedStreamOutput extends StreamOutput {
 
@@ -37,6 +65,7 @@ public class BufferedStreamOutput extends StreamOutput {
     private final int endPosition;
     private int position;
     private long flushedBytes;
+    private boolean isClosed;
 
     /**
      * Wrap the given stream, using the given {@link BytesRef} for the buffer. It is the caller's responsibility to make sure that nothing
@@ -52,7 +81,7 @@ public class BufferedStreamOutput extends StreamOutput {
     }
 
     @Override
-    public long position() throws IOException {
+    public long position() {
         return flushedBytes + position - startPosition;
     }
 
@@ -129,8 +158,11 @@ public class BufferedStreamOutput extends StreamOutput {
 
     @Override
     public void close() throws IOException {
-        flush();
-        delegate.close();
+        if (isClosed == false) {
+            isClosed = true;
+            flush();
+            delegate.close();
+        }
     }
 
     @Override
@@ -195,7 +227,7 @@ public class BufferedStreamOutput extends StreamOutput {
         if (25 <= Integer.numberOfLeadingZeros(i)) {
             writeByte((byte) i);
         } else if (MAX_VINT_BYTES <= capacity()) {
-            position += putMultiByteVInt(buffer, i, position);
+            position = putMultiByteVInt(buffer, i, position);
         } else {
             writeVIntWithBoundsChecks(i);
         }
@@ -214,9 +246,9 @@ public class BufferedStreamOutput extends StreamOutput {
     public void writeVIntArray(int[] values) throws IOException {
         int position = this.position;
         if ((values.length + 1) * MAX_VINT_BYTES <= endPosition - position) {
-            position += putVInt(buffer, values.length, position);
+            position = putVInt(buffer, values.length, position);
             for (var value : values) {
-                position += putVInt(buffer, value, position);
+                position = putVInt(buffer, value, position);
             }
             this.position = position;
         } else {
@@ -232,7 +264,7 @@ public class BufferedStreamOutput extends StreamOutput {
         int lastSafePosition = this.endPosition - MAX_VINT_BYTES;
         while (i < values.length) {
             while (i < values.length && position <= lastSafePosition) {
-                position += putVInt(buffer, values[i++], position);
+                position = putVInt(buffer, values[i++], position);
             }
             this.position = position;
             while (capacity() < MAX_VINT_BYTES && i < values.length) {
@@ -332,7 +364,7 @@ public class BufferedStreamOutput extends StreamOutput {
         final int charCount = str.length();
         int position = this.position;
         if (MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
-            position += putVInt(buffer, charCount, position);
+            position = putVInt(buffer, charCount, position);
             for (int i = 0; i < charCount; i++) {
                 position = putCharUtf8(buffer, str.charAt(i), position);
             }
@@ -351,7 +383,7 @@ public class BufferedStreamOutput extends StreamOutput {
             int position = this.position;
             if (1 + MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
                 buffer[position++] = (byte) 1;
-                position += putVInt(buffer, charCount, position);
+                position = putVInt(buffer, charCount, position);
                 for (int i = 0; i < charCount; i++) {
                     position = putCharUtf8(buffer, str.charAt(i), position);
                 }
@@ -369,7 +401,7 @@ public class BufferedStreamOutput extends StreamOutput {
         int position = this.position;
         if (1 + MAX_VINT_BYTES + charCount * MAX_CHAR_BYTES <= endPosition - position) {
             buffer[position++] = (byte) 0;
-            position += putVInt(buffer, charCount, position);
+            position = putVInt(buffer, charCount, position);
             for (int i = 0; i < charCount; i++) {
                 position = putCharUtf8(buffer, str.charAt(i), position);
             }

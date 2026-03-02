@@ -10,19 +10,23 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
 
 /**
- * Holds all the doc values used in the {@link TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum} and
- * {@link TSDBSyntheticIdFieldsProducer.SyntheticIdPostingsEnum} to lookup and to build synthetic _ids,
- * along with some utility methods to access doc values.
+ * Holds all the doc values used in the {@link TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum},
+ * {@link TSDBSyntheticIdFieldsProducer.SyntheticIdPostingsEnum} and {@link TSDBSyntheticIdStoredFieldsReader} to lookup and to build
+ * synthetic _ids, along with some utility methods to access doc values.
  * <p>
  * It holds the instance of {@link DocValuesProducer} used to create the sorted doc values for _tsid, @timestamp and
  * _ts_routing_hash. Because doc values can only advance, they are re-created from the {@link DocValuesProducer} when we need to
@@ -134,7 +138,7 @@ class TSDBSyntheticIdDocValuesHolder {
         int ordinal = tsIdDocValues.lookupTerm(tsId);
         if (0 <= ordinal) {
             cachedTsIdOrd = ordinal;
-            cachedTsId = tsId;
+            cachedTsId = BytesRef.deepCopyOf(tsId);
         }
         return ordinal;
     }
@@ -160,7 +164,7 @@ class TSDBSyntheticIdDocValuesHolder {
         var tsId = tsIdDocValues.lookupOrd(tsIdOrdinal);
         if (tsId != null) {
             cachedTsIdOrd = tsIdOrdinal;
-            cachedTsId = tsId;
+            cachedTsId = BytesRef.deepCopyOf(tsId);
         }
         return tsId;
     }
@@ -192,9 +196,8 @@ class TSDBSyntheticIdDocValuesHolder {
      */
     int findFirstDocWithTsIdOrdinalEqualOrGreaterThan(int tsIdOrd) throws IOException {
         final int startDocId = findStartDocIDForTsIdOrd(tsIdOrd);
-        if (startDocId == DocIdSetIterator.NO_MORE_DOCS) {
-            return startDocId;
-        }
+        assert startDocId != DocIdSetIterator.NO_MORE_DOCS : startDocId;
+
         // recreate even if doc values are already on the same ordinal, to ensure the method returns the first doc
         if (tsIdDocValues == null || (cachedTsIdOrd != -1 && cachedTsIdOrd >= tsIdOrd) || tsIdDocValues.docID() > startDocId) {
             tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
@@ -210,7 +213,7 @@ class TSDBSyntheticIdDocValuesHolder {
             var ord = tsIdDocValues.ordValue();
             if (ord == tsIdOrd || tsIdOrd < ord) {
                 if (ord != cachedTsIdOrd) {
-                    cachedTsId = tsIdDocValues.lookupOrd(ord);
+                    cachedTsId = BytesRef.deepCopyOf(tsIdDocValues.lookupOrd(ord));
                     cachedTsIdOrd = ord;
                 }
                 return docID;
@@ -218,6 +221,7 @@ class TSDBSyntheticIdDocValuesHolder {
         }
         cachedTsIdOrd = -1;
         cachedTsId = null;
+        assert false : "Method must be called with an existing _tsid ordinal: " + tsIdOrd;
         return DocIdSetIterator.NO_MORE_DOCS;
     }
 
@@ -247,7 +251,7 @@ class TSDBSyntheticIdDocValuesHolder {
             var ord = tsIdDocValues.ordValue();
             if (ord == tsIdOrd) {
                 if (ord != cachedTsIdOrd) {
-                    cachedTsId = tsIdDocValues.lookupOrd(ord);
+                    cachedTsId = BytesRef.deepCopyOf(tsIdDocValues.lookupOrd(ord));
                     cachedTsIdOrd = ord;
                 }
                 return docID;
@@ -261,23 +265,10 @@ class TSDBSyntheticIdDocValuesHolder {
         return DocIdSetIterator.NO_MORE_DOCS;
     }
 
-    /**
-     * Skip as many documents as possible after a given document ID to find the first document ID matching the timestamp.
-     *
-     * @param timestamp the timestamp to match
-     * @param minDocID the min. document ID
-     * @return a docID to start scanning documents from in order to find the first document ID matching the provided timestamp
-     * @throws IOException if any I/O exception occurs
-     */
-    int skipDocIDForTimestamp(long timestamp, int minDocID) throws IOException {
+    DocValuesSkipper docValuesSkipperForTimestamp() throws IOException {
         var skipper = docValuesProducer.getSkipper(timestampFieldInfo);
         assert skipper != null;
-        if (skipper.minValue() > timestamp || timestamp > skipper.maxValue()) {
-            return DocIdSetIterator.NO_MORE_DOCS;
-        }
-        skipper.advance(minDocID);
-        skipper.advance(timestamp, Long.MAX_VALUE);
-        return Math.max(minDocID, skipper.minDocID(0));
+        return skipper;
     }
 
     int getTsIdValueCount() throws IOException {
@@ -285,5 +276,31 @@ class TSDBSyntheticIdDocValuesHolder {
             tsIdDocValues = docValuesProducer.getSorted(tsIdFieldInfo);
         }
         return tsIdDocValues.getValueCount();
+    }
+
+    /**
+     * Returns the synthetic _id for a given document ID. Document must exist.
+     *
+     * @param   docID the document ID
+     * @return  the synthetic _id
+     * @throws IOException if any I/O exception occurs
+     */
+    BytesRef docSyntheticId(int docID) throws IOException {
+        return docSyntheticId(docID, docTsIdOrdinal(docID), docTimestamp(docID));
+    }
+
+    BytesRef docSyntheticId(int docID, int docTsIdOrd, long docTimestamp) throws IOException {
+        return docSyntheticId(lookupTsIdOrd(docTsIdOrd), docTimestamp, docRoutingHash(docID));
+    }
+
+    private static BytesRef docSyntheticId(BytesRef tsId, long timestamp, BytesRef routingHashBytes) {
+        assert tsId != null;
+        assert timestamp > 0L;
+        assert routingHashBytes != null;
+        // TODO We can avoid the decode/encode here by having a specialized createSyntheticIdBytesRef(BytesRef, long, BytesRef) and just
+        // reverse the routing has bytes to Big Endian.
+        String routingHashString = Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length);
+        int routingHash = TimeSeriesRoutingHashFieldMapper.decode(routingHashString);
+        return TsidExtractingIdFieldMapper.createSyntheticIdBytesRef(tsId, timestamp, routingHash);
     }
 }

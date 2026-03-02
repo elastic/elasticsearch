@@ -1,0 +1,5 @@
+pr: 141205
+summary: Add `IntRangeVector` for selected groups in aggregation
+area: ES|QL
+type: enhancement
+issues: []

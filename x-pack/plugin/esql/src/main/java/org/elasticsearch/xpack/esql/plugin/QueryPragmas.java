@@ -14,10 +14,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.lucene.DataPartitioning;
-import org.elasticsearch.compute.lucene.LuceneSliceQueue;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,7 +34,6 @@ import java.util.Objects;
  */
 public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
-    public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 2);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
 
     public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
@@ -94,12 +94,35 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> ROUNDTO_PUSHDOWN_THRESHOLD = Setting.intSetting("roundto_pushdown_threshold", -1, -1);
 
+    /**
+     * Query-level override for the maximum number of keyword sort fields allowed when pushing TopN to Lucene.
+     * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#MAX_KEYWORD_SORT_FIELDS} is used.
+     * When set to a value {@code >= 0}, it overrides the cluster-level threshold for this query only.
+     * The resolution logic lives in {@code PushTopNToSource}.
+     */
+    public static final Setting<Integer> MAX_KEYWORD_SORT_FIELDS = Setting.intSetting("max_keyword_sort_fields", -1, -1);
+
+    /**
+     * Controls how external source queries are distributed across nodes.
+     * Valid values: "adaptive" (default), "coordinator_only", "round_robin".
+     */
+    public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
+
+    public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     private final Settings settings;
 
     public QueryPragmas(Settings settings) {
         this.settings = settings;
+    }
+
+    /**
+     * Returns the underlying settings.
+     */
+    public Settings settings() {
+        return settings;
     }
 
     public QueryPragmas(StreamInput in) throws IOException {
@@ -120,7 +143,7 @@ public final class QueryPragmas implements Writeable {
     }
 
     public int concurrentExchangeClients() {
-        return EXCHANGE_CONCURRENT_CLIENTS.get(settings);
+        return ExchangeSourceHandler.CONCURRENT_CLIENTS_SETTING.get(settings);
     }
 
     public DataPartitioning dataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -213,6 +236,35 @@ public final class QueryPragmas implements Writeable {
 
     public int roundToPushDownThreshold() {
         return ROUNDTO_PUSHDOWN_THRESHOLD.get(settings);
+    }
+
+    /**
+     * Returns true if we should add the implicit LIMIT to FORK branches
+     */
+    public boolean forkImplicitLimit() {
+        return FORK_IMPLICIT_LIMIT.get(settings);
+    }
+
+    public int maxKeywordSortFields() {
+        return MAX_KEYWORD_SORT_FIELDS.get(settings);
+    }
+
+    public String externalDistribution() {
+        return EXTERNAL_DISTRIBUTION.get(settings);
+    }
+
+    public int partialAggregationEmitKeysThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey())) {
+            return PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
+    public double partialAggregationEmitUniquenessThreshold(double defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey())) {
+            return PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
     }
 
     public boolean isEmpty() {

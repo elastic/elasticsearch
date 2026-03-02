@@ -9,8 +9,13 @@
 
 package org.elasticsearch.benchmark.vector.scorer;
 
+import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
+import org.apache.lucene.codecs.lucene95.OffHeapByteVectorValues;
+import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
+import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -23,9 +28,12 @@ import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.concurrent.ThreadLocalRandom;
 
 class BenchmarkUtils {
+
     // Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;
@@ -42,6 +50,24 @@ class BenchmarkUtils {
             for (int v = 0; v < vectors.length; v++) {
                 out.writeBytes(vectors[v], vectors[v].length);
                 out.writeInt(Float.floatToIntBits(offsets[v]));
+            }
+        }
+    }
+
+    static void writeFloatVectorData(Directory dir, float[][] vectors) throws IOException {
+        try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
+            ByteBuffer buffer = ByteBuffer.allocate(vectors[0].length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            for (float[] vector : vectors) {
+                buffer.asFloatBuffer().put(vector);
+                out.writeBytes(buffer.array(), buffer.capacity());
+            }
+        }
+    }
+
+    static void writeByteVectorData(Directory dir, byte[][] vectors) throws IOException {
+        try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
+            for (byte[] vector : vectors) {
+                out.writeBytes(vector, vector.length);
             }
         }
     }
@@ -65,15 +91,42 @@ class BenchmarkUtils {
         return Runtime.version().feature() >= 22;
     }
 
-    static QuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
+    static FloatVectorValues floatVectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
+        var slice = in.slice("values", 0, in.length());
+        return new OffHeapFloatVectorValues.DenseOffHeapVectorValues(dims, size, slice, dims * Float.BYTES, null, sim);
+    }
+
+    static ByteVectorValues byteVectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
+        var slice = in.slice("values", 0, in.length());
+        return new OffHeapByteVectorValues.DenseOffHeapVectorValues(dims, size, slice, dims, null, sim);
+    }
+
+    static QuantizedByteVectorValues quantizedVectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim)
+        throws IOException {
         var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
         var slice = in.slice("values", 0, in.length());
         return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, sq, false, sim, null, slice);
     }
 
+    static RandomVectorScorerSupplier luceneScoreSupplier(FloatVectorValues values, VectorSimilarityFunction sim) throws IOException {
+        return FlatVectorScorerUtil.getLucene99FlatVectorsScorer().getRandomVectorScorerSupplier(sim, values);
+    }
+
+    static RandomVectorScorerSupplier luceneScoreSupplier(ByteVectorValues values, VectorSimilarityFunction sim) throws IOException {
+        return FlatVectorScorerUtil.getLucene99FlatVectorsScorer().getRandomVectorScorerSupplier(sim, values);
+    }
+
     static RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
+    }
+
+    static RandomVectorScorer luceneScorer(FloatVectorValues values, VectorSimilarityFunction sim, float[] queryVec) throws IOException {
+        return FlatVectorScorerUtil.getLucene99FlatVectorsScorer().getRandomVectorScorer(sim, values, queryVec);
+    }
+
+    static RandomVectorScorer luceneScorer(ByteVectorValues values, VectorSimilarityFunction sim, byte[] queryVec) throws IOException {
+        return FlatVectorScorerUtil.getLucene99FlatVectorsScorer().getRandomVectorScorer(sim, values, queryVec);
     }
 
     static RandomVectorScorer luceneScorer(QuantizedByteVectorValues values, VectorSimilarityFunction sim, float[] queryVec)

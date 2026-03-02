@@ -31,9 +31,19 @@ public class MutableAnalyzerContext extends AnalyzerContext {
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
-        TransportVersion minimumVersion
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution
     ) {
-        super(configuration, functionRegistry, indexResolution, lookupResolution, enrichResolution, inferenceResolution, minimumVersion);
+        super(
+            configuration,
+            functionRegistry,
+            indexResolution,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            minimumVersion,
+            unmappedResolution
+        );
         this.currentVersion = minimumVersion;
     }
 
@@ -51,7 +61,7 @@ public class MutableAnalyzerContext extends AnalyzerContext {
     public RestoreTransportVersion setTemporaryTransportVersionOnOrAfter(TransportVersion minVersion) {
         TransportVersion oldVersion = this.currentVersion;
         // Set to a random version between minVersion and current
-        this.currentVersion = TransportVersionUtils.randomVersionBetween(minVersion, TransportVersion.current());
+        this.currentVersion = TransportVersionUtils.randomVersionSupporting(minVersion);
         return new RestoreTransportVersion(oldVersion);
     }
 

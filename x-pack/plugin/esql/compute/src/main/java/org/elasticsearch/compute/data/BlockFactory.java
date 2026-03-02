@@ -29,11 +29,16 @@ public class BlockFactory {
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
 
+    public static final long DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = ByteSizeValue.ofMb(1).getBytes();
+    public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 1.5;
+
     private final CircuitBreaker breaker;
 
     private final BigArrays bigArrays;
     private final long maxPrimitiveArrayBytes;
     private final BlockFactory parent;
+    private final long bytesRefRamOverestimateThreshold;
+    private final double bytesRefRamOverestimateFactor;
 
     public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
         this(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE);
@@ -43,7 +48,35 @@ public class BlockFactory {
         this(breaker, bigArrays, maxPrimitiveArraySize, null);
     }
 
+    public BlockFactory(
+        CircuitBreaker breaker,
+        BigArrays bigArrays,
+        ByteSizeValue maxPrimitiveArraySize,
+        long bytesRefRamOverestimateThreshold,
+        double bytesRefRamOverestimateFactor
+    ) {
+        this(breaker, bigArrays, maxPrimitiveArraySize, null, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor);
+    }
+
     protected BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
+        this(
+            breaker,
+            bigArrays,
+            maxPrimitiveArraySize,
+            parent,
+            DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
+            DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR
+        );
+    }
+
+    protected BlockFactory(
+        CircuitBreaker breaker,
+        BigArrays bigArrays,
+        ByteSizeValue maxPrimitiveArraySize,
+        BlockFactory parent,
+        long bytesRefRamOverestimateThreshold,
+        double bytesRefRamOverestimateFactor
+    ) {
         assert breaker instanceof LocalCircuitBreaker == false
             || (parent != null && ((LocalCircuitBreaker) breaker).parentBreaker() == parent.breaker)
             : "use local breaker without parent block factory";
@@ -51,6 +84,8 @@ public class BlockFactory {
         this.bigArrays = bigArrays;
         this.parent = parent;
         this.maxPrimitiveArrayBytes = maxPrimitiveArraySize.getBytes();
+        this.bytesRefRamOverestimateThreshold = bytesRefRamOverestimateThreshold;
+        this.bytesRefRamOverestimateFactor = bytesRefRamOverestimateFactor;
     }
 
     public static BlockFactory getInstance(CircuitBreaker breaker, BigArrays bigArrays) {
@@ -71,11 +106,26 @@ public class BlockFactory {
         return parent != null ? parent : this;
     }
 
+    public long bytesRefRamOverestimateThreshold() {
+        return bytesRefRamOverestimateThreshold;
+    }
+
+    public double bytesRefRamOverestimateFactor() {
+        return bytesRefRamOverestimateFactor;
+    }
+
     public BlockFactory newChildFactory(LocalCircuitBreaker childBreaker) {
         if (childBreaker.parentBreaker() != breaker) {
             throw new IllegalStateException("Different parent breaker");
         }
-        return new BlockFactory(childBreaker, bigArrays, ByteSizeValue.ofBytes(maxPrimitiveArrayBytes), this);
+        return new BlockFactory(
+            childBreaker,
+            bigArrays,
+            ByteSizeValue.ofBytes(maxPrimitiveArrayBytes),
+            this,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
+        );
     }
 
     /**
@@ -415,15 +465,13 @@ public class BlockFactory {
     }
 
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
-        var b = new ConstantBytesRefVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed());
-        return b;
+        return newConstantBytesRefVector(value, positions).asBlock();
     }
 
     public BytesRefVector newConstantBytesRefVector(BytesRef value, int positions) {
-        long preadjusted = ConstantBytesRefVector.ramBytesUsed(value);
+        long preadjusted = ConstantBytesRefVector.ramBytesEstimated(value, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor);
         adjustBreaker(preadjusted);
-        var v = new ConstantBytesRefVector(value, positions, this);
+        var v = new ConstantBytesRefVector(BytesRef.deepCopyOf(value), positions, this);
         assert v.ramBytesUsed() == preadjusted;
         return v;
     }
@@ -432,6 +480,15 @@ public class BlockFactory {
         var b = new ConstantNullBlock(positions, this);
         adjustBreaker(b.ramBytesUsed());
         return b;
+    }
+
+    /**
+     * Create a {@link IntVector} that includes a range of integers from startInclusive (inclusive) to endExclusive (exclusive).
+     */
+    public IntVector newIntRangeVector(int startInclusive, int endExclusive) {
+        IntRangeVector v = new IntRangeVector(this, startInclusive, endExclusive);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
     }
 
     public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {

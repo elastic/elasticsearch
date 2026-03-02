@@ -1,0 +1,5 @@
+pr: 139520
+summary: Add a suggestion for fixing the ML node allocation error
+area: Machine Learning
+type: enhancement
+issues: []

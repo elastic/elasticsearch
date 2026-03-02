@@ -81,7 +81,7 @@ The following settings for Elastic Universal Profiling are supported:
 stack: preview 9.2
 ```
 
-The following settings can be used to customize the [OTLP endoint](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md):
+The following settings can be used to customize the [OTLP endpoint](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md):
 
 `xpack.otel_data.registry.enabled`
 :   Specifies whether OpenTelemetry related index templates should be created on startup. Defaults to *true*.

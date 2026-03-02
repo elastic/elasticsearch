@@ -37,10 +37,11 @@ public class ChangePointOperator implements Operator {
     private static final Logger logger = LogManager.getLogger(ChangePointOperator.class);
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
 
-    public record Factory(int channel, String sourceText, int sourceLine, int sourceColumn) implements OperatorFactory {
+    public record Factory(int channel, WarningSourceLocation source) implements OperatorFactory {
+
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ChangePointOperator(driverContext, channel, sourceText, sourceLine, sourceColumn);
+            return new ChangePointOperator(driverContext, channel, source);
         }
 
         @Override
@@ -51,23 +52,17 @@ public class ChangePointOperator implements Operator {
 
     private final DriverContext driverContext;
     private final int channel;
-    private final String sourceText;
-    private final int sourceLine;
-    private final int sourceColumn;
+    private final WarningSourceLocation source;
 
     private final Deque<Page> inputPages;
     private final Deque<Page> outputPages;
     private boolean finished;
     private Warnings warnings;
 
-    // TODO: make org.elasticsearch.xpack.esql.core.tree.Source available here
-    // (by modularizing esql-core) and use that instead of the individual fields.
-    public ChangePointOperator(DriverContext driverContext, int channel, String sourceText, int sourceLine, int sourceColumn) {
+    public ChangePointOperator(DriverContext driverContext, int channel, WarningSourceLocation source) {
         this.driverContext = driverContext;
         this.channel = channel;
-        this.sourceText = sourceText;
-        this.sourceLine = sourceLine;
-        this.sourceColumn = sourceColumn;
+        this.source = source;
 
         finished = false;
         inputPages = new ArrayDeque<>();
@@ -96,6 +91,11 @@ public class ChangePointOperator implements Operator {
     @Override
     public boolean isFinished() {
         return finished && outputPages.isEmpty();
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return outputPages.isEmpty() == false;
     }
 
     @Override
@@ -240,9 +240,9 @@ public class ChangePointOperator implements Operator {
     private Warnings warnings(boolean onlyWarnings) {
         if (warnings == null) {
             if (onlyWarnings) {
-                this.warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), sourceLine, sourceColumn, sourceText);
+                this.warnings = Warnings.createOnlyWarnings(driverContext.warningsMode(), source);
             } else {
-                this.warnings = Warnings.createWarnings(driverContext.warningsMode(), sourceLine, sourceColumn, sourceText);
+                this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
             }
         }
         return warnings;

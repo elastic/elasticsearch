@@ -26,16 +26,19 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.NamedThreadFactory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
@@ -50,15 +53,18 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
@@ -85,21 +91,23 @@ public class KnnIndexTester {
     static final String INDEX_DIR = "target/knn_index";
 
     enum IndexType {
-        HNSW,
         FLAT,
+        HNSW,
         IVF,
         GPU_HNSW
     }
 
     enum VectorEncoding {
-        BYTE(org.apache.lucene.index.VectorEncoding.BYTE),
-        FLOAT32(org.apache.lucene.index.VectorEncoding.FLOAT32),
-        BFLOAT16(org.apache.lucene.index.VectorEncoding.FLOAT32);
+        BYTE(org.apache.lucene.index.VectorEncoding.BYTE, DenseVectorFieldMapper.ElementType.BYTE),
+        FLOAT32(org.apache.lucene.index.VectorEncoding.FLOAT32, DenseVectorFieldMapper.ElementType.FLOAT),
+        BFLOAT16(org.apache.lucene.index.VectorEncoding.FLOAT32, DenseVectorFieldMapper.ElementType.BFLOAT16);
 
         private final org.apache.lucene.index.VectorEncoding luceneEncoding;
+        private final DenseVectorFieldMapper.ElementType elementType;
 
-        VectorEncoding(org.apache.lucene.index.VectorEncoding luceneEncoding) {
+        VectorEncoding(org.apache.lucene.index.VectorEncoding luceneEncoding, DenseVectorFieldMapper.ElementType elementType) {
             this.luceneEncoding = luceneEncoding;
+            this.elementType = elementType;
         }
 
         public org.apache.lucene.index.VectorEncoding luceneEncoding() {
@@ -116,80 +124,97 @@ public class KnnIndexTester {
 
     private static String formatIndexPath(TestConfiguration args) {
         List<String> suffix = new ArrayList<>();
-        if (args.indexType() == IndexType.FLAT) {
-            suffix.add("flat");
-        } else if (args.indexType() == IndexType.GPU_HNSW) {
-            suffix.add("gpu_hnsw");
-        } else if (args.indexType() == IndexType.IVF) {
-            suffix.add("ivf");
-            suffix.add(Integer.toString(args.ivfClusterSize()));
-        } else {
-            suffix.add(Integer.toString(args.hnswM()));
-            suffix.add(Integer.toString(args.hnswEfConstruction()));
-            if (args.quantizeBits() < 32) {
+        switch (args.indexType()) {
+            case FLAT -> suffix.add("flat");
+            case GPU_HNSW -> suffix.add("gpu_hnsw");
+            case IVF -> {
+                suffix.add("ivf");
+                suffix.add(Integer.toString(args.ivfClusterSize()));
+                suffix.add(
+                    Integer.toString(
+                        args.secondaryClusterSize() == -1
+                            ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                            : args.secondaryClusterSize()
+                    )
+                );
                 suffix.add(Integer.toString(args.quantizeBits()));
             }
+            case HNSW -> {
+                suffix.add(Integer.toString(args.hnswM()));
+                suffix.add(Integer.toString(args.hnswEfConstruction()));
+                if (args.quantizeBits() != null) {
+                    suffix.add(Integer.toString(args.quantizeBits()));
+                }
+            }
         }
-        return INDEX_DIR + "/" + args.docVectors().get(0).getFileName() + "-" + String.join("-", suffix) + ".index";
+
+        return INDEX_DIR + "/" + args.docVectors().getFirst().getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
-    static Codec createCodec(TestConfiguration args) {
+    static Codec createCodec(TestConfiguration args, @Nullable ExecutorService exec) {
         final KnnVectorsFormat format;
-        int quantizeBits = args.quantizeBits();
-        DenseVectorFieldMapper.ElementType elementType = switch (args.vectorEncoding()) {
-            case BYTE -> DenseVectorFieldMapper.ElementType.BYTE;
-            case FLOAT32 -> DenseVectorFieldMapper.ElementType.FLOAT;
-            case BFLOAT16 -> DenseVectorFieldMapper.ElementType.BFLOAT16;
-        };
-        if (args.indexType() == IndexType.IVF) {
-            ESNextDiskBBQVectorsFormat.QuantEncoding encoding = switch (quantizeBits) {
-                case (1) -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
-                case (2) -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
-                case (4) -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
+        Integer quantizeBits = args.quantizeBits();
+        DenseVectorFieldMapper.ElementType elementType = args.vectorEncoding().elementType;
+        int mergeWorkers = exec != null ? args.numMergeWorkers() : 1;
+
+        format = switch (args.indexType()) {
+            case IVF -> {
+                var encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
+                // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
+                int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
+                yield new ESNextDiskBBQVectorsFormat(
+                    encoding,
+                    args.ivfClusterSize(),
+                    args.secondaryClusterSize() == -1
+                        ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                        : args.secondaryClusterSize(),
+                    elementType,
+                    args.onDiskRescore(),
+                    exec,
+                    mergeWorkers,
+                    args.doPrecondition(),
+                    args.preconditioningBlockDims(),
+                    flatVectorThreshold
+                );
+            }
+            case GPU_HNSW -> switch (quantizeBits) {
+                case null -> new ES92GpuHnswVectorsFormat();
+                case 7 -> new ES92GpuHnswSQVectorsFormat();
                 default -> throw new IllegalArgumentException(
-                    "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + quantizeBits
+                    "GPU HNSW index type only supports 7 bits quantization, but got: " + quantizeBits
                 );
             };
-            format = new ESNextDiskBBQVectorsFormat(
-                encoding,
-                args.ivfClusterSize(),
-                ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                elementType,
-                args.onDiskRescore()
-            );
-        } else if (args.indexType() == IndexType.GPU_HNSW) {
-            if (quantizeBits == 32) {
-                format = new ES92GpuHnswVectorsFormat();
-            } else if (quantizeBits == 7) {
-                format = new ES92GpuHnswSQVectorsFormat();
-            } else {
-                throw new IllegalArgumentException("GPU HNSW index type only supports 7 or 32 bits quantization, but got: " + quantizeBits);
-            }
-        } else {
-            if (quantizeBits == 1) {
-                if (args.indexType() == IndexType.FLAT) {
-                    format = new ES93BinaryQuantizedVectorsFormat(elementType, false);
-                } else {
-                    format = new ES93HnswBinaryQuantizedVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType, false);
-                }
-            } else if (quantizeBits < 32) {
-                if (args.indexType() == IndexType.FLAT) {
-                    format = new ES93ScalarQuantizedVectorsFormat(elementType, null, quantizeBits, true, false);
-                } else {
-                    format = new ES93HnswScalarQuantizedVectorsFormat(
-                        args.hnswM(),
-                        args.hnswEfConstruction(),
-                        elementType,
-                        null,
-                        quantizeBits,
-                        true,
-                        false
-                    );
-                }
-            } else {
-                format = new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType);
-            }
-        }
+            case HNSW -> switch (quantizeBits) {
+                case null -> new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType, mergeWorkers, exec);
+                case 1 -> new ES93HnswBinaryQuantizedVectorsFormat(
+                    args.hnswM(),
+                    args.hnswEfConstruction(),
+                    elementType,
+                    false,
+                    mergeWorkers,
+                    exec
+                );
+                default -> new ES93HnswScalarQuantizedVectorsFormat(
+                    args.hnswM(),
+                    args.hnswEfConstruction(),
+                    elementType,
+                    null,
+                    quantizeBits,
+                    true,
+                    false,
+                    mergeWorkers,
+                    exec
+                );
+            };
+            case FLAT -> switch (quantizeBits) {
+                case null -> new ES93FlatVectorFormat(elementType);
+                case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType, false);
+                default -> new ES93ScalarQuantizedVectorsFormat(elementType, null, quantizeBits, true, false);
+            };
+        };
+
+        logger.info("Using format {}", format.getName());
+
         return new Lucene103Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
@@ -265,6 +290,9 @@ public class KnnIndexTester {
             System.out.println();
             System.out.println("Run multiple searches with different configurations by adding extra values to the array parameters.");
             System.out.println("Every combination of each parameter will be run.");
+            System.out.println();
+            System.out.println(TestConfiguration.formattedParameterHelp());
+            System.out.println();
             System.out.println(
                 "This example configuration runs 4 searches with different combinations of num_candidates and early_termination:"
             );
@@ -300,76 +328,96 @@ public class KnnIndexTester {
         FormattedResults formattedResults = new FormattedResults();
 
         for (TestConfiguration testConfiguration : testConfigurationList) {
+            // check this here so IVF/GPUHNSW can guarantee quantizeBits is set properly
+            checkQuantizeBits(testConfiguration);
+            String indexPathName = formatIndexPath(testConfiguration);
             String indexType = testConfiguration.indexType().name().toLowerCase(Locale.ROOT);
-            Results indexResults = new Results(
-                testConfiguration.docVectors().get(0).getFileName().toString(),
-                indexType,
-                testConfiguration.numDocs()
-            );
+            Results indexResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
             Results[] results = new Results[testConfiguration.numberOfSearchRuns()];
-            for (int i = 0; i < results.length; i++) {
-                results[i] = new Results(
-                    testConfiguration.docVectors().get(0).getFileName().toString(),
-                    indexType,
-                    testConfiguration.numDocs()
-                );
-            }
+            Arrays.setAll(results, i -> new Results(indexPathName, indexType, testConfiguration.numDocs()));
             logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + testConfiguration);
-            Codec codec = createCodec(testConfiguration);
-            Path indexPath = PathUtils.get(formatIndexPath(testConfiguration));
-            MergePolicy mergePolicy = getMergePolicy(testConfiguration);
-            if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
-                KnnIndexer knnIndexer = new KnnIndexer(
-                    testConfiguration.docVectors(),
-                    indexPath,
-                    codec,
-                    testConfiguration.indexThreads(),
-                    testConfiguration.vectorEncoding().luceneEncoding,
-                    testConfiguration.dimensions(),
-                    testConfiguration.vectorSpace(),
-                    testConfiguration.numDocs(),
-                    mergePolicy,
-                    testConfiguration.writerBufferSizeInMb(),
-                    testConfiguration.writerMaxBufferedDocs()
-                );
-                if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
-                    throw new IllegalArgumentException("Index path does not exist: " + indexPath);
-                }
-                if (testConfiguration.reindex()) {
-                    knnIndexer.createIndex(indexResults);
-                }
-                if (testConfiguration.forceMerge()) {
-                    knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
-                }
+            final ExecutorService exec;
+            if (testConfiguration.numMergeWorkers() > 1) {
+                exec = Executors.newFixedThreadPool(testConfiguration.numMergeWorkers(), new NamedThreadFactory("vector-merge"));
+            } else {
+                exec = null;
             }
-            numSegments(indexPath, indexResults);
-            if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
-                if (parsedArgs.warmUpIterations() > 0) {
-                    logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
-                }
-                // Warm up
-                for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
-                    for (int i = 0; i < results.length; i++) {
-                        var ignoreResults = new Results(
-                            testConfiguration.docVectors().get(0).getFileName().toString(),
-                            indexType,
-                            testConfiguration.numDocs()
-                        );
-                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                        knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i));
+            try {
+                Codec codec = createCodec(testConfiguration, exec);
+                Path indexPath = PathUtils.get(indexPathName);
+                MergePolicy mergePolicy = getMergePolicy(testConfiguration);
+                if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
+                    KnnIndexer knnIndexer = new KnnIndexer(
+                        testConfiguration.docVectors(),
+                        indexPath,
+                        codec,
+                        testConfiguration.indexThreads(),
+                        testConfiguration.vectorEncoding().luceneEncoding,
+                        testConfiguration.dimensions(),
+                        testConfiguration.vectorSpace(),
+                        testConfiguration.numDocs(),
+                        mergePolicy,
+                        testConfiguration.writerBufferSizeInMb(),
+                        testConfiguration.writerMaxBufferedDocs()
+                    );
+                    if (testConfiguration.reindex() == false && Files.exists(indexPath) == false) {
+                        throw new IllegalArgumentException("Index path does not exist: " + indexPath);
+                    }
+                    if (testConfiguration.reindex()) {
+                        knnIndexer.createIndex(indexResults);
+                    }
+                    if (testConfiguration.forceMerge()) {
+                        knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
                     }
                 }
+                numSegments(indexPath, indexResults);
+                if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
+                    if (parsedArgs.warmUpIterations() > 0) {
+                        logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
+                    }
+                    // Warm up
+                    for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
+                        for (int i = 0; i < results.length; i++) {
+                            var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
+                            KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                            knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i));
+                        }
+                    }
 
-                for (int i = 0; i < results.length; i++) {
-                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                    knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i));
+                    for (int i = 0; i < results.length; i++) {
+                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                        knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i));
+                    }
+                }
+                formattedResults.queryResults.addAll(List.of(results));
+                formattedResults.indexResults.add(indexResults);
+            } finally {
+                if (exec != null) {
+                    exec.shutdown();
                 }
             }
-            formattedResults.queryResults.addAll(List.of(results));
-            formattedResults.indexResults.add(indexResults);
         }
         logger.info("Results: \n" + formattedResults);
+    }
+
+    private static void checkQuantizeBits(TestConfiguration args) {
+        switch (args.indexType()) {
+            case IVF:
+                if (args.quantizeBits() == null || !Set.of(1, 2, 4, 7).contains(args.quantizeBits())) {
+                    throw new IllegalArgumentException(
+                        "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + args.quantizeBits()
+                    );
+                }
+                break;
+            case GPU_HNSW: {
+                if (args.quantizeBits() != null && args.quantizeBits() != 7) {
+                    throw new IllegalArgumentException(
+                        "GPU HNSW index type only supports 7 bits quantization, but got: " + args.quantizeBits()
+                    );
+                }
+            }
+        }
     }
 
     private static MergePolicy getMergePolicy(TestConfiguration args) {
@@ -382,11 +430,11 @@ public class KnnIndexTester {
         };
     }
 
-    static void numSegments(Path indexPath, Results result) {
+    static void numSegments(Path indexPath, Results result) throws IOException {
         try (FSDirectory dir = FSDirectory.open(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
             result.numSegments = reader.leaves().size();
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to get segment count for index at " + indexPath, e);
+            throw new IOException("Failed to get segment count for index at " + indexPath, e);
         }
     }
 

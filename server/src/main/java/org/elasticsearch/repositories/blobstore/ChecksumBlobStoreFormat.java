@@ -394,7 +394,7 @@ public final class ChecksumBlobStoreFormat<T> {
             };
                 XContentBuilder builder = XContentFactory.contentBuilder(
                     XContentType.SMILE,
-                    compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream) : indexOutputOutputStream
+                    compress ? CompressorFactory.COMPRESSOR.threadLocalStreamOutput(indexOutputOutputStream) : indexOutputOutputStream
                 )
             ) {
                 ToXContent.Params params = extraParams.isEmpty()

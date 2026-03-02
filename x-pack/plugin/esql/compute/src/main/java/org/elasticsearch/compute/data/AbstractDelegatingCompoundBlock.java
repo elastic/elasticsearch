@@ -52,8 +52,8 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     }
 
     @Override
-    public T filter(int... positions) {
-        return applyOperationToSubBlocks(block -> block.filter(positions));
+    public T filter(boolean mayContainDuplicates, int... positions) {
+        return applyOperationToSubBlocks(block -> block.filter(mayContainDuplicates, positions));
     }
 
     @Override

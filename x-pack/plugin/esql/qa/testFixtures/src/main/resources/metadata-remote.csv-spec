@@ -56,6 +56,26 @@ min:integer |_version:long
 10001       |1
 ;
 
+metaVersionInAggsWithWildcards
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+required_capability: metadata_wildcards
+from employees metadata _ver* | stats min = min(emp_no) by _version;
+
+min:integer |_version:long
+10001       |1
+;
+
+metaVersionInAggsWithWildcardsMultiple
+required_capability: metadata_fields
+required_capability: metadata_fields_remote_test
+required_capability: metadata_wildcards
+from employees metadata _ver*, _version | stats min = min(emp_no) by _version;
+
+min:integer |_version:long
+10001       |1
+;
+
 metaVersionAliasedInAggs
 required_capability: metadata_fields
 required_capability: metadata_fields_remote_test

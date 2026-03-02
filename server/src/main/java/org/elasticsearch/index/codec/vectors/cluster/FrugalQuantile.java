@@ -12,7 +12,7 @@ package org.elasticsearch.index.codec.vectors.cluster;
 import java.util.Random;
 
 /**
- * Computes an apprximation of the q-quantile of a data stream using constant memory.
+ * Computes an approximation of the q-quantile of a data stream using constant memory.
  * It uses <a href="https://arxiv.org/abs/1407.1121">this approach</a> that was originally designed for integers.
  * This implementation works with floating-point numbers by quantizing the stream values. This requires knowing the minimum and maximum
  * values in the stream and choosing a desired precision.

@@ -95,7 +95,14 @@ public class MemorySegmentUtilsTests extends ESTestCase {
 
                 var initialPosition = in.getFilePointer();
 
-                var tempFilePath = MemorySegmentUtils.copyInputToTempFilePacked(in, dir, "tests.bin6", rows, rowSize + paddingSize, rowSize);
+                var tempFilePath = MemorySegmentUtils.copyInputToTempFilePacked(
+                    in,
+                    dir,
+                    "tests.bin6",
+                    rows,
+                    rowSize + paddingSize,
+                    rowSize
+                );
 
                 assertThat(
                     tempFilePath.toString(),
@@ -154,7 +161,7 @@ public class MemorySegmentUtilsTests extends ESTestCase {
 
             try (IndexInput in = dir.openInput("tests.bin10", IOContext.DEFAULT)) {
                 var msai = (MemorySegmentAccessInput) in;
-                try(var holder = MemorySegmentUtils.getContiguousMemorySegment(msai, dir, "tests.bin12")) {
+                try (var holder = MemorySegmentUtils.getContiguousMemorySegment(msai, dir, "tests.bin12")) {
 
                     assertThat(holder, isA(MemorySegmentUtils.FileBackedMemorySegmentHolder.class));
                     assertNotNull(holder.memorySegment());

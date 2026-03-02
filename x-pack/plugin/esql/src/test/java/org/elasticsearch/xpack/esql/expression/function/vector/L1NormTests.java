@@ -19,9 +19,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 @FunctionName("v_l1_norm")
-public class L1NormSimilarityTests extends AbstractVectorSimilarityFunctionTestCase {
+public class L1NormTests extends AbstractVectorSimilarityFunctionTestCase {
 
-    public L1NormSimilarityTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public L1NormTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         super(testCaseSupplier);
     }
 

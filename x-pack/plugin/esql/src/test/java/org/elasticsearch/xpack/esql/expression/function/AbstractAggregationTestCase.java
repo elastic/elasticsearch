@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
@@ -57,6 +58,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -521,6 +523,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         logger.info("Test Values: " + valuesString);
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         expression = resolveSurrogates(expression);
+        assertThat("expression required surrogates", expression, not(instanceOf(OnlySurrogateExpression.class)));
 
         // Fold nulls
         expression = expression.transformUp(e -> new FoldNull().rule(e, unboundLogicalOptimizerContext()));

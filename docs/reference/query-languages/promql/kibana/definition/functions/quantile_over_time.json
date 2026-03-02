@@ -1,0 +1,31 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "within_series",
+  "name" : "quantile_over_time",
+  "description" : "Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "φ",
+          "type" : "scalar",
+          "optional" : false,
+          "description" : "Quantile value (0 ≤ φ ≤ 1)."
+        },
+        {
+          "name" : "v",
+          "type" : "range_vector",
+          "optional" : false,
+          "description" : "Range vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "quantile_over_time(0.5, http_requests_total[1h])"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

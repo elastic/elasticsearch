@@ -1841,6 +1841,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         int completedCheckCount = 0;
         int executeCount = 0;
         final Set<String> executedIndices = new HashSet<>();
+        List<Function<String, String>> outputIndexNamePatternFunctions = null;
 
         @Override
         public boolean stepCompleted(Index index, ProjectState projectState) {
@@ -1860,6 +1861,14 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         @Override
         public String stepName() {
             return "Test Step";
+        }
+
+        @Override
+        public List<String> possibleOutputIndexNamePatterns(String indexName) {
+            if (outputIndexNamePatternFunctions != null) {
+                return outputIndexNamePatternFunctions.stream().map(func -> func.apply(indexName)).toList();
+            }
+            return DlmStep.super.possibleOutputIndexNamePatterns(indexName);
         }
     }
 
@@ -2317,5 +2326,159 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         // Action should NOT be executed, so step1.executeCount should be 0
         assertThat(step1.executeCount, equalTo(0));
         assertThat(processedIndices, empty());
+    }
+
+    public void testResolveIndexOutputFromPreviousStepExecutionFirstStep() {
+        TestDlmStep step1 = new TestDlmStep();
+        TestDlmStep step2 = new TestDlmStep();
+        TestDlmAction action = new TestDlmAction(TimeValue.timeValueMillis(1), step1, step2);
+
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        IndexMetadata indexMetadata = IndexMetadata.builder("original-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        builder.put(indexMetadata, false);
+        ProjectState projectState = projectStateFromProject(builder);
+
+        Index originalIndex = indexMetadata.getIndex();
+        Index result = dataStreamLifecycleService.resolveIndexOutputFromPreviousStep(0, originalIndex, action, projectState);
+        assertThat(result, is(originalIndex));
+    }
+
+    public void testResolveIndexForStepExecutionPreviousStepOutputMatchesExistingIndex() {
+        TestDlmStep step1 = new TestDlmStep();
+        step1.outputIndexNamePatternFunctions = List.of(name -> "cloned-" + name);
+        TestDlmStep step2 = new TestDlmStep();
+        TestDlmAction action = new TestDlmAction(TimeValue.timeValueMillis(1), step1, step2);
+
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        IndexMetadata originalMeta = IndexMetadata.builder("original-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexMetadata clonedMeta = IndexMetadata.builder("cloned-original-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        builder.put(originalMeta, false);
+        builder.put(clonedMeta, false);
+        ProjectState projectState = projectStateFromProject(builder);
+
+        Index result = dataStreamLifecycleService.resolveIndexOutputFromPreviousStep(1, originalMeta.getIndex(), action, projectState);
+        assertThat(result, is(clonedMeta.getIndex()));
+    }
+
+    public void testResolveIndexForStepExecutionNoMatchThrowsAssertionError() {
+        TestDlmStep step1 = new TestDlmStep();
+        step1.outputIndexNamePatternFunctions = List.of(name -> "nonexistent-" + name);
+        TestDlmStep step2 = new TestDlmStep();
+        TestDlmAction action = new TestDlmAction(TimeValue.timeValueMillis(1), step1, step2);
+
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        IndexMetadata originalMeta = IndexMetadata.builder("original-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        builder.put(originalMeta, false);
+        ProjectState projectState = projectStateFromProject(builder);
+
+        Index originalIndex = originalMeta.getIndex();
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> dataStreamLifecycleService.resolveIndexOutputFromPreviousStep(1, originalIndex, action, projectState)
+        );
+        assertThat(
+            e.getMessage(),
+            is(
+                "Unable to resolve index name for executing step [Test Step] for action [Test DLM Action] with index ["
+                    + originalIndex.getName()
+                    + "]"
+            )
+        );
+    }
+
+    public void testResolveIndexOutputFromPreviousStepMultiplePatternsFirstMatchWins() {
+        TestDlmStep step1 = new TestDlmStep();
+        step1.outputIndexNamePatternFunctions = List.of(name -> "first-" + name, name -> "second-" + name);
+        TestDlmStep step2 = new TestDlmStep();
+        TestDlmAction action = new TestDlmAction(TimeValue.timeValueMillis(1), step1, step2);
+
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        IndexMetadata originalMeta = IndexMetadata.builder("original-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexMetadata firstMeta = IndexMetadata.builder("first-original-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexMetadata secondMeta = IndexMetadata.builder("second-original-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        builder.put(originalMeta, false);
+        builder.put(firstMeta, false);
+        builder.put(secondMeta, false);
+        ProjectState projectState = projectStateFromProject(builder);
+
+        Index result = dataStreamLifecycleService.resolveIndexOutputFromPreviousStep(1, originalMeta.getIndex(), action, projectState);
+        assertThat(result, is(firstMeta.getIndex()));
+    }
+
+    public void testResolveIndexOutputFromPreviousStepSkipsNonMatchingPatternsUsesSecond() {
+        TestDlmStep step1 = new TestDlmStep();
+        step1.outputIndexNamePatternFunctions = List.of(name -> "nonexistent-" + name, name -> "second-" + name);
+        TestDlmStep step2 = new TestDlmStep();
+        TestDlmAction action = new TestDlmAction(TimeValue.timeValueMillis(1), step1, step2);
+
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        IndexMetadata originalMeta = IndexMetadata.builder("original-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexMetadata secondMeta = IndexMetadata.builder("second-original-index")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        builder.put(originalMeta, false);
+        builder.put(secondMeta, false);
+        ProjectState projectState = projectStateFromProject(builder);
+
+        Index result = dataStreamLifecycleService.resolveIndexOutputFromPreviousStep(1, originalMeta.getIndex(), action, projectState);
+        assertThat(result, is(secondMeta.getIndex()));
+    }
+
+    public void testDlmStepDefaultPossibleOutputIndexNamePatterns() {
+        TestDlmStep step = new TestDlmStep();
+        String testName = randomAlphaOfLength(10);
+        List<String> patterns = step.possibleOutputIndexNamePatterns(testName);
+        assertThat(patterns, hasSize(1));
+        assertThat(patterns.getFirst(), is(testName));
+    }
+
+    public void testFormatExecutionTimeMilliseconds() {
+        assertThat(DataStreamLifecycleService.formatExecutionTime(500), equalTo("500ms/500ms"));
+    }
+
+    public void testFormatExecutionTimeSeconds() {
+        assertThat(DataStreamLifecycleService.formatExecutionTime(1525), equalTo("1525ms/1.5s"));
+    }
+
+    public void testFormatExecutionTimeMinutes() {
+        assertThat(DataStreamLifecycleService.formatExecutionTime(90000), equalTo("90000ms/1.5m"));
+    }
+
+    public void testFormatExecutionTimeHours() {
+        assertThat(DataStreamLifecycleService.formatExecutionTime(5400000), equalTo("5400000ms/1.5h"));
     }
 }

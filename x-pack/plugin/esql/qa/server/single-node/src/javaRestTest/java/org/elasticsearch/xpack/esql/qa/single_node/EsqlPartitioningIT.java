@@ -22,7 +22,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matcher;
 import org.junit.ClassRule;
 
@@ -63,13 +62,16 @@ public class EsqlPartitioningIT extends ESRestTestCase {
             for (String index : new String[] { "idx", "small_idx" }) {
                 for (Case c : new Case[] {
                     new Case("", "SHARD"),
-                    new Case("| SORT @timestamp ASC", "DOC"),
+                    new Case("| SORT @timestamp ASC", "SEGMENT"),
                     new Case("| WHERE ABS(a) == 1", "DOC"),
                     new Case("| WHERE a == 1", "SHARD"),
                     new Case("| STATS SUM(a)", "DOC"),
                     new Case("| MV_EXPAND a | STATS SUM(a)", "DOC"),
-                    new Case("| WHERE a == 1 | STATS SUM(a)", "SEGMENT"),
-                    new Case("| WHERE a == 1 | MV_EXPAND a | STATS SUM(a)", "SEGMENT"),
+                    new Case("| WHERE a == 1 | STATS SUM(a)", "DOC"),
+                    new Case("| WHERE a >= 1  | STATS SUM(a)", "SEGMENT"),
+                    new Case("| WHERE a >= 0  | STATS SUM(a)", "DOC"),
+                    new Case("| WHERE a == 1 | MV_EXPAND a | STATS SUM(a)", "DOC"),
+                    new Case("| WHERE a IN (1,2, 3) | MV_EXPAND a | STATS SUM(a)", "SEGMENT"),
                     new Case("| WHERE MATCH(a, \"1\")", "SHARD"),
                     new Case("| WHERE QSTR(\"a:1\")", "SHARD"),
                     new Case("| WHERE KQL(\"a:1\")", "SHARD"),
@@ -142,10 +144,6 @@ public class EsqlPartitioningIT extends ESRestTestCase {
     }
 
     private static Matcher<String> expectedAutoPartition(String index, String idxPartition, boolean score) {
-        boolean lateMaterializationEnabled = EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled();
-        if (score && lateMaterializationEnabled == false) {
-            return equalTo("SHARD");
-        }
         return equalTo(switch (index) {
             case "idx" -> idxPartition;
             case "small_idx" -> "SHARD";

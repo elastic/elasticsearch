@@ -12,14 +12,39 @@ import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.shouldAddUnmappedFieldWithProbabilityIncrease;
 
 public class FromGenerator implements CommandGenerator {
 
     public static final FromGenerator INSTANCE = new FromGenerator();
+
+    /**
+     * Context key used to indicate whether SET unmapped_fields="nullify" was included in the FROM command.
+     * When true, unmapped field names can be used in downstream commands and functions.
+     */
+    public static final String UNMAPPED_FIELDS_ENABLED = "unmappedFieldsEnabled";
+
+    /**
+     * Context key for the set of field names that come from the actual index mapping.
+     * Populated by the executor after the FROM command runs.
+     * Full-text functions that require FieldAttribute arguments use this to avoid computed columns.
+     */
+    public static final String INDEX_FIELD_NAMES = "indexFieldNames";
+
+    public static final String SET_UNMAPPED_FIELDS_PREFIX = "SET unmapped_fields=\"nullify\";";
+
+    /**
+     * Returns {@code true} if the given command is a FROM source command.
+     * Used to gate full-text function generation which are only valid when the query originates from a FROM command (not TS or PROMQL).
+     */
+    public static boolean isFromSource(CommandDescription command) {
+        return command != null && "from".equals(command.commandName());
+    }
 
     @Override
     public CommandDescription generate(
@@ -28,7 +53,12 @@ public class FromGenerator implements CommandGenerator {
         QuerySchema schema,
         QueryExecutor executor
     ) {
-        StringBuilder result = new StringBuilder("from ");
+        boolean useUnmappedFields = shouldAddUnmappedFieldWithProbabilityIncrease(3);
+        StringBuilder result = new StringBuilder();
+        if (useUnmappedFields) {
+            result.append(SET_UNMAPPED_FIELDS_PREFIX);
+        }
+        result.append("from ");
         int items = randomIntBetween(1, 3);
         List<String> availableIndices = schema.baseIndices();
         for (int i = 0; i < items; i++) {
@@ -39,7 +69,9 @@ public class FromGenerator implements CommandGenerator {
             result.append(pattern);
         }
         String query = result.toString();
-        return new CommandDescription("from", this, query, Map.of());
+        Map<String, Object> context = new HashMap<>();
+        context.put(UNMAPPED_FIELDS_ENABLED, useUnmappedFields);
+        return new CommandDescription("from", this, query, context);
     }
 
     @Override

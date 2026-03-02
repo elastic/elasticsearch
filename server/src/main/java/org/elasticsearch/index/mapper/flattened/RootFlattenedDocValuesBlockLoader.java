@@ -11,7 +11,8 @@ package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.Mapper;
@@ -48,7 +49,6 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             usesBinaryDocValues
         );
         this.storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
-
     }
 
     @Override
@@ -70,11 +70,11 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
         return null;
     }
 
-    public AllReader reader(LeafReaderContext context) throws IOException {
+    FlattenedReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         var reader = fieldLoader.docValuesLoader(context.reader(), null);
         var trackingReader = reader != null ? new TrackingLoader(reader) : null;
 
-        return new AllReader() {
+        return new FlattenedReader() {
             private final Thread creationThread = Thread.currentThread();
 
             @Override
@@ -113,6 +113,11 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             }
 
             @Override
+            public void close() {
+                // TODO memory tracking here too
+            }
+
+            @Override
             public String toString() {
                 return getClass().getSimpleName();
             }
@@ -125,19 +130,21 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
     }
 
     @Override
-    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         // stored fields aren't supported when reading column-at-a-time
         if (ignoreAbove.valuesPotentiallyIgnored()) {
             return null;
         }
 
-        return () -> reader(context);
+        return breaker -> reader(breaker, context);
     }
 
     @Override
-    public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return reader(context);
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        return reader(breaker, context);
     }
+
+    private interface FlattenedReader extends ColumnAtATimeReader, RowStrideReader {}
 
     /**
      * A DocValuesLoader that tracks the last advanced docId.

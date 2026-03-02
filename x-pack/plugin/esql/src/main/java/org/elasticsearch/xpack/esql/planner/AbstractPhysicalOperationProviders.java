@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -307,23 +309,64 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                         } else {
                             // extra dependencies like TS ones (that require a timestamp)
                             sourceAttr = new ArrayList<>();
-                            for (Expression input : aggregateFunction.aggregateInputReferences(aggregateExec.child()::output)) {
-                                Attribute attr = Expressions.attribute(input);
-                                if (attr == null) {
+
+                            if (aggregateFunction instanceof First first) {
+
+                                Attribute fieldAttr = Expressions.attribute(first.field());
+                                Attribute sortAttr = Expressions.attribute(first.sort());
+
+                                if (fieldAttr == null || sortAttr == null) {
                                     throw new EsqlIllegalArgumentException(
-                                        "Cannot work with target field [{}] for agg [{}]",
-                                        input.sourceText(),
+                                        "Cannot resolve attributes for FIRST agg [{}]",
                                         aggregateFunction.sourceText()
                                     );
                                 }
-                                sourceAttr.add(attr);
+
+                                // even if same field we must pass both
+                                sourceAttr.add(fieldAttr);
+                                sourceAttr.add(sortAttr);
+
+                            } else if (aggregateFunction instanceof Last last) {
+
+                                Attribute fieldAttr = Expressions.attribute(last.field());
+                                Attribute sortAttr = Expressions.attribute(last.sort());
+
+                                if (fieldAttr == null || sortAttr == null) {
+                                    throw new EsqlIllegalArgumentException(
+                                        "Cannot resolve attributes for LAST agg [{}]",
+                                        aggregateFunction.sourceText()
+                                    );
+                                }
+
+                                sourceAttr.add(fieldAttr);
+                                sourceAttr.add(sortAttr);
+
+                            } else {
+
+                                List<Expression> inputs =
+                                    new ArrayList<>(aggregateFunction.aggregateInputReferences(aggregateExec.child()::output));
+
+                                for (Expression input : inputs) {
+                                    Attribute attr = Expressions.attribute(input);
+                                    if (attr == null) {
+                                        throw new EsqlIllegalArgumentException(
+                                            "Cannot work with target field [{}] for agg [{}]",
+                                            input.sourceText(),
+                                            aggregateFunction.sourceText()
+                                        );
+                                    }
+                                    sourceAttr.add(attr);
+                                }
                             }
                         }
                     }
 
                     AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction);
 
-                    List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
+                    List<Integer> inputChannels = new ArrayList<>(sourceAttr.size());
+                    for (Attribute attr : sourceAttr) {
+                        inputChannels.add(layout.get(attr.id()).channel());
+                    }
                     assert inputChannels.stream().allMatch(i -> i >= 0) : inputChannels;
 
                     // apply the filter only in the initial phase - as the rest of the data is already filtered

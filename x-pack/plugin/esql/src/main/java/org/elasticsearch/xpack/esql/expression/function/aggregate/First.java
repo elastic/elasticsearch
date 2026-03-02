@@ -172,6 +172,11 @@ public class First extends AggregateFunction implements ToAggregator {
     }
 
     @Override
+    public String functionName() {
+        return "first";
+    }
+
+    @Override
     public String toString() {
         return "first(" + field() + ", " + sort + ")";
     }

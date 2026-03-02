@@ -1,0 +1,13 @@
+---
+"FIRST with same field":
+
+  - do:
+      esql.query:
+        body:
+          query: |
+            ROW timestamp = TO_DATETIME("2026-01-22T12:34:53.713Z")
+            | STATS FIRST(timestamp, timestamp)
+            | LIMIT 10
+
+  - match: { columns.0.name: "FIRST(timestamp, timestamp)" }
+  

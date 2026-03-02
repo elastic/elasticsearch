@@ -202,6 +202,7 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskP
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.ltr.MlLTRNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.vectors.EmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportAuditMlNotificationAction;
@@ -1853,6 +1854,11 @@ public class MachineLearning extends Plugin
     @Override
     public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
         return List.of(
+            new QueryVectorBuilderSpec<>(
+                EmbeddingQueryVectorBuilder.NAME,
+                EmbeddingQueryVectorBuilder::new,
+                EmbeddingQueryVectorBuilder.PARSER
+            ),
             new QueryVectorBuilderSpec<>(
                 TextEmbeddingQueryVectorBuilder.NAME,
                 TextEmbeddingQueryVectorBuilder::new,

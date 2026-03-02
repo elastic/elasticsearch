@@ -11,6 +11,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
+import org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -593,6 +594,32 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
             Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
             assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
+        }
+    }
+
+    public void testCheckForViewErrors() {
+        {
+            var viewEx = new RemoteViewNotSupportedException(
+                "ES|QL does not support views in cross-cluster search. Found view [v] on [r1]."
+            );
+            var wrapped = new RemoteTransportException("test failure", viewEx);
+            List<FieldCapabilitiesFailure> failures = List.of(new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, wrapped));
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            RemoteViewNotSupportedException ex = expectThrows(
+                RemoteViewNotSupportedException.class,
+                () -> EsqlCCSUtils.checkForViewErrors(grouped)
+            );
+            assertThat(ex.getMessage(), containsString("ES|QL does not support views in cross-cluster search. Found view [v] on [r1]."));
+        }
+        {
+            List<FieldCapabilitiesFailure> failures = List.of(
+                new FieldCapabilitiesFailure(new String[] { "r1:logs-*" }, new RuntimeException("some other error"))
+            );
+            var grouped = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            EsqlCCSUtils.checkForViewErrors(grouped);
+        }
+        {
+            EsqlCCSUtils.checkForViewErrors(Map.of());
         }
     }
 

@@ -13,6 +13,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -763,6 +764,38 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private static boolean includeCCSMetadata() {
         return randomBoolean();
+    }
+
+    public void testRemoteViewFailsQuery() throws IOException {
+        assumeTrue("views not supported on remote cluster", capabilitiesSupportedNewAndOld(List.of("views_in_cluster_state")));
+        try (RestClient remoteClient = remoteClusterClient()) {
+            Request putView = new Request("PUT", "/_query/view/test-remote-view");
+            putView.setJsonEntity("{\"query\":\"FROM test-remote-index | LIMIT 10\"}");
+            assertOK(remoteClient.performRequest(putView));
+        }
+        try {
+            ResponseException e = expectThrows(
+                ResponseException.class,
+                () -> runEsql(new RestEsqlTestCase.RequestObjectBuilder().query("FROM remote_cluster:test-remote-*").build())
+            );
+            assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+            @SuppressWarnings("unchecked")
+            Map<String, Object> error = (Map<String, Object>) entityAsMap(e.getResponse()).get("error");
+            assertThat(error.get("type"), equalTo("remote_view_not_supported_exception"));
+            assertThat(
+                (String) error.get("reason"),
+                equalTo(
+                    "ES|QL does not support views in cross-cluster search. "
+                        + "Found view [test-remote-view] on [remote_cluster]. "
+                        + "To exclude, use [remote_cluster:-test-remote-view] in the index expression."
+                )
+            );
+        } finally {
+            try (RestClient remoteClient = remoteClusterClient()) {
+                Request deleteView = new Request("DELETE", "/_query/view/test-remote-view");
+                remoteClient.performRequest(deleteView);
+            }
+        }
     }
 
     public static class ClusterSettingToggle implements AutoCloseable {

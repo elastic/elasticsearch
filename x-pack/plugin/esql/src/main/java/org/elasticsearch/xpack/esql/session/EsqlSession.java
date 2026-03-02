@@ -1244,6 +1244,7 @@ public class EsqlSession {
                 indicesExpressionGrouper,
                 listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                    EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                     l.onResponse(
                         result.withIndices(indexPattern, indexResolution.inner())
                             .withMinimumTransportVersion(indexResolution.minimumVersion())
@@ -1278,6 +1279,7 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 l.onResponse(

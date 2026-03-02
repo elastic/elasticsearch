@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * populated and exposed in the datafeed stats API when a datafeed targets
  * indices on a remote cluster via CCS.
  *
- * <h3>Limitation: dynamic cluster config changes are not visible to a running datafeed</h3>
+ * <h2>Limitation: dynamic cluster config changes are not visible to a running datafeed</h2>
  *
  * The ML datafeed executes its CCS searches using stashed security headers captured at
  * datafeed-start time ({@code ClientHelper.executeWithHeaders}). As a result, remote
@@ -60,6 +60,26 @@ import static org.hamcrest.Matchers.notNullValue;
  * have fine-grained control over the linked-project state cycles. The integration tests
  * here focus on verifying the stats API fields, multi-cluster visibility, and the
  * stop/reconfigure/restart lifecycle.
+ *
+ * <h2>CCS versus true CPS mode</h2>
+ *
+ * These tests use standard CCS (cross-cluster search via {@code cluster.remote.*} settings)
+ * rather than true CPS mode. The {@code serverless.cross_project.enabled} feature flag changes
+ * how the search layer operates: it labels the origin cluster as {@code _origin} instead of
+ * {@code (local)} in the {@code _clusters} metadata and makes {@code skip_unavailable} default
+ * to true for all remotes. However, {@code DatafeedConfig}
+ * currently rejects {@code resolveCrossProjectIndexExpression} in its indices options, so
+ * true CPS mode is not yet available for ML datafeeds. The CPS runbook's loopback setup
+ * (linked projects via operator settings) exercises a different infrastructure path than the
+ * CCS-based tests here.
+ *
+ * <h2>Wildcard resolution after cluster removal</h2>
+ *
+ * The {@code *:} CCS wildcard pattern does not reliably produce {@code _clusters} metadata
+ * after a dynamically added remote cluster is removed. Even after {@code _remote/info}
+ * confirms the removal, the wildcard resolution may fail to include the remaining remotes
+ * in the search response's cluster metadata. Tests that exercise topology contraction
+ * therefore use explicit index patterns or recreate the job/datafeed from scratch.
  */
 public class CpsDatafeedStatsIT extends ESRestTestCase {
 
@@ -414,6 +434,152 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
         removeRemoteCluster("project_b");
     }
 
+    /**
+     * Simulates the dynamic config change from the CPS runbook (section 7.2 "link a project"):
+     * a datafeed using a wildcard CCS pattern picks up a newly added remote cluster after
+     * being stopped and restarted, without any change to its own configuration.
+     *
+     * <p>This mirrors the real-world scenario where an operator adds a linked project to the
+     * cluster and expects existing datafeeds to include it on their next run. Because the ML
+     * search context is captured at start time, the datafeed must be restarted for the change
+     * to take effect.
+     */
+    @SuppressWarnings("unchecked")
+    public void testTopologyExpansionAcrossRestart() throws Exception {
+        String sharedIndex = "topo_expand_data";
+        String jobId = "topo-expand-job";
+        String datafeedId = jobId + "-datafeed";
+
+        try (RestClient remoteA = remoteClientA()) {
+            createRemoteIndex(remoteA, sharedIndex);
+            indexRemoteData(remoteA, sharedIndex);
+        }
+        try (RestClient remoteB = remoteClientB()) {
+            createRemoteIndex(remoteB, sharedIndex);
+            indexRemoteData(remoteB, sharedIndex);
+        }
+
+        // Phase 1: only project_a configured; datafeed uses *: wildcard
+        createAnomalyDetectorWithDatafeed(jobId, datafeedId, "*:" + sharedIndex);
+        openJob(jobId);
+        startDatafeed(datafeedId);
+
+        assertBusy(() -> {
+            Map<String, Object> stats = getDatafeedStats(datafeedId);
+            assertThat(stats.get("state"), equalTo("started"));
+            assertThat(stats, hasKey("cross_project_stats"));
+            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
+            List<String> aliases = (List<String>) cps.get("stabilized_project_aliases");
+            assertThat(aliases, hasItem("project_a"));
+            assertThat("project_b should not be present yet", aliases, not(hasItem("project_b")));
+        }, 60, TimeUnit.SECONDS);
+
+        stopDatafeed(datafeedId);
+
+        // Phase 2: add project_b while datafeed is stopped — no datafeed config change
+        addRemoteCluster("project_b", remoteClusterB.getTransportEndpoint(0));
+        assertBusy(() -> {
+            Response infoResponse = client().performRequest(new Request("GET", "_remote/info"));
+            assertThat(entityAsString(infoResponse), containsString("project_b"));
+        }, 30, TimeUnit.SECONDS);
+
+        // Restart the same datafeed with the same *: pattern
+        startDatafeed(datafeedId);
+
+        assertBusy(() -> {
+            Map<String, Object> stats = getDatafeedStats(datafeedId);
+            assertThat(stats.get("state"), equalTo("started"));
+            assertThat(stats, hasKey("cross_project_stats"));
+            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
+            int total = (int) cps.get("total_projects");
+            assertThat("*: should now resolve to both clusters", total, greaterThanOrEqualTo(2));
+            List<String> aliases = (List<String>) cps.get("stabilized_project_aliases");
+            assertThat(aliases, hasItem("project_a"));
+            assertThat(aliases, hasItem("project_b"));
+        }, 60, TimeUnit.SECONDS);
+
+        stopDatafeed(datafeedId);
+        closeJob(jobId);
+        removeRemoteCluster("project_b");
+    }
+
+    /**
+     * Tests scope contraction: the datafeed configuration is narrowed from searching two
+     * remote clusters to searching only one. After the stop/reconfigure/restart cycle, the
+     * cross_project_stats baseline is re-established with the reduced set.
+     *
+     * <p>This mirrors the operational scenario where a linked project is removed (section 7.2
+     * of the CPS runbook) and the datafeed's index pattern is updated to reflect the reduced
+     * scope. The remote cluster itself remains configured — only the datafeed's target
+     * indices change — avoiding interference from cluster teardown timing.
+     */
+    @SuppressWarnings("unchecked")
+    public void testTopologyContractionAcrossRestart() throws Exception {
+        String sharedIndex = "topo_contract_data";
+        String jobId = "topo-contract-job";
+        String datafeedId = jobId + "-datafeed";
+
+        try (RestClient remoteA = remoteClientA()) {
+            createRemoteIndex(remoteA, sharedIndex);
+            indexRemoteData(remoteA, sharedIndex);
+        }
+        try (RestClient remoteB = remoteClientB()) {
+            createRemoteIndex(remoteB, sharedIndex);
+            indexRemoteData(remoteB, sharedIndex);
+        }
+
+        addRemoteCluster("project_b", remoteClusterB.getTransportEndpoint(0));
+        assertBusy(() -> {
+            Response infoResponse = client().performRequest(new Request("GET", "_remote/info"));
+            assertThat(entityAsString(infoResponse), containsString("project_b"));
+        }, 30, TimeUnit.SECONDS);
+
+        // Phase 1: datafeed targets both clusters
+        createAnomalyDetectorWithDatafeed(jobId, datafeedId, "project_a:" + sharedIndex, "project_b:" + sharedIndex);
+        openJob(jobId);
+        startDatafeed(datafeedId);
+
+        assertBusy(() -> {
+            Map<String, Object> stats = getDatafeedStats(datafeedId);
+            assertThat(stats.get("state"), equalTo("started"));
+            assertThat(stats, hasKey("cross_project_stats"));
+            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
+            List<String> aliases = (List<String>) cps.get("stabilized_project_aliases");
+            assertThat(aliases, hasItem("project_a"));
+            assertThat(aliases, hasItem("project_b"));
+        }, 60, TimeUnit.SECONDS);
+
+        stopDatafeed(datafeedId);
+        deleteDatafeed(datafeedId);
+        closeJob(jobId);
+
+        // Phase 2: recreate the datafeed targeting project_a only (project_b cluster stays
+        // configured but the new datafeed does not reference it). Delete + recreate instead
+        // of updating ensures there is no stale state from the previous Phase 1 run.
+        deleteJob(jobId);
+        String jobId2 = jobId + "-p2";
+        String datafeedId2 = jobId2 + "-datafeed";
+        createAnomalyDetectorWithDatafeed(jobId2, datafeedId2, "project_a:" + sharedIndex);
+        openJob(jobId2);
+        startDatafeed(datafeedId2);
+
+        assertBusy(() -> {
+            Map<String, Object> stats = getDatafeedStats(datafeedId2);
+            assertThat(stats.get("state"), equalTo("started"));
+            assertThat(stats, hasKey("cross_project_stats"));
+            Map<String, Object> cps = (Map<String, Object>) stats.get("cross_project_stats");
+            int total = (int) cps.get("total_projects");
+            assertThat("should now track only one project", total, equalTo(1));
+            List<String> aliases = (List<String>) cps.get("stabilized_project_aliases");
+            assertThat(aliases, hasItem("project_a"));
+            assertThat("project_b should no longer appear", aliases, not(hasItem("project_b")));
+        }, 60, TimeUnit.SECONDS);
+
+        stopDatafeed(datafeedId2);
+        closeJob(jobId2);
+        removeRemoteCluster("project_b");
+    }
+
     private void addRemoteCluster(String alias, String transportEndpoint) throws IOException {
         Request request = new Request("PUT", "_cluster/settings");
         request.setJsonEntity(String.format(java.util.Locale.ROOT, """
@@ -568,6 +734,14 @@ public class CpsDatafeedStatsIT extends ESRestTestCase {
 
     private void closeJob(String jobId) throws IOException {
         client().performRequest(new Request("POST", "_ml/anomaly_detectors/" + jobId + "/_close"));
+    }
+
+    private void deleteDatafeed(String datafeedId) throws IOException {
+        client().performRequest(new Request("DELETE", "_ml/datafeeds/" + datafeedId));
+    }
+
+    private void deleteJob(String jobId) throws IOException {
+        client().performRequest(new Request("DELETE", "_ml/anomaly_detectors/" + jobId));
     }
 
     @SuppressWarnings("unchecked")

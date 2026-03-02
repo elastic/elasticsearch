@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
+import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings2;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -105,6 +106,8 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         );
 
         Boolean dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
+
+        var oauthSettings = AzureOpenAiOAuthSettings2.fromMap(map, validationException);
 
         switch (context) {
             case REQUEST -> {
@@ -279,6 +282,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
             builder.field(SIMILARITY, similarity);
         }
         rateLimitSettings.toXContent(builder, params);
+
 
         return builder;
     }

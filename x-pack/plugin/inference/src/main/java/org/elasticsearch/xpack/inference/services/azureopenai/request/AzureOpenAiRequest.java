@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
+import com.azure.core.credential.TokenCredential;
+import com.azure.core.credential.TokenRequestContext;
+import com.azure.identity.ClientSecretCredentialBuilder;
+
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.message.BasicHeader;
@@ -15,6 +19,9 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+
+import java.time.Duration;
+import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
@@ -27,6 +34,20 @@ public interface AzureOpenAiRequest extends Request {
         "The request does not have any authentication methods set. One of [%s] or [%s] is required.";
 
     static void decorateWithAuthHeader(HttpPost httpPost, AzureOpenAiSecretSettings secretSettings) {
+        TokenCredential credential = new ClientSecretCredentialBuilder().tenantId("")
+            .clientId("")
+            .clientSecret("")
+            .build();
+
+        // 2. Define the Token Request Context
+        // This tells the credential what resource/scope you are requesting a token for.
+        TokenRequestContext context = new TokenRequestContext().setScopes(List.of(""));
+
+        // 3. Retrieve the Access Token
+        // We use .block() for a simple synchronous call. In a production environment
+        // where performance is critical, you should handle the Mono asynchronously.
+        // AccessToken accessToken = credential.getToken(context).block(Duration.ofSeconds(10));
+        var token = credential.getToken(context).block(Duration.ofSeconds(10));
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
 
         var entraId = secretSettings.entraId();

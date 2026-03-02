@@ -292,6 +292,15 @@ public abstract class AbstractObjectParser<Value, Context> {
         declareField(consumer, XContentParser::booleanValue, field, ValueType.BOOLEAN);
     }
 
+    public void declareStringOrNull(BiConsumer<Value, String> consumer, String defaultValue, ParseField field) {
+        declareField(
+            consumer,
+            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? defaultValue : p.text(),
+            field,
+            ValueType.STRING_OR_NULL
+        );
+    }
+
     public <T> void declareObjectArray(BiConsumer<Value, List<T>> consumer, ContextParser<Context, T> objectParser, ParseField field) {
         declareFieldArray(consumer, objectParser, field, ValueType.OBJECT_ARRAY);
     }

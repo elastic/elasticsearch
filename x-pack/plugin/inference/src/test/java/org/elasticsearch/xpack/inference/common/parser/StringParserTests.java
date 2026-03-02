@@ -25,18 +25,35 @@ public class StringParserTests extends ESTestCase {
     public void testExtractStringList_ReturnsEmpty_WhenKeyMissing() {
         var map = new HashMap<String, Object>();
 
-        var result = StringParser.extractStringList(map, PROPERTIES, ROOT);
+        var result = StringParser.extractStringList(map, PROPERTIES, ROOT, List.of());
 
         assertThat(result, equalTo(List.of()));
+    }
+
+    public void testExtractStringList_ReturnsNull_WhenKeyMissing() {
+        var map = new HashMap<String, Object>();
+
+        var result = StringParser.extractStringList(map, PROPERTIES, ROOT);
+
+        assertNull(result);
     }
 
     public void testExtractStringList_ReturnsEmpty_WhenValueNull() {
         var map = new HashMap<String, Object>();
         map.put(PROPERTIES, null);
 
-        var result = StringParser.extractStringList(map, PROPERTIES, ROOT);
+        var result = StringParser.extractStringList(map, PROPERTIES, ROOT, List.of());
 
         assertThat(result, equalTo(List.of()));
+    }
+
+    public void testExtractStringList_ReturnsNull_WhenValueNull() {
+        var map = new HashMap<String, Object>();
+        map.put(PROPERTIES, null);
+
+        var result = StringParser.extractStringList(map, PROPERTIES, ROOT);
+
+        assertNull(result);
     }
 
     public void testExtractStringList_ReturnsList_WhenAllStrings() {

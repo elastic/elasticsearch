@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DISPLAY_FIELD_NAME;
@@ -81,7 +82,7 @@ public final class EndpointMetadataParser {
         if (map == null || map.isEmpty()) {
             return EndpointMetadata.Heuristics.EMPTY_INSTANCE;
         }
-        var properties = extractStringList(map, PROPERTIES_FIELD_NAME, root);
+        var properties = extractStringList(map, PROPERTIES_FIELD_NAME, root, List.of());
         var status = extractEnum(map, STATUS_FIELD_NAME, root, StatusHeuristic::fromString, EnumSet.allOf(StatusHeuristic.class));
         var releaseDate = DateParser.parseLocalDate(map, RELEASE_DATE_FIELD_NAME, root);
         var endOfLifeDate = DateParser.parseLocalDate(map, END_OF_LIFE_DATE_FIELD_NAME, root);

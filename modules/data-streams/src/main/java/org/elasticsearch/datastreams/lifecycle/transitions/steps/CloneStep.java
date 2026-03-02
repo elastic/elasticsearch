@@ -131,6 +131,7 @@ public class CloneStep implements DlmStep {
 
     @Override
     public List<String> possibleOutputIndexNamePatterns(String indexName) {
+        // The clone index name pattern should be checked before the original index name pattern
         return List.of(getDLMCloneIndexName(indexName), indexName);
     }
 

@@ -22,6 +22,8 @@ import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
 
@@ -1022,6 +1024,151 @@ public class PipelineSelectorTests extends ESTestCase {
             values[i] = NumericUtils.floatToSortableInt(Math.round(v * 100.0f) / 100.0f);
         }
         return values;
+    }
+
+    public void testStoragePipelineOnRealDoubleCounters() throws IOException {
+        final String[] files = {
+            "system.cpu.time-double_counter-2048.tsv",
+            "system.disk.io_time-double_counter-2048.tsv",
+            "system.disk.weighted_io_time-double_counter-2048.tsv", };
+
+        for (final String file : files) {
+            final long[] values = loadDoubleTsvFromResources(file);
+            assumeTrue("corpus file not present: " + file, values != null);
+
+            final int numBlocks = values.length / BS;
+            int totalSelectedBytes = 0;
+
+            for (int b = 0; b < numBlocks; b++) {
+                final long[] block = Arrays.copyOfRange(values, b * BS, (b + 1) * BS);
+                final long[] original = Arrays.copyOf(block, BS);
+                final BlockProfile profile = profiler.profile(block, BS);
+
+                final PipelineConfig config = selector.select(
+                    profile,
+                    BS,
+                    PipelineConfig.DataType.DOUBLE,
+                    PipelineResolver.OptimizeFor.STORAGE,
+                    MetricType.COUNTER
+                );
+
+                // NOTE: counter protection — if the selector picks ALP, it must be lossless.
+                // Lossy ALP on counters would break rate calculations.
+                for (final StageSpec spec : config.specs()) {
+                    if (spec instanceof StageSpec.AlpDoubleStage alp) {
+                        assertEquals("STORAGE + COUNTER must use lossless ALP in block " + b + " of " + file, -1.0, alp.maxError(), 0.0);
+                    }
+                }
+
+                final byte[] buffer = new byte[BS * Long.BYTES * 8];
+                final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+                final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+                encoder.newBlockEncoder().encode(block, BS, out);
+                totalSelectedBytes += out.getPosition();
+
+                final long[] decoded = new long[BS];
+                final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+                final int count = NumericDecoder.fromDescriptor(encoder.descriptor()).newBlockDecoder().decode(decoded, in);
+                assertEquals(BS, count);
+                assertArrayEquals("round-trip failed for block " + b + " of " + file, original, decoded);
+            }
+
+            int totalAlp = 0;
+            int totalChimp128 = 0;
+            int totalDelta = 0;
+            for (int b = 0; b < numBlocks; b++) {
+                final long[] block = Arrays.copyOfRange(values, b * BS, (b + 1) * BS);
+                totalAlp += measureSize(
+                    PipelineConfig.forDoubles(BS).alpDoubleStage().delta().offset().gcd().patchedPFor().bitPack(),
+                    block
+                );
+                totalChimp128 += measureSize(PipelineConfig.forDoubles(BS).chimp128(), block);
+                totalDelta += measureSize(PipelineConfig.forDoubles(BS).delta().delta().offset().gcd().patchedPFor().bitPack(), block);
+            }
+
+            System.out.printf("%n[STORAGE] %s  (%d values)%n", file, values.length);
+            System.out.printf("  selected (adaptive): %.3f bytes/value%n", (double) totalSelectedBytes / values.length);
+            System.out.printf("  alp lossless:        %.3f bytes/value%n", (double) totalAlp / values.length);
+            System.out.printf("  chimp128:            %.3f bytes/value%n", (double) totalChimp128 / values.length);
+            System.out.printf("  delta pipeline:      %.3f bytes/value%n", (double) totalDelta / values.length);
+        }
+    }
+
+    public void testStoragePipelineOnRealLongCounters() throws IOException {
+        final String[] files = {
+            "system.disk.io-long_counter-2048.tsv",
+            "system.disk.operations-long_counter-2048.tsv",
+            "system.network.io-long_counter-2048.tsv", };
+
+        for (final String file : files) {
+            final long[] values = loadLongTsvFromResources(file);
+            assumeTrue("corpus file not present: " + file, values != null);
+
+            final int numBlocks = values.length / BS;
+            int totalSelectedBytes = 0;
+
+            for (int b = 0; b < numBlocks; b++) {
+                final long[] block = Arrays.copyOfRange(values, b * BS, (b + 1) * BS);
+                final long[] original = Arrays.copyOf(block, BS);
+                final BlockProfile profile = profiler.profile(block, BS);
+
+                final PipelineConfig config = selector.select(
+                    profile,
+                    BS,
+                    PipelineConfig.DataType.LONG,
+                    PipelineResolver.OptimizeFor.STORAGE,
+                    MetricType.COUNTER
+                );
+
+                // NOTE: long pipeline is the same regardless of optimize_for or metric type.
+                assertEquals(2, config.specs().stream().filter(s -> s instanceof StageSpec.Delta).count());
+                assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+                assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+                assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
+                assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
+
+                final byte[] buffer = new byte[BS * Long.BYTES * 8];
+                final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+                final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+                encoder.newBlockEncoder().encode(block, BS, out);
+                totalSelectedBytes += out.getPosition();
+
+                final long[] decoded = new long[BS];
+                final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+                final int count = NumericDecoder.fromDescriptor(encoder.descriptor()).newBlockDecoder().decode(decoded, in);
+                assertEquals(BS, count);
+                assertArrayEquals("round-trip failed for block " + b + " of " + file, original, decoded);
+            }
+
+            System.out.printf("%n[STORAGE] %s  (%d values)%n", file, values.length);
+            System.out.printf("  selected: %.3f bytes/value%n", (double) totalSelectedBytes / values.length);
+        }
+    }
+
+    private long[] loadDoubleTsvFromResources(String filename) throws IOException {
+        try (InputStream is = getClass().getResourceAsStream("corpus/" + filename)) {
+            if (is == null) return null;
+            final String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            final String[] lines = content.strip().split("\n");
+            final long[] values = new long[lines.length];
+            for (int i = 0; i < lines.length; i++) {
+                values[i] = NumericUtils.doubleToSortableLong(Double.parseDouble(lines[i].split("\t")[1]));
+            }
+            return values;
+        }
+    }
+
+    private long[] loadLongTsvFromResources(String filename) throws IOException {
+        try (InputStream is = getClass().getResourceAsStream("corpus/" + filename)) {
+            if (is == null) return null;
+            final String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            final String[] lines = content.strip().split("\n");
+            final long[] values = new long[lines.length];
+            for (int i = 0; i < lines.length; i++) {
+                values[i] = Long.parseLong(lines[i].split("\t")[1]);
+            }
+            return values;
+        }
     }
 
     private static void assertAlpMaxError(final PipelineConfig config, double expectedMaxError) {

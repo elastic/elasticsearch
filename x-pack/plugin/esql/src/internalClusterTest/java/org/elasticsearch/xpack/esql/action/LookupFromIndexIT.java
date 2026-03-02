@@ -358,9 +358,11 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))
                 ),
                 true,
-                0
+                0,
+                PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY)
             );
             CancellableTask parentTask = new EsqlQueryTask(
+                "test-session",
                 1,
                 "test",
                 "test",
@@ -421,7 +423,10 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 ),
                 Source.EMPTY,
                 pushedDownFilter,
-                Predicates.combineAnd(joinOnConditions)
+                Predicates.combineAnd(joinOnConditions),
+                true,  // useStreamingOperator
+                QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY),
+                false  // profile
             );
             DriverContext driverContext = driverContext();
             try (

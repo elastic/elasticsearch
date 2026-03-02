@@ -263,7 +263,7 @@ public class MetadataCreateIndexService {
         var totalUserIndices = projectMetadata.stream()
             .filter(
                 indexMetadata -> indexMetadata.isSystem() == false
-                    || associatedIndicesAutomaton.run(indexMetadata.getIndex().getName()) == false
+                    && associatedIndicesAutomaton.run(indexMetadata.getIndex().getName()) == false
             )
             .count();
         if (totalUserIndices >= maxIndicesPerProject) {

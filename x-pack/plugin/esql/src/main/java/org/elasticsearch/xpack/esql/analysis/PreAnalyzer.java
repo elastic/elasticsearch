@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,9 +35,10 @@ public class PreAnalyzer {
         List<IndexPattern> lookupIndices,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
         List<String> icebergPaths
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false, List.of());
+        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false, false, List.of());
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -113,6 +116,10 @@ public class PreAnalyzer {
             }
         }));
 
+        Holder<Boolean> hasTimeSeriesAggregation = new Holder<>(false);
+        plan.forEachUp(TimeSeriesAggregate.class, p -> hasTimeSeriesAggregation.set(true));
+        plan.forEachUp(PromqlCommand.class, p -> hasTimeSeriesAggregation.set(true));
+
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
@@ -122,6 +129,7 @@ public class PreAnalyzer {
             lookupIndices,
             useAggregateMetricDoubleWhenNotSupported.get(),
             useDenseVectorWhenNotSupported.get(),
+            hasTimeSeriesAggregation.get(),
             icebergPaths
         );
     }

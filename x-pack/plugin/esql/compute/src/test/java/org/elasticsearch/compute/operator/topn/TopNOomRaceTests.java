@@ -131,6 +131,7 @@ public class TopNOomRaceTests extends ESTestCase {
                 Collections.nCopies(repeats, TopNEncoder.DEFAULT_SORTABLE),
                 List.of(new TopNOperator.SortOrder(0, false, false)),
                 Integer.MAX_VALUE,
+                Long.MAX_VALUE,
                 InputOrdering.NOT_SORTED,
                 null
             );

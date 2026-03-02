@@ -347,3 +347,28 @@ BkQXJRMeAM:long
 4325287503714500302
 ;
 
+
+nullInputRow
+required_capability: str_commands_accept_null
+
+ROW n = null
+| GROK n "%{WORD:abc}"
+;
+
+n:null | abc:keyword
+  null | null
+;
+
+nullInput
+required_capability: str_commands_accept_null
+
+FROM employees
+| EVAL n = null
+| GROK n "%{WORD:abc}"
+| WHERE emp_no == 10001
+| KEEP n, abc
+;
+
+n:null | abc:keyword
+  null | null
+;

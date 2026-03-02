@@ -1,5 +1,8 @@
 area: CCS
 issues: []
 pr: 143338
-summary: Order remote cluster exclusions
+summary: >-
+  Correctly handle order for remote cluster exclusions in CCS.
+  An exclusion affects targets listed before it and has
+  no impact on targets listed after it.
 type: bug

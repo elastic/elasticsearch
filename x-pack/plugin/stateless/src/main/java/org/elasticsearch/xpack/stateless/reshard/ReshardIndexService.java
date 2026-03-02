@@ -20,6 +20,7 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -334,9 +335,18 @@ public class ReshardIndexService {
                             TransportShardRefreshAction.TYPE,
                             refreshRequest,
                             refreshListener.delegateFailure((inner, response) -> {
-                                if (response.getShardInfo().getFailed() > 0) {
+                                if (response.getShardInfo().getSuccessful() < response.getShardInfo().getTotal()) {
                                     logger.debug("refresh after delete unowned failed for shard {}", shardId);
-                                    inner.onFailure(response.getShardInfo().getFailures()[0]);
+                                    if (response.getShardInfo().getFailures().length > 0) {
+                                        inner.onFailure(response.getShardInfo().getFailures()[0]);
+                                    } else {
+                                        // Most likely the shard is unavailable and it would be ok to succeed here and rely on
+                                        // the target shard picking up delete as part of recovery. But there isn't much down side to
+                                        // being conservative in this case, since it just leaves filters in place a little longer.
+                                        // We do have to synthesize a failure since the original is deliberately suppressed when
+                                        // the shard is unavailable.
+                                        inner.onFailure(new NoShardAvailableActionException(shardId));
+                                    }
                                 } else {
                                     logger.debug("refresh after delete unowned succeeded for shard {}", shardId);
                                     inner.onResponse(null);

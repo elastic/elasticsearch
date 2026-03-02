@@ -199,7 +199,6 @@ public class EsqlCCSUtils {
 
     /**
      * Update the state for clusters that returned zero matching indices — fail the query, mark the cluster as skipped, or mark it as done.
-     * <p>
      * @param executionInfo - The per-cluster CCS state
      * @param indexResolutions - The collection of IndexResolution objects produced by field-caps
      * @param usedFilter - Whether the query had a request-level filter.

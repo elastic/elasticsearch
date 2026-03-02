@@ -54,9 +54,7 @@ public final class SearchFeatures implements FeatureSpecification {
     public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT = new NodeFeature(
         "search.exponential_histogram_querydsl_boxplot"
     );
-    public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE = new NodeFeature(
-        "search.exponential_histogram_querydsl_range"
-    );
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_RANGE = new NodeFeature("search.exponential_histogram_querydsl_range");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {

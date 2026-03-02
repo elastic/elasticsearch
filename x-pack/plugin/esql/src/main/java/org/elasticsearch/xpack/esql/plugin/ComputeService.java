@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.SplitCoalescer;
 import org.elasticsearch.xpack.esql.datasources.SplitDiscoveryPhase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -218,11 +219,26 @@ public class ComputeService {
             return plan;
         }
         try {
-            return SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+            PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+            return coalesceSplits(discovered);
         } catch (Exception e) {
             LOGGER.warn("split discovery failed for external source", e);
             throw e;
         }
+    }
+
+    static PhysicalPlan coalesceSplits(PhysicalPlan plan) {
+        return plan.transformUp(ExternalSourceExec.class, exec -> {
+            List<ExternalSplit> splits = exec.splits();
+            if (splits.size() <= SplitCoalescer.COALESCING_THRESHOLD) {
+                return exec;
+            }
+            List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
+            if (coalesced == splits) {
+                return exec;
+            }
+            return exec.withSplits(coalesced);
+        });
     }
 
     static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {

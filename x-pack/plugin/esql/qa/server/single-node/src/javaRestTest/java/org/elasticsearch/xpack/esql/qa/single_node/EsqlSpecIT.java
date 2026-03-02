@@ -55,7 +55,11 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected String maybeRandomizeQuery(String query) {
         // TODO we should implement more generic randomization for SET parameters
-        return randomBoolean() && query.startsWith("SET") == false ? query = "SET unmapped_fields=\"nullify\"; " + query : query;
+        return randomBoolean()
+            && testCase.expectedWarnings().isEmpty() // avoid shifting warnings positions in source query
+            && query.startsWith("SET") == false // avoid conflicts with provided settings
+                ? "SET unmapped_fields=\"nullify\"; " + query
+                : query;
     }
 
     @Before

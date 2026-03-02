@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 @SuppressWarnings("RegexpMultiline")
@@ -120,7 +121,7 @@ public class StoragePathTests extends ESTestCase {
     }
 
     public void testFileUriFunctionOnUnix() {
-        java.nio.file.Path p = java.nio.file.Path.of("/tmp/test/data.parquet");
+        java.nio.file.Path p = PathUtils.get("/tmp/test/data.parquet");
         String uri = StoragePath.fileUri(p);
         assertEquals("file:///tmp/test/data.parquet", uri);
         StoragePath sp = StoragePath.of(uri);

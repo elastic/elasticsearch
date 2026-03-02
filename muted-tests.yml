@@ -402,9 +402,6 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotStressTestsIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/143199
-- class: org.elasticsearch.index.mapper.GeoPointFieldMapperTests
-  method: testSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/143201
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_aggregate_metric_double_implicit_casting}
   issue: https://github.com/elastic/elasticsearch/issues/143292

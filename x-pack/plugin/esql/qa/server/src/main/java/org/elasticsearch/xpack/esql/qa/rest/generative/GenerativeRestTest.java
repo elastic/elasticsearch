@@ -96,7 +96,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "illegal match option \\[zero_terms_query\\]", // https://github.com/elastic/elasticsearch/issues/143070
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
         "Input for URI_PARTS must be of type [string] but is [null]", // https://github.com/elastic/elasticsearch/issues/143145
-        "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", //https://github.com/elastic/elasticsearch/issues/141827
+        "JOIN left field \\[.*\\] of type \\[NULL\\] is incompatible with right", // https://github.com/elastic/elasticsearch/issues/141827
         // https://github.com/elastic/elasticsearch/issues/141827
         "JOIN left field \\[.*\\] of type \\[.*\\] is incompatible with right field \\[.*\\] of type \\[NULL\\]",
 

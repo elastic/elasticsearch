@@ -36,6 +36,8 @@ import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.junit.After;
@@ -53,15 +55,44 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
+import org.junit.Rule;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
+
 /**
  * Integration test for bulk retry behavior. Useful because retrying relies on the way that the
  * rest of Elasticsearch throws exceptions and unit tests won't verify that.
  */
+@ClusterScope(scope = Scope.TEST)
 public class RetryTests extends ESIntegTestCase {
 
     private static final int DOC_COUNT = 20;
 
     private List<CyclicBarrier> blockedExecutors = new ArrayList<>();
+
+    /**
+     * Sets {@link ReindexWithPointInTimeSearchTestFeatureSpecification#REINDEX_PIT_SEARCH_FOR_TEST} before
+     * {@code testReindexFromRemoteWithPit} runs so the cluster is built with {@link ReindexPlugin#REINDEX_PIT_SEARCH_FEATURE}
+     * enabled. Uses a {@link TestRule} because it must run before the cluster is created in {@code setupTestCluster()} which is
+     * a final method and cannot be overridden.
+     */
+    @Rule
+    public TestRule setPitFlagForTestRule = (base, description) -> new Statement() {
+        @Override
+        public void evaluate() throws Throwable {
+            if ("testReindexFromRemoteWithPit".equals(description.getMethodName())) {
+                ReindexWithPointInTimeSearchTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST = true;
+            }
+            try {
+                base.evaluate();
+            } finally {
+                if ("testReindexFromRemoteWithPit".equals(description.getMethodName())) {
+                    ReindexWithPointInTimeSearchTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST = false;
+                }
+            }
+        }
+    };
 
     @After
     public void forceUnblockAllExecutors() {
@@ -104,6 +135,14 @@ public class RetryTests extends ESIntegTestCase {
     }
 
     public void testReindexFromRemote() throws Exception {
+        testIndexFromRemoteInternal();
+    }
+
+    public void testReindexFromRemoteWithPit() throws Exception {
+        testIndexFromRemoteInternal();
+    }
+
+    private void testIndexFromRemoteInternal() throws Exception {
         Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> function = client -> {
             /*
              * Use the master node for the reindex from remote because that node

@@ -98,11 +98,11 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             return;
         }
         logger.info("withPit : {}", withPit);
-        ReindexFromRemoteWithAuthTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST.set(withPit);
+        ReindexWithPointInTimeSearchTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST = withPit;
         try {
             super.startNode(seed);
         } finally {
-            ReindexFromRemoteWithAuthTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST.remove();
+            ReindexWithPointInTimeSearchTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST = false;
         }
     }
 
@@ -159,37 +159,37 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testReindexFromRemoteWithAuthentication() throws Exception {
+    public void testReindexFromRemoteWithAuthentication() {
         ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo("Aladdin", "open sesame", emptyMap()));
         assertThat(request.get(), matcher().created(1));
     }
 
-    public void testReindexSendsHeaders() throws Exception {
+    public void testReindexSendsHeaders() {
         ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo(null, null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter")));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, request::get);
         assertEquals(RestStatus.BAD_REQUEST, e.status());
         assertThat(e.getMessage(), containsString("Hurray! Sent the header!"));
     }
 
-    public void testReindexWithoutAuthenticationWhenRequired() throws Exception {
+    public void testReindexWithoutAuthenticationWhenRequired() {
         ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo(null, null, emptyMap()));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, request::get);
         assertEquals(RestStatus.UNAUTHORIZED, e.status());
         assertThat(e.getMessage(), containsString("\"reason\":\"Authentication required\""));
         assertThat(e.getMessage(), containsString("\"WWW-Authenticate\":\"Basic realm=auth-realm\""));
     }
 
-    public void testReindexWithBadAuthentication() throws Exception {
+    public void testReindexWithBadAuthentication() {
         ReindexRequestBuilder request = new ReindexRequestBuilder(client()).source("source")
             .destination("dest")
             .setRemoteInfo(newRemoteInfo("junk", "auth", emptyMap()));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, request::get);
         assertThat(e.getMessage(), containsString("\"reason\":\"Bad Authorization\""));
     }
 

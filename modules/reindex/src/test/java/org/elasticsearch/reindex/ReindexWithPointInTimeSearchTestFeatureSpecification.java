@@ -18,17 +18,18 @@ import java.util.Set;
  * Test-only {@link FeatureSpecification} that conditionally registers {@link ReindexPlugin#REINDEX_PIT_SEARCH_FEATURE}
  * based on whether the test is running with scroll or point-in-time searching.
  */
-public class ReindexFromRemoteWithAuthTestFeatureSpecification implements FeatureSpecification {
+public class ReindexWithPointInTimeSearchTestFeatureSpecification implements FeatureSpecification {
 
     /**
      * Set by the running test before node creation. When {@code true}, this spec
      * registers {@link ReindexPlugin#REINDEX_PIT_SEARCH_FEATURE} so the cluster reports the feature.
+     * Volatile, so it is visible across threads (test thread sets it, node thread reads it).
      */
-    public static final ThreadLocal<Boolean> REINDEX_PIT_SEARCH_FOR_TEST = ThreadLocal.withInitial(() -> false);
+    public static volatile boolean REINDEX_PIT_SEARCH_FOR_TEST = false;
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        if (REINDEX_PIT_SEARCH_FOR_TEST.get()) {
+        if (REINDEX_PIT_SEARCH_FOR_TEST) {
             return Set.of(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE);
         }
         return Set.of();

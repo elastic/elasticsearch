@@ -1342,7 +1342,7 @@ public class InternalEngine extends Engine {
                 // Step 2: Per-doc: determine indexing strategy, generate seqNo
                 final List<Index> updatedOps = new java.util.ArrayList<>(batchSize);
                 final List<IndexingStrategy> plans = new java.util.ArrayList<>(batchSize);
-                final List<LuceneDocument> appendDocs = new java.util.ArrayList<>();
+                boolean allAppendOnly = true;
 
                 for (int i = 0; i < batchSize; i++) {
                     Index op = operations.get(i);
@@ -1383,53 +1383,55 @@ public class InternalEngine extends Engine {
 
                     updatedOps.add(op);
 
-                    // Collect append-only docs for batch Lucene add
-                    if (plan.indexIntoLucene && plan.useLuceneUpdateDocument == false) {
-                        appendDocs.addAll(op.parsedDoc().docs());
+                    if (plan.indexIntoLucene && plan.useLuceneUpdateDocument) {
+                        allAppendOnly = false;
+                    }
+                    if (plan.addStaleOpToLucene) {
+                        allAppendOnly = false;
                     }
 
                     // Placeholder result — will be filled in below
                     results.add(null);
                 }
 
-                // Step 3: Batch Lucene add for append-only operations
-                if (appendDocs.isEmpty() == false) {
-                    batchIndexWriter.batchAddDocuments(appendDocs);
-                    numDocAppends.inc(appendDocs.size());
-                }
-
-                // Step 4: Index non-append operations individually into Lucene
-                for (int i = 0; i < batchSize; i++) {
-                    if (results.get(i) != null) continue; // early result already set
-                    IndexingStrategy plan = plans.get(i);
-                    Index op = updatedOps.get(i);
-
-                    if (plan.indexIntoLucene && plan.useLuceneUpdateDocument) {
-                        // This op needs updateDocument (not append-only)
-                        IndexResult result = indexIntoLucene(op, plan);
-                        results.set(i, result);
-                    } else if (plan.indexIntoLucene) {
-                        // Append-only — already added above, create success result
-                        IndexResult result = new IndexResult(
-                            plan.versionForIndexing,
-                            op.primaryTerm(),
-                            op.seqNo(),
-                            plan.currentNotFoundOrDeleted,
-                            op.id()
-                        );
-                        results.set(i, result);
-                    } else if (plan.addStaleOpToLucene) {
-                        IndexResult result = indexIntoLucene(op, plan);
-                        results.set(i, result);
-                    } else {
-                        IndexResult result = new IndexResult(
-                            plan.versionForIndexing,
-                            op.primaryTerm(),
-                            op.seqNo(),
-                            plan.currentNotFoundOrDeleted,
-                            op.id()
-                        );
-                        results.set(i, result);
+                // Step 3: Index into Lucene
+                if (allAppendOnly) {
+                    // All ops are append-only: collect docs, set seq_no/version, and batch add
+                    final List<LuceneDocument> appendDocs = new java.util.ArrayList<>();
+                    for (int i = 0; i < batchSize; i++) {
+                        if (results.get(i) != null) continue; // early result already set
+                        IndexingStrategy plan = plans.get(i);
+                        Index op = updatedOps.get(i);
+                        if (plan.indexIntoLucene) {
+                            op.parsedDoc().updateSeqID(op.seqNo(), op.primaryTerm());
+                            op.parsedDoc().version().setLongValue(plan.versionForIndexing);
+                            appendDocs.addAll(op.parsedDoc().docs());
+                            results.set(i, new IndexResult(
+                                plan.versionForIndexing, op.primaryTerm(), op.seqNo(), plan.currentNotFoundOrDeleted, op.id()
+                            ));
+                        } else {
+                            results.set(i, new IndexResult(
+                                plan.versionForIndexing, op.primaryTerm(), op.seqNo(), plan.currentNotFoundOrDeleted, op.id()
+                            ));
+                        }
+                    }
+                    if (appendDocs.isEmpty() == false) {
+                        batchIndexWriter.batchAddDocuments(appendDocs);
+                        numDocAppends.inc(appendDocs.size());
+                    }
+                } else {
+                    // Mixed ops: fall back to serial indexIntoLucene for each operation
+                    for (int i = 0; i < batchSize; i++) {
+                        if (results.get(i) != null) continue; // early result already set
+                        IndexingStrategy plan = plans.get(i);
+                        Index op = updatedOps.get(i);
+                        if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
+                            results.set(i, indexIntoLucene(op, plan));
+                        } else {
+                            results.set(i, new IndexResult(
+                                plan.versionForIndexing, op.primaryTerm(), op.seqNo(), plan.currentNotFoundOrDeleted, op.id()
+                            ));
+                        }
                     }
                 }
 

@@ -150,6 +150,10 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private SearchResponse checkForSkippedClusters(SearchResponse searchResponse) {
+        // Capture linked project states before the skipped-clusters check so that
+        // CrossProjectSearchStats can observe the SKIPPED status and begin unlinking
+        // tracking even when the check throws.
+        lastLinkedProjectStates = DataExtractorUtils.extractLinkedProjectStates(searchResponse);
         boolean success = false;
         try {
             DataExtractorUtils.checkForSkippedClusters(searchResponse);

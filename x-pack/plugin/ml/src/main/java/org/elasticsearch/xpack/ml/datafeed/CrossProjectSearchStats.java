@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.datafeed.CrossProjectSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
@@ -27,19 +28,22 @@ import java.util.function.Supplier;
  * <p>
  * Detects project linking (new projects appearing) and unlinking (existing projects
  * disappearing) using a symmetric dual stabilization condition: a project must be
- * consecutively present (or absent) for {@link #STABILIZATION_CYCLES} search cycles
- * <em>and</em> at least {@link #STABILIZATION_FLOOR} wall-clock time must have elapsed
- * since the state change was first observed.
+ * consecutively present (or absent) for {@link #DEFAULT_STABILIZATION_CYCLES} search
+ * cycles <em>and</em> at least {@link #DEFAULT_STABILIZATION_FLOOR} wall-clock time
+ * must have elapsed since the state change was first observed.
  * <p>
  * Created when the datafeed starts and discarded when it stops. On the first cycle
  * the observed project set is recorded as the baseline with no annotation.
  */
 public class CrossProjectSearchStats {
 
-    static final int STABILIZATION_CYCLES = 12;
-    static final Duration STABILIZATION_FLOOR = Duration.ofMinutes(5);
+    public static final int DEFAULT_STABILIZATION_CYCLES = 12;
+    static final Duration DEFAULT_STABILIZATION_FLOOR = Duration.ofMinutes(5);
+    public static final TimeValue DEFAULT_STABILIZATION_FLOOR_TIMEVALUE = TimeValue.timeValueMinutes(5);
 
     private final Supplier<Instant> clock;
+    private final int stabilizationCycles;
+    private final Duration stabilizationFloor;
 
     private int totalProjects;
     private int availableProjects;
@@ -52,8 +56,27 @@ public class CrossProjectSearchStats {
     private final Map<String, StabilizationTracker> unlinkingCandidates = new HashMap<>();
     private final Set<String> stabilizedProjectAliases = new HashSet<>();
 
+    /**
+     * Creates stats with production-default stabilization thresholds.
+     */
     public CrossProjectSearchStats(Supplier<Instant> clock) {
+        this(clock, DEFAULT_STABILIZATION_CYCLES, DEFAULT_STABILIZATION_FLOOR);
+    }
+
+    /**
+     * Creates stats with configurable stabilization thresholds. Intended for integration
+     * tests that need faster stabilization without waiting for production timeouts.
+     *
+     * @param stabilizationCycles minimum consecutive cycles a change must persist before confirmation
+     * @param stabilizationFloor  minimum wall-clock duration since first observation before confirmation
+     */
+    public CrossProjectSearchStats(Supplier<Instant> clock, int stabilizationCycles, Duration stabilizationFloor) {
         this.clock = Objects.requireNonNull(clock);
+        if (stabilizationCycles < 1) {
+            throw new IllegalArgumentException("stabilizationCycles must be >= 1, got " + stabilizationCycles);
+        }
+        this.stabilizationCycles = stabilizationCycles;
+        this.stabilizationFloor = Objects.requireNonNull(stabilizationFloor);
     }
 
     /**
@@ -140,7 +163,7 @@ public class CrossProjectSearchStats {
             var entry = it.next();
             String alias = entry.getKey();
             StabilizationTracker tracker = entry.getValue();
-            if (tracker.isStabilized(now)) {
+            if (tracker.isStabilized(now, stabilizationCycles, stabilizationFloor)) {
                 confirmed.add(alias);
                 type.updateStabilizedSet(stabilizedProjectAliases, alias);
                 updateEarliest(earliest, tracker.firstEvent());
@@ -247,8 +270,8 @@ public class CrossProjectSearchStats {
             return new StabilizationTracker(firstEvent, count + 1);
         }
 
-        boolean isStabilized(Instant now) {
-            return count >= STABILIZATION_CYCLES && Duration.between(firstEvent, now).compareTo(STABILIZATION_FLOOR) >= 0;
+        boolean isStabilized(Instant now, int requiredCycles, Duration requiredFloor) {
+            return count >= requiredCycles && Duration.between(firstEvent, now).compareTo(requiredFloor) >= 0;
         }
     }
 

@@ -130,6 +130,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
             LOGGER.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
             lastLinkedProjectStates = DataExtractorUtils.extractLinkedProjectStates(searchResponse);
+            DataExtractorUtils.checkForSkippedClusters(searchResponse);
             return validateAggs(searchResponse.getAggregations());
         } finally {
             searchResponse.decRef();
@@ -152,22 +153,7 @@ abstract class AbstractAggregationDataExtractor implements DataExtractor {
         DataExtractorQueryContext context,
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder
     ) {
-        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.headers,
-            ClientHelper.ML_ORIGIN,
-            client,
-            searchRequestBuilder::get
-        );
-        boolean success = false;
-        try {
-            DataExtractorUtils.checkForSkippedClusters(searchResponse);
-            success = true;
-        } finally {
-            if (success == false) {
-                searchResponse.decRef();
-            }
-        }
-        return searchResponse;
+        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
     }
 
     private SearchSourceBuilder buildBaseSearchSource() {

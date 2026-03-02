@@ -34,6 +34,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.ml.MachineLearning.CPS_STABILIZATION_CYCLES;
+import static org.elasticsearch.xpack.ml.MachineLearning.CPS_STABILIZATION_FLOOR;
 import static org.elasticsearch.xpack.ml.MachineLearning.DELAYED_DATA_CHECK_FREQ;
 
 public class DatafeedJobBuilder {
@@ -49,6 +51,8 @@ public class DatafeedJobBuilder {
     private final CrossProjectModeDecider crossProjectModeDecider;
 
     private volatile long delayedDataCheckFreq;
+    private volatile int cpsStabilizationCycles;
+    private volatile long cpsStabilizationFloorMs;
 
     public DatafeedJobBuilder(
         Client client,
@@ -68,9 +72,14 @@ public class DatafeedJobBuilder {
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.delayedDataCheckFreq = DELAYED_DATA_CHECK_FREQ.get(settings).millis();
+        this.cpsStabilizationCycles = CPS_STABILIZATION_CYCLES.get(settings);
+        this.cpsStabilizationFloorMs = CPS_STABILIZATION_FLOOR.get(settings).millis();
         this.clusterService = Objects.requireNonNull(clusterService);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DELAYED_DATA_CHECK_FREQ, this::setDelayedDataCheckFreq);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CPS_STABILIZATION_CYCLES, v -> this.cpsStabilizationCycles = v);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(CPS_STABILIZATION_FLOOR, v -> this.cpsStabilizationFloorMs = v.millis());
     }
 
     private void setDelayedDataCheckFreq(TimeValue value) {
@@ -131,7 +140,9 @@ public class DatafeedJobBuilder {
                 xContentRegistry
             );
             CrossProjectSearchStats crossProjectSearchStats = new CrossProjectSearchStats(
-                () -> java.time.Instant.ofEpochMilli(currentTimeSupplier.get())
+                () -> java.time.Instant.ofEpochMilli(currentTimeSupplier.get()),
+                cpsStabilizationCycles,
+                java.time.Duration.ofMillis(cpsStabilizationFloorMs)
             );
             DatafeedJob datafeedJob = new DatafeedJob(
                 job.getId(),

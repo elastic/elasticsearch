@@ -652,6 +652,275 @@ public class DatafeedJobTests extends ESTestCase {
         verify(auditor, never()).warning(eq(jobId), argThat(msg -> msg.contains("Elevated anomaly")));
     }
 
+    public void testUnlinkAnomalyCorrelationWarning() throws Exception {
+        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+
+        List<LinkedProjectState> baseline = List.of(
+            new LinkedProjectState("origin", LinkedProjectState.Status.AVAILABLE, null, 10),
+            new LinkedProjectState("removed_project", LinkedProjectState.Status.AVAILABLE, null, 15)
+        );
+        List<LinkedProjectState> afterUnlink = List.of(new LinkedProjectState("origin", LinkedProjectState.Status.AVAILABLE, null, 10));
+
+        currentTime = 1_000_000L;
+        stats.update(baseline);
+
+        for (int i = 0; i < 11; i++) {
+            currentTime += 30_000;
+            stats.update(afterUnlink);
+        }
+        currentTime += 30_000;
+
+        resetExtractorForCpsTest(afterUnlink);
+
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetBucketsAction.Response> getBucketsFuture = mock(ActionFuture.class);
+        Bucket b1 = mock(Bucket.class);
+        when(b1.getTimestamp()).thenReturn(new Date(currentTime - 20_000));
+        Bucket b2 = mock(Bucket.class);
+        when(b2.getTimestamp()).thenReturn(new Date(currentTime - 10_000));
+        Bucket b3 = mock(Bucket.class);
+        when(b3.getTimestamp()).thenReturn(new Date(currentTime - 5_000));
+        GetBucketsAction.Response bucketsResponse = new GetBucketsAction.Response(
+            new QueryPage<>(List.of(b1, b2, b3), 3, Bucket.RESULTS_FIELD)
+        );
+        when(getBucketsFuture.actionGet()).thenReturn(bucketsResponse);
+        when(client.execute(same(GetBucketsAction.INSTANCE), any())).thenReturn(getBucketsFuture);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false, DELAYED_DATA_FREQ, stats);
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        ArgumentCaptor<String> warningCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditor, times(2)).warning(eq(jobId), warningCaptor.capture());
+        List<String> warnings = warningCaptor.getAllValues();
+
+        // First warning: scope change with unlink
+        assertThat(warnings.get(0), containsString("unlinked"));
+        assertThat(warnings.get(0), containsString("removed_project"));
+
+        // Second warning: anomaly correlation referencing the unlinked project and bucket count
+        assertThat(warnings.get(1), containsString("Elevated anomaly scores"));
+        assertThat(warnings.get(1), containsString("removed_project unlinked"));
+        assertThat(warnings.get(1), containsString("3"));
+
+        // Verify GetBucketsAction request parameters
+        ArgumentCaptor<GetBucketsAction.Request> bucketsRequestCaptor = ArgumentCaptor.forClass(GetBucketsAction.Request.class);
+        verify(client).execute(same(GetBucketsAction.INSTANCE), bucketsRequestCaptor.capture());
+        GetBucketsAction.Request bucketsRequest = bucketsRequestCaptor.getValue();
+        assertThat(bucketsRequest.getJobId(), equalTo(jobId));
+        assertThat(bucketsRequest.isExcludeInterim(), is(true));
+        assertThat(bucketsRequest.getAnomalyScore(), equalTo(75.0));
+    }
+
+    public void testAnomalyCorrelationWithSimultaneousLinkAndUnlink() throws Exception {
+        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+
+        List<LinkedProjectState> baseline = List.of(
+            new LinkedProjectState("origin", LinkedProjectState.Status.AVAILABLE, null, 10),
+            new LinkedProjectState("departing", LinkedProjectState.Status.AVAILABLE, null, 15)
+        );
+        // "departing" leaves and "arriving" appears at the same time
+        List<LinkedProjectState> afterSwap = List.of(
+            new LinkedProjectState("origin", LinkedProjectState.Status.AVAILABLE, null, 10),
+            new LinkedProjectState("arriving", LinkedProjectState.Status.AVAILABLE, null, 20)
+        );
+
+        currentTime = 1_000_000L;
+        stats.update(baseline);
+
+        for (int i = 0; i < 11; i++) {
+            currentTime += 30_000;
+            stats.update(afterSwap);
+        }
+        currentTime += 30_000;
+
+        resetExtractorForCpsTest(afterSwap);
+
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetBucketsAction.Response> getBucketsFuture = mock(ActionFuture.class);
+        Bucket elevated = mock(Bucket.class);
+        when(elevated.getTimestamp()).thenReturn(new Date(currentTime - 5_000));
+        GetBucketsAction.Response bucketsResponse = new GetBucketsAction.Response(
+            new QueryPage<>(List.of(elevated), 1, Bucket.RESULTS_FIELD)
+        );
+        when(getBucketsFuture.actionGet()).thenReturn(bucketsResponse);
+        when(client.execute(same(GetBucketsAction.INSTANCE), any())).thenReturn(getBucketsFuture);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false, DELAYED_DATA_FREQ, stats);
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        ArgumentCaptor<String> warningCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditor, times(2)).warning(eq(jobId), warningCaptor.capture());
+        List<String> warnings = warningCaptor.getAllValues();
+
+        // Scope change warning should mention both linked and unlinked
+        assertThat(warnings.get(0), containsString("arriving"));
+        assertThat(warnings.get(0), containsString("linked"));
+        assertThat(warnings.get(0), containsString("departing"));
+        assertThat(warnings.get(0), containsString("unlinked"));
+
+        // Anomaly correlation warning should contain the combined summary
+        assertThat(warnings.get(1), containsString("Elevated anomaly scores"));
+        assertThat(warnings.get(1), containsString("arriving linked"));
+        assertThat(warnings.get(1), containsString("departing unlinked"));
+        assertThat(warnings.get(1), containsString("1"));
+    }
+
+    public void testAnomalyLookbackErrorDoesNotPreventScopeChangeAnnotation() throws Exception {
+        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+
+        List<LinkedProjectState> baseline = List.of(new LinkedProjectState("origin", LinkedProjectState.Status.AVAILABLE, null, 10));
+        List<LinkedProjectState> withNewProject = List.of(
+            new LinkedProjectState("origin", LinkedProjectState.Status.AVAILABLE, null, 10),
+            new LinkedProjectState("new_project", LinkedProjectState.Status.AVAILABLE, null, 20)
+        );
+
+        currentTime = 1_000_000L;
+        stats.update(baseline);
+        for (int i = 0; i < 11; i++) {
+            currentTime += 30_000;
+            stats.update(withNewProject);
+        }
+        currentTime += 30_000;
+
+        resetExtractorForCpsTest(withNewProject);
+
+        // GetBucketsAction throws - simulating an internal error during anomaly lookback
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetBucketsAction.Response> getBucketsFuture = mock(ActionFuture.class);
+        when(getBucketsFuture.actionGet()).thenThrow(new RuntimeException("simulated bucket lookup failure"));
+        when(client.execute(same(GetBucketsAction.INSTANCE), any())).thenReturn(getBucketsFuture);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false, DELAYED_DATA_FREQ, stats);
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        // Scope change annotation should still be persisted despite bucket lookup failure
+        ArgumentCaptor<BulkRequest> bulkCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        verify(client, atMost(2)).execute(eq(TransportBulkAction.TYPE), bulkCaptor.capture(), any());
+        BulkRequest annotationBulk = bulkCaptor.getValue();
+        assertThat(annotationBulk.requests(), hasSize(1));
+        IndexRequest indexRequest = (IndexRequest) annotationBulk.requests().get(0);
+        String annotationSource = indexRequest.source().utf8ToString();
+        assertThat(annotationSource, containsString("project_scope_changed"));
+        assertThat(annotationSource, containsString("new_project"));
+
+        // Scope change warning emitted, but no anomaly warning (due to the error)
+        verify(auditor, times(1)).warning(eq(jobId), argThat(msg -> msg.contains("linked")));
+        verify(auditor, never()).warning(eq(jobId), argThat(msg -> msg.contains("Elevated anomaly")));
+    }
+
+    public void testScopeChangeAnnotationOnUnlink() throws Exception {
+        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+
+        List<LinkedProjectState> baseline = List.of(
+            new LinkedProjectState("origin", LinkedProjectState.Status.AVAILABLE, null, 10),
+            new LinkedProjectState("departing", LinkedProjectState.Status.AVAILABLE, null, 15)
+        );
+        List<LinkedProjectState> withoutDeparting = List.of(
+            new LinkedProjectState("origin", LinkedProjectState.Status.AVAILABLE, null, 10)
+        );
+
+        currentTime = 1_000_000L;
+        stats.update(baseline);
+
+        // Build up 11 consecutive absences spanning > 5 minutes
+        for (int i = 0; i < 11; i++) {
+            currentTime += 30_000;
+            stats.update(withoutDeparting);
+        }
+
+        // The 12th cycle confirms the unlink
+        currentTime += 30_000;
+        resetExtractorForCpsTest(withoutDeparting);
+
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetBucketsAction.Response> getBucketsFuture = mock(ActionFuture.class);
+        GetBucketsAction.Response emptyBuckets = new GetBucketsAction.Response(new QueryPage<>(List.of(), 0, Bucket.RESULTS_FIELD));
+        when(getBucketsFuture.actionGet()).thenReturn(emptyBuckets);
+        when(client.execute(same(GetBucketsAction.INSTANCE), any())).thenReturn(getBucketsFuture);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false, DELAYED_DATA_FREQ, stats);
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        // Verify annotation was persisted with unlinked event
+        ArgumentCaptor<BulkRequest> bulkCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        verify(client, atMost(2)).execute(eq(TransportBulkAction.TYPE), bulkCaptor.capture(), any());
+        BulkRequest annotationBulk = bulkCaptor.getValue();
+        assertThat(annotationBulk.requests(), hasSize(1));
+        IndexRequest indexRequest = (IndexRequest) annotationBulk.requests().get(0);
+        String annotationSource = indexRequest.source().utf8ToString();
+        assertThat(annotationSource, containsString("project_scope_changed"));
+        assertThat(annotationSource, containsString("departing"));
+
+        // Verify the warning message references unlinking
+        ArgumentCaptor<String> warningCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditor, times(1)).warning(eq(jobId), warningCaptor.capture());
+        assertThat(warningCaptor.getValue(), containsString("unlinked"));
+        assertThat(warningCaptor.getValue(), containsString("departing"));
+    }
+
+    public void testScopeChangeAnnotationOnRelink() throws Exception {
+        CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
+
+        List<LinkedProjectState> baseline = List.of(
+            new LinkedProjectState("origin", LinkedProjectState.Status.AVAILABLE, null, 10),
+            new LinkedProjectState("flapping", LinkedProjectState.Status.AVAILABLE, null, 15)
+        );
+        List<LinkedProjectState> withoutFlapping = List.of(new LinkedProjectState("origin", LinkedProjectState.Status.AVAILABLE, null, 10));
+        List<LinkedProjectState> withFlapping = List.of(
+            new LinkedProjectState("origin", LinkedProjectState.Status.AVAILABLE, null, 10),
+            new LinkedProjectState("flapping", LinkedProjectState.Status.AVAILABLE, null, 15)
+        );
+
+        // Phase 1: Establish baseline with both projects
+        currentTime = 1_000_000L;
+        stats.update(baseline);
+
+        // Phase 2: "flapping" disappears and stabilizes as unlinked
+        for (int i = 0; i < 12; i++) {
+            currentTime += 30_000;
+            CrossProjectSearchStats.CycleResult r = stats.update(withoutFlapping);
+            if (i == 11) {
+                assertTrue("12th cycle should confirm unlink", r.scopeChanged());
+                assertThat(r.confirmedRemovals(), equalTo(java.util.Set.of("flapping")));
+            }
+        }
+
+        // Phase 3: "flapping" reappears and stabilizes as linked again
+        for (int i = 0; i < 11; i++) {
+            currentTime += 30_000;
+            stats.update(withFlapping);
+        }
+
+        // The 12th relink cycle will confirm the scope change
+        currentTime += 30_000;
+        resetExtractorForCpsTest(withFlapping);
+
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetBucketsAction.Response> getBucketsFuture = mock(ActionFuture.class);
+        GetBucketsAction.Response emptyBuckets = new GetBucketsAction.Response(new QueryPage<>(List.of(), 0, Bucket.RESULTS_FIELD));
+        when(getBucketsFuture.actionGet()).thenReturn(emptyBuckets);
+        when(client.execute(same(GetBucketsAction.INSTANCE), any())).thenReturn(getBucketsFuture);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false, DELAYED_DATA_FREQ, stats);
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        // Verify annotation was persisted for the relink
+        ArgumentCaptor<BulkRequest> bulkCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        verify(client, atMost(2)).execute(eq(TransportBulkAction.TYPE), bulkCaptor.capture(), any());
+        BulkRequest annotationBulk = bulkCaptor.getValue();
+        assertThat(annotationBulk.requests(), hasSize(1));
+        IndexRequest indexRequest = (IndexRequest) annotationBulk.requests().get(0);
+        String annotationSource = indexRequest.source().utf8ToString();
+        assertThat(annotationSource, containsString("project_scope_changed"));
+        assertThat(annotationSource, containsString("flapping"));
+
+        // Verify the warning message references linking (this is the relink event)
+        ArgumentCaptor<String> warningCaptor = ArgumentCaptor.forClass(String.class);
+        verify(auditor, times(1)).warning(eq(jobId), warningCaptor.capture());
+        assertThat(warningCaptor.getValue(), containsString("linked"));
+        assertThat(warningCaptor.getValue(), containsString("flapping"));
+    }
+
     public void testBaselineCycleDoesNotTriggerAnnotation() throws Exception {
         CrossProjectSearchStats stats = new CrossProjectSearchStats(() -> Instant.ofEpochMilli(currentTime));
 

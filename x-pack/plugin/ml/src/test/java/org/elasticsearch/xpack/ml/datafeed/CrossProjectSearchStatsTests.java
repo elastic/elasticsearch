@@ -663,4 +663,51 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         assertThat(stats.getConsecutiveSkips(), hasEntry("P1", 12));
     }
+
+    public void testCustomStabilizationCycles() {
+        AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
+        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get, 3, Duration.ZERO);
+
+        stats.update(List.of(available("origin")));
+
+        for (int i = 1; i <= 2; i++) {
+            clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(i)));
+            CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+            assertFalse("Cycle " + i + " should not yet stabilize with 3-cycle threshold", result.scopeChanged());
+        }
+
+        clock.set(Instant.EPOCH.plus(ONE_MINUTE.multipliedBy(3)));
+        CycleResult result = stats.update(List.of(available("origin"), available("P1")));
+        assertTrue(result.scopeChanged());
+        assertThat(result.newlyStabilizedProjects(), equalTo(Set.of("P1")));
+    }
+
+    public void testCustomStabilizationFloor() {
+        AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
+        CrossProjectSearchStats stats = new CrossProjectSearchStats(clock::get, 2, Duration.ofSeconds(30));
+
+        stats.update(List.of(available("origin")));
+
+        clock.set(Instant.EPOCH.plusSeconds(5));
+        CycleResult r1 = stats.update(List.of(available("origin"), available("P1")));
+        assertFalse(r1.scopeChanged());
+
+        clock.set(Instant.EPOCH.plusSeconds(10));
+        CycleResult r2 = stats.update(List.of(available("origin"), available("P1")));
+        assertFalse("2 cycles met but floor of 30s not met", r2.scopeChanged());
+
+        clock.set(Instant.EPOCH.plusSeconds(36));
+        CycleResult r3 = stats.update(List.of(available("origin"), available("P1")));
+        assertTrue(r3.scopeChanged());
+        assertThat(r3.newlyStabilizedProjects(), equalTo(Set.of("P1")));
+    }
+
+    public void testInvalidStabilizationCyclesThrows() {
+        AtomicReference<Instant> clock = new AtomicReference<>(Instant.EPOCH);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CrossProjectSearchStats(clock::get, 0, Duration.ZERO)
+        );
+        assertThat(e.getMessage(), containsString("stabilizationCycles must be >= 1"));
+    }
 }

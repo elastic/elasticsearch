@@ -384,9 +384,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.security.apikey.ApiKeyWorkflowsRestrictionRestIT
-  method: testWorkflowsRestrictionAllowsAccess
-  issue: https://github.com/elastic/elasticsearch/issues/143130
 - class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
   method: testStandardIndexWithTSDBDocValuesFormatSetting
   issue: https://github.com/elastic/elasticsearch/issues/143197

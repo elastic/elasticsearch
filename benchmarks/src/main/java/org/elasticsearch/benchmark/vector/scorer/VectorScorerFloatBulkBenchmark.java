@@ -201,7 +201,7 @@ public class VectorScorerFloatBulkBenchmark {
         writeFloatVectorData(dir, vectorData.vectorData);
 
         numVectorsToScore = vectorData.numVectorsToScore;
-        scores = new float[numVectorsToScore];
+        scores = new float[bulkSize];
         toScore = new int[bulkSize];
         ids = IntStream.range(0, numVectors).toArray();
         ordinals = vectorData.ordinals;

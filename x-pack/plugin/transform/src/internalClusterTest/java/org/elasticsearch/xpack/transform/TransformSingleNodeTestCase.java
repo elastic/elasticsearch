@@ -24,8 +24,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
@@ -138,6 +140,16 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         var configs = response.getTransformConfigurations();
         assertThat(configs, hasSize(1));
         return configs.getFirst();
+    }
+
+    protected void stopTransform(String transformId) {
+        var request = new StopTransformAction.Request(transformId, true, false, TimeValue.THIRTY_SECONDS, false, false);
+        assertTrue(client().execute(StopTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS).isAcknowledged());
+    }
+
+    protected void deleteTransform(String transformId) {
+        var request = new DeleteTransformAction.Request(transformId, true, false, TimeValue.THIRTY_SECONDS);
+        client().execute(DeleteTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS);
     }
 
     protected void updateTransform(String transformId, TransformConfigUpdate transformConfigUpdate) {

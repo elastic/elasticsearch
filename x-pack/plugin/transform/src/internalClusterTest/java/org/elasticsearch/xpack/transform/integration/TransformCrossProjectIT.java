@@ -65,6 +65,8 @@ public class TransformCrossProjectIT extends TransformSingleNodeTestCase {
 
         var transformConfig = getTransform(transformId);
         assertThat(transformConfig.getSource().getProjectRouting(), equalTo(expectedProjectRouting));
+
+        deleteTransform(transformId);
     }
 
     public void testUpdateTransformWithProjectRouting() throws Exception {
@@ -113,6 +115,8 @@ public class TransformCrossProjectIT extends TransformSingleNodeTestCase {
                 )
             )
         );
+
+        deleteTransform(transformId);
     }
 
 }

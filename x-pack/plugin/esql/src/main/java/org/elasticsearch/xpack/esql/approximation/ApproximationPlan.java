@@ -654,14 +654,14 @@ public class ApproximationPlan {
                 confidenceIntervalsAndCertified.add(
                     new Alias(
                         Source.EMPTY,
-                        "CONFIDENCE_INTERVAL(" + output.name() + ")",
+                        "_approximation_confidence_interval(" + output.name() + ")",
                         new MvSlice(Source.EMPTY, confidenceInterval, Literal.integer(Source.EMPTY, 0), Literal.integer(Source.EMPTY, 1))
                     )
                 );
                 confidenceIntervalsAndCertified.add(
                     new Alias(
                         Source.EMPTY,
-                        "CERTIFIED(" + output.name() + ")",
+                        "_approximation_certified(" + output.name() + ")",
                         new GreaterThanOrEqual(
                             Source.EMPTY,
                             new MvSlice(

@@ -30,10 +30,10 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         );
 
         assertThat(approximationPlan, hasPlan(SampledAggregate.class));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField("CONFIDENCE_INTERVAL(COUNT())")));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(COUNT())"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(SUM(emp_no))"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(SUM(emp_no))"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField("_approximation_confidence_interval(COUNT())")));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(COUNT())"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(SUM(emp_no))"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(SUM(emp_no))"))));
     }
 
     public void testApproximationPlan_createsConfidenceInterval_withGrouping() throws Exception {
@@ -43,10 +43,10 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         );
 
         assertThat(approximationPlan, hasPlan(SampledAggregate.class));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(COUNT())"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(COUNT())"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(SUM(emp_no))"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(SUM(emp_no))"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(COUNT())"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(COUNT())"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(SUM(emp_no))"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(SUM(emp_no))"))));
     }
 
     public void testApproximationPlan_dependentConfidenceIntervals() throws Exception {
@@ -58,17 +58,17 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         );
 
         assertThat(approximationPlan, hasPlan(SampledAggregate.class));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(x)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(x)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(a)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(a)"))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(b)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CERTIFIED(b)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(c)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CERTIFIED(c)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(d)")))));
-        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("CERTIFIED(d)")))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CONFIDENCE_INTERVAL(e)"))));
-        assertThat(approximationPlan, hasPlan(Eval.class, withField(("CERTIFIED(e)"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(x)"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(x)"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(a)"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(a)"))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_confidence_interval(b)")))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_certified(b)")))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_confidence_interval(c)")))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_certified(c)")))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_confidence_interval(d)")))));
+        assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_certified(d)")))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(e)"))));
+        assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(e)"))));
     }
 }

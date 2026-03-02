@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -302,7 +303,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         var aliasedGroupings = aliasNamesInAggregateGroupings(plan);
         List<UnresolvedAttribute> unresolved = new ArrayList<>();
         Consumer<UnresolvedAttribute> collectUnresolved = ua -> {
-            if ((ua instanceof UnresolvedPattern || ua instanceof UnresolvedTimestamp) == false
+            if (leaveUnresolved(ua) == false
                 // The aggs will "export" the aliases as UnresolvedAttributes part of their .aggregates(); we don't need to consider those
                 // as they'll be resolved as refs once the aliased expression is resolved.
                 && aliasedGroupings.contains(ua.name()) == false) {
@@ -317,6 +318,13 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             plan.forEachExpression(UnresolvedAttribute.class, collectUnresolved);
         }
         return unresolved;
+    }
+
+    private static boolean leaveUnresolved(UnresolvedAttribute attribute) {
+        return attribute instanceof UnresolvedPattern
+            || attribute instanceof UnresolvedTimestamp
+            // Exclude metadata fields so they fail with a proper verification error instead of being silently nullified/loaded.
+            || MetadataAttribute.isSupported(attribute.name());
     }
 
     /**

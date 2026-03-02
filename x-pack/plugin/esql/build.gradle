@@ -16,6 +16,7 @@ import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 
@@ -42,13 +43,13 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
+  implementation project(':libs:web-utils')
   implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
   implementation project('arrow')
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
-
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
@@ -64,6 +65,11 @@ dependencies {
   testImplementation project(path: xpackModule('kql'))
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
+  testImplementation project(path: xpackModule('esql-datasource-gzip'))
+  testImplementation project(path: xpackModule('esql-datasource-zstd'))
+  testImplementation project(path: xpackModule('esql-datasource-bzip2'))
+  testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  testImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
@@ -81,6 +87,12 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
   internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
+  internalClusterTestImplementation project(xpackModule('analytics'))
+  internalClusterTestImplementation project(xpackModule('spatial'))
+  internalClusterTestImplementation project(xpackModule('mapper-unsigned-long'))
+  internalClusterTestImplementation project(xpackModule('wildcard'))
+  internalClusterTestImplementation project(xpackModule('mapper-version'))
+  internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
 }
 
 tasks.named('splitPackagesAudit').configure {
@@ -95,6 +107,13 @@ tasks.named('splitPackagesAudit').configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+  exclude '**/*.avro'
+  exclude '**/.*.crc'
+}
+
 
 def generatedPath = "src/main/generated"
 def projectDirectory = project.layout.projectDirectory
@@ -277,6 +296,10 @@ tasks.named("test").configure {
       }
     }
   }
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.ESTestCase'
 }
 
 // This is similar to the test task above, but needed for the LookupJoinTypesIT which runs in the internalClusterTest task
@@ -653,3 +676,4 @@ tasks.register("analyzePromqlQueries", JavaExec) {
   classpath = sourceSets.test.runtimeClasspath
   args project.findProperty("queriesFile") ?: "", project.findProperty("outputFile") ?: ""
 }
+

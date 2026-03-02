@@ -31,6 +31,7 @@ public class AggregateWritables {
             Delta.ENTRY,
             Deriv.ENTRY,
             Sample.ENTRY,
+            Scalar.ENTRY,
             SpatialCentroid.ENTRY,
             SpatialExtent.ENTRY,
             StdDev.ENTRY,

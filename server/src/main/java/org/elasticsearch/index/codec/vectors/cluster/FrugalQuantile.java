@@ -96,6 +96,7 @@ public class FrugalQuantile {
         return estimate * ((max - min) * precision) + min;
     }
 
+    /** Reset the estimator to start a new stream. */
     void reset() {
         this.estimate = -1;
         this.step = 0;

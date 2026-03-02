@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -43,6 +44,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.monitor.fs.FsProbe;
+import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1065,6 +1067,35 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         /**
+         * Optimistically try to get a direct ByteBuffer slice from the region.
+         * The returned {@link CloseableByteBuffer} holds a reference to this region,
+         * preventing eviction while the buffer is in use. The caller must close it
+         * when done.
+         * @return a CloseableByteBuffer wrapping a read-only ByteBuffer slice, or null if not available
+         */
+        CloseableByteBuffer tryGetByteBufferSlice(long offset, int length) {
+            SharedBytes.IO ioRef = nonVolatileIO();
+            if (ioRef != null && tryIncRef()) {
+                ByteBuffer slice = ioRef.byteBufferSlice(blobCacheService.getRegionRelativePosition(offset), length);
+                if (slice != null && isEvicted() == false) {
+                    return new CloseableByteBuffer() {
+                        @Override
+                        public ByteBuffer buffer() {
+                            return slice;
+                        }
+
+                        @Override
+                        public void close() {
+                            CacheFileRegion.this.decRef();
+                        }
+                    };
+                }
+                decRef();
+            }
+            return null;
+        }
+
+        /**
          * Populates a range in cache if the range is not available nor pending to be available in cache.
          *
          * @param rangeToWrite the range of bytes to populate
@@ -1360,6 +1391,49 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 // todo: should we add to readBytes? readBytes.add(end - offset);
             }
             return res;
+        }
+
+        CloseableByteBuffer tryGetByteBufferSlice(long offset, int length) {
+            assert assertOffsetsWithinFileLength(offset, length, this.length);
+            final int startRegion = getRegion(offset);
+            final long end = offset + length;
+            final int endRegion = getEndingRegion(end);
+            if (startRegion != endRegion) {
+                return null;
+            }
+            var fileRegion = lastAccessedRegion;
+            if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
+                fileRegion.touch();
+            } else {
+                fileRegion = cache.get(cacheKey, this.length, startRegion);
+            }
+            final var region = fileRegion.chunk;
+            if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
+                return null;
+            }
+            CloseableByteBuffer slice = region.tryGetByteBufferSlice(offset, length);
+            if (slice != null) {
+                lastAccessedRegion = fileRegion;
+            }
+            return slice;
+        }
+
+        /**
+         * If a direct byte buffer view is available for the given range, passes it
+         * to {@code action} and returns {@code true}. Otherwise returns
+         * {@code false} without invoking the action.
+         */
+        public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+            CloseableByteBuffer cbb = tryGetByteBufferSlice(offset, length);
+            if (cbb == null) {
+                return false;
+            }
+            try {
+                action.accept(cbb.buffer());
+                return true;
+            } finally {
+                cbb.close();
+            }
         }
 
         public int populateAndRead(

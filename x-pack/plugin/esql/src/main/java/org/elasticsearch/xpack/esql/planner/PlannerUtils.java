@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -164,6 +165,16 @@ public class PlannerUtils {
                     metricsInfoExec.outputAttrs(),
                     plan.output(),
                     MetricsInfoExec.Mode.INTERMEDIATE
+                )
+            );
+            case TsInfoExec tsInfoExec -> getPhysicalPlanReduction(
+                estimatedRowSize,
+                new TsInfoExec(
+                    tsInfoExec.source(),
+                    tsInfoExec.child(),
+                    tsInfoExec.outputAttrs(),
+                    plan.output(),
+                    TsInfoExec.Mode.INTERMEDIATE
                 )
             );
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);

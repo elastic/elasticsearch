@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
@@ -105,7 +107,8 @@ public class PlanWritables {
             TopN.ENTRY,
             UriParts.ENTRY,
             MetricsInfo.ENTRY,
-            RegisteredDomain.ENTRY
+            RegisteredDomain.ENTRY,
+            TsInfo.ENTRY
         );
     }
 
@@ -138,7 +141,8 @@ public class PlanWritables {
             TopNExec.ENTRY,
             UriPartsExec.ENTRY,
             MetricsInfoExec.ENTRY,
-            RegisteredDomainExec.ENTRY
+            RegisteredDomainExec.ENTRY,
+            TsInfoExec.ENTRY
         );
     }
 

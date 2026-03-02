@@ -68,6 +68,7 @@ import static org.elasticsearch.persistent.PersistentTasksClusterService.persist
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -644,24 +645,25 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     public void testShouldReassignOptInTaskOnShuttingDownNode() {
-        DiscoveryNode masterNode = DiscoveryNodeUtils.create("master_node");
-        DiscoveryNode workerNode = DiscoveryNodeUtils.create("worker_node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
+        final var masterNode = DiscoveryNodeUtils.create("master_node");
+        final var workerNode = DiscoveryNodeUtils.create("worker_node");
+        final var nodes = DiscoveryNodes.builder()
             .add(masterNode)
             .add(workerNode)
             .localNodeId(masterNode.getId())
             .masterNodeId(masterNode.getId())
             .build();
 
-        var tasks = tasksBuilder(null).addTask(
+        final var tasks = tasksBuilder(null).addTask(
             "_task_1",
             TestPersistentTasksExecutor.NAME,
             new TestParams("assign_me"),
             new Assignment(workerNode.getId(), "assigned to worker")
         );
-
-        Metadata.Builder previousMetadata = updateTasksCustomMetadata(Metadata.builder(), tasks);
-        ClusterState previous = ClusterState.builder(new ClusterName("_name")).nodes(nodes).metadata(previousMetadata).build();
+        final var previousState = ClusterState.builder(new ClusterName("_name"))
+            .nodes(nodes)
+            .metadata(updateTasksCustomMetadata(Metadata.builder(), tasks))
+            .build();
 
         for (SingleNodeShutdownMetadata.Type shutdownType : List.of(
             SingleNodeShutdownMetadata.Type.REMOVE,
@@ -677,35 +679,103 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 .setGracePeriod(shutdownType == SIGTERM ? randomTimeValue() : null)
                 .build();
 
-            ClusterState current = ClusterState.builder(previous)
+            final var currentState = ClusterState.builder(previousState)
                 .metadata(
-                    Metadata.builder(previous.metadata())
+                    Metadata.builder(previousState.metadata())
                         .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of(workerNode.getId(), shutdownMeta)))
                         .build()
                 )
                 .build();
-
-            ClusterChangedEvent event = new ClusterChangedEvent("test", current, previous);
+            final var event = new ClusterChangedEvent("test", currentState, previousState);
 
             // Task with automated reassignment on node shutdown
-            PersistentTasksClusterService serviceWithTaskReassignment = createService(
+            assertTrue(
+                "should trigger reassignment for opt-in task on " + shutdownType + " node",
+                createService(clusterService, (params, candidates, state) -> randomNodeAssignment(candidates), true)
+                    .shouldReassignPersistentTasks(event)
+            );
+
+            // Task stays put until the node actually leaves the cluster
+            assertFalse(
+                "should not trigger reassignment for non-opt-in task on " + shutdownType + " node",
+                createService((params, candidates, state) -> randomNodeAssignment(candidates)).shouldReassignPersistentTasks(event)
+            );
+        }
+    }
+
+    public void testReassignTasksMovesOptInTaskOffShuttingDownNode() {
+        final var masterNode = DiscoveryNodeUtils.create("master_node");
+        final var workerNode = DiscoveryNodeUtils.create("worker_node");
+        final var targetNode = DiscoveryNodeUtils.create("target_node");
+        final var nodes = DiscoveryNodes.builder()
+            .add(masterNode)
+            .add(workerNode)
+            .add(targetNode)
+            .localNodeId(masterNode.getId())
+            .masterNodeId(masterNode.getId())
+            .build();
+
+        for (SingleNodeShutdownMetadata.Type shutdownType : List.of(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.RESTART,
+            SingleNodeShutdownMetadata.Type.SIGTERM
+        )) {
+            var tasks = tasksBuilder(null).addTask(
+                "_task_1",
+                TestPersistentTasksExecutor.NAME,
+                new TestParams("assign_me"),
+                new Assignment(workerNode.getId(), "assigned to worker")
+            );
+
+            final var shutdownMeta = SingleNodeShutdownMetadata.builder()
+                .setNodeId(workerNode.getId())
+                .setNodeEphemeralId(workerNode.getEphemeralId())
+                .setType(shutdownType)
+                .setReason("test shutdown")
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setGracePeriod(shutdownType == SIGTERM ? randomTimeValue() : null)
+                .build();
+
+            final var state = ClusterState.builder(new ClusterName("_name"))
+                .nodes(nodes)
+                .metadata(
+                    updateTasksCustomMetadata(Metadata.builder(), tasks)
+                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of(workerNode.getId(), shutdownMeta)))
+                )
+                .build();
+
+            // Opt-in executor: reassignTasks should proactively move the task off the shutdown node
+            PersistentTasksClusterService serviceWithOptIn = createService(
                 clusterService,
                 (params, candidateNodes, clusterState) -> randomNodeAssignment(candidateNodes),
                 true
             );
-            assertTrue(
-                "should trigger reassignment for opt-in task on " + shutdownType + " shutting-down node",
-                serviceWithTaskReassignment.shouldReassignPersistentTasks(event)
-            );
+            final var newState = serviceWithOptIn.reassignTasks(state);
+            final var tasksInProgress = getPersistentTasks(newState);
+            assertThat(tasksInProgress, notNullValue());
+            for (PersistentTask<?> task : tasksInProgress.tasks()) {
+                assertThat(
+                    "opt-in task should have been reassigned to another node after " + shutdownType + " shutdown",
+                    task.getExecutorNode(),
+                    anyOf(equalTo(masterNode.getId()), equalTo(targetNode.getId()))
+                );
+            }
 
-            // Task stays put until the node actually leaves the cluster, eg ML jobs
-            PersistentTasksClusterService serviceWithoutTaskReassignment = createService(
+            // Non-opt-in executor: reassignTasks should leave the task in place until the node actually leaves
+            PersistentTasksClusterService serviceWithoutOptIn = createService(
+                clusterService,
                 (params, candidateNodes, clusterState) -> randomNodeAssignment(candidateNodes)
             );
-            assertFalse(
-                "should not trigger reassignment for non-opt-in task on " + shutdownType + " shutting-down node",
-                serviceWithoutTaskReassignment.shouldReassignPersistentTasks(event)
-            );
+            final var unchangedState = serviceWithoutOptIn.reassignTasks(state);
+            final var unchangedTasks = getPersistentTasks(unchangedState);
+            assertThat(unchangedTasks, notNullValue());
+            for (PersistentTask<?> task : unchangedTasks.tasks()) {
+                assertThat(
+                    "non-opt-in task should remain on its current node during " + shutdownType + " shutdown",
+                    task.getExecutorNode(),
+                    equalTo(workerNode.getId())
+                );
+            }
         }
     }
 

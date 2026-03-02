@@ -164,8 +164,7 @@ public class DocumentBatchEncoder {
         }
     }
 
-    private static DocumentBatch serialize(List<IndexRequest> requests, Map<String, ColumnBuilder> columns, int docCount)
-        throws IOException {
+    static DocumentBatch serialize(List<IndexRequest> requests, Map<String, ColumnBuilder> columns, int docCount) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream(4096);
 
         // Header: magic(4) + version(4) + docCount(4) + columnCount(4) = 16 bytes

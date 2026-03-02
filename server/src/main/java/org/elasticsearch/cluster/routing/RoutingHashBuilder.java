@@ -115,7 +115,7 @@ public class RoutingHashBuilder {
         hashes.add(new NameAndHash(new BytesRef(path), IndexRouting.ExtractFromSource.hash(value), hashes.size()));
     }
 
-    int buildHash(IntSupplier onEmpty) {
+    public int buildHash(IntSupplier onEmpty) {
         if (hashes.isEmpty()) {
             return onEmpty.getAsInt();
         }

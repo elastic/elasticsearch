@@ -379,6 +379,27 @@ public abstract class IndexRouting {
             return rerouteWritesIfResharding(shardId);
         }
 
+        /**
+         * Apply a pre-computed routing hash from single-pass parsing.
+         * Sets the hash, optionally sets the TSID, runs post-processing, and returns the shard ID.
+         * This skips the source re-parse that {@link #indexShard} would normally perform.
+         *
+         * @param request the index request to finalize
+         * @param precomputedHash the routing hash computed by single-pass parsing
+         * @param tsid the TSID computed during parsing, or null for non-TSDB indices
+         * @return the shard ID for this document
+         */
+        public int applyPrecomputedRouting(IndexRequest request, int precomputedHash, @Nullable BytesRef tsid) {
+            checkNoRouting(request.routing());
+            this.hash = precomputedHash;
+            if (tsid != null) {
+                request.tsid(tsid);
+            }
+            postProcess(request);
+            int shardId = hashToShardId(hash);
+            return rerouteWritesIfResharding(shardId);
+        }
+
         @Override
         public int rerouteToTarget(IndexRequest indexRequest) {
             if (trackTimeSeriesRoutingHash) {
@@ -401,7 +422,7 @@ public abstract class IndexRouting {
             throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
         }
 
-        protected static int hash(BytesRef ref) {
+        public static int hash(BytesRef ref) {
             return StringHelper.murmurhash3_x86_32(ref, 0);
         }
 

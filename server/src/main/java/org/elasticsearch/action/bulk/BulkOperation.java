@@ -47,6 +47,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -195,8 +196,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         if (handleBlockExceptions(clusterState, BulkOperation.this, this::onFailure)) {
             return;
         }
-        Map<ShardId, List<BulkItemRequest>> requestsByShard = groupBulkRequestsByShards(clusterState);
-        executeBulkRequestsByShard(requestsByShard, clusterState, this::redirectFailuresOrCompleteBulkOperation);
+        Map<ShardId, List<FlattenedDoc>> perShardFlatDocs = new HashMap<>();
+        Map<ShardId, List<BulkItemRequest>> requestsByShard = groupBulkRequestsByShards(clusterState, perShardFlatDocs);
+        Map<ShardId, DocumentBatch> preBuiltBatches;
+        try {
+            preBuiltBatches = SinglePassBatchBuilder.buildBatches(perShardFlatDocs, requestsByShard);
+        } catch (IOException e) {
+            logger.debug("Failed to build pre-built batches from single-pass parsing, falling back to serial path", e);
+            preBuiltBatches = Map.of();
+        }
+        executeBulkRequestsByShard(requestsByShard, preBuiltBatches, clusterState, this::redirectFailuresOrCompleteBulkOperation);
     }
 
     private void doRedirectFailures() {
@@ -214,7 +223,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             // Get new cluster state that includes any potential failure store rollovers.
             var rolledOverState = observer.setAndGetObservedState();
             Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(rolledOverState);
-            executeBulkRequestsByShard(requestsByShard, rolledOverState, this::completeBulkOperation);
+            executeBulkRequestsByShard(requestsByShard, Map.of(), rolledOverState, this::completeBulkOperation);
         };
         rollOverFailureStores(executeRedirectRequests);
     }
@@ -277,11 +286,15 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         return TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeNanos);
     }
 
-    private Map<ShardId, List<BulkItemRequest>> groupBulkRequestsByShards(ClusterState clusterState) {
+    private Map<ShardId, List<BulkItemRequest>> groupBulkRequestsByShards(
+        ClusterState clusterState,
+        Map<ShardId, List<FlattenedDoc>> perShardFlatDocs
+    ) {
         return groupRequestsByShards(
             clusterState,
             Iterators.enumerate(bulkRequest.requests.iterator(), BulkItemRequest::new),
-            BulkOperation::validateWriteIndex
+            BulkOperation::validateWriteIndex,
+            perShardFlatDocs
         );
     }
 
@@ -289,14 +302,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         return groupRequestsByShards(
             clusterState,
             Iterators.fromSupplier(failureStoreRedirects::poll),
-            (ia, ignore) -> validateRedirectIndex(ia)
+            (ia, ignore) -> validateRedirectIndex(ia),
+            null
         );
     }
 
     private Map<ShardId, List<BulkItemRequest>> groupRequestsByShards(
         ClusterState clusterState,
         Iterator<BulkItemRequest> it,
-        BiConsumer<IndexAbstraction, DocWriteRequest<?>> indexOperationValidator
+        BiConsumer<IndexAbstraction, DocWriteRequest<?>> indexOperationValidator,
+        @Nullable Map<ShardId, List<FlattenedDoc>> perShardFlatDocs
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);
@@ -334,14 +349,33 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     continue;
                 }
                 IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
-                docWriteRequest.preRoutingProcess(indexRouting);
-                int shardId = docWriteRequest.route(indexRouting);
-                docWriteRequest.postRoutingProcess(indexRouting);
-                List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
-                    new ShardId(concreteIndex, shardId),
-                    shard -> new ArrayList<>()
-                );
-                shardRequests.add(bulkItemRequest);
+
+                // Single-pass optimization: combined routing + field flattening in one parse
+                boolean usedSinglePass = false;
+                if (perShardFlatDocs != null
+                    && indexRouting instanceof IndexRouting.ExtractFromSource efs
+                    && singlePassEligible(project.index(concreteIndex), bulkItemRequest)) {
+                    try {
+                        IndexRequest indexRequest = (IndexRequest) bulkItemRequest.request();
+                        IndexMetadata indexMetadata = project.index(concreteIndex);
+                        FlattenedDoc flatDoc = SinglePassParser.parse(indexRequest, efs, indexMetadata);
+                        int shardId = efs.applyPrecomputedRouting(indexRequest, flatDoc.routingHash(), flatDoc.tsid());
+                        ShardId sid = new ShardId(concreteIndex, shardId);
+                        perShardFlatDocs.computeIfAbsent(sid, k -> new ArrayList<>()).add(flatDoc);
+                        requestsByShard.computeIfAbsent(sid, shard -> new ArrayList<>()).add(bulkItemRequest);
+                        usedSinglePass = true;
+                    } catch (IOException e) {
+                        // Single-pass parsing failed — fall through to existing path
+                        logger.debug("Single-pass parsing failed, falling back to standard routing", e);
+                    }
+                }
+
+                if (usedSinglePass == false) {
+                    docWriteRequest.preRoutingProcess(indexRouting);
+                    int shardId = docWriteRequest.route(indexRouting);
+                    docWriteRequest.postRoutingProcess(indexRouting);
+                    requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), shard -> new ArrayList<>()).add(bulkItemRequest);
+                }
             } catch (DataStream.TimestampError timestampError) {
                 IndexDocFailureStoreStatus failureStoreStatus = processFailure(bulkItemRequest, project, timestampError);
                 if (IndexDocFailureStoreStatus.USED.equals(failureStoreStatus) == false) {
@@ -390,6 +424,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     private void executeBulkRequestsByShard(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,
+        Map<ShardId, DocumentBatch> preBuiltBatches,
         ClusterState clusterState,
         Runnable onRequestsCompleted
     ) {
@@ -427,8 +462,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
 
-                // Try to encode as a batch for the batch execution path
-                if (isBatchEligible(indexMetadata, requests)) {
+                // Try to use a pre-built batch from single-pass parsing, or encode a new one
+                DocumentBatch preBuiltBatch = preBuiltBatches.get(shardId);
+                if (preBuiltBatch != null) {
+                    bulkShardRequest.setDocumentBatch(preBuiltBatch);
+                } else if (isBatchEligible(indexMetadata, requests)) {
                     try {
                         List<IndexRequest> indexRequests = new ArrayList<>(requests.size());
                         for (BulkItemRequest r : requests) {
@@ -476,6 +514,23 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             }
         }
         return true;
+    }
+
+    /**
+     * Checks whether a single request is eligible for single-pass parsing (combined routing + flattening).
+     * Per-shard checks (>= 2 items, no duplicate IDs) are deferred to after grouping.
+     */
+    private static boolean singlePassEligible(@Nullable IndexMetadata indexMetadata, BulkItemRequest item) {
+        if (indexMetadata == null) {
+            return false;
+        }
+        if (IndexSettings.COLUMN_BATCH_INDEX.get(indexMetadata.getSettings()) == false) {
+            return false;
+        }
+        if (item.request() instanceof IndexRequest ir) {
+            return ir.ifSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO && ir.ifPrimaryTerm() == SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+        }
+        return false;
     }
 
     private void redirectFailuresOrCompleteBulkOperation() {

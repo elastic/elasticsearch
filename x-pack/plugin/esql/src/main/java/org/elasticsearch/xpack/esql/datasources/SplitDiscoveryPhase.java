@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -101,7 +102,19 @@ public final class SplitDiscoveryPhase {
             ancestorFilters
         );
 
-        List<ExternalSplit> splits = splitProvider.discoverSplits(context);
+        List<ExternalSplit> splits;
+        try {
+            splits = splitProvider.discoverSplits(context);
+        } catch (ElasticsearchException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ElasticsearchException(
+                "failed to discover splits for external source [{}] of type [{}]",
+                e,
+                exec.sourcePath(),
+                exec.sourceType()
+            );
+        }
         if (splits.isEmpty()) {
             return exec;
         }

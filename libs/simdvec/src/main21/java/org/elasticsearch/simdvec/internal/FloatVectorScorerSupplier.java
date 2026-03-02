@@ -86,7 +86,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
 
     private float scoreSeparately(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
         final int length = dims * Float.BYTES;
-        long firstByteOffset = (long) firstOrd * Float.BYTES;
+        long firstByteOffset = (long) firstOrd * length;
         float[] firstVector = null;
         float max = Float.NEGATIVE_INFINITY;
 
@@ -99,7 +99,7 @@ public abstract sealed class FloatVectorScorerSupplier implements RandomVectorSc
             }
         } else {
             for (int i = 0; i < numNodes; i++) {
-                long secondByteOffset = (long) ordinals[i] * Float.BYTES;
+                long secondByteOffset = (long) ordinals[i] * length;
                 MemorySegment secondSeg = input.segmentSliceOrNull(secondByteOffset, length);
                 if (secondSeg == null) {
                     if (firstVector == null) {

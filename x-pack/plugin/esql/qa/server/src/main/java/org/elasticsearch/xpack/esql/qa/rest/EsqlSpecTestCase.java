@@ -17,26 +17,17 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Types;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -51,28 +42,17 @@ import org.junit.Before;
 import org.junit.Rule;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.MathContext;
-import java.math.RoundingMode;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
-import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
-import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
-import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
+import static org.elasticsearch.xpack.esql.CsvAssert.assertDataWithValueConverter;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
@@ -201,11 +181,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsSourceFieldMapping(),
                 supportsSemanticTextInference(),
                 timeSeriesOnly(),
-                supportsExponentialHistograms(),
-                supportsTDigestField(),
-                supportsHistogramDataType(),
-                supportsBFloat16ElementType(),
-                supportsTDigestFieldAsMetric()
+                this::clusterHasCapability
             );
             return null;
         });
@@ -237,7 +213,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
-        for (CsvTestsDataLoader.EnrichConfig enrich : CsvTestsDataLoader.ENRICH_POLICIES) {
+        for (CsvTestsDataLoader.EnrichConfig enrich : CsvTestsDataLoader.ENRICH_POLICIES.values()) {
             try {
                 adminClient().performRequest(new Request("DELETE", "/_enrich/policy/" + enrich.policyName()));
             } catch (ResponseException e) {
@@ -366,27 +342,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
-    protected boolean supportsExponentialHistograms() {
-        return RestEsqlTestCase.hasCapabilities(
-            client(),
-            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
-        );
-    }
-
-    protected boolean supportsTDigestField() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()));
-    }
-
-    protected boolean supportsTDigestFieldAsMetric() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC.capabilityName()));
-    }
-
-    protected boolean supportsHistogramDataType() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName()));
-    }
-
-    protected boolean supportsBFloat16ElementType() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName()));
+    /**
+     * Returns true if the cluster under test supports the given ESQL capability.
+     * Subclasses may override this to check additional clusters (e.g. remote clusters in CCS).
+     */
+    protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
+        return hasCapabilities(client(), List.of(capability.capabilityName()));
     }
 
     protected void doTest() throws Throwable {
@@ -395,10 +356,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest(String query) throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-
-        if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
-            builder.tables(tables());
-        }
 
         boolean checkTook = supportsTook() && rarely();
         Map<?, ?> prevTooks = checkTook ? tooks() : null;
@@ -506,74 +463,17 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         List<List<Object>> actualValues,
         Logger logger
     ) {
-        assertMetadata(expected, actualColumns, logger);
-        assertData(expected, actualValues, testCase.ignoreOrder, ignoreValueOrder(), logger, this::valueMapper);
-    }
-
-    private Object valueMapper(CsvTestUtils.Type type, Object value) {
-        if (value == null) {
-            return "null";
-        }
-        if (value instanceof CsvTestUtils.Range) {
-            return value;
-        }
-        if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
-            // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
-            if (value instanceof String wkt) {
-                try {
-                    Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
-                    if (geometry instanceof Point point) {
-                        return normalizedPoint(type, point.getX(), point.getY());
-                    }
-                } catch (Throwable ignored) {}
-            }
-        }
-        if (type == CsvTestUtils.Type.EXPONENTIAL_HISTOGRAM) {
-            if (value instanceof Map<?, ?> map) {
-                return ExponentialHistogramXContent.parseForTesting(Types.<Map<String, Object>>forciblyCast(map));
-            }
-            if (value instanceof String json) {
-                try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-                    return ExponentialHistogramXContent.parseForTesting(parser);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
-        if (value instanceof List<?> vs) {
-            return vs.stream().map(v -> valueMapper(type, v)).toList();
-        }
-        if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting()) {
-            if (value instanceof Double d) {
-                if (Double.isNaN(d) || Double.isInfinite(d)) {
-                    return d;
-                }
-                return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
-            } else if (value instanceof String s) {
-                if ("NaN".equals(s)) {
-                    return Double.NaN;
-                }
-                return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
-            }
-        }
-        if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
-            if (value instanceof String s) {
-                value = s.replaceAll("\\\\n", "\n");
-            }
-        }
-        if (type == CsvTestUtils.Type.DOUBLE) {
-            if (value instanceof String s && "NaN".equals(s)) {
-                return Double.NaN;
-            }
-            return ((Number) value).doubleValue();
-        }
-        if (type == CsvTestUtils.Type.INTEGER) {
-            return ((Number) value).intValue();
-        }
-        if (type == CsvTestUtils.Type.LONG) {
-            return ((Number) value).longValue();
-        }
-        return value.toString();
+        var actualColumnNames = actualColumns.stream().map(c -> c.get("name")).toList();
+        var actualColumnTypes = actualColumns.stream().map(c -> CsvTestUtils.Type.asType(c.get("type"))).toList();
+        assertMetadata(expected, actualColumnNames, actualColumnTypes, logger);
+        assertDataWithValueConverter(
+            expected,
+            actualValues,
+            testCase.ignoreOrder,
+            ignoreValueOrder(),
+            enableRoundingDoubleValuesOnAsserting(),
+            logger
+        );
     }
 
     /**
@@ -582,19 +482,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      */
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return false;
-    }
-
-    private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
-        if (type == CsvTestUtils.Type.GEO_POINT) {
-            return normalizedGeoPoint(x, y);
-        }
-        return String.format(Locale.ROOT, "POINT (%f %f)", (float) x, (float) y);
-    }
-
-    private static String normalizedGeoPoint(double x, double y) {
-        x = decodeLongitude(encodeLongitude(x));
-        y = decodeLatitude(encodeLatitude(y));
-        return String.format(Locale.ROOT, "POINT (%f %f)", x, y);
     }
 
     private Throwable reworkException(Throwable th) {
@@ -636,61 +523,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
             assertMap("circuit breakers not reset to 0", stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
         });
-    }
-
-    /**
-     * "tables" parameter sent if there is a LOOKUP in the request. If you
-     * add to this, you must also add to {@link EsqlTestUtils#tables};
-     */
-    private Map<String, Map<String, RestEsqlTestCase.TypeAndValues>> tables() {
-        Map<String, Map<String, RestEsqlTestCase.TypeAndValues>> tables = new TreeMap<>();
-        tables.put(
-            "int_number_names",
-            EsqlTestUtils.table(
-                Map.entry("int", new RestEsqlTestCase.TypeAndValues("integer", IntStream.range(0, 10).boxed().toList())),
-                Map.entry(
-                    "name",
-                    new RestEsqlTestCase.TypeAndValues("keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
-                )
-            )
-        );
-        tables.put(
-            "long_number_names",
-            EsqlTestUtils.table(
-                Map.entry("long", new RestEsqlTestCase.TypeAndValues("long", LongStream.range(0, 10).boxed().toList())),
-                Map.entry(
-                    "name",
-                    new RestEsqlTestCase.TypeAndValues("keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
-                )
-            )
-        );
-        tables.put(
-            "double_number_names",
-            EsqlTestUtils.table(
-                Map.entry("double", new RestEsqlTestCase.TypeAndValues("double", List.of(2.03, 2.08))),
-                Map.entry("name", new RestEsqlTestCase.TypeAndValues("keyword", List.of("two point zero three", "two point zero eight")))
-            )
-        );
-        tables.put(
-            "double_number_names_with_null",
-            EsqlTestUtils.table(
-                Map.entry("double", new RestEsqlTestCase.TypeAndValues("double", List.of(2.03, 2.08, 0.0))),
-                Map.entry(
-                    "name",
-                    new RestEsqlTestCase.TypeAndValues("keyword", Arrays.asList("two point zero three", "two point zero eight", null))
-                )
-            )
-        );
-        tables.put(
-            "big",
-            EsqlTestUtils.table(
-                Map.entry("aa", new RestEsqlTestCase.TypeAndValues("keyword", List.of("foo", "bar", "baz", "foo"))),
-                Map.entry("ab", new RestEsqlTestCase.TypeAndValues("keyword", List.of("zoo", "zop", "zoi", "foo"))),
-                Map.entry("na", new RestEsqlTestCase.TypeAndValues("integer", List.of(1, 10, 100, 2))),
-                Map.entry("nb", new RestEsqlTestCase.TypeAndValues("integer", List.of(-1, -10, -100, -2)))
-            )
-        );
-        return tables;
     }
 
     protected boolean supportsTook() throws IOException {

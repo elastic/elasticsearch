@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -39,6 +40,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests for ExternalSourceResolver schema resolution behavior.
@@ -77,7 +81,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             )
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(2, resolvedSchema.size());
@@ -105,7 +109,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             )
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(2, resolvedSchema.size());
@@ -125,7 +129,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/only.parquet", 500))
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(2, resolvedSchema.size());
@@ -146,7 +150,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution resolution = resolveMultiFile("s3://bucket/data/*.parquet", schemasByPath, entries);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         FileSet fileSet = resolved.fileSet();
         assertTrue(fileSet.isResolved());
@@ -167,7 +171,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/dir/x.parquet", 50))
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/dir/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/dir/*.parquet");
         assertNotNull(resolved);
         assertEquals("s3://bucket/dir/*.parquet", resolved.fileSet().originalPattern());
     }
@@ -189,7 +193,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution resolution = resolveSingleFile("s3://bucket/data/single.parquet", schemasByPath);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/single.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/single.parquet");
         assertNotNull(resolved);
         assertTrue(resolved.fileSet().isUnresolved());
     }
@@ -214,7 +218,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/typed.parquet", 100))
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(5, resolvedSchema.size());
         assertEquals(DataType.LONG, resolvedSchema.get(0).dataType());
@@ -229,15 +233,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testDefaultSchemaResolutionIsFirstFileWins() {
         FormatReader reader = new StubFormatReader(Map.of());
         assertEquals(FormatReader.SchemaResolution.FIRST_FILE_WINS, reader.defaultSchemaResolution());
-    }
-
-    public void testSchemaResolutionEnumValues() {
-        // Verify all expected enum values exist
-        FormatReader.SchemaResolution[] values = FormatReader.SchemaResolution.values();
-        assertEquals(3, values.length);
-        assertEquals(FormatReader.SchemaResolution.FIRST_FILE_WINS, FormatReader.SchemaResolution.valueOf("FIRST_FILE_WINS"));
-        assertEquals(FormatReader.SchemaResolution.STRICT, FormatReader.SchemaResolution.valueOf("STRICT"));
-        assertEquals(FormatReader.SchemaResolution.UNION_BY_NAME, FormatReader.SchemaResolution.valueOf("UNION_BY_NAME"));
     }
 
     // ===== Multiple paths resolution =====
@@ -260,11 +255,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
             listingsByPrefix
         );
 
-        ExternalSourceResolution.ResolvedSource resolved1 = resolution.get("s3://bucket/dir1/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved1 = resolution.resolvedSource("s3://bucket/dir1/*.parquet");
         assertNotNull(resolved1);
         assertEquals("a", resolved1.metadata().schema().get(0).name());
 
-        ExternalSourceResolution.ResolvedSource resolved2 = resolution.get("s3://bucket/dir2/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved2 = resolution.resolvedSource("s3://bucket/dir2/*.parquet");
         assertNotNull(resolved2);
         assertEquals("b", resolved2.metadata().schema().get(0).name());
     }
@@ -286,10 +281,151 @@ public class ExternalSourceResolverTests extends ESTestCase {
             config
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         assertEquals("test-key", resolved.metadata().config().get("access_key"));
         assertEquals("test-secret", resolved.metadata().config().get("secret_key"));
+    }
+
+    // ===== Partition column enrichment =====
+
+    public void testPartitionColumnsAppendedAtTail() throws Exception {
+        List<Attribute> schema = List.of(attr("emp_no", DataType.INTEGER), attr("name", DataType.KEYWORD));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/year=2024/file1.parquet", schema);
+        schemasByPath.put("s3://bucket/data/year=2023/file2.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/year=*/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/year=2024/file1.parquet", 100), entry("s3://bucket/data/year=2023/file2.parquet", 200))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
+        assertNotNull(resolved);
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(3, resolvedSchema.size());
+        assertEquals("emp_no", resolvedSchema.get(0).name());
+        assertEquals("name", resolvedSchema.get(1).name());
+        assertEquals("year", resolvedSchema.get(2).name());
+        assertEquals(DataType.INTEGER, resolvedSchema.get(2).dataType());
+    }
+
+    public void testPartitionColumnConflictPartitionWins() throws Exception {
+        List<Attribute> schema = List.of(attr("year", DataType.KEYWORD), attr("name", DataType.KEYWORD));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/year=2024/file1.parquet", schema);
+        schemasByPath.put("s3://bucket/data/year=2023/file2.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/year=*/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/year=2024/file1.parquet", 100), entry("s3://bucket/data/year=2023/file2.parquet", 200))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
+        assertNotNull(resolved);
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(2, resolvedSchema.size());
+        assertEquals("name", resolvedSchema.get(0).name());
+        assertEquals("year", resolvedSchema.get(1).name());
+        // Partition column type should be INTEGER (from path), not KEYWORD (from data)
+        assertEquals(DataType.INTEGER, resolvedSchema.get(1).dataType());
+    }
+
+    public void testNoPartitionsSchemaUnchanged() throws Exception {
+        List<Attribute> schema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/file1.parquet", schema);
+        schemasByPath.put("s3://bucket/data/file2.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/*.parquet",
+            schemasByPath,
+            List.of(entry("s3://bucket/data/file1.parquet", 100), entry("s3://bucket/data/file2.parquet", 200))
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        assertNotNull(resolved);
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(2, resolvedSchema.size());
+        assertEquals("a", resolvedSchema.get(0).name());
+        assertEquals("b", resolvedSchema.get(1).name());
+    }
+
+    public void testMultiplePartitionColumns() throws Exception {
+        List<Attribute> schema = List.of(attr("value", DataType.DOUBLE));
+
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/year=2024/month=01/file.parquet", schema);
+        schemasByPath.put("s3://bucket/data/year=2023/month=12/file.parquet", schema);
+
+        ExternalSourceResolution resolution = resolveMultiFile(
+            "s3://bucket/data/year=*/month=*/*.parquet",
+            schemasByPath,
+            List.of(
+                entry("s3://bucket/data/year=2024/month=01/file.parquet", 100),
+                entry("s3://bucket/data/year=2023/month=12/file.parquet", 200)
+            )
+        );
+
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/month=*/*.parquet");
+        assertNotNull(resolved);
+        List<Attribute> resolvedSchema = resolved.metadata().schema();
+        assertEquals(3, resolvedSchema.size());
+        // Data column is first
+        assertEquals("value", resolvedSchema.get(0).name());
+        // Partition columns appended at tail in path declaration order
+        assertEquals("year", resolvedSchema.get(1).name());
+        assertEquals("month", resolvedSchema.get(2).name());
+        assertThat(resolvedSchema.get(1), instanceOf(ReferenceAttribute.class));
+        assertThat(resolvedSchema.get(2), instanceOf(ReferenceAttribute.class));
+    }
+
+    public void testEnrichSchemaWithPartitionColumnsDirectly() {
+        List<Attribute> originalSchema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
+        ExternalSourceMetadata metadata = createStubMetadata("s3://bucket/file.parquet", originalSchema);
+
+        java.util.LinkedHashMap<String, DataType> partCols = new java.util.LinkedHashMap<>();
+        partCols.put("year", DataType.INTEGER);
+        partCols.put("region", DataType.KEYWORD);
+        PartitionMetadata partitions = new PartitionMetadata(partCols, Map.of());
+
+        ExternalSourceMetadata enriched = ExternalSourceResolver.enrichSchemaWithPartitionColumns(metadata, partitions);
+        List<Attribute> schema = enriched.schema();
+        assertEquals(4, schema.size());
+        assertEquals("a", schema.get(0).name());
+        assertEquals("b", schema.get(1).name());
+        // Partition columns appended at tail in declaration order
+        assertEquals("year", schema.get(2).name());
+        assertEquals("region", schema.get(3).name());
+        // Partition columns are ReferenceAttributes, not FieldAttributes
+        assertThat(schema.get(2), instanceOf(ReferenceAttribute.class));
+        assertThat(schema.get(3), instanceOf(ReferenceAttribute.class));
+        assertTrue(schema.get(2).synthetic());
+        assertTrue(schema.get(3).synthetic());
+    }
+
+    private ExternalSourceMetadata createStubMetadata(String location, List<Attribute> schema) {
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return location;
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
     }
 
     // ===== Empty resolution =====
@@ -381,6 +517,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<String> supportedFormats() {
+                return Set.of("parquet");
+            }
+
+            @Override
+            public Set<String> supportedExtensions() {
+                return Set.of(".parquet");
+            }
+
+            @Override
             public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
                 return Map.of("s3", s -> storageProvider);
             }
@@ -391,7 +542,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
         };
 
-        DataSourceModule module = new DataSourceModule(List.of(plugin), Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
     }

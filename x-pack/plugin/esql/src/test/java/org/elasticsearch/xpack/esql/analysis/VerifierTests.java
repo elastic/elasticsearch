@@ -859,6 +859,100 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    /**
+     * Test that null comparisons are valid and don't produce type incompatibility errors.
+     * Null should be compatible with any type in binary comparisons.
+     */
+    public void testNullComparisonValidation() {
+        // null compared with numeric types (all comparison operators)
+        query("from test | where emp_no == ?", new Object[] { null });
+        query("from test | where null == emp_no");
+        query("from test | where emp_no != null");
+        query("from test | where emp_no > null");
+        query("from test | where emp_no < null");
+        query("from test | where emp_no >= null");
+        query("from test | where emp_no <= null");
+
+        // null compared with string types
+        query("from test | where first_name == null");
+        query("from test | where null != first_name");
+
+        // null compared with datetime
+        query("from test | where hire_date == null");
+        query("from test | where null > hire_date");
+
+        // ROW with null comparisons
+        query("ROW x = null, y = \"foo\" | WHERE x == y");
+        query("ROW x = null, y = 1 | WHERE x > y");
+        query("ROW x = null, y = 1 | WHERE x < y");
+        query("ROW x = null, y = 1 | WHERE x >= y");
+        query("ROW x = null, y = 1 | WHERE x <= y");
+        query("ROW x = null, y = 1 | WHERE x != y");
+
+        // Two nulls comparison
+        query("ROW x = null, y = null | WHERE x == y");
+
+        // null on both left and right sides with EVAL
+        query("ROW x = null, y = 1 | EVAL result = x == y");
+        query("ROW x = 1, y = null | EVAL result = x == y");
+
+        // null with different types should all pass validation
+        query("from test | where null == salary");
+        query("from test | where null == languages");
+
+        // null compared with unsigned_long (all comparison operators)
+        // unsigned_long normally can't mix with other numeric types, but null should be compatible
+        query("row ul = to_ul(1) | where ul == null");
+        query("row ul = to_ul(1) | where ul != null");
+        query("row ul = to_ul(1) | where ul > null");
+        query("row ul = to_ul(1) | where ul >= null");
+        query("row ul = to_ul(1) | where ul < null");
+        query("row ul = to_ul(1) | where ul <= null");
+        query("row ul = to_ul(1) | where null == ul");
+        query("row ul = to_ul(1) | where null != ul");
+        query("row ul = to_ul(1) | where null > ul");
+        query("row ul = to_ul(1) | where null < ul");
+
+        // unsigned_long with null in EVAL
+        query("row ul = to_ul(1) | eval result = ul == null");
+        query("row ul = to_ul(1) | eval result = null == ul");
+    }
+
+    /**
+     * Test that null in IN expressions is valid and doesn't produce type incompatibility errors.
+     * Null should be compatible with any type in IN lists.
+     */
+    public void testNullInExpressionValidation() {
+        // null in IN list with integer field
+        query("from test | where emp_no in (1, null)");
+        query("from test | where emp_no in (null)");
+        query("from test | where emp_no in (1, 2, null)");
+
+        // null value tested against IN list
+        query("ROW x = null | WHERE x in (1, 2, 3)");
+        query("ROW x = null | WHERE x in (\"foo\", \"bar\")");
+
+        // null in IN list with keyword field
+        query("from test | where first_name in (\"Georgi\", null)");
+        query("from test | where first_name in (null)");
+
+        // null in IN list with datetime field
+        query("from test | where hire_date in (null)");
+
+        // null in IN list with unsigned_long
+        query("row ul = to_ul(1) | where ul in (to_ul(1), null)");
+        query("row ul = to_ul(1) | where ul in (null)");
+
+        // null value IN unsigned_long list
+        query("ROW x = null | WHERE x in (to_ul(1), to_ul(2))");
+
+        // EVAL with IN containing null
+        query("ROW x = 1 | EVAL result = x in (1, null)");
+        query("ROW x = 1 | EVAL result = x in (null)");
+        query("ROW x = null | EVAL result = x in (1, 2)");
+        query("ROW x = null | EVAL result = x in (null)");
+    }
+
     public void testSumOnDate() {
         assertEquals(
             "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double,"
@@ -872,11 +966,6 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [keyword]",
             error("from test | where emp_no == ?", "foo")
-        );
-
-        assertEquals(
-            "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [null]",
-            error("from test | where emp_no == ?", new Object[] { null })
         );
     }
 
@@ -1446,6 +1535,10 @@ public class VerifierTests extends ESTestCase {
             error("from test | STATS c = COUNT(id) BY " + fieldName + " | where " + functionInvocation, fullTextAnalyzer),
             containsString("[" + functionName + "] " + functionType + " cannot be used after STATS")
         );
+        assertThat(
+            error("from test | mv_expand id | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+        );
     }
 
     // These should pass eventually once we lift some restrictions on match function
@@ -1466,6 +1559,21 @@ public class VerifierTests extends ESTestCase {
         String keywordError = error("row n = null | eval text = n + 5 | where " + keywordInvocation, fullTextAnalyzer);
         assertThat(keywordError, containsString("[" + functionName + "] " + functionType + " cannot operate on"));
         assertThat(keywordError, containsString("which is not a field from an index mapping"));
+    }
+
+    public void testMultiMatchWithLookupJoinField() {
+        assumeTrue("multi_match function available", EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled());
+        assertThat(
+            error(
+                "FROM test | EVAL language_code = languages "
+                    + "| LOOKUP JOIN languages_lookup ON language_code "
+                    + "| WHERE multi_match(\"test\", language_name)"
+            ),
+            containsString(
+                "[MultiMatch] function cannot operate on [language_name],"
+                    + " supplied by an index [languages_lookup] in non-STANDARD mode [lookup]"
+            )
+        );
     }
 
     public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {
@@ -3528,6 +3636,49 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testMetricsInfoRequiresTsSource() {
+        assertThat(error("FROM test | METRICS_INFO"), containsString("METRICS_INFO can only be used with TS source command"));
+    }
+
+    public void testMetricsInfoWithTsSource() {
+        query("TS k8s | METRICS_INFO", k8s);
+    }
+
+    public void testMetricsInfoCannotBeUsedAfterStats() {
+        assertThat(
+            error("TS k8s | STATS c = count(*) | METRICS_INFO", k8s),
+            containsString("METRICS_INFO cannot be used after STATS command")
+        );
+    }
+
+    public void testMetricsInfoCannotBeUsedAfterLimit() {
+        assertThat(error("TS k8s | LIMIT 10 | METRICS_INFO", k8s), containsString("METRICS_INFO cannot be used after LIMIT command"));
+    }
+
+    public void testMetricsInfoCannotBeUsedAfterSort() {
+        assertThat(error("TS k8s | SORT @timestamp | METRICS_INFO", k8s), containsString("METRICS_INFO cannot be used after SORT command"));
+    }
+
+    public void testTsInfoRequiresTsSource() {
+        assertThat(error("FROM test | TS_INFO"), containsString("TS_INFO can only be used with TS source command"));
+    }
+
+    public void testTsInfoWithTsSource() {
+        query("TS k8s | TS_INFO", k8s);
+    }
+
+    public void testTsInfoCannotBeUsedAfterStats() {
+        assertThat(error("TS k8s | STATS c = count(*) | TS_INFO", k8s), containsString("TS_INFO cannot be used after STATS command"));
+    }
+
+    public void testTsInfoCannotBeUsedAfterLimit() {
+        assertThat(error("TS k8s | LIMIT 10 | TS_INFO", k8s), containsString("TS_INFO cannot be used after LIMIT command"));
+    }
+
+    public void testTsInfoCannotBeUsedAfterSort() {
+        assertThat(error("TS k8s | SORT @timestamp | TS_INFO", k8s), containsString("TS_INFO cannot be used after SORT command"));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }
@@ -3645,8 +3796,25 @@ public class VerifierTests extends ESTestCase {
         query(query, defaultAnalyzer);
     }
 
-    private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query));
+    private void query(String query, Object... params) {
+        query(query, defaultAnalyzer, params);
+    }
+
+    private void query(String query, Analyzer analyzer, Object... params) {
+        analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, toQueryParams(params)));
+    }
+
+    private static QueryParams toQueryParams(Object... params) {
+        List<QueryParam> parameters = new ArrayList<>();
+        for (Object param : params) {
+            switch (param) {
+                case null -> parameters.add(paramAsConstant(null, null));
+                case String s -> parameters.add(paramAsConstant(null, s));
+                case Number number -> parameters.add(paramAsConstant(null, number));
+                default -> throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
+            }
+        }
+        return new QueryParams(parameters);
     }
 
     private String error(String query) {
@@ -3666,22 +3834,10 @@ public class VerifierTests extends ESTestCase {
     }
 
     public static String error(String query, Analyzer analyzer, Class<? extends Exception> exception, Object... params) {
-        List<QueryParam> parameters = new ArrayList<>();
-        for (Object param : params) {
-            if (param == null) {
-                parameters.add(paramAsConstant(null, null));
-            } else if (param instanceof String) {
-                parameters.add(paramAsConstant(null, param));
-            } else if (param instanceof Number) {
-                parameters.add(paramAsConstant(null, param));
-            } else {
-                throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
-            }
-        }
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, new QueryParams(parameters)))
+            () -> analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query, toQueryParams(params)))
         );
         assertThat(e, instanceOf(exception));
 

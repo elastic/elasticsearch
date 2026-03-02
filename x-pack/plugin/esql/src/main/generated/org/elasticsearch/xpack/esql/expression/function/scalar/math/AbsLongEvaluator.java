@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
@@ -47,7 +48,7 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
       if (fieldValVector == null) {
         return eval(page.getPositionCount(), fieldValBlock);
       }
-      return eval(page.getPositionCount(), fieldValVector).asBlock();
+      return eval(page.getPositionCount(), fieldValVector);
     }
   }
 
@@ -73,17 +74,27 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
               continue position;
         }
         long fieldVal = fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p));
-        result.appendLong(Abs.process(fieldVal));
+        try {
+          result.appendLong(Abs.process(fieldVal));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public LongVector eval(int positionCount, LongVector fieldValVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongVector fieldValVector) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         long fieldVal = fieldValVector.getLong(p);
-        result.appendLong(p, Abs.process(fieldVal));
+        try {
+          result.appendLong(Abs.process(fieldVal));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

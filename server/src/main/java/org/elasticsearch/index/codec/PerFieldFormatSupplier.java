@@ -26,6 +26,7 @@ import org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -59,6 +60,7 @@ public class PerFieldFormatSupplier {
         includeMetaField.add(TimeSeriesIdFieldMapper.NAME);
         includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
         includeMetaField.add(SeqNoFieldMapper.NAME);
+        includeMetaField.add(IgnoredSourceFieldMapper.NAME);
         // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
         // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
         INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);

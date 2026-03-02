@@ -1535,6 +1535,10 @@ public class VerifierTests extends ESTestCase {
             error("from test | STATS c = COUNT(id) BY " + fieldName + " | where " + functionInvocation, fullTextAnalyzer),
             containsString("[" + functionName + "] " + functionType + " cannot be used after STATS")
         );
+        assertThat(
+            error("from test | mv_expand id | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+        );
     }
 
     // These should pass eventually once we lift some restrictions on match function
@@ -1555,6 +1559,21 @@ public class VerifierTests extends ESTestCase {
         String keywordError = error("row n = null | eval text = n + 5 | where " + keywordInvocation, fullTextAnalyzer);
         assertThat(keywordError, containsString("[" + functionName + "] " + functionType + " cannot operate on"));
         assertThat(keywordError, containsString("which is not a field from an index mapping"));
+    }
+
+    public void testMultiMatchWithLookupJoinField() {
+        assumeTrue("multi_match function available", EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled());
+        assertThat(
+            error(
+                "FROM test | EVAL language_code = languages "
+                    + "| LOOKUP JOIN languages_lookup ON language_code "
+                    + "| WHERE multi_match(\"test\", language_name)"
+            ),
+            containsString(
+                "[MultiMatch] function cannot operate on [language_name],"
+                    + " supplied by an index [languages_lookup] in non-STANDARD mode [lookup]"
+            )
+        );
     }
 
     public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {

@@ -64,8 +64,8 @@ public abstract class LuceneOperator extends SourceOperator {
     final int maxPageSize;
     private final LuceneSliceQueue sliceQueue;
 
-    final Set<Query> processedQueries = new HashSet<>();
-    final Set<String> processedShards = new HashSet<>();
+    private final Set<String> processedQueries = new TreeSet<>();
+    private final Set<String> processedShards = new HashSet<>();
 
     protected LuceneSlice currentSlice;
     private int sliceIndex;
@@ -207,7 +207,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 || currentScorer.weight != currentSlice.weight() // Moved to a new query
             ) {
                 final Weight weight = currentSlice.weight();
-                processedQueries.add(weight.getQuery());
+                processedQueries.add(Status.queryString(weight.getQuery()));
                 currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
                 sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
                 if (sliceBlocked == null || sliceBlocked.isDone()) {
@@ -417,9 +417,24 @@ public abstract class LuceneOperator extends SourceOperator {
         private final long rowsEmitted;
         private final Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies;
 
+        public static final int QUERY_STRING_TRUNCATION = 500;
+
+        private static String queryString(Query query) {
+            String queryString = query.toString();
+            if (queryString.length() > QUERY_STRING_TRUNCATION) {
+                return queryString.substring(0, QUERY_STRING_TRUNCATION)
+                    + "...("
+                    + (queryString.length() - QUERY_STRING_TRUNCATION)
+                    + " more characters["
+                    + queryString.hashCode()
+                    + "])";
+            }
+            return query.toString();
+        }
+
         protected Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
-            processedQueries = operator.processedQueries.stream().map(Query::toString).collect(Collectors.toCollection(TreeSet::new));
+            processedQueries = operator.processedQueries;
             processNanos = operator.processingNanos;
             processedShards = new TreeSet<>(operator.processedShards);
             sliceIndex = operator.sliceIndex;

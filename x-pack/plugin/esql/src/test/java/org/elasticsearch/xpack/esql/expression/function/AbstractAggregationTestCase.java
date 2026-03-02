@@ -78,9 +78,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         List<TestCaseSupplier> suppliers,
         PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)), positionalErrorMessageSupplier)
-        );
+        return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
 
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
@@ -115,7 +113,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                         nullValue(),
                         null,
                         null,
-                        testCase.getExpectedTypeError(),
                         null,
                         null,
                         null,
@@ -524,10 +521,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             valuesString = valuesString.substring(0, 200) + "...";
         }
         logger.info("Test Values: " + valuesString);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return null;
-        }
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         expression = resolveSurrogates(expression);
         assertThat("expression required surrogates", expression, not(instanceOf(OnlySurrogateExpression.class)));
@@ -608,10 +601,6 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      * </p>
      */
     private Expression resolveSurrogates(Expression expression) {
-        if (testCase.getExpectedTypeError() != null) {
-            return expression;
-        }
-
         // Run agg surrogates twice
         // This simulates the double aggs surrogation in LogicalPlanOptimizer
         for (int i = 0; i < 2; i++) {

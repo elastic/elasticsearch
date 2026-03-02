@@ -74,12 +74,19 @@ public class VectorScorerFloatBulkBenchmark {
     @Param({ "1024" })
     public int dims;
 
-    // 128k is typically enough to not fit in L1 (core) cache for most processors;
-    // 1.5M is typically enough to not fit in L2 (core) cache;
-    // 130M is enough to not fit in L3 cache
+    // 32 * 4 = 128kb is typically enough to not fit in L1 (core) cache for most processors;
+    // 375 * 4 = 1.5Mb is typically enough to not fit in L2 (core) cache;
+    // 32500 * 4 = 130Mb is enough to not fit in L3 cache
     @Param({ "32", "375", "32500" })
     public int numVectors;
     public int numVectorsToScore;
+
+    // Bulk sizes to test.
+    // HNSW params will have the distributed ordinal bulk sizes depending on the number of connections in the graph
+    // The default is 16, maximum is 512, and the bottom layer is 2x that the configured setting, so 1024 is a maximum
+    // the MOST common case here is 32
+    @Param({ "32", "64", "256", "1024" })
+    public int bulkSize;
 
     @Param
     public VectorImplementation implementation;
@@ -144,6 +151,7 @@ public class VectorScorerFloatBulkBenchmark {
     private float[] scores;
     private int[] ordinals;
     private int[] ids;
+    private int[] toScore; // scratch array for bulk scoring
 
     private UpdateableRandomVectorScorer scorer;
     private RandomVectorScorer queryScorer;
@@ -193,7 +201,8 @@ public class VectorScorerFloatBulkBenchmark {
         writeFloatVectorData(dir, vectorData.vectorData);
 
         numVectorsToScore = vectorData.numVectorsToScore;
-        scores = new float[numVectorsToScore];
+        scores = new float[bulkSize];
+        toScore = new int[bulkSize];
         ids = IntStream.range(0, numVectors).toArray();
         ordinals = vectorData.ordinals;
 
@@ -234,43 +243,67 @@ public class VectorScorerFloatBulkBenchmark {
 
     @Benchmark
     public float[] scoreMultipleSequential() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = scorer.score(v);
+        int v = 0;
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                scores[i] = scorer.score(v);
+            }
         }
         return scores;
     }
 
     @Benchmark
     public float[] scoreMultipleRandom() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = scorer.score(ordinals[v]);
+        int v = 0;
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                scores[i] = scorer.score(ordinals[v]);
+            }
         }
         return scores;
     }
 
     @Benchmark
     public float[] scoreQueryMultipleRandom() throws IOException {
-        for (int v = 0; v < numVectorsToScore; v++) {
-            scores[v] = queryScorer.score(ordinals[v]);
+        int v = 0;
+        while (v < numVectorsToScore) {
+            for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
+                scores[i] = queryScorer.score(ordinals[v]);
+            }
         }
         return scores;
     }
 
     @Benchmark
     public float[] scoreMultipleSequentialBulk() throws IOException {
-        scorer.bulkScore(ids, scores, ordinals.length);
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
+            // Copy the slice of sequential IDs to the scratch array
+            System.arraycopy(ids, i, toScore, 0, toScoreInThisBatch);
+            scorer.bulkScore(toScore, scores, toScoreInThisBatch);
+        }
         return scores;
     }
 
     @Benchmark
     public float[] scoreMultipleRandomBulk() throws IOException {
-        scorer.bulkScore(ordinals, scores, ordinals.length);
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
+            // Copy the slice of random ordinals to the scratch array
+            System.arraycopy(ordinals, i, toScore, 0, toScoreInThisBatch);
+            scorer.bulkScore(toScore, scores, toScoreInThisBatch);
+        }
         return scores;
     }
 
     @Benchmark
     public float[] scoreQueryMultipleRandomBulk() throws IOException {
-        queryScorer.bulkScore(ordinals, scores, ordinals.length);
+        for (int i = 0; i < numVectorsToScore; i += bulkSize) {
+            int toScoreInThisBatch = Math.min(bulkSize, numVectorsToScore - i);
+            // Copy the slice of random ordinals to the scratch array
+            System.arraycopy(ordinals, i, toScore, 0, toScoreInThisBatch);
+            queryScorer.bulkScore(toScore, scores, toScoreInThisBatch);
+        }
         return scores;
     }
 }

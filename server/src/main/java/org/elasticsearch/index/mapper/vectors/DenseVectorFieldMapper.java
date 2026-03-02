@@ -3359,7 +3359,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int dims = fieldType().element.parseDimensionCount(context);
             DenseVectorFieldMapper.Builder builder = (Builder) getMergeBuilder();
             builder.dimensions(dims);
-            context.getDynamicMapper(builder);
+            context.addDynamicMapper(builder, fullPath());
             return;
         }
         if (fieldType().indexed) {

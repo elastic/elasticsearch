@@ -535,7 +535,7 @@ public abstract class DocumentParserContext {
      * @throws IllegalArgumentException if the field limit has been exceeded.
      * This can happen when dynamic is set to {@link ObjectMapper.Dynamic#TRUE} or {@link ObjectMapper.Dynamic#RUNTIME}.
      */
-    private boolean addDynamicMapper(Mapper.Builder builder, String fullPath) {
+    public boolean addDynamicMapper(Mapper.Builder builder, String fullPath) {
         // eagerly check object depth limit here to avoid stack overflow errors
         if (builder instanceof ObjectMapper.Builder) {
             MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), fullPath);

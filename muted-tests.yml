@@ -578,6 +578,7 @@ tests:
     - testRoutingPathBwc
     - testRoutingPathManySubs
     - testRoutingPathOneTopLevel
+    - testRoutingPathBooleansInSource
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.index.mapper.SourceFieldMapperTests
   methods:
@@ -587,14 +588,6 @@ tests:
   # TEST EXPECTATION stored_fields_in_bytes - TSDB synthetic ID / feature flag removal - PR 142366
 - class: org.elasticsearch.datastreams.TSDBIndexingIT
   method: testTrimId
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-# [tsdb][0] primary shard is not active (probably other allocation problem underneath)
-- class: org.elasticsearch.upgrades.IndexingIT
-  methods:
-    - testTsdb
-    - testIndexing
-    - testAutoIdWithOpTypeCreate
-    - testDateNanosFormatUpgrade
   issue: https://github.com/elastic/elasticsearch/pull/142366
 
 # Examples:

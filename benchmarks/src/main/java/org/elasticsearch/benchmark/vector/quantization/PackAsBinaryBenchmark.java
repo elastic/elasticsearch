@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.benchmark.vector.quantization;
 
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 public class PackAsBinaryBenchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     @Param({ "384", "782", "1024" })

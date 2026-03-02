@@ -175,10 +175,10 @@ public class Driver implements Releasable, Describable {
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier nowSupplier) {
-        updateStatus(0, 0, DriverStatus.Status.RUNNING, "driver running", nowSupplier);
         long maxTimeNanos = maxTime.nanos();
         // Start time, used to stop the calculations after maxTime has passed.
         long startTime = nowSupplier.getAsLong();
+        updateStatus(0, 0, DriverStatus.Status.RUNNING, "driver running", startTime);
         // The time of the next forced status update.
         long nextStatus = startTime + statusNanos;
         // Total executed iterations this run, used to stop the calculations after maxIterations have passed.
@@ -223,7 +223,7 @@ public class Driver implements Releasable, Describable {
                     iterationsSinceLastStatusUpdate,
                     DriverStatus.Status.ASYNC,
                     isBlocked.reason(),
-                    nowSupplier
+                    now
                 );
                 return isBlocked.listener();
             }
@@ -234,7 +234,7 @@ public class Driver implements Releasable, Describable {
                     iterationsSinceLastStatusUpdate,
                     DriverStatus.Status.DONE,
                     "driver done",
-                    nowSupplier
+                    now
                 );
                 driverContext.finish();
                 Releasables.close(releasable, driverContext.getSnapshot());
@@ -246,18 +246,12 @@ public class Driver implements Releasable, Describable {
                     iterationsSinceLastStatusUpdate,
                     DriverStatus.Status.WAITING,
                     "driver iterations",
-                    nowSupplier
+                    now
                 );
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now - startTime >= maxTimeNanos) {
-                updateStatus(
-                    now - lastStatusUpdateTime,
-                    iterationsSinceLastStatusUpdate,
-                    DriverStatus.Status.WAITING,
-                    "driver time",
-                    nowSupplier
-                );
+                updateStatus(now - lastStatusUpdateTime, iterationsSinceLastStatusUpdate, DriverStatus.Status.WAITING, "driver time", now);
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now > nextStatus) {
@@ -266,7 +260,7 @@ public class Driver implements Releasable, Describable {
                     iterationsSinceLastStatusUpdate,
                     DriverStatus.Status.RUNNING,
                     "driver running",
-                    nowSupplier
+                    now
                 );
                 iterationsSinceLastStatusUpdate = 0;
                 lastStatusUpdateTime = now;
@@ -433,7 +427,7 @@ public class Driver implements Releasable, Describable {
         driver.completionListener.addListener(listener);
         if (driver.started.compareAndSet(false, true)) {
             LongSupplier nowSupplier = System::nanoTime;
-            driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting", nowSupplier);
+            driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting", nowSupplier.getAsLong());
             initializeEarlyTerminationChecker(driver);
             schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener, nowSupplier);
         }
@@ -602,13 +596,7 @@ public class Driver implements Releasable, Describable {
      * @param extraIterations how many iterations to add to the previous status
      * @param status the status of the overall driver request
      */
-    private void updateStatus(
-        long extraCpuNanos,
-        int extraIterations,
-        DriverStatus.Status status,
-        String reason,
-        LongSupplier nowSupplier
-    ) {
+    private void updateStatus(long extraCpuNanos, int extraIterations, DriverStatus.Status status, String reason, long nowNanos) {
         this.status.getAndUpdate(prev -> {
             long now = System.currentTimeMillis();
             DriverSleeps sleeps = prev.sleeps();
@@ -635,7 +623,7 @@ public class Driver implements Releasable, Describable {
                     }
                 }
             }
-            reportSearchLoad(extraCpuNanos, nowSupplier.getAsLong());
+            reportSearchLoad(extraCpuNanos, nowNanos);
 
             return new DriverStatus(
                 sessionId,

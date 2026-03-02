@@ -738,7 +738,7 @@ public class BasicBlockTests extends ESTestCase {
 
     public void testBytesRefBlockBuilderWithNulls() {
         int positionCount = randomIntBetween(0, 16 * 1024);
-        final int builderEstimateSize = randomBoolean() ? randomIntBetween(1, positionCount) : positionCount;
+        final int builderEstimateSize = positionCount == 0 ? 0 : (randomBoolean() ? randomIntBetween(1, positionCount) : positionCount);
         try (var blockBuilder = blockFactory.newBytesRefBlockBuilder(builderEstimateSize)) {
             BytesRef[] values = new BytesRef[positionCount];
             for (int i = 0; i < positionCount; i++) {

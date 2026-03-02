@@ -176,6 +176,36 @@ public class KqlFunctionIT extends AbstractEsqlIntegTestCase {
         assertQuery.accept(wildcardQuery);
     }
 
+    public void testKqlAfterMvExpand() {
+        var query = """
+            FROM test
+            | MV_EXPAND content
+            | WHERE kql("content: fox")
+            """;
+
+        var error = expectThrows(ElasticsearchException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[KQL] function cannot be used after MV_EXPAND"));
+    }
+
+    public void testKqlAfterMvExpandWithIntermediateCommands() {
+        var error = expectThrows(ElasticsearchException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | SORT id
+            | WHERE kql("content: fox")
+            """));
+        assertThat(error.getMessage(), containsString("[KQL] function cannot be used after MV_EXPAND"));
+
+        error = expectThrows(ElasticsearchException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | WHERE id > 0
+            | SORT id
+            | WHERE kql("content: fox")
+            """));
+        assertThat(error.getMessage(), containsString("[KQL] function cannot be used after MV_EXPAND"));
+    }
+
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();

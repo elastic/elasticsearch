@@ -1203,8 +1203,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String projectName = entry.getKey();
             SearchPlanningPhaseResolutionResult result = entry.getValue();
 
-            // There was a valid, non-null response from the _resolve/index API for this linked project.
             if (result.response() instanceof ResolveIndexAction.Response response) {
+                // There was a valid, non-null response from the _resolve/index API for this linked project.
                 resolvedExpressions.put(projectName, response.getResolvedIndexExpressions());
             } else if (result.error() != null) {
                 // There was an error communicating with the linked project and the error was already logged.

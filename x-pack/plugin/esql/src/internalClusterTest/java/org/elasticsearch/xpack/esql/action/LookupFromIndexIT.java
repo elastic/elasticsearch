@@ -44,9 +44,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -204,17 +202,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
                 0
             );
-            CancellableTask parentTask = new EsqlQueryTask(
-                1,
-                "test",
-                "test",
-                "test",
-                null,
-                Map.of(),
-                Map.of(),
-                new AsyncExecutionId("test", TaskId.EMPTY_TASK_ID),
-                TEST_REQUEST_TIMEOUT
-            );
+            CancellableTask parentTask = new CancellableTask(1, "test", "test", "test", null, Map.of());
             final String finalNodeWithShard = nodeWithShard;
             LookupFromIndexOperator.Factory lookup = new LookupFromIndexOperator.Factory(
                 "test",

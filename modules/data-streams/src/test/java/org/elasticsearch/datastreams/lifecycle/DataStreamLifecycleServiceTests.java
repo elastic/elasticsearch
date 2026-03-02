@@ -1099,7 +1099,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         originalRequest.onlyExpungeDeletes(randomBoolean());
         originalRequest.flush(randomBoolean());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            new DataStreamLifecycleService.ForceMergeRequestWrapper(originalRequest),
+            new ForceMergeRequestWrapper(originalRequest),
             DataStreamLifecycleServiceTests::copyForceMergeRequestWrapperRequest,
             DataStreamLifecycleServiceTests::mutateForceMergeRequestWrapper
         );
@@ -1718,18 +1718,14 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
     }
 
-    private static DataStreamLifecycleService.ForceMergeRequestWrapper copyForceMergeRequestWrapperRequest(
-        DataStreamLifecycleService.ForceMergeRequestWrapper original
-    ) {
-        return new DataStreamLifecycleService.ForceMergeRequestWrapper(original);
+    private static ForceMergeRequestWrapper copyForceMergeRequestWrapperRequest(ForceMergeRequestWrapper original) {
+        return new ForceMergeRequestWrapper(original);
     }
 
-    private static DataStreamLifecycleService.ForceMergeRequestWrapper mutateForceMergeRequestWrapper(
-        DataStreamLifecycleService.ForceMergeRequestWrapper original
-    ) {
+    private static ForceMergeRequestWrapper mutateForceMergeRequestWrapper(ForceMergeRequestWrapper original) {
         switch (randomIntBetween(0, 4)) {
             case 0 -> {
-                DataStreamLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
+                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
                 String[] originalIndices = original.indices();
                 int changedIndexIndex;
                 if (originalIndices.length > 0) {
@@ -1745,22 +1741,22 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 return copy;
             }
             case 1 -> {
-                DataStreamLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
+                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
                 copy.onlyExpungeDeletes(original.onlyExpungeDeletes() == false);
                 return copy;
             }
             case 2 -> {
-                DataStreamLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
+                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
                 copy.flush(original.flush() == false);
                 return copy;
             }
             case 3 -> {
-                DataStreamLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
+                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
                 copy.maxNumSegments(original.maxNumSegments() + 1);
                 return copy;
             }
             case 4 -> {
-                DataStreamLifecycleService.ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
+                ForceMergeRequestWrapper copy = copyForceMergeRequestWrapperRequest(original);
                 copy.setRequestId(original.getRequestId() + 1);
                 return copy;
             }

@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.datastreams.lifecycle.ForceMergeRequestWrapper;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
@@ -73,7 +73,7 @@ public class ForceMergeStep implements DlmStep {
      */
     @Override
     public void execute(DlmStepContext stepContext) {
-        maybeForceMerge(stepContext.indexName(), stepContext);
+        maybeForceMerge(stepContext);
     }
 
     /**
@@ -139,7 +139,8 @@ public class ForceMergeStep implements DlmStep {
      * delegated to the {@link #forceMerge} method. Checks if the force merge has already been completed for the
      * index before executing and skips execution if so. Also skips if the index does not exist in the project metadata.
      */
-    void maybeForceMerge(String index, DlmStepContext stepContext) {
+    void maybeForceMerge(DlmStepContext stepContext) {
+        Index index = stepContext.index();
         boolean indexMissing = Optional.ofNullable(stepContext.projectState())
             .map(ProjectState::metadata)
             .map(metadata -> metadata.index(index))
@@ -155,7 +156,7 @@ public class ForceMergeStep implements DlmStep {
             return;
         }
 
-        ForceMergeRequest forceMergeRequest = formForceMergeRequest(index);
+        ForceMergeRequest forceMergeRequest = formForceMergeRequest(index.getName());
         stepContext.executeDeduplicatedRequest(
             ForceMergeAction.NAME,
             forceMergeRequest,
@@ -214,7 +215,7 @@ public class ForceMergeStep implements DlmStep {
     private ForceMergeRequest formForceMergeRequest(String index) {
         ForceMergeRequest req = new ForceMergeRequest(index);
         req.maxNumSegments(SINGLE_SEGMENT);
-        return new DataStreamLifecycleService.ForceMergeRequestWrapper(req);
+        return new ForceMergeRequestWrapper(req);
     }
 
     /**

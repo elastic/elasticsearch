@@ -42,7 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.time.Clock;
 import java.util.List;
@@ -145,7 +144,7 @@ public class ForceMergeStepTests extends ESTestCase {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
 
-        forceMergeStep.maybeForceMerge(indexName, stepContext);
+        forceMergeStep.maybeForceMerge(stepContext);
 
         assertThat(capturedForceMergeRequest.get(), is(notNullValue()));
         assertThat(capturedForceMergeRequest.get().indices().length, is(1));
@@ -157,7 +156,7 @@ public class ForceMergeStepTests extends ESTestCase {
         ProjectState projectState = buildProjectState(null);
         DlmStepContext stepContext = createStepContext(projectState);
 
-        forceMergeStep.maybeForceMerge(indexName, stepContext);
+        forceMergeStep.maybeForceMerge(stepContext);
 
         assertThat(capturedForceMergeRequest.get(), is(nullValue()));
     }
@@ -166,7 +165,7 @@ public class ForceMergeStepTests extends ESTestCase {
         ProjectState projectState = createProjectStateWithSetting(true);
         DlmStepContext stepContext = createStepContext(projectState);
 
-        forceMergeStep.maybeForceMerge(indexName, stepContext);
+        forceMergeStep.maybeForceMerge(stepContext);
 
         assertThat(capturedForceMergeRequest.get(), is(nullValue()));
     }
@@ -179,7 +178,7 @@ public class ForceMergeStepTests extends ESTestCase {
         errorStore.recordError(projectId, indexName, new RuntimeException("previous error"));
         assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
 
-        forceMergeStep.maybeForceMerge(indexName, stepContext);
+        forceMergeStep.maybeForceMerge(stepContext);
 
         BroadcastResponse response = new BroadcastResponse(1, 1, 0, List.of());
         capturedForceMergeListener.get().onResponse(response);
@@ -198,7 +197,7 @@ public class ForceMergeStepTests extends ESTestCase {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
 
-        forceMergeStep.maybeForceMerge(indexName, stepContext);
+        forceMergeStep.maybeForceMerge(stepContext);
 
         RuntimeException failure = new RuntimeException("force merge transport failure");
         capturedForceMergeListener.get().onFailure(failure);
@@ -224,9 +223,7 @@ public class ForceMergeStepTests extends ESTestCase {
             0,
             new IllegalStateException("shard merge failed")
         );
-        BroadcastResponse response = Mockito.mock(BroadcastResponse.class);
-        Mockito.when(response.getFailedShards()).thenReturn(1);
-        Mockito.when(response.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[] { shardFailure });
+        BroadcastResponse response = new BroadcastResponse(1, 0, 1, List.of(shardFailure));
         capturedForceMergeListener.get().onResponse(response);
 
         assertThat(capturedFailure.get(), is(notNullValue()));
@@ -243,11 +240,7 @@ public class ForceMergeStepTests extends ESTestCase {
         forceMergeStep.forceMerge(projectId, forceMergeRequest, ActionListener.wrap(v -> {
             throw new AssertionError("expected failure but got success");
         }, capturedFailure::set), stepContext);
-        BroadcastResponse response = Mockito.mock(BroadcastResponse.class);
-        Mockito.when(response.getTotalShards()).thenReturn(5);
-        Mockito.when(response.getSuccessfulShards()).thenReturn(3);
-        Mockito.when(response.getFailedShards()).thenReturn(0);
-        Mockito.when(response.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[0]);
+        BroadcastResponse response = new BroadcastResponse(5, 3, 0, List.of());
         capturedForceMergeListener.get().onResponse(response);
         assertThat(capturedFailure.get(), is(notNullValue()));
         assertThat(capturedFailure.get(), instanceOf(ElasticsearchException.class));

@@ -76,6 +76,36 @@ public class ApproximationPlan {
     public static final String BUCKET_ID_COLUMN_NAME = "$bucket_id";
 
     /**
+     * Prefix for confidence interval column names in the approximation output.
+     */
+    public static final String CONFIDENCE_INTERVAL_COLUMN_PREFIX = "_approximation_confidence_interval(";
+
+    /**
+     * Prefix for certified column names in the approximation output.
+     */
+    public static final String CERTIFIED_COLUMN_PREFIX = "_approximation_certified(";
+
+    /**
+     * Returns the {@code _meta} map for an approximation column, or {@code null}
+     * if the column name does not match an approximation pattern.
+     */
+    public static Map<String, Object> columnMetadata(Attribute column) {
+        if (column.synthetic() == false) {
+            return null;
+        }
+        String columnName = column.name();
+        if (columnName.startsWith(CONFIDENCE_INTERVAL_COLUMN_PREFIX) && columnName.endsWith(")")) {
+            String sourceColumn = columnName.substring(CONFIDENCE_INTERVAL_COLUMN_PREFIX.length(), columnName.length() - 1);
+            return Map.of("approximation", Map.of("type", "confidence_interval", "column", sourceColumn));
+        }
+        if (columnName.startsWith(CERTIFIED_COLUMN_PREFIX) && columnName.endsWith(")")) {
+            String sourceColumn = columnName.substring(CERTIFIED_COLUMN_PREFIX.length(), columnName.length() - 1);
+            return Map.of("approximation", Map.of("type", "certified", "column", sourceColumn));
+        }
+        return null;
+    }
+
+    /**
      * The number of times (trials) the sampled rows are divided into buckets.
      */
     static final int TRIAL_COUNT = 2;
@@ -654,14 +684,16 @@ public class ApproximationPlan {
                 confidenceIntervalsAndCertified.add(
                     new Alias(
                         Source.EMPTY,
-                        "_approximation_confidence_interval(" + output.name() + ")",
-                        new MvSlice(Source.EMPTY, confidenceInterval, Literal.integer(Source.EMPTY, 0), Literal.integer(Source.EMPTY, 1))
+                        CONFIDENCE_INTERVAL_COLUMN_PREFIX + output.name() + ")",
+                        new MvSlice(Source.EMPTY, confidenceInterval, Literal.integer(Source.EMPTY, 0), Literal.integer(Source.EMPTY, 1)),
+                        null,
+                        true
                     )
                 );
                 confidenceIntervalsAndCertified.add(
                     new Alias(
                         Source.EMPTY,
-                        "_approximation_certified(" + output.name() + ")",
+                        CERTIFIED_COLUMN_PREFIX + output.name() + ")",
                         new GreaterThanOrEqual(
                             Source.EMPTY,
                             new MvSlice(
@@ -671,7 +703,9 @@ public class ApproximationPlan {
                                 Literal.integer(Source.EMPTY, 2)
                             ),
                             Literal.fromDouble(Source.EMPTY, 0.5)
-                        )
+                        ),
+                        null,
+                        true
                     )
                 );
             }

@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ApproximationPlanTests extends ApproximationTestCase {
 
@@ -70,5 +74,40 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         assertThat(approximationPlan, not(hasPlan(Eval.class, withField(("_approximation_certified(d)")))));
         assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_confidence_interval(e)"))));
         assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(e)"))));
+    }
+
+    public void testColumnMetadata() throws Exception {
+        LogicalPlan approximationPlan = ApproximationPlan.get(
+            ApproximationTests.getLogicalPlan("FROM test | STATS count=COUNT(), sum=SUM(emp_no)"),
+            ApproximationSettings.ENABLED
+        );
+
+        for (Attribute attr : approximationPlan.output()) {
+            Map<String, Object> metadata = ApproximationPlan.columnMetadata(attr);
+            switch (attr.name()) {
+                case "count", "sum":
+                    assertThat(attr.synthetic(), equalTo(false));
+                    assertThat(metadata, nullValue());
+                    break;
+                case "_approximation_confidence_interval(count)":
+                    assertThat(attr.synthetic(), equalTo(true));
+                    assertThat(metadata, equalTo(Map.of("approximation", Map.of("type", "confidence_interval", "column", "count"))));
+                    break;
+                case "_approximation_certified(count)":
+                    assertThat(attr.synthetic(), equalTo(true));
+                    assertThat(metadata, equalTo(Map.of("approximation", Map.of("type", "certified", "column", "count"))));
+                    break;
+                case "_approximation_confidence_interval(sum)":
+                    assertThat(attr.synthetic(), equalTo(true));
+                    assertThat(metadata, equalTo(Map.of("approximation", Map.of("type", "confidence_interval", "column", "sum"))));
+                    break;
+                case "_approximation_certified(sum)":
+                    assertThat(attr.synthetic(), equalTo(true));
+                    assertThat(metadata, equalTo(Map.of("approximation", Map.of("type", "certified", "column", "sum"))));
+                    break;
+                default:
+                    fail("Unexpected attribute: " + attr);
+            }
+        }
     }
 }

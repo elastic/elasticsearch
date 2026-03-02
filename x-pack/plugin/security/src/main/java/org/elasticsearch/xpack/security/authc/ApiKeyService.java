@@ -1772,14 +1772,17 @@ public class ApiKeyService implements Closeable {
         }
         final var targetDocVersion = ApiKey.CURRENT_API_KEY_VERSION;
         final var currentDocVersion = new ApiKey.Version(currentVersionedDoc.doc().version);
-        assert currentDocVersion.onOrBefore(targetDocVersion)
-            : "API key ["
-                + currentVersionedDoc.id()
-                + "] has version ["
-                + currentDocVersion
-                + " which is greater than current version ["
-                + ApiKey.CURRENT_API_KEY_VERSION
-                + "]";
+        // A broader change to API key version coherency during rolling upgrades is needed.
+        // For now, log a warning instead of asserting so that older nodes can update API keys
+        // created by newer nodes in test environments with assertions enabled.
+        if (currentDocVersion.after(targetDocVersion)) {
+            logger.warn(
+                "API key [{}] has version [{}] which is greater than current version [{}]",
+                currentVersionedDoc.id(),
+                currentDocVersion,
+                targetDocVersion
+            );
+        }
         if (logger.isDebugEnabled() && currentDocVersion.before(targetDocVersion)) {
             logger.debug(
                 "API key update for [{}] will update version from [{}] to [{}]",

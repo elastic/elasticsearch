@@ -141,12 +141,12 @@ public class ForceMergeStep implements DlmStep {
      * index before executing and skips execution if so. Also skips if the index does not exist in the project metadata.
      */
     void maybeForceMerge(String index, DlmStepContext stepContext) {
-        IndexMetadata indexMetadata = Optional.ofNullable(stepContext.projectState())
+        boolean indexMissing = Optional.ofNullable(stepContext.projectState())
             .map(ProjectState::metadata)
             .map(metadata -> metadata.index(index))
-            .orElse(null);
+            .isEmpty();
 
-        if (indexMetadata == null) {
+        if (indexMissing) {
             logger.warn("Index [{}] not found in project metadata, skipping force merge step", index);
             return;
         }

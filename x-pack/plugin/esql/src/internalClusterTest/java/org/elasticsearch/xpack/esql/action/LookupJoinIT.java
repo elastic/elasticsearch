@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
@@ -46,9 +50,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @TestLogging(
@@ -75,6 +84,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     private static final String LANGUAGES_LOOKUP_INDEX = "languages_lookup";
     private static final String LANGUAGES_MIXED_NUMERICS_INDEX = "languages_mixed_numerics";
     private static final String MESSAGE_TYPES_LOOKUP_INDEX = "message_types_lookup";
+    private static final String SAMPLE_DATA_INDEX = "sample_data";
 
     // Enrich policy name constants
     private static final String AGES_POLICY = "ages_policy";
@@ -335,5 +345,117 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse response = runQuery(query)) {
             assertValues(response.values(), List.of(List.of("left", "Connected to 10.1.0.1", "right", "Success")));
         }
+    }
+
+    // Test ported from csv-spec:lookup-join.lookupMessageFromIndexKeep
+    // Tests LOOKUP JOIN from an index with KEEP to select specific fields
+    public void testLookupMessageFromIndexKeep() throws IOException {
+        // Required indices for this test
+        ensureIndices(List.of(SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX));
+
+        // Run the query with profiling (added SORT for deterministic results - csv-spec uses ignoreOrder:true)
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | LOOKUP JOIN %s ON message
+            | KEEP @timestamp, client_ip, event_duration, message, type
+            | SORT @timestamp DESC
+            """, SAMPLE_DATA_INDEX, MESSAGE_TYPES_LOOKUP_INDEX);
+
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query).profile(true))) {
+            assertValues(
+                response.values(),
+                List.of(
+                    List.of("2023-10-23T13:55:01.543Z", "172.21.3.15", 1756467L, "Connected to 10.1.0.1", "Success"),
+                    List.of("2023-10-23T13:53:55.832Z", "172.21.3.15", 5033755L, "Connection error", "Error"),
+                    List.of("2023-10-23T13:52:55.015Z", "172.21.3.15", 8268153L, "Connection error", "Error"),
+                    List.of("2023-10-23T13:51:54.732Z", "172.21.3.15", 725448L, "Connection error", "Error"),
+                    List.of("2023-10-23T13:33:34.937Z", "172.21.0.5", 1232382L, "Disconnected", "Disconnected"),
+                    List.of("2023-10-23T12:27:28.948Z", "172.21.2.113", 2764889L, "Connected to 10.1.0.2", "Success"),
+                    List.of("2023-10-23T12:15:03.360Z", "172.21.2.162", 3450233L, "Connected to 10.1.0.3", "Success")
+                )
+            );
+
+            // Verify the correct lookup operator is used: streaming in snapshot builds, non-streaming in release builds
+            assertNotNull("profile should be present", response.profile());
+            List<String> allOperators = response.profile()
+                .drivers()
+                .stream()
+                .flatMap(d -> d.operators().stream())
+                .map(OperatorStatus::operator)
+                .toList();
+            if (Build.current().isSnapshot()) {
+                assertTrue(
+                    "expected StreamingLookupOperator in snapshot build, got: " + allOperators,
+                    allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"))
+                );
+                assertFalse(
+                    "unexpected LookupOperator in snapshot build, got: " + allOperators,
+                    allOperators.stream().anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false)
+                );
+            } else {
+                assertTrue(
+                    "expected LookupOperator in release build, got: " + allOperators,
+                    allOperators.stream().anyMatch(op -> op.contains("LookupOperator") && op.contains("StreamingLookupOperator") == false)
+                );
+                assertFalse(
+                    "unexpected StreamingLookupOperator in release build, got: " + allOperators,
+                    allOperators.stream().anyMatch(op -> op.contains("StreamingLookupOperator"))
+                );
+            }
+        }
+    }
+
+    /**
+     * Test ported from csv-spec:lookup-join.mvJoinKeyOnFrom
+     * Tests that multi-value join keys generate the expected warnings.
+     * This test uses real transport (not MockTransport) so warnings should propagate correctly.
+     * Follows the same pattern as {@link WarningsIT}: send the request to a known coordinator node
+     * and read warnings from that node's thread context in the response callback.
+     */
+    public void testMultiValueJoinKeyWarnings() throws Exception {
+        // Required indices for this test
+        ensureIndices(List.of(EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX));
+
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | WHERE emp_no < 10006
+            | EVAL language_code = salary_change.int
+            | LOOKUP JOIN %s ON language_code
+            | SORT emp_no
+            | KEEP emp_no, language_code, language_name
+            """, EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX);
+
+        // Pick a specific coordinator node so we read warnings from the right thread context
+        DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
+        AtomicReference<List<String>> capturedWarnings = new AtomicReference<>();
+
+        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
+            try {
+                // Read warnings from the coordinator node's thread context (same node we sent to)
+                var threadpool = internalCluster().getInstance(TransportService.class, coordinator.getName()).getThreadPool();
+                Map<String, List<String>> responseHeaders = threadpool.getThreadContext().getResponseHeaders();
+                capturedWarnings.set(new ArrayList<>(responseHeaders.getOrDefault("Warning", List.of())));
+            } finally {
+                latch.countDown();
+            }
+        }));
+
+        assertTrue("Test timed out", latch.await(30, TimeUnit.SECONDS));
+
+        // Verify warnings were captured
+        List<String> warnings = capturedWarnings.get();
+        assertNotNull("Warnings should not be null", warnings);
+
+        // Filter warnings for the LOOKUP JOIN multi-value warning
+        List<String> lookupJoinWarnings = warnings.stream().filter(w -> w.contains("LOOKUP JOIN encountered multi-value")).toList();
+
+        assertThat(
+            "Expected LOOKUP JOIN multi-value warning to be present. All warnings: " + warnings,
+            lookupJoinWarnings.size(),
+            greaterThanOrEqualTo(1)
+        );
     }
 }

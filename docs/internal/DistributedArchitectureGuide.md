@@ -1155,113 +1155,14 @@ operation.
 
 [TransportMasterNodeAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeAction.java
 
-[TransportMasterNodeReadAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeReadAction.java
+Many cluster operations
+([creating indices](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/admin/indices/create/TransportCreateIndexAction.java),
+[managing snapshots](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/admin/cluster/snapshots/create/TransportCreateSnapshotAction.java), etc.)
+run on the elected master node because they result in [ClusterState] updates. The [TransportMasterNodeAction] class
+is the base class for such operations. It provides a common framework that handles routing requests to the current
+master, retrying when the master changes, and checking for cluster blocks. 
 
-[MasterNodeRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/MasterNodeRequest.java
-
-[MasterNodeReadRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/MasterNodeReadRequest.java
-
-[ClusterStateObserver]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateObserver.java
-
-[MasterNotDiscoveredException]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/MasterNotDiscoveredException.java
-
-Many cluster operations 
-([creating indices](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/admin/indices/create/TransportCreateIndexAction.java), 
-[managing snapshots](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/admin/cluster/snapshots/create/TransportCreateSnapshotAction.java), etc.) 
-run on the elected master node because they result in [ClusterState] updates. The [TransportMasterNodeAction] class 
-is the base class for operations that need to be performed on the master node. It provides a common framework that 
-handles routing requests to the current master, retrying when the master changes, and checking for cluster blocks.
-
-Subclasses of `TransportMasterNodeAction` implement two abstract methods to provide the action-specific logic:
-
-- `masterOperation(Task, Request, ClusterState, ActionListener)`: the actual operation to perform on the master. This
-  typically ends up submitting a cluster state update task to the [MasterService](#master-service).
-- `checkBlock(Request, ClusterState)`: returns a [ClusterBlockException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/block/ClusterBlockException.java) 
-   if the action should be blocked for the current cluster state (e.g. index write block during a close operation),
-   or `null` if the action can proceed.
-
-The class hierarchy for the [TransportMasterNodeAction] is:
-
-```
-TransportAction
-  └── HandledTransportAction         (registers a transport request handler for the action)
-        └── TransportMasterNodeAction     (routes to master, retries, block-checks)
-              └── TransportMasterNodeReadAction  (adds local execution option for read-only operations)
-                    └── TransportGetRepositoriesAction/TransportGetDesiredBalanceAction...
-```
-
-[MasterNodeRequest] is the request type that `TransportMasterNodeAction` is parameterized on. This base class holds 
-two fields relevant to master routing. 
-
-The first one is `masterNodeTimeout`, which defines how long the request will wait when no master is available, or 
-the current master is unavailable (disconnected, or busy). For REST-originated requests, this is set via the 
-`master_timeout` query parameter. Internally-generated requests typically use `INFINITE_MASTER_NODE_TIMEOUT` 
-to wait indefinitely.
-
-The second field is the `masterTerm`, which is the [term](#terms) of the cluster state that was used to route 
-this request, and is meant to prevent routing loops. Indeed, when a node receives a forwarded request whose `masterTerm` 
-is higher than the node's own cluster state term, it knows the sender had a more recent view of the cluster. 
-Rather than forwarding the request again (which could create a loop), the node 
-[waits](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeAction.java#L241)
-for its local term to catch up before proceeding.
-
-The [MasterNodeReadRequest] subclass adds a `local` boolean flag. When `local` is `true`,
-the [TransportMasterNodeReadAction]
-will [execute](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeReadAction.java#L56)
-the operation on the receiving node using its local cluster state, without forwarding to the master. This is useful for
-read-only operations like cluster health or cluster state queries where the caller does not require the very latest 
-data and can accept a potentially stale local view.
-
-#### Execution Flow
-
-```mermaid
-flowchart TD
-    A[doExecute] --> B{Local node is master<br/>OR localExecute?}
-    B -- Yes --> C{Cluster block?}
-    C -- "Non-retryable block" --> D[Fail with ClusterBlockException]
-    C -- "Retryable block" --> E[Retry until block clears]
-    C -- "No block" --> F[Execute masterOperation locally]
-    F --> G{Publication failure?}
-    G -- No --> I[Return response]
-
-    B -- No --> J{Master known?}
-    J -- Yes --> L{"Local term ≥<br/>request masterTerm?"}
-    L -- No --> M[Retry until local term catches up]
-    L -- Yes --> N[Forward request to master node]
-    N --> O{Transport error?}
-    O -- "Other error" --> P[Fail with Exception]
-
-    J -- "No master" --> H[Retry until master appears]
-    G -- Yes --> H
-    O -- "Connection/node closed" --> H
-```
-
-The `TransportMasterNodeAction` [action execution](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeAction.java#L156)
-delegates to
-an [AsyncSingleAction](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeAction.java#L169)
-object, which handles routing, triggering async execution, and registering the relevant listeners for the action's output.
-
-If the local node is not the master and `localExecute` is false, the `AsyncSingleAction.doStart()` method will try to 
-route the request to the known master. If there is no known master, the action retries, waiting for a master to appear.
-If the master is known but the local term is lower than the request's `masterTerm`, the action waits for the local
-term to catch up first to avoid routing loops. Otherwise, the request is
-[forwarded](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeAction.java#L245)
-to the master node via the transport layer. If the connection fails (`ConnectTransportException`) or the target node is
-closing (`NodeClosedException`), the action retries on the next available master.
-
-If the local node is the master or `localExecute` is true, the `AsyncSingleAction.doStart()` method will first check for 
-[cluster blocks](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeAction.java#L194)
-that may prevent the request from proceeding. If a retryable block is present, it retries until the block clears.
-If no blocks affect the request, `masterOperation` is invoked on the [configured executor](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeAction.java#L71).
-If `masterOperation` fails with a publish failure (`NotMasterException` or `FailedToCommitClusterStateException`), 
-the action retries on the next master.
-
-All retries are driven by a [ClusterStateObserver], which watches for cluster state changes that satisfy a given
-predicate. The observer uses the remaining `masterNodeTimeout` as its deadline: if no suitable state appears before the
-timeout expires, the action fails with a [MasterNotDiscoveredException]. For [CancellableTask]s, a cancellation 
-listener is also registered so that the retry aborts immediately if the task is cancelled.
-
-Each retry re-enters `doStart` with the new cluster state, re-evaluating the routing decision from scratch.
+See `TransportMasterNodeAction` Javadoc for a detailed description of the execution flow and retry mechanism.
 
 # Replication
 

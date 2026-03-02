@@ -60,7 +60,7 @@ import static org.elasticsearch.core.Strings.format;
  * node. This class provides a common framework that handles routing requests to the current master,
  * retrying when the master changes, and checking for cluster blocks.
  *
- * <h3>Subclasses responsibility</h3>
+ * <h2>Subclasses responsibility</h2>
  *
  * <p>Subclasses must implement two abstract methods:
  * <ul>
@@ -73,7 +73,7 @@ import static org.elasticsearch.core.Strings.format;
  *       {@code null} if the action can proceed.</li>
  * </ul>
  *
- * <h3>Request Types</h3>
+ * <h2>Request Types</h2>
  *
  * <p> The {@link MasterNodeRequest} is the request type this class is parameterized on. It carries two
  * fields relevant to master routing:
@@ -93,7 +93,7 @@ import static org.elasticsearch.core.Strings.format;
  * This is typically used for read-only operations (e.g. cluster health or cluster state queries) where
  * a potentially stale local view is acceptable.
  *
- * <h3>Execution Flow</h3>
+ * <h2>Execution Flow</h2>
  *
  * <p>Execution is delegated to an {@code AsyncSingleAction}, which handles routing, async execution,
  * and result listener registration.
@@ -120,7 +120,7 @@ import static org.elasticsearch.core.Strings.format;
  *       the next available master.</li>
  * </ol>
  *
- * <h3>Retry Mechanism</h3>
+ * <h2>Retry Mechanism</h2>
  *
  * <p>All retries are driven by a {@link org.elasticsearch.cluster.ClusterStateObserver}, which watches
  * for cluster state changes satisfying a given predicate. The observer uses the remaining

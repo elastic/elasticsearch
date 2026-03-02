@@ -367,6 +367,8 @@ public class TransformUpdateIT extends TransformRestTestCase {
 
         stopTransform(transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1, true, false);
         stopTransform(transformIdCloned, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1, true, false);
+        deleteTransform(transformId);
+        deleteTransform(transformIdCloned);
     }
 
     private void deleteUser(String user) throws IOException {

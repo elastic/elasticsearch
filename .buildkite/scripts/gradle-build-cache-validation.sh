@@ -12,7 +12,7 @@ tmpOutputFile=$(mktemp)
 trap "rm $tmpOutputFile" EXIT
 
 set +e
-develocity-gradle-build-validation/03-validate-local-build-caching-different-locations.sh -r https://github.com/elastic/elasticsearch.git -b $BUILDKITE_BRANCH --develocity-server https://gradle-enterprise.elastic.co -t precommit --fail-if-not-fully-cacheable | tee $tmpOutputFile
+develocity-gradle-build-validation/03-validate-local-build-caching-different-locations.sh -r https://github.com/elastic/elasticsearch.git -b $BUILDKITE_BRANCH --develocity-server https://gradle-enterprise.elastic.co -t "precommit javadoc" --fail-if-not-fully-cacheable | tee $tmpOutputFile
 # Capture the return value
 retval=$?
 set -e

@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -118,6 +119,13 @@ import static org.elasticsearch.xpack.core.esql.EsqlFeatureFlags.ESQL_VIEWS_FEAT
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
+
+    public static final Setting<Integer> ESQL_WORKER_THREAD_POOL_SIZE = Setting.intSetting(
+        "esql.worker.thread_pool_size",
+        -1,
+        -1,
+        Setting.Property.NodeScope
+    );
 
     public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
         "esql.query.allow_partial_results",
@@ -204,8 +212,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
             BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
         );
+        long bytesRefRamOverestimateThreshold = PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.get(settings).getBytes();
+        double bytesRefRamOverestimateFactor = PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.get(settings);
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
-        var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
+        var blockFactoryProvider = blockFactoryProvider(
+            circuitBreaker,
+            bigArrays,
+            maxPrimitiveArrayBlockSize,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
+        );
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
@@ -265,8 +281,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return components;
     }
 
-    protected BlockFactoryProvider blockFactoryProvider(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
-        return new BlockFactoryProvider(new BlockFactory(breaker, bigArrays, maxPrimitiveArraySize));
+    protected BlockFactoryProvider blockFactoryProvider(
+        CircuitBreaker breaker,
+        BigArrays bigArrays,
+        ByteSizeValue maxPrimitiveArraySize,
+        long bytesRefRamOverestimateThreshold,
+        double bytesRefRamOverestimateFactor
+    ) {
+        return new BlockFactoryProvider(
+            new BlockFactory(breaker, bigArrays, maxPrimitiveArraySize, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor)
+        );
     }
 
     // to be overriden by tests
@@ -294,6 +318,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
                 ESQL_QUERYLOG_INCLUDE_USER_SETTING,
                 STORED_FIELDS_SEQUENTIAL_PROPORTION,
+                ESQL_WORKER_THREAD_POOL_SIZE,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
             )
@@ -388,6 +413,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
+        entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
         entries.add(LinearScoreEvalOperator.Status.ENTRY);
         entries.add(MMROperator.Status.ENTRY);
@@ -418,13 +444,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        int configuredSize = ESQL_WORKER_THREAD_POOL_SIZE.get(settings);
+        int poolSize = configuredSize > 0 ? configuredSize : ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);
         return List.of(
-            // TODO: Maybe have two types of threadpools for workers: one for CPU-bound and one for I/O-bound tasks.
-            // And we should also reduce the number of threads of the CPU-bound threadpool to allocatedProcessors.
             new FixedExecutorBuilder(
                 settings,
                 ESQL_WORKER_THREAD_POOL_NAME,
-                ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors),
+                poolSize,
                 1000,
                 ESQL_WORKER_THREAD_POOL_NAME,
                 EsExecutors.TaskTrackingConfig.DEFAULT

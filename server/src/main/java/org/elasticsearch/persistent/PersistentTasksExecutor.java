@@ -127,7 +127,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
 
     /**
      * Whether this task should proactively be reassigned when its executing node is marked for shutdown.
-     * Automated reassignment allow for gap-free reassignment on node (single cluster state update)
+     * Automated reassignment allows for gap-free reassignment on node (single cluster state update)
      *
      * <p>Returns {@code false} by default, preserving existing behavior where individual task executors
      * handle shutdown themselves (e.g. via their own cluster state listener).

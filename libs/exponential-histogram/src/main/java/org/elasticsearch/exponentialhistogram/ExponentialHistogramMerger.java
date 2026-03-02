@@ -29,8 +29,6 @@ import org.elasticsearch.core.Releasable;
 import java.util.OptionalLong;
 import java.util.function.DoubleBinaryOperator;
 
-import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getMaximumScaleIncrease;
-
 /**
  * Allows accumulating multiple {@link ExponentialHistogram} into a single one
  * while keeping the bucket count in the result below a given limit.
@@ -188,16 +186,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      * @param toAdd the histogram to merge
      */
     public void addWithoutUpscaling(ExponentialHistogram toAdd) {
-        add(toAdd, false);
-    }
-
-    /**
-     * Merges the given histogram into the current result. The histogram might be upscaled if needed.
-     *
-     * @param toAdd the histogram to merge
-     */
-    public void add(ExponentialHistogram toAdd) {
-        add(toAdd, true);
+        add(toAdd);
     }
 
     // This algorithm is very efficient if B has roughly as many buckets as A.
@@ -211,7 +200,12 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
     // It would be possible to only enable the buffering for small histograms,
     // but the optimization seems not worth the added complexity at this point.
 
-    private void add(ExponentialHistogram toAdd, boolean allowUpscaling) {
+    /**
+     * Merges the given histogram into the current result.
+     *
+     * @param toAdd the histogram to merge
+     */
+    public void add(ExponentialHistogram toAdd) {
         ExponentialHistogram a = result == null ? ExponentialHistogram.empty() : result;
         ExponentialHistogram b = toAdd;
 
@@ -231,42 +225,12 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             buffer.setSum(a.sum() + b.sum());
             buffer.setMin(nanAwareAggregate(a.min(), b.min(), Math::min));
             buffer.setMax(nanAwareAggregate(a.max(), b.max(), Math::max));
-            // We attempt to bring everything to the scale of A.
-            // This might involve increasing the scale for B, which would increase its indices.
-            // We need to ensure that we do not exceed MAX_INDEX / MIN_INDEX in this case.
-            int targetScale = Math.min(factory.maxScale, a.scale());
-            if (allowUpscaling == false) {
-                targetScale = Math.min(targetScale, b.scale());
-            }
 
-            if (targetScale > b.scale()) {
-                if (negBucketsB.hasNext()) {
-                    long smallestIndex = negBucketsB.peekIndex();
-                    OptionalLong maximumIndex = b.negativeBuckets().maxBucketIndex();
-                    assert maximumIndex.isPresent()
-                        : "We checked that the negative bucket range is not empty, therefore the maximum index should be present";
-                    int maxScaleIncrease = Math.min(
-                        getMaximumScaleIncrease(smallestIndex),
-                        getMaximumScaleIncrease(maximumIndex.getAsLong())
-                    );
-                    targetScale = Math.min(targetScale, b.scale() + maxScaleIncrease);
-                }
-                if (posBucketsB.hasNext()) {
-                    long smallestIndex = posBucketsB.peekIndex();
-                    OptionalLong maximumIndex = b.positiveBuckets().maxBucketIndex();
-                    assert maximumIndex.isPresent()
-                        : "We checked that the positive bucket range is not empty, therefore the maximum index should be present";
-                    int maxScaleIncrease = Math.min(
-                        getMaximumScaleIncrease(smallestIndex),
-                        getMaximumScaleIncrease(maximumIndex.getAsLong())
-                    );
-                    targetScale = Math.min(targetScale, b.scale() + maxScaleIncrease);
-                }
-            }
+            int targetScale = Math.min(factory.maxScale, Math.min(a.scale(), b.scale()));
 
-            // Now we are sure that everything fits numerically into targetScale.
-            // However, we might exceed our limit for the total number of buckets.
-            // Therefore, we try the merge optimistically. If we fail, we reduce the target scale to make everything fit.
+            // We might exceed our limit for the total number of buckets for the targetScale.
+            // We try the merge optimistically, assuming that everything fits.
+            // If we fail, we reduce the target scale to make everything fit.
 
             MergingBucketIterator positiveMerged = new MergingBucketIterator(posBucketsA.copy(), posBucketsB.copy(), targetScale);
             MergingBucketIterator negativeMerged = new MergingBucketIterator(negBucketsA.copy(), negBucketsB.copy(), targetScale);

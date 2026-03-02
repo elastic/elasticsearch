@@ -23,7 +23,7 @@ import java.util.stream.IntStream;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
-@Fork(1)
+@Fork(value = 1, jvmArgs = {"--add-opens=java.base/java.nio=ALL-UNNAMED"})
 public class BlockReadBenchmark extends BlockBenchmark {
     static {
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
@@ -270,6 +270,7 @@ public class BlockReadBenchmark extends BlockBenchmark {
             "BytesRef/vector-const",
             "double/array",
             "double/array-multivalue-null",
+            "double/arrow",
             "double/big-array",
             "double/big-array-multivalue-null",
             "double/vector",

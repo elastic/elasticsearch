@@ -19,6 +19,8 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.gpu.CuVSGPUSupport;
+import org.elasticsearch.gpu.GPUSupport;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -53,18 +55,20 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     // Intermediate graph degree, the number of connections for each node before pruning
     private final int beamWidth;
     private final Supplier<CuVSResourceManager> cuVSResourceManagerSupplier;
+    private final GPUSupport gpuSupport;
 
     public ES92GpuHnswVectorsFormat() {
-        this(CuVSResourceManager::pooling, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
+        this(CuVSResourceManager::pooling, new CuVSGPUSupport(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
     }
 
     public ES92GpuHnswVectorsFormat(int maxConn, int beamWidth) {
-        this(CuVSResourceManager::pooling, maxConn, beamWidth);
+        this(CuVSResourceManager::pooling, new CuVSGPUSupport(), maxConn, beamWidth);
     };
 
-    public ES92GpuHnswVectorsFormat(Supplier<CuVSResourceManager> cuVSResourceManagerSupplier, int maxConn, int beamWidth) {
+    ES92GpuHnswVectorsFormat(Supplier<CuVSResourceManager> cuVSResourceManagerSupplier, GPUSupport gpuSupport, int maxConn, int beamWidth) {
         super(NAME);
         this.cuVSResourceManagerSupplier = cuVSResourceManagerSupplier;
+        this.gpuSupport = gpuSupport;
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
     }
@@ -73,6 +77,7 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new ES92GpuHnswVectorsWriter(
             cuVSResourceManagerSupplier.get(),
+            gpuSupport,
             state,
             maxConn,
             beamWidth,

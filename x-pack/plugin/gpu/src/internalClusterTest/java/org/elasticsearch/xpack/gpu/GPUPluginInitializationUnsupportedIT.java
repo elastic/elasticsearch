@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.gpu;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -25,14 +26,27 @@ import static org.elasticsearch.xpack.gpu.TestVectorsFormatUtils.randomGPUSuppor
 
 public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
 
-    static {
-        // Mocks a cuvs-java UnsupportedProvider
-        TestCuVSServiceProvider.mockedGPUInfoProvider = p -> { throw new UnsupportedOperationException("cuvs-java UnsupportedProvider"); };
+    // Mocks a cuvs-java UnsupportedProvider
+    private static class TestGPUSupport implements GPUSupport {
+        @Override
+        public boolean isSupported() {
+            return false;
+        }
+
+        @Override
+        public long getTotalGpuMemory() {
+            throw new UnsupportedOperationException("cuvs-java UnsupportedProvider");
+        }
+
+        @Override
+        public String getGpuName() {
+            throw new UnsupportedOperationException("cuvs-java UnsupportedProvider");
+        }
     }
 
     public static class TestGPUPlugin extends GPUPlugin {
         public TestGPUPlugin() {
-            super(Settings.EMPTY);
+            super(Settings.EMPTY, new TestGPUSupport());
         }
 
         @Override

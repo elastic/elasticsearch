@@ -11,6 +11,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -40,9 +41,11 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
     protected static boolean isGpuIndexingFeatureAllowed = true;
 
+    private static final GPUSupport gpuSupport = new CuVSGPUSupport();
+
     public static class TestGPUPlugin extends GPUPlugin {
         public TestGPUPlugin(Settings settings) {
-            super(settings);
+            super(settings, gpuSupport);
         }
 
         @Override
@@ -84,7 +87,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
     @BeforeClass
     public static void checkGPUSupport() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported());
+        assumeTrue("cuvs not supported", gpuSupport.isSupported());
     }
 
     protected static String randomSimilarity() {

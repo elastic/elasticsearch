@@ -45,6 +45,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -94,7 +95,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
 import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.index.VersionType.INTERNAL;
-import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED;
+import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE;
 
 public class Reindexer {
 
@@ -109,6 +110,7 @@ public class Reindexer {
     private final ReindexMetrics reindexMetrics;
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
+    private final FeatureService featureService;
 
     Reindexer(
         ClusterService clusterService,
@@ -119,7 +121,8 @@ public class Reindexer {
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
         TransportService transportService,
-        ReindexRelocationNodePicker relocationNodePicker
+        ReindexRelocationNodePicker relocationNodePicker,
+        FeatureService featureService
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
@@ -130,6 +133,7 @@ public class Reindexer {
         this.reindexMetrics = reindexMetrics;
         this.transportService = Objects.requireNonNull(transportService);
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
+        this.featureService = featureService;
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -172,7 +176,7 @@ public class Reindexer {
          * If this is a request to reindex from remote, then we need to determine the remote version prior to execution
          * NB {@link ReindexRequest} forbids remote requests and slices > 1, so we're guaranteed to be running on the only slice
          */
-        if (REINDEX_PIT_SEARCH_ENABLED && request.getRemoteInfo() != null) {
+        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) && request.getRemoteInfo() != null) {
             lookupRemoteVersionAndExecute(task, request, listenerWithRelocations, workerAction);
         } else {
             BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(

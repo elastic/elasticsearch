@@ -1274,7 +1274,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         resolveIndexRequest.setParentTask(parentTaskId);
 
         connectionListener.addListener(listener.delegateResponse((l, error) -> {
-            logger.debug("Failed to communicate with the linked project [{}]", projectName, error);
+            logger.debug("Failed to communicate with the linked project [{}], error: {}", projectName, error);
             l.onResponse(Map.entry(projectName, new SearchPlanningPhaseResolutionResult(null, error)));
         })
             .delegateFailure(

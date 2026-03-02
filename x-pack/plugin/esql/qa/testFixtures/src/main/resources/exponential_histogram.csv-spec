@@ -42,10 +42,10 @@ FROM exp_histo_sample
 ;
 
 instance:keyword | min:double | max:double | median:double | p75:double | sum:double  | avg:double
-dummy-grouped    | -100.0     | 50.0       | 0.0           | 8.3457089  | -7550.0     | -15.0398406
+dummy-grouped    | -100.0     | 50.0       | 0.0           | 2.0        | -7550.0     | -15.0398406
 instance-0       | 2.4E-4     | 6.786232   | 0.0211404     | 0.2608237  | 1472.744209 | 0.1665812
-instance-1       | 2.17E-4    | 3.190723   | 6.469E-4      | 0.0016068  | 36.198484   | 0.011138
-instance-2       | 2.2E-4     | 2.744054   | 6.469E-4      | 0.0016068  | 27.706021   | 0.008197
+instance-1       | 2.17E-4    | 3.190723   | 6.606E-4      | 0.0015713  | 36.198484   | 0.011138
+instance-2       | 2.2E-4     | 2.744054   | 6.606E-4      | 0.0015713  | 27.706021   | 0.008197
 ;
 
 
@@ -64,7 +64,7 @@ FROM exp_histo_sample
 ;
 
 min:double | max:double | median:double | p75:double | sum:double | avg:double
-2.4E-4     | 3.190723   | 6.469E-4      | 0.2608237  | 36.198484  | 0.008197
+2.4E-4     | 3.190723   | 6.606E-4      | 0.2608237  | 36.198484  | 0.008197
 ;
 
 
@@ -88,7 +88,7 @@ FROM exp_histo_sample
 instance:keyword | min:double | max:double | median:double | p75:double | sum:double | avg:double
 instance-0       | 2.4E-4     | null       | null          | 0.2608237  | null       | null
 instance-1       | null       | 3.190723   | null          | null       | 36.198484  | null
-instance-2       | null       | null       | 6.469E-4      | null       | null       | 0.008197
+instance-2       | null       | null       | 6.606E-4      | null       | null       | 0.008197
 ;
 
 
@@ -177,7 +177,7 @@ FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy")
 ;
 
 p0:double | p50:double | p99:double | p100:double
-2.17E-4   | 0.0016965  | 0.9472324  | 6.786232
+2.17E-4   | 0.0017135  | 0.9567054  | 6.786232
 ;
 
 
@@ -194,8 +194,8 @@ FROM exp_histo_sample | WHERE NOT STARTS_WITH(instance, "dummy")
 
 instance:keyword | p0:double | p50:double | p99:double | p100:double
 instance-0       | 2.4E-4    | 0.0211404  | 1.0432946  | 6.786232
-instance-1       | 2.17E-4   | 6.469E-4   | 0.1422151  | 3.190723
-instance-2       | 2.2E-4    | 6.469E-4   | 0.0857672  | 2.7059714542564097
+instance-1       | 2.17E-4   | 6.606E-4   | 0.1422151  | 3.190723
+instance-2       | 2.2E-4    | 6.606E-4   | 0.0861688  | 2.705971454255406
 ;
 
 

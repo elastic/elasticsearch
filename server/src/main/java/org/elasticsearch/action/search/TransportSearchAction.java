@@ -1201,11 +1201,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         for (Map.Entry<String, SearchPlanningPhaseResolutionResult> entry : responsesByProject) {
             // There was a valid, non-null response from the _resolve/index API for this linked project.
-            if (entry.getValue().response() instanceof ResolveIndexAction.Response response) {
-                resolvedExpressions.put(entry.getKey(), response.getResolvedIndexExpressions());
-            } else {
+            String projectName = entry.getKey();
+            SearchPlanningPhaseResolutionResult result = entry.getValue();
+
+            if (result.response() instanceof ResolveIndexAction.Response response) {
+                resolvedExpressions.put(projectName, response.getResolvedIndexExpressions());
+            } else if (result.error() != null) {
                 // There was an error communicating with the linked project and the error was already logged.
-                unresponsiveProjects.add(entry.getKey());
+                unresponsiveProjects.add(projectName);
             }
         }
 

@@ -1373,12 +1373,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             long bytePos = bitPos >>> 3;
             int bitOff = (int) (bitPos & 7);
             // 6 bytes covers pidBits+8 <= 40 bits, shifted by up to 7: 47 bits max
-            long word = (combinedData.readByte(bytePos) & 0xFFL)
-                | ((combinedData.readByte(bytePos + 1) & 0xFFL) << 8)
-                | ((combinedData.readByte(bytePos + 2) & 0xFFL) << 16)
-                | ((combinedData.readByte(bytePos + 3) & 0xFFL) << 24)
-                | ((combinedData.readByte(bytePos + 4) & 0xFFL) << 32)
-                | ((combinedData.readByte(bytePos + 5) & 0xFFL) << 40);
+            long word = (combinedData.readByte(bytePos) & 0xFFL) | ((combinedData.readByte(bytePos + 1) & 0xFFL) << 8) | ((combinedData
+                .readByte(bytePos + 2) & 0xFFL) << 16) | ((combinedData.readByte(bytePos + 3) & 0xFFL) << 24) | ((combinedData.readByte(
+                    bytePos + 4
+                ) & 0xFFL) << 32) | ((combinedData.readByte(bytePos + 5) & 0xFFL) << 40);
             long combined = (word >>> bitOff) & combinedMask;
             long prefixId = combined & pidMask;
             int trim = (int) ((combined >>> pidBits) & 0xFF);

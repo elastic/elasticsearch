@@ -1227,8 +1227,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             long combinedDataSize = combinedDataEnd - combinedDataStart;
             long prefixOffsetsDataSize = prefixOffsetsDataEnd - prefixOffsetsDataStart;
             long termsIndexSize = termsIndexEnd - termsIndexStart;
-            long totalTermsDict = symbolTableSize + suffixDataSize + prefixDataSize + suffixOffsetsDataSize
-                + combinedDataSize + prefixOffsetsDataSize + termsIndexSize;
+            long totalTermsDict = symbolTableSize + suffixDataSize + prefixDataSize + suffixOffsetsDataSize + combinedDataSize
+                + prefixOffsetsDataSize + termsIndexSize;
 
             logger.debug(
                 "TermsDict space breakdown for field [{}]: "
@@ -1302,14 +1302,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
     /** Reads 8 bytes from {@code buf} at {@code off} as a little-endian long. */
     private static long readLELong(byte[] buf, int off) {
-        return (buf[off] & 0xFFL)
-            | ((buf[off + 1] & 0xFFL) << 8)
-            | ((buf[off + 2] & 0xFFL) << 16)
-            | ((buf[off + 3] & 0xFFL) << 24)
-            | ((buf[off + 4] & 0xFFL) << 32)
-            | ((buf[off + 5] & 0xFFL) << 40)
-            | ((buf[off + 6] & 0xFFL) << 48)
-            | ((buf[off + 7] & 0xFFL) << 56);
+        return (buf[off] & 0xFFL) | ((buf[off + 1] & 0xFFL) << 8) | ((buf[off + 2] & 0xFFL) << 16) | ((buf[off + 3] & 0xFFL) << 24)
+            | ((buf[off + 4] & 0xFFL) << 32) | ((buf[off + 5] & 0xFFL) << 40) | ((buf[off + 6] & 0xFFL) << 48) | ((buf[off + 7] & 0xFFL)
+                << 56);
     }
 
     /** Writes {@code v} as a little-endian long into {@code buf} at {@code off}. */

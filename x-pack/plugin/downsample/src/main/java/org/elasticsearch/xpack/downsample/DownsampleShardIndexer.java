@@ -439,7 +439,8 @@ class DownsampleShardIndexer {
             for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
                 aggregateCounterValues[i] = aggregateCounterDownsamplers[i].getLeaf(ctx);
             }
-            var timestampValues = timestampValueFetcher.getLeaf(ctx);
+            // If there are no aggregate counters we can skip fetching the timestamps
+            var timestampValues = aggregateCounterDownsamplers.length == 0 ? null : timestampValueFetcher.getLeaf(ctx);
 
             return new LeafDownsampleCollector(
                 aggCtx,
@@ -561,9 +562,12 @@ class DownsampleShardIndexer {
                 collect(formattedDocValuesDownsamplers, formattedDocValues);
                 collect(exponentialHistogramDownsamplers, exponentialHistogramValues);
                 collect(tDigestHistogramDownsamplers, tDigestHistogramValues);
-                long[] timestamps = TimestampValueFetcher.fetch(timestampValues, docIdBuffer);
-                for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
-                    aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestamps, docIdBuffer);
+                if (aggregateCounterDownsamplers.length > 0) {
+                    assert timestampValues != null;
+                    long[] timestamps = TimestampValueFetcher.fetch(timestampValues, docIdBuffer);
+                    for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
+                        aggregateCounterDownsamplers[i].collect(aggregateCounterValues[i], timestamps, docIdBuffer);
+                    }
                 }
 
                 docsProcessed += docIdBuffer.size();

@@ -32,7 +32,7 @@ public class FrugalQuantile {
      * Constructor
      * @param q the quantile to compute must be in (0, 1)
      * @param min the minimum value in the stream (the 0-quantile)
-     * @param max the minimum value in the stream (the 1-quantile)
+     * @param max the maximum value in the stream (the 1-quantile)
      * @param precision the desired numerical precision in (0, 1)
      */
     FrugalQuantile(float q, float min, float max, float precision, long seed) {

@@ -47,10 +47,10 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, docValuesSupplier);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         return new BytesRefsFromBinary(dv);
     }

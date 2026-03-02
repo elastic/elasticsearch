@@ -36,7 +36,8 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
     private final List<CircuitBreaker> breakers = new ArrayList<>();
 
     LookupFromIndexService.LookupResponse createTestInstance(BlockFactory blockFactory) {
-        return new LookupFromIndexService.LookupResponse(randomList(0, 10, () -> randomPage(blockFactory)), blockFactory);
+        String planString = randomBoolean() ? randomAlphaOfLength(20) : null;
+        return new LookupFromIndexService.LookupResponse(randomList(0, 10, () -> randomPage(blockFactory)), blockFactory, planString);
     }
 
     /**
@@ -82,8 +83,15 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
         assertThat(instance.blockFactory, sameInstance(TestBlockFactory.getNonBreakingInstance()));
         List<Page> pages = new ArrayList<>(instance.pages().size());
         pages.addAll(instance.pages());
-        pages.add(randomPage(TestBlockFactory.getNonBreakingInstance()));
-        return new LookupFromIndexService.LookupResponse(pages, instance.blockFactory);
+        String planString = instance.planString();
+        if (randomBoolean()) {
+            // Mutate pages
+            pages.add(randomPage(TestBlockFactory.getNonBreakingInstance()));
+        } else {
+            // Mutate planString
+            planString = planString == null ? randomAlphaOfLength(20) : planString + "_mutated";
+        }
+        return new LookupFromIndexService.LookupResponse(pages, instance.blockFactory, planString);
     }
 
     public void testWithBreaker() throws IOException {
@@ -108,6 +116,62 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
             orig.decRef();
         }
         assertThat(origFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Tests that the planString field is properly serialized and deserialized.
+     */
+    public void testPlanStringSerialization() throws IOException {
+        BlockFactory origFactory = blockFactory();
+        BlockFactory copyFactory = blockFactory();
+
+        // Test with planString
+        LookupFromIndexService.LookupResponse origWithPlan = new LookupFromIndexService.LookupResponse(
+            randomList(0, 5, () -> randomPage(origFactory)),
+            origFactory,
+            "test-plan-string"
+        );
+        try {
+            LookupFromIndexService.LookupResponse copyWithPlan = copyInstance(
+                origWithPlan,
+                getNamedWriteableRegistry(),
+                (out, v) -> v.writeTo(out),
+                in -> new LookupFromIndexService.LookupResponse(in, copyFactory),
+                TransportVersion.current()
+            );
+            try {
+                assertThat(copyWithPlan.planString(), equalTo("test-plan-string"));
+                assertThat(copyWithPlan, equalTo(origWithPlan));
+            } finally {
+                copyWithPlan.decRef();
+            }
+        } finally {
+            origWithPlan.decRef();
+        }
+
+        // Test without planString
+        LookupFromIndexService.LookupResponse origWithoutPlan = new LookupFromIndexService.LookupResponse(
+            randomList(0, 5, () -> randomPage(origFactory)),
+            origFactory,
+            null
+        );
+        try {
+            LookupFromIndexService.LookupResponse copyWithoutPlan = copyInstance(
+                origWithoutPlan,
+                getNamedWriteableRegistry(),
+                (out, v) -> v.writeTo(out),
+                in -> new LookupFromIndexService.LookupResponse(in, copyFactory),
+                TransportVersion.current()
+            );
+            try {
+                assertThat(copyWithoutPlan.planString(), nullValue());
+                assertThat(copyWithoutPlan, equalTo(origWithoutPlan));
+            } finally {
+                copyWithoutPlan.decRef();
+            }
+        } finally {
+            origWithoutPlan.decRef();
+        }
     }
 
     /**

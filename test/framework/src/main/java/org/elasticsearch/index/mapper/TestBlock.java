@@ -649,7 +649,7 @@ public class TestBlock implements BlockLoader.Block {
 
     private final List<Object> values;
 
-    private TestBlock(List<Object> values) {
+    public TestBlock(List<Object> values) {
         this.values = values;
     }
 

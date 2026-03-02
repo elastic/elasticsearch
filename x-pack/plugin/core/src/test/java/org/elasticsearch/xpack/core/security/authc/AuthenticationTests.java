@@ -841,8 +841,13 @@ public class AuthenticationTests extends ESTestCase {
             + authentication1.getAuthenticatingSubject().getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
         runWithAuthenticationToXContent(
             authentication1,
-            m -> assertThat(m, hasEntry("token", Map.of("name", tokenName, "type", tokenType)))
+            m -> assertThat(m, hasEntry("token", Map.of("name", tokenName, "type", tokenType, "managed_by", "elasticsearch")))
         );
+    }
+
+    public void testToXContentWithToken() throws IOException {
+        final Authentication realmTokenAuth = AuthenticationTestHelper.builder().realm().build(false).token();
+        runWithAuthenticationToXContent(realmTokenAuth, m -> assertThat(m, hasEntry("token", Map.of("managed_by", "elasticsearch"))));
     }
 
     public void testBwcWithStoredAuthenticationHeaders() throws IOException {

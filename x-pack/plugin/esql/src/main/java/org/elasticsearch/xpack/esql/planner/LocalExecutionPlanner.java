@@ -8,7 +8,13 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -78,6 +84,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -95,8 +102,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -586,6 +596,7 @@ public class LocalExecutionPlanner {
                 asList(encoders),
                 orders,
                 context.pageSize(topNExec, rowSize),
+                context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNExec.inputOrdering(),
                 topNExec.minCompetitive()
             ),
@@ -872,6 +883,7 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(fieldName, input));
         }
+        boolean useStreamingOperator = shouldUseStreamingOperator(lookupFromIndexService, indexName);
         return source.with(
             new LookupFromIndexOperator.Factory(
                 matchFields,
@@ -884,10 +896,64 @@ public class LocalExecutionPlanner {
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source(),
                 join.right(),
-                join.joinOnConditions()
+                join.joinOnConditions(),
+                useStreamingOperator,
+                context.queryPragmas().exchangeBufferSize(),
+                configuration.profile()
             ),
             layout
         );
+    }
+
+    /**
+     * The transport version that introduced streaming lookup support.
+     */
+    private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
+
+    /**
+     * Determines whether streaming lookup should be used based on the target node's transport version.
+     * Streaming lookup requires all target nodes to support the streaming protocol.
+     * Currently only enabled in snapshot builds.
+     */
+    private boolean shouldUseStreamingOperator(LookupFromIndexService service, String indexName) {
+        // Streaming lookup is only enabled in snapshot builds
+        if (Build.current().isSnapshot() == false) {
+            return false;
+        }
+
+        try {
+            ClusterState clusterState = service.getClusterService().state();
+
+            // Resolve target nodes for the lookup index
+            var projectState = service.getProjectResolver().getProjectState(clusterState);
+            var shardIterators = service.getClusterService()
+                .operationRouting()
+                .searchShards(projectState, new String[] { indexName }, Map.of(), "_local");
+
+            // Check ALL shard routings (primary + replicas) to ensure every node
+            // that could potentially handle the lookup supports streaming
+            for (ShardIterator shardIt : shardIterators) {
+                for (ShardRouting shardRouting : shardIt) {
+                    DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
+                    Transport.Connection connection = service.getTransportService().getConnection(node);
+                    TransportVersion nodeVersion = connection.getTransportVersion();
+                    if (nodeVersion.supports(ESQL_STREAMING_LOOKUP_JOIN) == false) {
+                        logger.debug(
+                            "Using non-streaming lookup operator: node [{}] has transport version [{}] which does not support [{}]",
+                            node.getId(),
+                            nodeVersion,
+                            ESQL_STREAMING_LOOKUP_JOIN
+                        );
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            // If we can't determine the version, fall back to non-streaming for safety
+            logger.debug("Failed to determine target node version for lookup, using non-streaming operator", e);
+            return false;
+        }
     }
 
     private static EsRelation findEsRelation(PhysicalPlan node) {
@@ -1069,11 +1135,28 @@ public class LocalExecutionPlanner {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
         }
 
-        // Single path through OperatorFactoryRegistry — handles connectors, plugins, and storage+format
         StoragePath path = StoragePath.of(externalSource.sourcePath());
         List<String> projectedColumns = new ArrayList<>();
         for (Attribute attr : externalSource.output()) {
             projectedColumns.add(attr.name());
+        }
+
+        int splitCount = externalSource.splits().size();
+        ExternalSliceQueue sliceQueue = null;
+        int instanceCount = 1;
+
+        if (splitCount > 1) {
+            sliceQueue = new ExternalSliceQueue(externalSource.splits());
+            instanceCount = Math.min(splitCount, context.queryPragmas().taskConcurrency());
+        }
+
+        FileSet fileSet = externalSource.fileSet();
+        Set<String> partitionColumnNames = Set.of();
+        if (fileSet != null) {
+            PartitionMetadata pm = fileSet.partitionMetadata();
+            if (pm != null && pm.isEmpty() == false) {
+                partitionColumnNames = pm.partitionColumns().keySet();
+            }
         }
 
         SourceOperatorContext operatorContext = SourceOperatorContext.builder()
@@ -1087,11 +1170,13 @@ public class LocalExecutionPlanner {
             .config(externalSource.config())
             .sourceMetadata(externalSource.sourceMetadata())
             .pushedFilter(externalSource.pushedFilter())
-            .fileSet(externalSource.fileSet())
+            .fileSet(fileSet)
+            .partitionColumnNames(partitionColumnNames)
+            .sliceQueue(sliceQueue)
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 

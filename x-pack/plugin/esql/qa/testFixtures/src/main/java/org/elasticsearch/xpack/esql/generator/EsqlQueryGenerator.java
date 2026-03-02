@@ -35,8 +35,10 @@ import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -46,6 +48,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.COMMONLY_SUPPORTED_TYPES;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.areUnmappedFieldsAllowed;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.binaryMathFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.caseFunction;
@@ -56,6 +59,7 @@ import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.concatFun
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.conversionFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateDiffFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.fullTextFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.greatestLeastFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.inExpression;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.ipPrefixFunction;
@@ -69,6 +73,7 @@ import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.splitFunc
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringToBoolFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringToIntFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.typeSafeExpression;
 import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.randomUnmappedFieldName;
 
 public class EsqlQueryGenerator {
@@ -168,7 +173,7 @@ public class EsqlQueryGenerator {
             // do a dummy query to get available fields first
             // TODO: modify when METRICS_INFO available https://github.com/elastic/elasticsearch/issues/141413
             String index = promQLGenerator.generateIndices(schema);
-            var fromDesc = new CommandGenerator.CommandDescription("from", FromGenerator.INSTANCE, "FROM " + index, Map.of());
+            var fromDesc = new CommandGenerator.CommandDescription("from", FromGenerator.INSTANCE, "FROM " + index, new HashMap<>());
             executor.run(FromGenerator.INSTANCE, fromDesc);
             executor.clearCommandHistory();
             desc = promQLGenerator.generateWithIndices(List.of(), executor.currentSchema(), schema, queryExecutor, index);
@@ -217,21 +222,12 @@ public class EsqlQueryGenerator {
 
     /**
      * Generates a boolean expression.
-     * @deprecated Use {@link #booleanExpression(List, List)} instead to properly handle unmapped fields
-     */
-    @Deprecated
-    public static String booleanExpression(List<Column> previousOutput) {
-        return booleanExpression(previousOutput, null);
-    }
-
-    /**
-     * Generates a boolean expression.
      * @param previousOutput the columns available in the current schema
      * @param previousCommands the list of commands executed so far (used to determine if unmapped fields are allowed)
      */
     public static String booleanExpression(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
         boolean allowUnmapped = areUnmappedFieldsAllowed(previousCommands);
-        return switch (randomIntBetween(0, 11)) {
+        return switch (randomIntBetween(0, 13)) {
             case 0, 1, 2 -> {
                 String field = randomNumericField(previousOutput);
                 if (field == null) {
@@ -247,6 +243,7 @@ public class EsqlQueryGenerator {
             case 8 -> likeExpression(previousOutput, allowUnmapped);
             case 9 -> rlikeExpression(previousOutput, allowUnmapped);
             case 10 -> cidrMatchFunction(previousOutput, allowUnmapped);
+            case 11, 12 -> fullTextFunction(previousOutput, previousCommands);
             default -> {
                 // Numeric comparison on function result
                 String funcExpr = stringToIntFunction(previousOutput, allowUnmapped);
@@ -266,9 +263,9 @@ public class EsqlQueryGenerator {
         };
     }
 
-    public static List<CsvTestsDataLoader.EnrichConfig> policiesOnKeyword(List<CsvTestsDataLoader.EnrichConfig> policies) {
+    public static List<CsvTestsDataLoader.EnrichConfig> policiesOnKeyword(Collection<CsvTestsDataLoader.EnrichConfig> policies) {
         // TODO make it smarter and extend it to other types
-        return policies.stream().filter(x -> Set.of("languages_policy").contains(x.policyName())).toList();
+        return policies.stream().filter(x -> Objects.equals("languages_policy", x.policyName())).toList();
     }
 
     public static String randomName(List<Column> previousOutput) {
@@ -499,14 +496,14 @@ public class EsqlQueryGenerator {
             case 6, 7 -> {
                 // top() accepts: boolean, double, integer, long, date, ip, keyword, text
                 Set<String> topTypes = Set.of("boolean", "double", "integer", "long", "date", "datetime", "ip", "keyword", "text");
-                String topField = FunctionGenerator.typeSafeExpression(previousOutput, topTypes, allowUnmapped);
+                String topField = typeSafeExpression(previousOutput, topTypes, allowUnmapped);
                 if (topField == null) topField = anyName;
                 String order = randomIntBetween(0, 1) == 0 ? "asc" : "desc";
                 yield "top(" + topField + ", " + randomIntBetween(1, 5) + ", \"" + order + "\")";
             }
             case 8 -> {
                 // sample() - use a commonly supported field to avoid type issues
-                String sampleField = randomName(previousOutput, FunctionGenerator.COMMONLY_SUPPORTED_TYPES);
+                String sampleField = randomName(previousOutput, COMMONLY_SUPPORTED_TYPES);
                 if (sampleField == null) sampleField = anyName;
                 yield "sample(" + sampleField + ", " + randomIntBetween(1, 10) + ")";
             }
@@ -655,7 +652,7 @@ public class EsqlQueryGenerator {
             case 13 -> greatestLeastFunction(previousOutput, allowUnmapped);
             case 14 -> mvSliceZipFunction(previousOutput, allowUnmapped);
             case 15 -> splitFunction(previousOutput, allowUnmapped);
-            case 16 -> clampFunction(previousOutput, allowUnmapped);
+            case 16 -> clampFunction(previousOutput);
             case 17 -> dateDiffFunction(previousOutput, allowUnmapped);
             default -> ipPrefixFunction(previousOutput, allowUnmapped);
         };

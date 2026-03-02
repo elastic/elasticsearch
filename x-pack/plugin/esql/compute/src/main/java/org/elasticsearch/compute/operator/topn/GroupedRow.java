@@ -49,7 +49,7 @@ final class GroupedRow implements Accountable, Comparable<GroupedRow>, Releasabl
     /**
      * The group ID this row belongs to.
      */
-    int groupId = -1;
+    long groupId = -1;
 
     GroupedRow(CircuitBreaker breaker, int preAllocatedKeysSize, int preAllocatedValueSize) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "GroupedRow");

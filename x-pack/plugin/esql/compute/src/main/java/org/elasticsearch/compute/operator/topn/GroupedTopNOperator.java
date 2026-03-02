@@ -176,7 +176,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             for (int pos = 0; pos < page.getPositionCount(); pos++) {
                 BytesRef key = keyEncoder.encode(page, pos);
                 long hashOrd = keysHash.add(key);
-                int groupId = Math.toIntExact(BlockHash.hashOrdToGroup(hashOrd));
+                long groupId = BlockHash.hashOrdToGroup(hashOrd);
                 processRow(rowFiller, pos, groupId);
             }
         } finally {
@@ -187,7 +187,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
         }
     }
 
-    private void processRow(GroupedRowFiller rowFiller, int position, int groupId) {
+    private void processRow(GroupedRowFiller rowFiller, int position, long groupId) {
         if (spare == null) {
             spare = new GroupedRow(breaker, rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
         } else {

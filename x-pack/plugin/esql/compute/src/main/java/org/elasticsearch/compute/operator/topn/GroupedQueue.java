@@ -68,7 +68,7 @@ class GroupedQueue implements Accountable, Releasable {
         return getOrCreateQueue(row.groupId).addRow(row);
     }
 
-    private PerGroupQueue getOrCreateQueue(int groupId) {
+    private PerGroupQueue getOrCreateQueue(long groupId) {
         if (groupId >= queues.size()) {
             queues = bigArrays.grow(queues, groupId + 1);
         }

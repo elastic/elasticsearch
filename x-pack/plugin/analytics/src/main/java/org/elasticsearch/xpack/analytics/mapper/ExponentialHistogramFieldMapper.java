@@ -30,6 +30,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.exponentialhistogram.ZeroBucket;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -153,9 +154,11 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
          * Only the metric type histogram is supported.
          */
         private final Parameter<TimeSeriesParams.MetricType> metric;
+        private final IndexVersion indexCreatedVersion;
 
-        Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
+        Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault, IndexVersion indexCreatedVersion) {
             super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
             this.ignoreMalformed = FieldMapper.Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
@@ -193,7 +196,12 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     }
 
     public static final FieldMapper.TypeParser PARSER = new FieldMapper.TypeParser(
-        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), COERCE_SETTING.get(c.getSettings())),
+        (n, c) -> new Builder(
+            n,
+            IGNORE_MALFORMED_SETTING.get(c.getSettings()),
+            COERCE_SETTING.get(c.getSettings()),
+            c.getIndexSettings().getIndexVersionCreated()
+        ),
         notInMultiFields(CONTENT_TYPE)
     );
 
@@ -203,6 +211,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
     private final Explicit<Boolean> coerce;
     private final boolean coerceByDefault;
     private final TimeSeriesParams.MetricType metricType;
+    private final IndexVersion indexCreatedVersion;
 
     ExponentialHistogramFieldMapper(
         String simpleName,
@@ -216,6 +225,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         this.coerce = builder.coerce.getValue();
         this.coerceByDefault = builder.coerce.getDefaultValue().value();
         this.metricType = builder.metric.getValue();
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     @Override
@@ -234,7 +244,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault).metric(metricType).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion).metric(metricType).init(this);
     }
 
     @Override
@@ -371,13 +381,13 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-                    AllReader bytesReader = null;
-                    AllReader minimaReader = null;
-                    AllReader maximaReader = null;
-                    AllReader sumsReader = null;
-                    AllReader valueCountsReader = null;
-                    AllReader zeroThresholdsReader = null;
+                public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                    ColumnAtATimeReader bytesReader = null;
+                    ColumnAtATimeReader minimaReader = null;
+                    ColumnAtATimeReader maximaReader = null;
+                    ColumnAtATimeReader sumsReader = null;
+                    ColumnAtATimeReader valueCountsReader = null;
+                    ColumnAtATimeReader zeroThresholdsReader = null;
 
                     try {
                         bytesReader = bytesLoader.reader(breaker, context);
@@ -405,21 +415,21 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
     }
 
-    static class Reader implements BlockLoader.AllReader {
-        private final BlockLoader.AllReader bytesReader;
-        private final BlockLoader.AllReader minimaReader;
-        private final BlockLoader.AllReader maximaReader;
-        private final BlockLoader.AllReader sumsReader;
-        private final BlockLoader.AllReader valueCountsReader;
-        private final BlockLoader.AllReader zeroThresholdsReader;
+    static class Reader implements BlockLoader.ColumnAtATimeReader {
+        private final BlockLoader.ColumnAtATimeReader bytesReader;
+        private final BlockLoader.ColumnAtATimeReader minimaReader;
+        private final BlockLoader.ColumnAtATimeReader maximaReader;
+        private final BlockLoader.ColumnAtATimeReader sumsReader;
+        private final BlockLoader.ColumnAtATimeReader valueCountsReader;
+        private final BlockLoader.ColumnAtATimeReader zeroThresholdsReader;
 
         Reader(
-            BlockLoader.AllReader bytesReader,
-            BlockLoader.AllReader minimaReader,
-            BlockLoader.AllReader maximaReader,
-            BlockLoader.AllReader sumsReader,
-            BlockLoader.AllReader valueCountsReader,
-            BlockLoader.AllReader zeroThresholdsReader
+            BlockLoader.ColumnAtATimeReader bytesReader,
+            BlockLoader.ColumnAtATimeReader minimaReader,
+            BlockLoader.ColumnAtATimeReader maximaReader,
+            BlockLoader.ColumnAtATimeReader sumsReader,
+            BlockLoader.ColumnAtATimeReader valueCountsReader,
+            BlockLoader.ColumnAtATimeReader zeroThresholdsReader
         ) {
             this.bytesReader = bytesReader;
             this.minimaReader = minimaReader;
@@ -470,17 +480,6 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 }
             }
             return result;
-        }
-
-        @Override
-        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-            BlockLoader.ExponentialHistogramBuilder histogramBuilder = (BlockLoader.ExponentialHistogramBuilder) builder;
-            minimaReader.read(docId, storedFields, histogramBuilder.minima());
-            maximaReader.read(docId, storedFields, histogramBuilder.maxima());
-            sumsReader.read(docId, storedFields, histogramBuilder.sums());
-            valueCountsReader.read(docId, storedFields, histogramBuilder.valueCounts());
-            zeroThresholdsReader.read(docId, storedFields, histogramBuilder.zeroThresholds());
-            bytesReader.read(docId, storedFields, histogramBuilder.encodedHistograms());
         }
 
         @Override
@@ -621,7 +620,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
 
             if (malformedDataForSyntheticSource != null) {
-                context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), malformedDataForSyntheticSource));
+                IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), malformedDataForSyntheticSource);
             }
 
             context.addIgnoredField(fieldType().name());
@@ -798,7 +797,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 leafName(),
                 fullPath(),
                 new ExponentialHistogramSyntheticFieldLoader(),
-                new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
+                CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexCreatedVersion)
             )
         );
     }

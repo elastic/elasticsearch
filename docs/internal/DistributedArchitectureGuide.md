@@ -265,7 +265,84 @@ to communicate with Elasticsearch.
 
 ### Node Roles
 
-#### Master Nodes
+[DiscoveryNodeRole]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodeRole.java
+
+[DiscoveryNode]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNode.java
+
+Every Elasticsearch node in a cluster is assigned a set
+of [roles](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles) that
+define the kind of responsibilities it can own. Roles are represented internally by the [DiscoveryNodeRole] class.
+Possible values are `master`, `data`, `data_content`, `data_hot`, `data_warm`, `data_cold`, `data_frozen`, `ingest`,
+`voting_only`, `remote_cluster_client`, `ml`, `transform`, `index` and `search`.
+
+Roles are configured via the `node.roles` config field in `elasticsearch.yml`. If `node.roles` is not explicitly set,
+the node starts with
+all [default-enabled](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodeRole.java#L72)
+roles. If `node.roles` is explicitly set, only the listed roles are enabled.
+
+A node with the `master` role is master-eligible: it can participate in master elections and can be elected as the
+cluster's master node.
+
+A node with the `data` role (relevant for stateful ES only) can host shards and perform data related operations such as
+CRUD, search, and aggregations.
+
+[Data-tier](https://www.elastic.co/docs/manage-data/lifecycle/data-tiers) roles (relevant for stateful ES only) allow
+users to move indices to specific hardware specs as data grows older. This is managed
+by [index lifecycle management policies](https://www.elastic.co/docs/manage-data/lifecycle/index-lifecycle-management).
+The available data tier roles are:
+
+- `data_content` for long-lived indices that can be queried and updated frequently, no matter how old they are.
+- `data_hot`, which holds the most recent, and frequently queried, time-series data.
+- `data_warm`, which typically holds less recent time-series data, that will not be read as often as the hot
+  tier and rarely needs to be updated.
+- `data_cold`, for infrequently accessed time-series data, sometimes in the form of searchable snapshots.
+- `data_frozen`, which holds rarely accessed data stored entirely as searchable snapshots.
+
+A node with the `ingest` role can
+execute [ingest pipelines](https://www.elastic.co/docs/manage-data/ingest/transform-enrich/ingest-pipelines).
+
+A node with the `ml` role can run machine learning jobs and trained model inference. Typically, those are memory and
+CPU-intensive workloads so having dedicated nodes with this role avoids contention with indexing and searching.
+
+A node with the `remote_cluster_client` role can establish outbound connections to remote clusters
+for [cross-cluster search](https://www.elastic.co/docs/explore-analyze/cross-cluster-search) (CCS)
+and [cross-cluster replication](https://www.elastic.co/docs/deploy-manage/tools/cross-cluster-replication) (CCR).
+
+A node with the `transform` role can execute [transform](https://www.elastic.co/docs/explore-analyze/transforms) jobs.
+
+A node with the `voting_only` role participates in master elections and cluster state publication quorum, but can never
+be elected as master itself. The `voting_only`
+role [must always be combined](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodeRole.java#L229)
+with the `master` role. Voting-only nodes are useful for providing an additional vote for quorum without requiring the
+node to handle the full master
+workload ([tiebreaker](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles#voting-only-node)
+nodes).
+
+A node configured with an empty role list (`node.roles: []`) has no specific role and acts as
+a [coordinating-only](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNode.java#L61)
+node. Such nodes can receive client requests, route them to the appropriate data or master nodes, and aggregate results.
+They do not hold data, run ingest pipelines, or participate in master elections.
+
+#### Stateless Roles
+
+In [stateless](https://www.elastic.co/blog/elastic-serverless-architecture) deployments, data is persisted in a shared
+object storage and nodes' disk is only used as a cache layer. The `data` (and data tier) roles are disabled in favor of
+two new roles:
+
+- `index`: indexing nodes, which host primary shards and handle all write operations.
+- `search`: search nodes, which host search-only replica shards and handle read operations.
+
+#### Master Node Role
+
+Master-eligible (`master` role) nodes form the cluster's [voting configuration](#quorum) and participate
+in [master elections](#master-elections).
+
+The elected master node is responsible for cluster-wide coordination: it processes all [cluster state](#cluster-state)
+updates and publishes them to the rest of the cluster. The cluster maintains (conceptually, see [term](#term)
+section) at most a single master at all times; if the master fails, a new one is elected from the remaining
+master-eligible nodes (excluding `voting_only` nodes, which can vote but cannot be elected).
+
+The next few sections explore the cluster state and the master election process in more detail.
 
 ### Cluster State
 
@@ -1072,7 +1149,73 @@ operation.
 
 ### New Cluster Formation
 
-(What happens when a cluster starts from scratch)
+[ClusterBootstrapService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java
+
+[UnsafeBootstrapMasterCommand]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/UnsafeBootstrapMasterCommand.java
+
+[DetachClusterCommand]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/DetachClusterCommand.java
+
+When a cluster starts from scratch, no persisted cluster state exists on disk. The [PersistedClusterStateService]
+returns an empty on-disk state with a `CoordinationMetadata` containing `VotingConfiguration.EMPTY_CONFIG` for both the
+last-committed and last-accepted configurations. The cluster first needs to
+[bootstrap](https://www.elastic.co/docs/deploy-manage/distributed-architecture/discovery-cluster-formation/modules-discovery-bootstrap-cluster)
+and establish its initial voting configuration before an election can take place.
+The [ClusterBootstrapService] is responsible for this one-time bootstrapping process and runs on master-eligible nodes.
+
+For production clusters, the operator has to provide the list of master-eligible nodes that should form the initial
+cluster via the [
+`cluster.initial_master_nodes`](https://www.elastic.co/docs/deploy-manage/deploy/self-managed/important-settings-configuration#initial_master_nodes)
+setting.
+`ClusterBootstrapService` uses this setting 
+to [construct](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L107) 
+its `bootstrapRequirements`.
+
+On startup, a master-eligible node will
+first [become candidate](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1198),
+which will also start the discovery process (see [Discovery](#discovery) section). Each time the [PeerFinder] reports
+newly discovered peers, `ClusterBootstrapService`
+will [check](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L173)
+whether the discovered nodes satisfy the bootstrap requirements, i.e. when 
+a [strict majority](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L198) 
+of the nodes specified in `cluster.initial_master_nodes` are found.
+
+When this condition is met, `ClusterBootstrapService`
+will [construct](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L265)
+a [VotingConfiguration] from the discovered node IDs
+and [set](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1382)
+the initial cluster state. The node will
+then [schedule](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1390)
+an election (see [Master Elections](#master-elections) for more details). Any requirements that could not be matched to
+a discovered node are added
+as [placeholder](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L61)
+entries. These placeholders occupy slots in the voting configuration's `nodeIds` set and affect the quorum size, but 
+they cannot cast a vote until the real nodes come online and replace them.
+
+When `cluster.initial_master_nodes` is not present, 
+and [no discovery config is provided](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L122) 
+either, [ClusterBootstrapService] 
+will [schedule](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L204)
+a best-effort bootstrap after the `discovery.unconfigured_bootstrap_timeout` (default 3 seconds). This simply uses all
+master-eligible nodes discovered so far. This is inherently unsafe and is only intended for development and testing.
+
+#### Single-Node Discovery
+
+If `discovery.type: single-node` is set, [ClusterBootstrapService] uses the local node name as the sole bootstrap
+requirement. The node bootstraps itself immediately.
+
+#### Disaster Recovery
+
+If more than half of the master-eligible nodes are permanently lost and no snapshot is available, the last-resort
+[UnsafeBootstrapMasterCommand] (`elasticsearch-node unsafe-bootstrap`) can force a single surviving master-eligible
+node to become the new cluster leader. It works by [setting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/UnsafeBootstrapMasterCommand.java#L91) both voting configurations 
+to a single-node configuration containing only the local node and [regenerating](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/UnsafeBootstrapMasterCommand.java#L102) the cluster UUID.
+
+The remaining data nodes cannot join the newly bootstrapped master because their persisted state still references the
+old cluster. The [DetachClusterCommand] (`elasticsearch-node detach-cluster`) sets both their voting configurations
+to `VotingConfiguration.MUST_JOIN_ELECTED_MASTER`, containing the single node ID `_must_join_elected_master_`, 
+which prevents nodes from starting their own elections and forces them to discover and join the already-elected master. 
+It then [resets](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/DetachClusterCommand.java#L57) 
+the persisted term to `0` and marks `clusterUUIDCommitted` as false.
 
 ### Master Transport Actions
 

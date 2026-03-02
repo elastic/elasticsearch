@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -109,6 +110,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     @Override
+    public SplitProvider splitProvider() {
+        return new FileSplitProvider();
+    }
+
+    @Override
     public SourceOperatorFactoryProvider operatorFactory() {
         return context -> {
             StoragePath path = context.path();
@@ -123,6 +129,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             FormatReader format = formatRegistry.byExtension(path.objectName());
 
+            Map<String, Object> partitionValues = Map.of();
+            if (context.split() instanceof FileSplit fileSplit) {
+                partitionValues = fileSplit.partitionValues();
+            }
+
             return new AsyncExternalSourceOperatorFactory(
                 storage,
                 format,
@@ -131,7 +142,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.batchSize(),
                 context.maxBufferSize(),
                 context.executor(),
-                context.fileSet()
+                context.fileSet(),
+                context.partitionColumnNames(),
+                partitionValues,
+                context.sliceQueue()
             );
         };
     }

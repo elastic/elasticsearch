@@ -144,7 +144,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.executor(),
                 context.fileSet(),
                 context.partitionColumnNames(),
-                partitionValues
+                partitionValues,
+                context.sliceQueue()
             );
         };
     }

@@ -372,27 +372,18 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
   method: testWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/142821
-- class: org.elasticsearch.compute.operator.exchange.BatchDriverTests
-  method: testSinglePageSingleBatch
-  issue: https://github.com/elastic/elasticsearch/issues/142895
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/to_aggregate_metric_double with multi_values}
+  issue: https://github.com/elastic/elasticsearch/issues/142964
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
 - class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
   method: testCliConnectionWithApiKey
   issue: https://github.com/elastic/elasticsearch/issues/143125
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
-- class: org.elasticsearch.xpack.security.apikey.ApiKeyWorkflowsRestrictionRestIT
-  method: testWorkflowsRestrictionAllowsAccess
-  issue: https://github.com/elastic/elasticsearch/issues/143130
 - class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
   method: testStandardIndexWithTSDBDocValuesFormatSetting
   issue: https://github.com/elastic/elasticsearch/issues/143197
@@ -435,6 +426,30 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.MvJoinKeyOnTheLookupIndexAfterStats}
   issue: https://github.com/elastic/elasticsearch/issues/143388
+- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
+  method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
+  issue: https://github.com/elastic/elasticsearch/issues/143407
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/143023
+- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=false, preference=STORED]}
+  issue: https://github.com/elastic/elasticsearch/issues/143412
+- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=false, preference=NONE]}
+  issue: https://github.com/elastic/elasticsearch/issues/143413
+- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
+  issue: https://github.com/elastic/elasticsearch/issues/143414
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/143023
+- class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
+  method: testDirectoryMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/143419
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/TS Command grouping on text field}
+  issue: https://github.com/elastic/elasticsearch/issues/142544
 
 # Examples:
 #

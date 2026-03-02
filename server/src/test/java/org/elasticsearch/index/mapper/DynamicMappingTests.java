@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -1026,5 +1027,18 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         Mapping update = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate());
         assertNotNull(update);
         assertThat(((FieldMapper) update.getRoot().getMapper("mapsToString")).fieldType().typeName(), equalTo("text"));
+    }
+
+    /**
+     * DocumentParserContext.getDynamicMapper should return a cached mapper on subsequent calls
+     * for the same field, rather than creating a new builder each time.
+     */
+    public void testGetDynamicMapperCachesResult() {
+        SourceToParse source = new SourceToParse("1", new BytesArray("{}"), XContentType.JSON);
+        TestDocumentParserContext context = new TestDocumentParserContext(MappingLookup.EMPTY, source);
+        Mapper first = context.getDynamicMapper("items");
+        Mapper second = context.getDynamicMapper("items");
+        assertSame(first, second);
+        assertThat(context.getDynamicMappers("items"), hasSize(1));
     }
 }

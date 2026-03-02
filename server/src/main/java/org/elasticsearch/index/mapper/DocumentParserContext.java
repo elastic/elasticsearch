@@ -165,6 +165,7 @@ public abstract class DocumentParserContext {
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper.Builder> dynamicObjectMappers;
+    private final Map<String, Mapper> builtDynamicMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
     private final RoutingFields routingFields;
     private final ObjectMapper parent;
@@ -196,6 +197,7 @@ public abstract class DocumentParserContext {
         Scope currentScope,
         Map<String, List<Mapper.Builder>> dynamicMappers,
         Map<String, ObjectMapper.Builder> dynamicObjectMappers,
+        Map<String, Mapper> builtDynamicMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
         String id,
         Field version,
@@ -216,6 +218,7 @@ public abstract class DocumentParserContext {
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
+        this.builtDynamicMappers = builtDynamicMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
         this.id = id;
         this.version = version;
@@ -239,6 +242,7 @@ public abstract class DocumentParserContext {
             in.currentScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
+            in.builtDynamicMappers,
             in.dynamicRuntimeFields,
             in.id,
             in.version,
@@ -267,6 +271,7 @@ public abstract class DocumentParserContext {
             new HashSet<>(),
             new ArrayList<>(),
             Scope.SINGLETON,
+            new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
@@ -679,6 +684,28 @@ public abstract class DocumentParserContext {
      */
     final ObjectMapper.Builder getDynamicObjectBuilder(String name) {
         return dynamicObjectMappers.get(name);
+    }
+
+    /**
+     * Returns a dynamically created object mapper for the given field name, creating one if it
+     * doesn't already exist. Subsequent calls with the same field name at the same path return
+     * the cached mapper, avoiding redundant builder creation when parsing arrays of objects.
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    final Mapper getDynamicMapper(String fieldName) {
+        String fullPath = path().pathAsText(fieldName);
+        Mapper existing = builtDynamicMappers.get(fullPath);
+        if (existing != null) {
+            return existing;
+        }
+        Mapper.Builder builder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(this, fieldName);
+        if (addDynamicMapper(builder, fullPath) == false) {
+            return null;
+        }
+        Mapper mapper = builder.build(createDynamicMapperBuilderContext());
+        builtDynamicMappers.put(fullPath, mapper);
+        return mapper;
     }
 
     /**

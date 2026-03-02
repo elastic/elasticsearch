@@ -207,4 +207,45 @@ public abstract class GradleUtils {
     public static boolean isIncludedBuild(Project project) {
         return project.getGradle().getParent() != null;
     }
+
+    /**
+     * Actions we want to be able to retry. Mostly related to network operations that can fail transiently.
+     * @param runnable action to run
+     * */
+    public static void withRetries(Runnable runnable) {
+        withRetries(3, 10, runnable);
+    }
+
+    /**
+     * Actions we want to be able to retry. Mostly related to network operations that can fail transiently.
+     * @param gracePeriodInS initial wait time between retries, in seconds
+     * @param retries number of retries before giving up
+     * @param runnable action to run
+     * */
+    public static void withRetries(int retries, int gracePeriodInS, Runnable runnable) {
+        int delay = gracePeriodInS;
+        for (int attempt = 0; attempt <= retries; attempt++) {
+            try {
+                runnable.run();
+                return;
+            } catch (GradleException e) {
+                if (attempt == retries) {
+                    throw e;
+                }
+                System.out.println("Attempt " + (attempt + 1) + " failed, retrying in " + delay + " seconds...");
+                try {
+                    Thread.sleep(delay * 1000L);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Retry interrupted", ie);
+                }
+                // After the first sleep, increase delay by 20 seconds once, then grow by gracePeriodInS each retry
+                if (attempt == 0) {
+                    delay = gracePeriodInS + 20;
+                } else {
+                    delay += gracePeriodInS;
+                }
+            }
+        }
+    }
 }

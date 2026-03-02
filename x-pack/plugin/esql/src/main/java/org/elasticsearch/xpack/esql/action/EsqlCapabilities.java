@@ -227,6 +227,11 @@ public class EsqlCapabilities {
         FN_IP_PREFIX,
 
         /**
+         * Fix a bug leading to the scratch leaking data to other rows.
+         */
+        FN_IP_PREFIX_FIX_DIRTY_SCRATCH_LEAK,
+
+        /**
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
          */
         FN_SUBSTRING_EMPTY_NULL,
@@ -386,6 +391,9 @@ public class EsqlCapabilities {
 
         /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
         ST_EXTENT_AGG_DOCVALUES,
+
+        /** Fix to bug with spatial aggregations not properly supporting the WHERE clause. Fixes #142329. */
+        SPATIAL_AGGS_FILTERING,
 
         /**
          * Fix determination of CRS types in spatial functions when folding.
@@ -1699,6 +1707,12 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/135926
          */
         FIX_STATS_MV_CONSTANT_FOLD,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
 
         /**
          * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.

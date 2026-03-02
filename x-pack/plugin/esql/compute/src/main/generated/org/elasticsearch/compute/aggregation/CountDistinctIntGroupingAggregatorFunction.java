@@ -47,7 +47,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
 
   public static CountDistinctIntGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, int precision) {
-    return new CountDistinctIntGroupingAggregatorFunction(channels, CountDistinctIntAggregator.initGrouping(driverContext.bigArrays(), precision), driverContext, precision);
+    return new CountDistinctIntGroupingAggregatorFunction(channels, CountDistinctIntAggregator.initGrouping(driverContext, precision), driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

@@ -49,6 +49,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -1093,7 +1094,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY);
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.values()));
         return new SearchExecutionContext(
             0,
             0,

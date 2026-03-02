@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfig
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
@@ -836,7 +837,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                     TaskType.TEXT_EMBEDDING,
                     ElasticsearchInternalService.NAME,
                     elandServiceSettings,
-                    null
+                    // Using the old default because we're parsing a stored config
+                    ChunkingSettingsBuilder.OLD_DEFAULT_SETTINGS
                 ),
                 parsedModel
             );
@@ -875,7 +877,8 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                     TaskType.TEXT_EMBEDDING,
                     ElasticsearchInternalService.NAME,
                     e5ServiceSettings,
-                    null
+                    // Using the old default because we're parsing a stored config
+                    ChunkingSettingsBuilder.OLD_DEFAULT_SETTINGS
                 ),
                 parsedModel
             );
@@ -1641,7 +1644,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                 taskType,
                 ElasticsearchInternalService.NAME,
                 serviceSettings,
-                null
+                ChunkingSettingsBuilder.DEFAULT_SETTINGS
             );
         } else if (taskType == TaskType.SPARSE_EMBEDDING) {
             expectedModel = new CustomElandModel(
@@ -1649,7 +1652,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                 taskType,
                 ElasticsearchInternalService.NAME,
                 new CustomElandInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 4, "custom-model", null, null)),
-                (ChunkingSettings) null
+                ChunkingSettingsBuilder.DEFAULT_SETTINGS
             );
         }
         return expectedModel;

@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -25,7 +26,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 
-public class ContextualAiRerankTaskSettings implements TaskSettings {
+public class ContextualAiRerankTaskSettings implements TaskSettings, TopNProvider {
 
     public static final String NAME = "contextualai_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
@@ -89,6 +90,7 @@ public class ContextualAiRerankTaskSettings implements TaskSettings {
         return returnDocuments;
     }
 
+    @Override
     @Nullable
     public Integer getTopN() {
         return topN;

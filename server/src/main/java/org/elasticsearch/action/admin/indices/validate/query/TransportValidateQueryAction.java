@@ -140,6 +140,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
                     null,
                     null
                 ),
+                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
                 rewriteListener
             );
         }

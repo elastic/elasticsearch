@@ -1406,13 +1406,27 @@ public class InternalEngine extends Engine {
                             op.parsedDoc().updateSeqID(op.seqNo(), op.primaryTerm());
                             op.parsedDoc().version().setLongValue(plan.versionForIndexing);
                             appendDocs.addAll(op.parsedDoc().docs());
-                            results.set(i, new IndexResult(
-                                plan.versionForIndexing, op.primaryTerm(), op.seqNo(), plan.currentNotFoundOrDeleted, op.id()
-                            ));
+                            results.set(
+                                i,
+                                new IndexResult(
+                                    plan.versionForIndexing,
+                                    op.primaryTerm(),
+                                    op.seqNo(),
+                                    plan.currentNotFoundOrDeleted,
+                                    op.id()
+                                )
+                            );
                         } else {
-                            results.set(i, new IndexResult(
-                                plan.versionForIndexing, op.primaryTerm(), op.seqNo(), plan.currentNotFoundOrDeleted, op.id()
-                            ));
+                            results.set(
+                                i,
+                                new IndexResult(
+                                    plan.versionForIndexing,
+                                    op.primaryTerm(),
+                                    op.seqNo(),
+                                    plan.currentNotFoundOrDeleted,
+                                    op.id()
+                                )
+                            );
                         }
                     }
                     if (appendDocs.isEmpty() == false) {
@@ -1428,9 +1442,16 @@ public class InternalEngine extends Engine {
                         if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
                             results.set(i, indexIntoLucene(op, plan));
                         } else {
-                            results.set(i, new IndexResult(
-                                plan.versionForIndexing, op.primaryTerm(), op.seqNo(), plan.currentNotFoundOrDeleted, op.id()
-                            ));
+                            results.set(
+                                i,
+                                new IndexResult(
+                                    plan.versionForIndexing,
+                                    op.primaryTerm(),
+                                    op.seqNo(),
+                                    plan.currentNotFoundOrDeleted,
+                                    op.id()
+                                )
+                            );
                         }
                     }
                 }

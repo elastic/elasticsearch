@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 
 /**
@@ -25,7 +26,7 @@ import java.util.Objects;
  */
 public final class StatefulValue<T> {
 
-    static final IllegalStateException NO_VALUE_PRESENT = new IllegalStateException("No value present");
+    static final NoSuchElementException NO_VALUE_PRESENT = new NoSuchElementException("No value present");
 
     private static final StatefulValue<?> UNDEFINED_INSTANCE = new StatefulValue<>(null, false);
     private static final StatefulValue<?> NULL_INSTANCE = new StatefulValue<>(null, true);

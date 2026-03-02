@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettingsTests;
 
@@ -24,11 +24,11 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AzureOpenAiTaskSetti
 
     @Override
     protected AzureOpenAiEmbeddingsTaskSettings createTestInstance() {
-        return createRandomWithUser();
+        return createRandom();
     }
 
     @Override
-    protected AzureOpenAiEmbeddingsTaskSettings create(@Nullable String user, @Nullable Headers headers) {
+    protected AzureOpenAiEmbeddingsTaskSettings create(StatefulValue<String> user, Headers headers) {
         return new AzureOpenAiEmbeddingsTaskSettings(user, headers);
     }
 

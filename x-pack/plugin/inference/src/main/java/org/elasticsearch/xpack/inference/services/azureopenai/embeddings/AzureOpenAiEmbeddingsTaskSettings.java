@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettings;
 
@@ -28,17 +28,13 @@ public class AzureOpenAiEmbeddingsTaskSettings extends AzureOpenAiTaskSettings<A
 
     private static final AzureOpenAiTaskSettings.Factory<AzureOpenAiEmbeddingsTaskSettings> FACTORY = new Factory<>() {
         @Override
-        public AzureOpenAiEmbeddingsTaskSettings create(Settings settings) {
-            if (settings.isEmpty()) {
-                return emptySettings();
-            }
-
-            return new AzureOpenAiEmbeddingsTaskSettings(settings);
+        public AzureOpenAiEmbeddingsTaskSettings create(CommonSettings commonSettings) {
+            return new AzureOpenAiEmbeddingsTaskSettings(commonSettings);
         }
 
         @Override
         protected AzureOpenAiEmbeddingsTaskSettings createEmptyInstance() {
-            return new AzureOpenAiEmbeddingsTaskSettings(null, null);
+            return new AzureOpenAiEmbeddingsTaskSettings();
         }
     };
 
@@ -48,12 +44,17 @@ public class AzureOpenAiEmbeddingsTaskSettings extends AzureOpenAiTaskSettings<A
         return AzureOpenAiTaskSettings.parseSettingsFromMap(map, context, FACTORY);
     }
 
-    private AzureOpenAiEmbeddingsTaskSettings(Settings settings) {
-        super(settings, FACTORY);
+    private AzureOpenAiEmbeddingsTaskSettings() {
+        super(null, null, FACTORY);
     }
 
-    public AzureOpenAiEmbeddingsTaskSettings(@Nullable String user, @Nullable Headers headers) {
-        super(user, headers, FACTORY);
+    private AzureOpenAiEmbeddingsTaskSettings(CommonSettings commonSettings) {
+        super(commonSettings, FACTORY);
+    }
+
+    // Default for testing
+    AzureOpenAiEmbeddingsTaskSettings(StatefulValue<String> user, Headers headers) {
+        this(new CommonSettings(user, headers));
     }
 
     public AzureOpenAiEmbeddingsTaskSettings(StreamInput in) throws IOException {

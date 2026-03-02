@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettings;
 
@@ -22,17 +22,13 @@ public class AzureOpenAiCompletionTaskSettings extends AzureOpenAiTaskSettings<A
 
     private static final AzureOpenAiTaskSettings.Factory<AzureOpenAiCompletionTaskSettings> FACTORY = new Factory<>() {
         @Override
-        public AzureOpenAiCompletionTaskSettings create(Settings settings) {
-            if (settings.isEmpty()) {
-                return emptySettings();
-            }
-
-            return new AzureOpenAiCompletionTaskSettings(settings);
+        public AzureOpenAiCompletionTaskSettings create(CommonSettings commonSettings) {
+            return new AzureOpenAiCompletionTaskSettings(commonSettings);
         }
 
         @Override
         protected AzureOpenAiCompletionTaskSettings createEmptyInstance() {
-            return new AzureOpenAiCompletionTaskSettings(null, null);
+            return new AzureOpenAiCompletionTaskSettings();
         }
     };
 
@@ -42,12 +38,17 @@ public class AzureOpenAiCompletionTaskSettings extends AzureOpenAiTaskSettings<A
         return AzureOpenAiTaskSettings.parseSettingsFromMap(map, context, FACTORY);
     }
 
-    private AzureOpenAiCompletionTaskSettings(Settings settings) {
-        super(settings, FACTORY);
+    private AzureOpenAiCompletionTaskSettings() {
+        super(null, null, FACTORY);
     }
 
-    public AzureOpenAiCompletionTaskSettings(@Nullable String user, @Nullable Headers headers) {
-        super(user, headers, FACTORY);
+    private AzureOpenAiCompletionTaskSettings(CommonSettings commonSettings) {
+        super(commonSettings, FACTORY);
+    }
+
+    // Default for testing
+    AzureOpenAiCompletionTaskSettings(StatefulValue<String> user, Headers headers) {
+        this(new CommonSettings(user, headers));
     }
 
     public AzureOpenAiCompletionTaskSettings(StreamInput in) throws IOException {

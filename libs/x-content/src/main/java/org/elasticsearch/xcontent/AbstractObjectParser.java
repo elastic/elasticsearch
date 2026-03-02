@@ -288,19 +288,6 @@ public abstract class AbstractObjectParser<Value, Context> {
         );
     }
 
-    /**
-     * Declare a field of type {@code T} parsed from string and converted to {@code T} using provided function,
-     * that can also handle explicit {@code null}s in the json. Allows the caller to specify what to return if null is encountered.
-     */
-    public void declareStringOrNull(BiConsumer<Value, String> consumer, String defaultValue, ParseField field) {
-        declareField(
-            consumer,
-            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? defaultValue : p.text(),
-            field,
-            ValueType.STRING_OR_NULL
-        );
-    }
-
     public void declareBoolean(BiConsumer<Value, Boolean> consumer, ParseField field) {
         declareField(consumer, XContentParser::booleanValue, field, ValueType.BOOLEAN);
     }

@@ -61,7 +61,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
     }
 
     public static Headers doMutateInstance(Headers instance) {
-        var statefulValue = instance.value();
+        var statefulValue = instance.mapValue();
         if (statefulValue.isPresent()) {
             var newHeaders = new HashMap<>(statefulValue.get());
             newHeaders.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
@@ -166,8 +166,8 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
             }
             """;
         parseJson(json, parsed -> {
-            assertTrue(parsed.value().isPresent());
-            assertThat(parsed.value().get(), is(Map.of("key", "value")));
+            assertTrue(parsed.mapValue().isPresent());
+            assertThat(parsed.mapValue().get(), is(Map.of("key", "value")));
         });
     }
 
@@ -185,7 +185,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
               "headers": {}
             }
             """;
-        parseJson(json, parsed -> assertThat(parsed, sameInstance(Headers.UNDEFINED_INSTANCE)));
+        parseJson(json, parsed -> assertThat(parsed, sameInstance(Headers.NULL_INSTANCE)));
     }
 
     public void testParse_WhenHeadersIsSetToNull() throws IOException {

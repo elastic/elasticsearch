@@ -13,6 +13,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.NoSuchElementException;
 
 import static org.elasticsearch.xpack.inference.common.parser.StatefulValue.NO_VALUE_PRESENT;
 import static org.hamcrest.Matchers.is;
@@ -83,12 +86,12 @@ public class StatefulValueTests extends ESTestCase {
     }
 
     public void testGet_ThrowsWhenUndefined() {
-        var e = expectThrows(IllegalStateException.class, () -> StatefulValue.<String>undefined().get());
+        var e = expectThrows(NoSuchElementException.class, () -> StatefulValue.<String>undefined().get());
         assertThat(e.getMessage(), is(NO_VALUE_PRESENT.getMessage()));
     }
 
     public void testGet_ThrowsWhenNull() {
-        var e = expectThrows(IllegalStateException.class, () -> StatefulValue.<String>nullInstance().get());
+        var e = expectThrows(NoSuchElementException.class, () -> StatefulValue.<String>nullInstance().get());
         assertThat(e.getMessage(), is(NO_VALUE_PRESENT.getMessage()));
     }
 
@@ -108,9 +111,17 @@ public class StatefulValueTests extends ESTestCase {
         assertThat(StatefulValue.<String>nullInstance().orElse(other), is(other));
     }
 
-    public void testEquals_WhenPresentWithSameValue() {
-        var value = randomAlphaOfLength(10);
-        assertEquals(StatefulValue.of(value), StatefulValue.of(value));
+    public void testEquals_hashCode() {
+        {
+            var map = new HashMap<>(Map.of(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            var equalMap = new HashMap<>(map);
+            assertEquals(StatefulValue.of(map), StatefulValue.of(equalMap));
+            assertEquals(StatefulValue.of(map).hashCode(), StatefulValue.of(equalMap).hashCode());
+        }
+        {
+            assertEquals(StatefulValue.undefined().hashCode(), StatefulValue.undefined().hashCode());
+            assertEquals(StatefulValue.nullInstance().hashCode(), StatefulValue.nullInstance().hashCode());
+        }
     }
 
     public void testEquals_WhenPresentWithDifferentValues() {
@@ -121,13 +132,6 @@ public class StatefulValueTests extends ESTestCase {
         assertNotEquals(StatefulValue.<String>undefined(), StatefulValue.nullInstance());
         assertNotEquals(StatefulValue.<String>undefined(), StatefulValue.of(VALUE));
         assertNotEquals(StatefulValue.<String>nullInstance(), StatefulValue.of(VALUE));
-    }
-
-    public void testHashCode_ConsistentWithEquals() {
-        var value = randomAlphaOfLength(10);
-        assertEquals(StatefulValue.undefined().hashCode(), StatefulValue.undefined().hashCode());
-        assertEquals(StatefulValue.nullInstance().hashCode(), StatefulValue.nullInstance().hashCode());
-        assertEquals(StatefulValue.of(value).hashCode(), StatefulValue.of(value).hashCode());
     }
 
     public void testSerializationRoundtrip_WhenUndefined() throws IOException {

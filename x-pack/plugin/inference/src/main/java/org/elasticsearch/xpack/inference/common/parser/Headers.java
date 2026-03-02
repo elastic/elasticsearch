@@ -25,7 +25,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
 
-public record Headers(StatefulValue<Map<String, String>> value) implements ToXContentFragment, Writeable {
+public record Headers(StatefulValue<Map<String, String>> mapValue) implements ToXContentFragment, Writeable {
 
     // public for testing
     public static final String HEADERS_FIELD = "headers";
@@ -42,14 +42,14 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
 
     public static <Value, Context> void initParser(ConstructingObjectParser<Value, Context> parser) {
         parser.declareObjectOrNull(optionalConstructorArg(), (p, c) -> {
-            var orderedMap = p.mapOrdered();
-            if (orderedMap == null || orderedMap == PARSER_NULL_SENTINEL) {
-                return orderedMap;
+            var parsedMap = p.map();
+            if (parsedMap == null || parsedMap == PARSER_NULL_SENTINEL) {
+                return parsedMap;
             }
 
             var validationException = new ValidationException();
 
-            return doValidation(orderedMap, validationException);
+            return doValidation(parsedMap, validationException);
         }, PARSER_NULL_SENTINEL, HEADERS);
     }
 
@@ -58,9 +58,8 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
 
         var stringHeaders = validateMapStringValues(map, HEADERS.getPreferredName(), validationException, false, Map.of());
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
+
         return stringHeaders;
     }
 
@@ -87,14 +86,16 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
         var stringsMap = doValidation((Map<String, Object>) arg, validationException);
 
         if (stringsMap.isEmpty()) {
-            return UNDEFINED_INSTANCE;
+            // If a user specifies "headers": {} we'll assume they don't want any headers. If this in the context of an update API,
+            // this is the same as if they did "headers": null which means to remove all existing headers.
+            return NULL_INSTANCE;
         }
 
         return new Headers(StatefulValue.of(stringsMap));
     }
 
     public Headers {
-        Objects.requireNonNull(value);
+        Objects.requireNonNull(mapValue);
     }
 
     public Headers(StreamInput in) throws IOException {
@@ -102,21 +103,21 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
     }
 
     public boolean isEmpty() {
-        return value.isPresent() == false || value.get().isEmpty();
+        return mapValue.isPresent() == false || mapValue.get().isEmpty();
     }
 
     public boolean isPresent() {
-        return value.isPresent();
+        return mapValue.isPresent();
     }
 
     public boolean isNull() {
-        return value.isNull();
+        return mapValue.isNull();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (isEmpty() == false) {
-            builder.field(HEADERS.getPreferredName(), value.get());
+            builder.field(HEADERS.getPreferredName(), mapValue.get());
         }
         return builder;
     }
@@ -125,8 +126,8 @@ public record Headers(StatefulValue<Map<String, String>> value) implements ToXCo
     public void writeTo(StreamOutput out) throws IOException {
         StatefulValue.write(
             out,
-            value,
-            (streamOutput, value) -> streamOutput.writeMap(value, StreamOutput::writeString, StreamOutput::writeString)
+            mapValue,
+            (streamOutput, v) -> streamOutput.writeMap(v, StreamOutput::writeString, StreamOutput::writeString)
         );
     }
 }

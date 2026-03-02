@@ -57,6 +57,13 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         this.fieldPaths = splitIntoFieldPaths(fieldName);
     }
 
+    /**
+     * Returns the ignored source format used by this loader.
+     */
+    public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {
+        return ignoredSourceFormat;
+    }
+
     @Override
     public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         return null;
@@ -64,7 +71,13 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
     @Override
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        return new IgnoredSourceRowStrideReader<>(breaker, fieldName, fieldPaths, reader, ignoredSourceFormat);
+        return new IgnoredSourceRowStrideReader<>(
+            breaker,
+            fieldName,
+            fieldPaths,
+            reader,
+            ignoredSourceFormat.createLeafLoader(context.reader())
+        );
     }
 
     @Override
@@ -107,28 +120,29 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         // Contains name of the field and all its parents
         private final Set<String> fieldPaths;
         private final Reader<T> reader;
-        private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+        private final IgnoredSourceFieldMapper.IgnoredSourceLeafLoader ignoredSourceLeafLoader;
 
         IgnoredSourceRowStrideReader(
             CircuitBreaker breaker,
             String fieldName,
             Set<String> fieldPaths,
             Reader<T> reader,
-            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+            IgnoredSourceFieldMapper.IgnoredSourceLeafLoader ignoredSourceLeafLoader
         ) {
             breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
             this.breaker = breaker;
             this.fieldName = fieldName;
             this.fieldPaths = fieldPaths;
             this.reader = reader;
-            this.ignoredSourceFormat = ignoredSourceFormat;
+            this.ignoredSourceLeafLoader = ignoredSourceLeafLoader;
         }
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = ignoredSourceFormat.loadSingleIgnoredField(
+            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = ignoredSourceLeafLoader.loadSingleIgnoredField(
                 fieldPaths,
-                storedFields.storedFields()
+                storedFields.storedFields(),
+                docId
             );
 
             if (valuesForFieldAndParents.isEmpty()) {

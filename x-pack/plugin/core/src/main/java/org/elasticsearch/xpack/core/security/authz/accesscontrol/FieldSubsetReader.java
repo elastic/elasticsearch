@@ -321,7 +321,95 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
-        return hasField(field) ? super.getSortedSetDocValues(field) : null;
+        if (hasField(field) == false) {
+            return null;
+        }
+        SortedSetDocValues dv = super.getSortedSetDocValues(field);
+        if (dv != null
+            && IgnoredSourceFieldMapper.NAME.equals(field)
+            && ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
+            return new FilteredIgnoredSourceDocValues(dv);
+        }
+        return dv;
+    }
+
+    /**
+     * Wraps {@link SortedSetDocValues} for the {@code _ignored_source} field to apply field-level security filtering.
+     * Per-document values are decoded, filtered through the DLS field automaton, and re-encoded so that callers
+     * only observe field values the current user is authorised to see.
+     */
+    private class FilteredIgnoredSourceDocValues extends SortedSetDocValues {
+        private final SortedSetDocValues in;
+        private List<BytesRef> filteredValues;
+        private int pos;
+
+        FilteredIgnoredSourceDocValues(SortedSetDocValues in) {
+            this.in = in;
+        }
+
+        @Override
+        public boolean advanceExact(int target) throws IOException {
+            if (in.advanceExact(target) == false) {
+                return false;
+            }
+            filteredValues = new ArrayList<>();
+            int count = in.docValueCount();
+            for (int i = 0; i < count; i++) {
+                long ord = in.nextOrd();
+                BytesRef encoded = in.lookupOrd(ord);
+                BytesRef filtered = ignoredSourceFormat.filterValue(encoded, v -> filter(v, filter, 0));
+                if (filtered != null) {
+                    filteredValues.add(BytesRef.deepCopyOf(filtered));
+                }
+            }
+            pos = -1;
+            return filteredValues.isEmpty() == false;
+        }
+
+        @Override
+        public int docValueCount() {
+            return filteredValues == null ? 0 : filteredValues.size();
+        }
+
+        /**
+         * Returns a sequential local index (0-based) into {@link #filteredValues}, not a global ordinal.
+         * Callers must pass the returned value directly to {@link #lookupOrd(long)}.
+         */
+        @Override
+        public long nextOrd() throws IOException {
+            return ++pos;
+        }
+
+        /** Returns the pre-filtered value at the given local index returned by {@link #nextOrd()}. */
+        @Override
+        public BytesRef lookupOrd(long ord) throws IOException {
+            return filteredValues.get((int) ord);
+        }
+
+        @Override
+        public long getValueCount() {
+            return filteredValues == null ? 0 : filteredValues.size();
+        }
+
+        @Override
+        public int docID() {
+            return in.docID();
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return in.nextDoc();
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            return in.advance(target);
+        }
+
+        @Override
+        public long cost() {
+            return in.cost();
+        }
     }
 
     @Override

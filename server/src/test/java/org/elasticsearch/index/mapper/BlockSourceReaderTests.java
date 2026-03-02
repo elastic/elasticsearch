@@ -83,7 +83,7 @@ public class BlockSourceReaderTests extends MapperServiceTestCase {
                 loader.rowStrideStoredFieldSpec(),
                 equalTo(
                     StoredFieldsSpec.withSourcePaths(
-                        syntheticSource ? IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE : IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                        syntheticSource ? IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE : IgnoredSourceFormat.NO_IGNORED_SOURCE,
                         Set.of("field")
                     )
                 )

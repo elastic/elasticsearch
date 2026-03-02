@@ -157,7 +157,12 @@ public interface SourceLoader {
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
             return new LeafWithMetrics(
-                new SyntheticLeaf(filter, loader, loader.docValuesLoader(reader, docIdsInLeaf), ignoredSourceFormat),
+                new SyntheticLeaf(
+                    filter,
+                    loader,
+                    loader.docValuesLoader(reader, docIdsInLeaf),
+                    ignoredSourceFormat.createLeafLoader(reader)
+                ),
                 metrics
             );
         }
@@ -192,13 +197,13 @@ public interface SourceLoader {
             private final SyntheticFieldLoader loader;
             private final SyntheticFieldLoader.DocValuesLoader docValuesLoader;
             private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
-            private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
+            private final IgnoredSourceFieldMapper.IgnoredSourceLeafLoader ignoredSourceLeafLoader;
 
             private SyntheticLeaf(
                 SourceFilter filter,
                 SyntheticFieldLoader loader,
                 SyntheticFieldLoader.DocValuesLoader docValuesLoader,
-                IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+                IgnoredSourceFieldMapper.IgnoredSourceLeafLoader ignoredSourceLeafLoader
             ) {
                 this.filter = filter;
                 this.loader = loader;
@@ -206,7 +211,7 @@ public interface SourceLoader {
                 this.storedFieldLoaders = Map.copyOf(
                     loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
                 );
-                this.ignoredSourceFormat = ignoredSourceFormat;
+                this.ignoredSourceLeafLoader = ignoredSourceLeafLoader;
             }
 
             @Override
@@ -227,10 +232,8 @@ public interface SourceLoader {
                 }
 
                 // Maps the names of existing objects to lists of ignored fields they contain.
-                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = ignoredSourceFormat.loadAllIgnoredFields(
-                    filter,
-                    storedFieldLoader.storedFields()
-                );
+                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = ignoredSourceLeafLoader
+                    .loadAllIgnoredFields(filter, storedFieldLoader.storedFields(), docId);
 
                 if (objectsWithIgnoredFields != null) {
                     loader.setIgnoredValues(objectsWithIgnoredFields);

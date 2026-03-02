@@ -39,6 +39,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
@@ -937,6 +938,106 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertThat(request.projectRouting(), is("_alias:_origin"));
+    }
+
+    public void testApproximationNull() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": null
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(ApproximationSettings.DISABLED));
+    }
+
+    public void testApproximationTrue() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": true
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(ApproximationSettings.ENABLED));
+    }
+
+    public void testApproximationFalse() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": false
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(ApproximationSettings.DISABLED));
+    }
+
+    public void testApproximationObject() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "rows": 50000,
+                    "confidence_level": 0.9
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(new ApproximationSettings(true, 50000, 0.9)));
+    }
+
+    public void testApproximationObjectPartial() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "rows": 20000
+                }
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(new ApproximationSettings(true, 20000, null)));
+    }
+
+    public void testApproximationObjectEmpty() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {}
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertThat(request.approximation(), equalTo(ApproximationSettings.ENABLED));
+    }
+
+    public void testApproximationNotSet() throws IOException {
+        String json = """
+            {
+                "query": "FROM test | STATS count()"
+            }""";
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertNull(request.approximation());
+    }
+
+    public void testApproximationInvalidRows() {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "rows": 100
+                }
+            }""";
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequest(json, randomBoolean()));
+        assertThat(e.getMessage(), containsString("approximation"));
+        assertThat(e.getCause().getCause().getMessage(), containsString("[rows] must be at least 10000"));
+    }
+
+    public void testApproximationInvalidConfidenceLevel() {
+        String json = """
+            {
+                "query": "FROM test | STATS count()",
+                "approximation": {
+                    "confidence_level": 0.99
+                }
+            }""";
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequest(json, randomBoolean()));
+        assertThat(e.getMessage(), containsString("approximation"));
+        assertThat(e.getCause().getCause().getMessage(), containsString("[confidence_level] must be between 0.5 and 0.95"));
     }
 
     private List<QueryParam> randomParameters() {

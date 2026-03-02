@@ -146,7 +146,7 @@ public class QuerySettingsTests extends ESTestCase {
             );
             EsqlStatement statement = new EsqlStatement(null, List.of(setting));
             QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_DISABLED);
-            assertThat(statement.setting(def), is(ApproximationSettings.DEFAULT));
+            assertThat(statement.setting(def), is(ApproximationSettings.ENABLED));
         }
         {
             QuerySetting setting = new QuerySetting(
@@ -155,10 +155,10 @@ public class QuerySettingsTests extends ESTestCase {
             );
             EsqlStatement statement = new EsqlStatement(null, List.of(setting));
             QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_DISABLED);
-            assertThat(statement.setting(def), is(nullValue()));
+            assertThat(statement.setting(def), is(ApproximationSettings.DISABLED));
         }
 
-        assertValid(def, new MapExpression(Source.EMPTY, List.of()), equalTo(ApproximationSettings.DEFAULT));
+        assertValid(def, new MapExpression(Source.EMPTY, List.of()), equalTo(ApproximationSettings.ENABLED));
         assertValid(
             def,
             new MapExpression(
@@ -170,7 +170,7 @@ public class QuerySettingsTests extends ESTestCase {
                     Literal.fromDouble(Source.EMPTY, 0.9)
                 )
             ),
-            equalTo(new ApproximationSettings(10000, 0.9))
+            equalTo(new ApproximationSettings(true, 10000, 0.9))
         );
 
         assertInvalid(

@@ -133,8 +133,8 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 0.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.ENABLED);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.ENABLED);
 
         // The first subplan should be the source count.
         LogicalPlan subplan = approximation.firstSubPlan();
@@ -155,8 +155,8 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 1_000.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.ENABLED);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.ENABLED);
 
         // The first subplan should be the source count.
         LogicalPlan subplan = approximation.firstSubPlan();
@@ -177,8 +177,8 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^9.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.ENABLED);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.ENABLED);
 
         // The first subplan should be the source count.
         LogicalPlan subplan = approximation.firstSubPlan();
@@ -200,8 +200,8 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^12, and a filtered count of 10^9.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.ENABLED);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.ENABLED);
 
         // The first subplan should be the source count.
         LogicalPlan subplan = approximation.firstSubPlan();
@@ -239,8 +239,8 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^18, and a filtered count of 100.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.ENABLED);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.ENABLED);
 
         // The first subplan should be the source count.
         LogicalPlan subplan = approximation.firstSubPlan();
@@ -292,8 +292,8 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 1_000, and a filtered count of 10.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE gender == \"X\" | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.ENABLED);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.ENABLED);
 
         // The first subplan should be the source count.
         LogicalPlan subplan = approximation.firstSubPlan();
@@ -316,8 +316,8 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 1_000, and a mv_expanded count of 10_000.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.ENABLED);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.ENABLED);
 
         // The first subplan should be the source count.
         LogicalPlan subplan = approximation.firstSubPlan();
@@ -349,8 +349,8 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 1_000, and a mv_expanded count of 10^9
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.ENABLED);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.ENABLED);
 
         // The first subplan should be the source count.
         LogicalPlan subplan = approximation.firstSubPlan();
@@ -382,8 +382,8 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^9, and a mv_expanded count of 10^12
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.ENABLED);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.ENABLED);
 
         // The first subplan should be the source count.
         LogicalPlan subplan = approximation.firstSubPlan();
@@ -416,8 +416,8 @@ public class ApproximationTests extends ApproximationTestCase {
         // which is above the threshold, so no sampling should be applied.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.ENABLED);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.ENABLED);
 
         // The first subplan should be the source count.
         LogicalPlan subplan = approximation.firstSubPlan();
@@ -440,8 +440,8 @@ public class ApproximationTests extends ApproximationTestCase {
         // so no sampling should be applied.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE emp_no > 1 | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.ENABLED);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.ENABLED);
 
         // The first subplan should be the source count.
         LogicalPlan subplan = approximation.firstSubPlan();

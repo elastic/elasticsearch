@@ -21,7 +21,7 @@ public final class SubstituteApproximationPlan extends ParameterizedRule<Logical
 
     @Override
     public LogicalPlan apply(LogicalPlan logicalPlan, LogicalOptimizerContext context) {
-        if (context.configuration().approximationSettings() == null) {
+        if (context.configuration().approximationSettings() == null || context.configuration().approximationSettings().enabled() == false) {
             return logicalPlan;
         } else {
             Approximation.verifyPlan(logicalPlan);

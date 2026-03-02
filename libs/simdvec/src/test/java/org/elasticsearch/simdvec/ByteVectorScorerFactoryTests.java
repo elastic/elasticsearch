@@ -85,6 +85,45 @@ public class ByteVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
+    public void testArrayBackedRandomSupplierBulkScore() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("Not supported on current JDK", supportsHeapSegments());
+        var factory = AbstractVectorTestCase.factory.get();
+
+        final int dims = randomIntBetween(1, 1024);
+        final int size = randomIntBetween(2, 100);
+        final byte[][] vectors = new byte[size][];
+        for (int i = 0; i < size; i++) {
+            vectors[i] = randomByteArrayOfLength(dims);
+        }
+        final ByteVectorValues values = arrayBackedVectorValues(vectors);
+
+        for (int times = 0; times < TIMES; times++) {
+            final int queryOrd = randomIntBetween(0, size - 1);
+            final int numNodes = randomIntBetween(1, size);
+            final int[] nodes = new int[numNodes];
+            for (int i = 0; i < numNodes; i++) {
+                nodes[i] = randomIntBetween(0, size - 1);
+            }
+
+            for (var sim : VectorSimilarityType.values()) {
+                final var scorerSupplier = factory.getByteVectorScorerSupplier(sim, values);
+                assertTrue(scorerSupplier.isPresent());
+                final var scorer = scorerSupplier.get().scorer();
+                scorer.setScoringOrdinal(queryOrd);
+
+                final float[] scores = new float[numNodes];
+                scorer.bulkScore(nodes, scores, numNodes);
+
+                for (int i = 0; i < numNodes; i++) {
+                    float expected = luceneScore(sim, vectors[queryOrd], vectors[nodes[i]]);
+                    double expectedDelta = expected * DELTA;
+                    assertThat(sim.toString(), (double) scores[i], closeTo(expected, expectedDelta));
+                }
+            }
+        }
+    }
+
     void testRandomSupplier(long maxChunkSize, IntFunction<byte[]> bytesSupplier, VectorSimilarityType... types) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 

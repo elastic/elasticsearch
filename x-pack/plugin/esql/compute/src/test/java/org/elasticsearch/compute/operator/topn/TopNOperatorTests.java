@@ -252,51 +252,6 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * Creates the appropriate top-N operator for the test subclass.
-     * Ungrouped subclass creates {@link TopNOperator}; grouped subclass creates
-     * {@link GroupedTopNOperator}.
-     */
-    protected Operator createTopNOperator(
-        BlockFactory blockFactory,
-        CircuitBreaker breaker,
-        int topCount,
-        List<ElementType> elementTypes,
-        List<TopNEncoder> encoders,
-        List<TopNOperator.SortOrder> sortOrders,
-        int[] groupKeys,
-        int maxPageSize,
-        long jumboPageBytes,
-        TopNOperator.InputOrdering inputOrdering,
-        @Nullable SharedMinCompetitive.Supplier minCompetitive
-    ) {
-        if (groupKeys.length > 0) {
-            return new GroupedTopNOperator(
-                blockFactory,
-                breaker,
-                topCount,
-                elementTypes,
-                encoders,
-                sortOrders,
-                groupKeys,
-                maxPageSize,
-                jumboPageBytes
-            );
-        }
-        return new TopNOperator(
-            blockFactory,
-            breaker,
-            topCount,
-            elementTypes,
-            encoders,
-            sortOrders,
-            maxPageSize,
-            jumboPageBytes,
-            inputOrdering,
-            minCompetitive
-        );
-    }
-
-    /**
      * Creates the appropriate top-N operator factory for the test subclass.
      */
     protected Operator.OperatorFactory createTopNOperatorFactory(
@@ -412,9 +367,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(pages.iterator()),
                 List.of(
-                    createTopNOperator(
-                        driverContext.blockFactory(),
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                    createTopNOperatorFactory(
                         topNCount,
                         elementTypes,
                         encoders,
@@ -424,7 +377,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomJumboPageBytes(),
                         InputOrdering.SORTED,
                         null
-                    )
+                    ).get(driverContext)
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
             )
@@ -476,9 +429,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(pages.iterator()),
                 List.of(
-                    createTopNOperator(
-                        driverContext.blockFactory(),
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                    createTopNOperatorFactory(
                         topNCount,
                         elementTypes,
                         encoders,
@@ -491,7 +442,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomJumboPageBytes(),
                         InputOrdering.SORTED,
                         null
-                    )
+                    ).get(driverContext)
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
             )
@@ -1063,9 +1014,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
-                    createTopNOperator(
-                        blockFactory,
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                    createTopNOperatorFactory(
                         topCount,
                         elementTypes,
                         encoders,
@@ -1075,7 +1024,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
                         null
-                    )
+                    ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
             )
@@ -1198,9 +1147,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
-                    createTopNOperator(
-                        blockFactory,
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                    createTopNOperatorFactory(
                         topCount,
                         elementTypes,
                         encoders,
@@ -1210,7 +1157,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
                         null
-                    )
+                    ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
             )
@@ -1269,9 +1216,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     driverContext,
                     sourceOperator,
                     List.of(
-                        createTopNOperator(
-                            driverContext.blockFactory(),
-                            nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        createTopNOperatorFactory(
                             limit,
                             sourceOperator.elementTypes(),
                             encoder,
@@ -1281,7 +1226,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                             randomJumboPageBytes(),
                             InputOrdering.NOT_SORTED,
                             null
-                        )
+                        ).get(driverContext)
                     ),
                     new PageConsumerOperator(pages::add)
                 )
@@ -1684,9 +1629,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<List<List<Object>>> expectedValues = new ArrayList<>(rowsPerPage * pageCount);
         List<List<List<Object>>> actualValues = new ArrayList<>();
         try (
-            Operator operator = createTopNOperator(
-                driverContext.blockFactory(),
-                nonBreakingBigArrays().breakerService().getBreaker("request"),
+            Operator operator = createTopNOperatorFactory(
                 topCount,
                 elementTypes,
                 encoders,
@@ -1696,7 +1639,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 Long.MAX_VALUE,
                 InputOrdering.NOT_SORTED,
                 null
-            )
+            ).get(driverContext)
         ) {
             for (int p = 0; p < pageCount; p++) {
                 assertThat(operator.needsInput(), equalTo(true));
@@ -2225,9 +2168,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         int[] gk = groupKeys();
         int expectedTotal = gk.length > 0 ? inputPageRows * inputPageCount : topCount;
         try (
-            Operator op = createTopNOperator(
-                driverContext().blockFactory(),
-                factory.breaker(),
+            Operator op = createTopNOperatorFactory(
                 topCount,
                 List.of(BYTES_REF),
                 List.of(UTF8),
@@ -2237,7 +2178,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 jumboPageBytes,
                 InputOrdering.NOT_SORTED,
                 null
-            )
+            ).get(driverContext())
         ) {
             for (int p = 0; p < inputPageCount; p++) {
                 try (BytesRefBlock.Builder bytes = factory.newBytesRefBlockBuilder(inputPageRows)) {
@@ -2617,9 +2558,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<ElementType> elementTypes = Collections.nCopies(numColumns, LONG);
         List<TopNEncoder> encoders = Collections.nCopies(numColumns, DEFAULT_UNSORTABLE);
         try (
-            Operator op = createTopNOperator(
-                context.blockFactory(),
-                context.breaker(),
+            Operator op = createTopNOperatorFactory(
                 topCount,
                 elementTypes,
                 encoders,
@@ -2629,7 +2568,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 Long.MAX_VALUE,
                 TopNOperator.InputOrdering.NOT_SORTED,
                 null
-            )
+            ).get(context)
         ) {
             Accountable accountable = (Accountable) op;
             long actualEmpty = RamUsageTester.ramUsed(op, RAM_USAGE_ACCUMULATOR);

@@ -285,11 +285,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testSourceThrottling
   issue: https://github.com/elastic/elasticsearch/issues/141548
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  methods:
-  - testLastAggWithGiantText
-  - testFirstAggWithGiantText
-  issue: https://github.com/elastic/elasticsearch/issues/141550
 - class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
   method: testExecute_Throws_WhenRateLimitedQueueIsFull
   issue: https://github.com/elastic/elasticsearch/issues/141231
@@ -404,21 +399,12 @@ tests:
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
   method: testAccumulateSearchLoad
   issue: https://github.com/elastic/elasticsearch/issues/142986
-- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
-  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/nested compound retrievers with min_score correctly compute total_hits}
-  issue: https://github.com/elastic/elasticsearch/issues/142997
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
   method: testAccumulateSearchLoad
   issue: https://github.com/elastic/elasticsearch/issues/143111
-- class: org.elasticsearch.index.mapper.IpFieldMapperTests
-  method: testSyntheticSourceWithTranslogSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/143123
-- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
-  method: testSyntheticSourceWithTranslogSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/143124
 - class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
   method: testCliConnectionWithApiKey
   issue: https://github.com/elastic/elasticsearch/issues/143125
@@ -428,24 +414,12 @@ tests:
 - class: org.elasticsearch.compute.aggregation.TimeSeriesFirstDocIdDeduplicationTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/143128
-- class: org.elasticsearch.index.mapper.DateFieldMapperTests
-  method: testSyntheticSourceWithTranslogSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/143129
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023
 - class: org.elasticsearch.xpack.security.apikey.ApiKeyWorkflowsRestrictionRestIT
   method: testWorkflowsRestrictionAllowsAccess
   issue: https://github.com/elastic/elasticsearch/issues/143130
-- class: org.elasticsearch.index.mapper.GeoPointFieldMapperTests
-  method: testSyntheticSourceWithTranslogSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/143174
-- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
-  method: testSyntheticSourceInObject
-  issue: https://github.com/elastic/elasticsearch/issues/143176
-- class: org.elasticsearch.index.mapper.ShortFieldMapperTests
-  method: testSyntheticSourceWithTranslogSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/143196
 - class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
   method: testStandardIndexWithTSDBDocValuesFormatSetting
   issue: https://github.com/elastic/elasticsearch/issues/143197
@@ -458,27 +432,24 @@ tests:
 - class: org.elasticsearch.index.mapper.GeoPointFieldMapperTests
   method: testSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/143201
-- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
-  method: testSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/143202
-- class: org.elasticsearch.index.mapper.DateFieldMapperTests
-  method: testSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/143203
-- class: org.elasticsearch.index.mapper.IpFieldMapperTests
-  method: testSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/143204
-- class: org.elasticsearch.index.mapper.IpFieldMapperTests
-  method: testSyntheticSourceInObject
-  issue: https://github.com/elastic/elasticsearch/issues/143212
 - class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:docs.DocsBitLength}
-  issue: https://github.com/elastic/elasticsearch/issues/143222
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:eval.DocsByteLength}
-  issue: https://github.com/elastic/elasticsearch/issues/143223
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:eval.DocsLength}
-  issue: https://github.com/elastic/elasticsearch/issues/143224
+  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_aggregate_metric_double_implicit_casting}
+  issue: https://github.com/elastic/elasticsearch/issues/143292
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testTsIndexConflictingTypes {null}
+  issue: https://github.com/elastic/elasticsearch/issues/142410
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  method: testManyRandomKeywordFieldsInSubqueryIntermediateResults
+  issue: https://github.com/elastic/elasticsearch/issues/143314
+- class: org.elasticsearch.index.mapper.DynamicMappingIT
+  method: testConcurrentDynamicIgnoreBeyondLimitUpdates
+  issue: https://github.com/elastic/elasticsearch/issues/143326
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLookupJoinIT
+  method: testLookupExplosionManyMatchesManyFields
+  issue: https://github.com/elastic/elasticsearch/issues/143347
+- class: org.elasticsearch.xpack.esql.action.LookupJoinIT
+  method: testMultiValueJoinKeyWarnings
+  issue: https://github.com/elastic/elasticsearch/issues/143350
 
 # Examples:
 #

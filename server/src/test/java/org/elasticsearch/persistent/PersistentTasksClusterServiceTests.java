@@ -746,7 +746,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 )
                 .build();
 
-            // Opt-in executor: reassignTasks should proactively move the task off the shutdown node
+            // Task with automated reassignment on node shutdown
             PersistentTasksClusterService serviceWithOptIn = createService(
                 clusterService,
                 (params, candidateNodes, clusterState) -> randomNodeAssignment(candidateNodes),
@@ -754,30 +754,25 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             );
             final var newState = serviceWithOptIn.reassignTasks(state);
             final var tasksInProgress = getPersistentTasks(newState);
-            assertThat(tasksInProgress, notNullValue());
-            for (PersistentTask<?> task : tasksInProgress.tasks()) {
-                assertThat(
-                    "opt-in task should have been reassigned to another node after " + shutdownType + " shutdown",
-                    task.getExecutorNode(),
-                    anyOf(equalTo(masterNode.getId()), equalTo(targetNode.getId()))
-                );
-            }
+            assertThat(tasksInProgress.tasks().size(), is(1));
+            assertThat(tasksInProgress.getTask("_task_1"), notNullValue());
+            assertThat(
+                "opt-in task should have been reassigned to another node after " + shutdownType + " shutdown",
+                tasksInProgress.getTask("_task_1").getExecutorNode(),
+                anyOf(equalTo(masterNode.getId()), equalTo(targetNode.getId()))
+            );
 
-            // Non-opt-in executor: reassignTasks should leave the task in place until the node actually leaves
+            // Task stays put until the node actually leaves the cluster
             PersistentTasksClusterService serviceWithoutOptIn = createService(
                 clusterService,
                 (params, candidateNodes, clusterState) -> randomNodeAssignment(candidateNodes)
             );
             final var unchangedState = serviceWithoutOptIn.reassignTasks(state);
             final var unchangedTasks = getPersistentTasks(unchangedState);
-            assertThat(unchangedTasks, notNullValue());
-            for (PersistentTask<?> task : unchangedTasks.tasks()) {
-                assertThat(
-                    "non-opt-in task should remain on its current node during " + shutdownType + " shutdown",
-                    task.getExecutorNode(),
-                    equalTo(workerNode.getId())
-                );
-            }
+            assertThat(unchangedTasks.tasks().size(), is(1));
+
+            assertThat(unchangedTasks.getTask("_task_1"), notNullValue());
+            assertThat(unchangedTasks.getTask("_task_1").getExecutorNode(), is("worker_node"));
         }
     }
 

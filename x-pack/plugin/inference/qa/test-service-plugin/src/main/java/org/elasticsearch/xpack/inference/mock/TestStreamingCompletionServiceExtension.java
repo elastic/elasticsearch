@@ -295,7 +295,14 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                         "id",
                         List.of(
                             new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
-                                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(delta, null, null, null),
+                                new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                                    delta,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null
+                                ),
                                 null,
                                 0
                             )

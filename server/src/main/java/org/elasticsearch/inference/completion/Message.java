@@ -41,7 +41,7 @@ public record Message(
     @Nullable String toolCallId,
     @Nullable List<ToolCall> toolCalls,
     @Nullable String reasoning,
-    List<ReasoningDetail> reasoningDetails
+    @Nullable List<ReasoningDetail> reasoningDetails
 ) implements Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
@@ -53,7 +53,7 @@ public record Message(
             (String) args[2],
             (List<ToolCall>) args[3],
             (String) args[4],
-            args[5] == null ? List.of() : (List<ReasoningDetail>) args[5]
+            (List<ReasoningDetail>) args[5]
         )
     );
 
@@ -92,7 +92,7 @@ public record Message(
             in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) ? in.readOptionalString() : null,
             in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
                 ? in.readOptionalCollectionAsList(ReasoningDetail::fromStream)
-                : List.of()
+                : null
         );
     }
 
@@ -125,7 +125,7 @@ public record Message(
         if (reasoning != null) {
             builder.field(REASONING_FIELD, reasoning);
         }
-        if (reasoningDetails.isEmpty() == false) {
+        if (reasoningDetails != null && reasoningDetails.isEmpty() == false) {
             builder.field(REASONING_DETAILS_FIELD, reasoningDetails);
         }
 

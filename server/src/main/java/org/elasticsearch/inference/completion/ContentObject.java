@@ -311,8 +311,6 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
                 LOW,
                 HIGH;
 
-                private static final String URL_FIELD = "url";
-
                 @Override
                 public String toString() {
                     return name().toLowerCase(Locale.ROOT);

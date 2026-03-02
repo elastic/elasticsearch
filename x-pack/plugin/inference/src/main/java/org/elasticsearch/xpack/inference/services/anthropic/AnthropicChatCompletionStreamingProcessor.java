@@ -185,7 +185,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
             var totalTokens = completionTokens + promptTokens;
 
             var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(completionTokens, promptTokens, totalTokens);
-            var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, role, null);
+            var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, role, null, null, null);
             var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, finishReason, 0);
             var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(id, List.of(choice), model, null, usage);
 
@@ -235,7 +235,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
             if (type.equals(TEXT_TYPE)) {
                 var text = extractMandatoryString(contentBlockMap, TEXT_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null);
+                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null, null, null);
             } else if (type.equals(TOOL_USE_TYPE)) {
                 var id = extractMandatoryString(contentBlockMap, ID_FIELD);
                 var name = extractMandatoryString(contentBlockMap, NAME_FIELD);
@@ -245,7 +245,14 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                     name
                 );
                 var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, id, function, null);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
+                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                    null,
+                    null,
+                    null,
+                    List.of(toolCall),
+                    null,
+                    null
+                );
             } else {
                 logger.debug("Unknown content block start type [{}] for line [{}].", type, data);
                 return Stream.empty();
@@ -296,7 +303,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
             StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
             if (type.equals(TEXT_DELTA_TYPE)) {
                 var text = extractMandatoryString(deltaMap, TEXT_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null);
+                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null, null, null);
             } else if (type.equals(INPUT_JSON_DELTA_TYPE)) {
                 var partialJson = extractMandatoryString(deltaMap, PARTIAL_JSON_FIELD);
                 var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
@@ -304,7 +311,14 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                     null
                 );
                 var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, null, function, null);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
+                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                    null,
+                    null,
+                    null,
+                    List.of(toolCall),
+                    null,
+                    null
+                );
             } else {
                 logger.debug("Unknown content block delta type [{}] for line [{}].", type, data);
                 return Stream.empty();
@@ -372,7 +386,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
     ) {
         var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(totalTokens, 0, totalTokens);
         var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
-            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, null),
+            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, null, null, null),
             finishReason,
             0
         );

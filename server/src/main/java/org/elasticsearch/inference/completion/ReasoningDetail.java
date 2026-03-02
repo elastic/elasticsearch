@@ -254,7 +254,7 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
         }
 
         /**
-         * Validates that at least one of text or signature is provided for a TextReasoningDetail.
+         * Validates that at least one of text or signature is provided for a {@link TextReasoningDetail}.
          * This is because a {@link TextReasoningDetail} must contain at least one of the two fields to be meaningful.
          */
         private void validate() {

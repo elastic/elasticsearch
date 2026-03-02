@@ -12,6 +12,7 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.xcontent.ToXContent;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Function;
@@ -121,4 +122,18 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(item);
     }
 
+    /**
+     * Creates an Iterator of a single ToXContent object that serializes the given field as a single chunk,
+     * or an empty iterator if the value is null.
+     * @param name name of the field
+     * @param value value for this field, or null if the field should be omitted
+     * @return iterator for the given field, or an empty iterator if the value is null
+     */
+    public static Iterator<ToXContent> optionalField(String name, Object value) {
+        if (value == null) {
+            return Collections.emptyIterator();
+        } else {
+            return ChunkedToXContentHelper.chunk((b, p) -> b.field(name, value));
+        }
+    }
 }

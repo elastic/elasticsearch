@@ -220,7 +220,14 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
      * @return a stream of ChatCompletionChunk
      */
     private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> handleMessageStart(MessageStartEvent event) {
-        var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, getRole(event), null);
+        var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+            null,
+            null,
+            getRole(event),
+            null,
+            null,
+            null
+        );
         var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, 0);
         var chunk = createChatCompletionChunk(List.of(choice), null);
         return Stream.of(chunk);
@@ -254,7 +261,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
     private Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> handleMessageStop(MessageStopEvent event) {
         var finishReason = handleFinishReason(event.stopReason());
         var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
-            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, null),
+            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, null, null, null),
             finishReason,
             0
         );
@@ -329,7 +336,9 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 // The model is requesting a tool be executed, so we set the role to assistant. The "tool" role is reserved for actual
                 // executions of a tool.
                 ChatCompletionRole.ASSISTANT.toString(),
-                List.of(toolCall)
+                List.of(toolCall),
+                null,
+                null
             );
             var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
             var chunk = createChatCompletionChunk(List.of(choice), null);
@@ -355,11 +364,20 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 content,
                 null,
                 null,
+                null,
+                null,
                 null
             );
             case ContentBlockDelta.Type.TOOL_USE -> {
                 var toolCall = handleToolUseDelta(event.delta());
-                yield new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(content, null, null, List.of(toolCall));
+                yield new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
+                    content,
+                    null,
+                    null,
+                    List.of(toolCall),
+                    null,
+                    null
+                );
             }
             default -> {
                 logger.debug("unknown content block delta type [{}].", type);
@@ -399,7 +417,8 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
             outputTokens,
             promptTokens,
             totalTokens,
-            event.usage().cacheReadInputTokens()
+            event.usage().cacheReadInputTokens(),
+            null
         );
     }
 }

@@ -56,6 +56,21 @@ public class TextEmbeddingTests extends AbstractFunctionTestCase {
     }
 
     @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("TextEmbedding requires constants in both parameters", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNull() {
+        assumeTrue("TextEmbedding requires constants in both parameters", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        assumeTrue("TextEmbedding requires constants in both parameters", false);
+    }
+
+    @Override
     protected boolean canSerialize() {
         return false;
     }

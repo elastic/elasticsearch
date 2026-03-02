@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -68,7 +69,9 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -637,6 +640,204 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public void testSerializationOfSimple() {
         assumeTrue("can't serialize function", canSerialize());
         assertSerialization(buildFieldExpression(testCase), testCase.getConfiguration());
+    }
+
+    /**
+     * Validates co- and contra-variance: if a function accepts certain input types, it should also accept strictly narrower types
+     * (as defined by {@link DataType#strictlyNarrowerTypes()}) and produce an output type that is the same or narrower than before
+     * (as defined by {@link DataType#canWidenTo(DataType)}).
+     * <p>
+     * It is particularly important that the bottom type {@link DataType#NULL} is accepted in all positions to keep as many queries
+     * as possible intact when using {@code SET unmapped_fields="nullify"}.
+     * <p>
+     * We generally recognize two exceptions from this principle:
+     * <ul>
+     *     <li>Parameters that must be non-null constants (e.g. the pattern argument of {@code LIKE}) may reject {@code NULL}.
+     *         Use {@link #filterCoAndContraVarianceNarrowing(Map, List)} to remove the {@code NULL} type from the candidates in such cases.
+     *     <li>Parameters that must have the same type as other parameters (e.g. the arguments of {@code MV_CONTAINS}) only need to satisfy
+     *         the co- and contra-variance principle when narrowed uniformly (i.e. if one argument can be narrowed to a certain type,
+     *         then all arguments of the same original type can be narrowed to that type).
+     *         Use {@link #checkCoAndContraVarianceUniformly(java.util.function.Function)} to test this weaker condition for such functions.
+     * </ul>
+     * <p>
+     * <b>Note:</b> When designing new functions, it may be necessary that having {@link DataType#NULL} in one or more arguments turns the
+     * output type to {@code NULL} as well; this is the case when the function may output non-compatible types, or when the function
+     * may do so in the future.
+     */
+    public void testCoAndContraVariance() {
+        checkCoAndContraVariance(DataType::strictlyNarrowerTypes);
+    }
+
+    /**
+     * Validates co- and contra-variance by narrowing inputs exclusively to NULL.
+     */
+    public void testCoAndContraVarianceWithNull() {
+        checkCoAndContraVariance(type -> type == DataType.NULL ? Set.of() : Set.of(DataType.NULL));
+    }
+
+    /**
+     * Validates co- and contra-variance by narrowing inputs exclusively to non-NULL types.
+     */
+    public void testCoAndContraVarianceWithNonNull() {
+        checkCoAndContraVariance(type -> {
+            Set<DataType> narrower = type.strictlyNarrowerTypes();
+            return narrower.stream().filter(t -> t != DataType.NULL).collect(Collectors.toSet());
+        });
+    }
+
+    /**
+     * Randomly narrows one or more input types using the candidates returned by {@code narrowerTypes},
+     * choosing independently for each argument position.
+     */
+    private void checkCoAndContraVariance(java.util.function.Function<DataType, Set<DataType>> narrowerTypes) {
+        assumeTrue("test case expects a type error", testCase.getExpectedTypeError() == null);
+
+        List<TestCaseSupplier.TypedData> data = testCase.getData();
+
+        List<Integer> narrowablePositions = new ArrayList<>();
+        for (int i = 0; i < data.size(); i++) {
+            TestCaseSupplier.TypedData td = data.get(i);
+            if (narrowerTypes.apply(td.type()).isEmpty() == false) {
+                narrowablePositions.add(i);
+            }
+        }
+        assumeTrue("no parameters can be narrowed", narrowablePositions.isEmpty() == false);
+
+        Collections.shuffle(narrowablePositions, random());
+        int count = randomIntBetween(1, narrowablePositions.size());
+
+        Map<Integer, DataType> positionNarrowing = new HashMap<>();
+        for (int idx : narrowablePositions.subList(0, count)) {
+            positionNarrowing.put(idx, randomFrom(narrowerTypes.apply(data.get(idx).type())));
+        }
+
+        assertCoAndContraVariance(data, positionNarrowing);
+    }
+
+    /**
+     * Like {@link #checkCoAndContraVariance}, but narrows all arguments that share the same original type to the same narrower type.
+     * This is useful for functions that require certain arguments to have matching types (e.g. {@code MV_CONTAINTS}, {@code COALESCE}).
+     * {@code KEYWORD} arguments are additionally allowed to be narrowed to {@code TEXT} independently of the above logic because we allow
+     * narrowing individual arguments like this even in functions that require uniform input types in several arguments.
+     */
+    protected void checkCoAndContraVarianceUniformly(java.util.function.Function<DataType, Set<DataType>> narrowerTypes) {
+        assumeTrue("test case expects a type error", testCase.getExpectedTypeError() == null);
+
+        List<TestCaseSupplier.TypedData> data = testCase.getData();
+
+        Map<DataType, Set<DataType>> narrowableTypeMap = new LinkedHashMap<>();
+        for (TestCaseSupplier.TypedData td : data) {
+            Set<DataType> candidates = narrowerTypes.apply(td.type());
+            if (candidates.isEmpty() == false) {
+                narrowableTypeMap.put(td.type(), candidates);
+            }
+        }
+        assumeTrue("no parameters can be narrowed", narrowableTypeMap.isEmpty() == false);
+
+        List<DataType> narrowableTypes = new ArrayList<>(narrowableTypeMap.keySet());
+        Collections.shuffle(narrowableTypes, random());
+        int count = randomIntBetween(1, narrowableTypes.size());
+
+        Map<DataType, DataType> typeNarrowing = new HashMap<>();
+        for (int i = 0; i < count; i++) {
+            DataType typeToNarrow = narrowableTypes.get(i);
+            typeNarrowing.put(typeToNarrow, randomFrom(narrowableTypeMap.get(typeToNarrow)));
+        }
+
+        Map<Integer, DataType> positionNarrowing = new HashMap<>();
+        for (int i = 0; i < data.size(); i++) {
+            TestCaseSupplier.TypedData td = data.get(i);
+            DataType narrowedType = typeNarrowing.get(td.type());
+            if (narrowedType != null) {
+                positionNarrowing.put(i, narrowedType);
+            } else if (td.type() == DataType.KEYWORD && randomBoolean()) {
+                positionNarrowing.put(i, DataType.TEXT);
+            }
+        }
+
+        assertCoAndContraVariance(data, positionNarrowing);
+    }
+
+    /**
+     * Filters the proposed position narrowings before they are applied. Subclasses can override this to remove
+     * narrowings that are not valid for specific argument positions, e.g. to prevent {@code NULL} in a literal-only argument.
+     * @param positionNarrowing mutable map from argument position to narrowed type; remove entries to prevent narrowing
+     * @param data the original test case parameters for context
+     */
+    protected void filterCoAndContraVarianceNarrowing(Map<Integer, DataType> positionNarrowing, List<TestCaseSupplier.TypedData> data) {}
+
+    /**
+     * Shared implementation: builds original and narrowed expressions, then asserts that the narrowed expression
+     * resolves and its output type is acceptable.
+     * @param data the original test case parameters
+     * @param positionNarrowing maps argument positions to narrower types; positions not in the map keep their original type
+     */
+    private void assertCoAndContraVariance(List<TestCaseSupplier.TypedData> data, Map<Integer, DataType> positionNarrowing) {
+        filterCoAndContraVarianceNarrowing(positionNarrowing, data);
+        assumeTrue("no parameters can be narrowed after filtering", positionNarrowing.isEmpty() == false);
+
+        Expression original = build(testCase.getSource(), data.stream().map(TestCaseSupplier.TypedData::asReference).toList());
+        assertTrue("original expression should resolve, but got: " + original.typeResolved().message(), original.typeResolved().resolved());
+        DataType originalOutputType = original.dataType();
+
+        List<Expression> args = new ArrayList<>(data.size());
+        for (int i = 0; i < data.size(); i++) {
+            TestCaseSupplier.TypedData td = data.get(i);
+            DataType narrowedType = positionNarrowing.get(i);
+            if (narrowedType != null) {
+                if (td.isForceLiteral()) {
+                    args.add(randomLiteral(narrowedType));
+                } else {
+                    args.add(new ReferenceAttribute(Source.synthetic(td.name()), td.name(), narrowedType));
+                }
+            } else {
+                args.add(td.asReference());
+            }
+        }
+
+        List<DataType> originalTypes = data.stream().map(TestCaseSupplier.TypedData::type).toList();
+        List<DataType> narrowedTypes = args.stream().map(Expression::dataType).toList();
+
+        Expression narrowed = build(testCase.getSource(), args);
+
+        assertTrue(
+            "narrowing "
+                + originalTypes
+                + " to "
+                + narrowedTypes
+                + ": expression should resolve, but got: "
+                + narrowed.typeResolved().message(),
+            narrowed.typeResolved().resolved()
+        );
+
+        assertCoAndContraVarianceOutputType(originalTypes, narrowedTypes, originalOutputType, narrowed.dataType());
+    }
+
+    /**
+     * Asserts that the output type of the narrowed expression is acceptable relative to the original output type.
+     * By default, the narrowed output type must be the same as or widen to the original. Subclasses can override
+     * this for functions where the output type legitimately depends on input types in ways that don't follow
+     * the widening hierarchy, e.g. for date arithmetic where {@code NULL + DATE_PERIOD -> DATE_PERIOD}
+     * rather than {@code DATE_NANOS}.
+     */
+    protected void assertCoAndContraVarianceOutputType(
+        List<DataType> originalTypes,
+        List<DataType> narrowedTypes,
+        DataType originalOutputType,
+        DataType narrowedOutputType
+    ) {
+        assertTrue(
+            "narrowing "
+                + originalTypes
+                + " to "
+                + narrowedTypes
+                + ": output type ["
+                + narrowedOutputType
+                + "] should be the same as or widen to ["
+                + originalOutputType
+                + "]",
+            narrowedOutputType.canWidenTo(originalOutputType)
+        );
     }
 
     /**

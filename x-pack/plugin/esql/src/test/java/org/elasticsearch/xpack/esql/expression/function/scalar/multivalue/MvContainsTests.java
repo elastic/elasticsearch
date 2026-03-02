@@ -337,4 +337,17 @@ public class MvContainsTests extends AbstractScalarFunctionTestCase {
     protected Matcher<Object> allNullsMatcher() {
         return equalTo(true);
     }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("MvContains requires both arguments to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        checkCoAndContraVarianceUniformly(type -> {
+            Set<DataType> narrower = type.strictlyNarrowerTypes();
+            return narrower.stream().filter(t -> t != DataType.NULL).collect(Collectors.toSet());
+        });
+    }
 }

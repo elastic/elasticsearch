@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -2265,6 +2266,18 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 return mapExpression ? asMapExpression() : asLiteral();
             }
             return AbstractFunctionTestCase.field(name, type);
+        }
+
+        /**
+         * Like {@link #asField()} but produces a {@link ReferenceAttribute} instead of a {@link
+         * org.elasticsearch.xpack.esql.core.expression.FieldAttribute}, which is more appropriate when the value doesn't
+         * necessarily correspond to an Elasticsearch field.
+         */
+        public Expression asReference() {
+            if (forceLiteral) {
+                return mapExpression ? asMapExpression() : asLiteral();
+            }
+            return new ReferenceAttribute(Source.synthetic(name), name, type);
         }
 
         /**

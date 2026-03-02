@@ -347,4 +347,17 @@ public class MvIntersectsTests extends AbstractScalarFunctionTestCase {
     protected Matcher<Object> allNullsMatcher() {
         return equalTo(false);
     }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("MvIntersects requires both arguments to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        checkCoAndContraVarianceUniformly(type -> {
+            Set<DataType> narrower = type.strictlyNarrowerTypes();
+            return narrower.stream().filter(t -> t != DataType.NULL).collect(Collectors.toSet());
+        });
+    }
 }

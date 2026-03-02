@@ -204,4 +204,19 @@ public class ConfidenceIntervalTests extends AbstractScalarFunctionTestCase {
             )
         );
     }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("ConfidenceInterval is an internal-only function", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNull() {
+        assumeTrue("ConfidenceInterval is an internal-only function", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        assumeTrue("ConfidenceInterval is an internal-only function", false);
+    }
 }

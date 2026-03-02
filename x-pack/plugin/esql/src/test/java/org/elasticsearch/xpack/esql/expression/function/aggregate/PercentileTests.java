@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -128,6 +129,12 @@ public class PercentileTests extends AbstractAggregationTestCase {
         values.stream().filter(Objects::nonNull).forEach(tDigestHolder -> tDigestHolder.addTo(merged));
         double result = merged.quantile(percentile / 100.0);
         return Double.isNaN(result) ? null : result;
+    }
+
+    @Override
+    protected void filterCoAndContraVarianceNarrowing(Map<Integer, DataType> positionNarrowing, List<TestCaseSupplier.TypedData> data) {
+        // The percentile argument must be a non-NULL typed literal.
+        positionNarrowing.entrySet().removeIf(e -> e.getKey() == 1 && e.getValue() == DataType.NULL);
     }
 
     @Override

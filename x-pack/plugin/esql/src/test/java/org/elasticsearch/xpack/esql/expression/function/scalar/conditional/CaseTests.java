@@ -27,6 +27,7 @@ import org.hamcrest.Matcher;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -867,5 +868,18 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             return testCase.getMatcher();
         }
         return super.allNullsMatcher();
+    }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("Case requires all output branches to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        checkCoAndContraVarianceUniformly(type -> {
+            Set<DataType> narrower = type.strictlyNarrowerTypes();
+            return narrower.stream().filter(t -> t != DataType.NULL).collect(Collectors.toSet());
+        });
     }
 }

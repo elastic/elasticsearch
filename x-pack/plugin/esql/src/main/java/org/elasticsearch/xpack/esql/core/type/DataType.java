@@ -33,6 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
@@ -528,6 +529,70 @@ public enum DataType implements Writeable {
         map.put("string", KEYWORD);
         map.put("date", DataType.DATETIME);
         NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * Direct type widening relationships for use in ESQL expressions. A narrower type can be used
+     * wherever a wider type is expected. For example, INTEGER can be widened to LONG or DOUBLE.
+     * <p>
+     * Only contains non-trivial widenings. Widening from {@code NULL} and from the same type to itself is always permitted.
+     * <p>
+     * This intentionally doesn't include widening relationships that only exist for loading purposes, like {@code SHORT} to
+     * {@code INTEGER} (see {@link DataType#widenSmallNumeric}. Those relationships are handled separately in the loading logic and don't
+     * need to be known by functions, operators, or type resolution.
+     */
+    private static final Map<DataType, Set<DataType>> WIDENING_TO = Map.of(
+        INTEGER,
+        Set.of(LONG, DOUBLE),
+        LONG,
+        Set.of(DOUBLE),
+        DATETIME,
+        Set.of(DATE_NANOS),
+        // We allow TEXT to be used where KEYWORD is expected because we load text fields without analysis, so they behave like keywords.
+        // This is only expected to be relevant for fields that are mapped as both text and keyword,
+        // but it is simpler to allow this in general than to special case it just for those fields.
+        TEXT,
+        Set.of(KEYWORD)
+    );
+
+    /**
+     * Inverse of {@link #WIDENING_TO}: for each type, the set of non-trivial types that can be widened to it.
+     */
+    private static final Map<DataType, Set<DataType>> NARROWER_TYPES_MAP = Collections.unmodifiableMap(
+        WIDENING_TO.entrySet()
+            .stream()
+            .flatMap(e -> e.getValue().stream().map(wider -> Map.entry(wider, e.getKey())))
+            .collect(Collectors.groupingBy(Map.Entry::getKey, Collectors.mapping(Map.Entry::getValue, Collectors.toUnmodifiableSet())))
+    );
+
+    /**
+     * Returns {@code true} if this type can be widened to {@code target}, meaning
+     * this type can be used in expressions where {@code target} is expected.
+     * {@link #NULL} acts as a bottom type and can be widened to any other type.
+     * For example, {@code INTEGER.canWidenTo(LONG)} returns {@code true} and so does {@code NULL.canWidenTo(LONG)} and
+     * {@code INTEGER.canWidenTo(INTEGER)}. However, {@code LONG.canWidenTo(INTEGER)} returns {@code false}.
+     */
+    public boolean canWidenTo(DataType target) {
+        if (this == target || this == NULL) {
+            return true;
+        }
+        Set<DataType> targets = WIDENING_TO.get(this);
+        return targets != null && targets.contains(target);
+    }
+
+    /**
+     * Returns all types that can be widened to this type excluding the type itself. That is, types that are narrower than
+     * this type and can be used in expressions where this type is expected.
+     * {@link #NULL} is always included as a narrower type (it is a bottom type).
+     * For example, {@code LONG.narrowerTypes()} returns a set containing {@code INTEGER} and {@code NULL}.
+     */
+    public Set<DataType> strictlyNarrowerTypes() {
+        if (this == NULL) {
+            return Set.of();
+        }
+
+        Set<DataType> nonTrivial = NARROWER_TYPES_MAP.getOrDefault(this, Set.of());
+        return Stream.concat(nonTrivial.stream(), Stream.of(NULL)).collect(Collectors.toUnmodifiableSet());
     }
 
     public static Collection<DataType> types() {

@@ -81,8 +81,8 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
 
 FROM ${base_image}
 
-# Symlink sh to bash to override dash which doens't respect dotted env vars
-RUN ln -sf bash /bin/sh && \
+# Change default shell to bash, then install required packages with retries.
+RUN yes no | dpkg-reconfigure dash && \\
 <%= retry.loop(
 package_manager,
   "export DEBIAN_FRONTEND=noninteractive && \n" +
@@ -96,7 +96,7 @@ package_manager,
 
 RUN userdel -r ubuntu && \\
     groupadd -g 1000 elasticsearch && \\
-    useradd --uid 1000 --gid 1000 --home-dir /usr/share/elasticsearch --create-home --shell /bin/bash elasticsearch && \\
+    useradd --uid 1000 --gid 1000 --home-dir /usr/share/elasticsearch --create-home elasticsearch && \\
     usermod -aG root elasticsearch && \\
     chown -R 0:0 /usr/share/elasticsearch
 

@@ -640,7 +640,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         try {
             CompressedXContent mergedSource = mapperService.merge(
                 MapperService.SINGLE_MAPPING_NAME,
-                new CompressedXContent(result.getRequiredMappingUpdate()),
+                result.getRequiredMappingUpdate(),
                 MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT
             ).mappingSource();
             final DocumentMapper existingDocumentMapper = mapperService.documentMapper();

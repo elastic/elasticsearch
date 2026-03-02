@@ -147,6 +147,7 @@ public class InternalEngine extends Engine {
     private final ElasticsearchMergeScheduler mergeScheduler;
 
     private final IndexWriter indexWriter;
+    private final BatchIndexWriter batchIndexWriter;
 
     private final ExternalReaderManager externalReaderManager;
     private final ElasticsearchReaderManager internalReaderManager;
@@ -294,6 +295,7 @@ public class InternalEngine extends Engine {
                 historyUUID = loadHistoryUUID(commitData);
                 forceMergeUUID = commitData.get(FORCE_MERGE_UUID_KEY);
                 indexWriter = writer;
+                batchIndexWriter = new BatchIndexWriter(indexWriter);
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             } catch (AssertionError e) {
@@ -1340,6 +1342,8 @@ public class InternalEngine extends Engine {
                 // Step 2: Per-doc: determine indexing strategy, generate seqNo
                 final List<Index> updatedOps = new java.util.ArrayList<>(batchSize);
                 final List<IndexingStrategy> plans = new java.util.ArrayList<>(batchSize);
+                final List<LuceneDocument> appendDocs = new java.util.ArrayList<>();
+
                 for (int i = 0; i < batchSize; i++) {
                     Index op = operations.get(i);
                     lastWriteNanos = op.startTime();
@@ -1379,18 +1383,23 @@ public class InternalEngine extends Engine {
 
                     updatedOps.add(op);
 
+                    // Collect append-only docs for batch Lucene add
+                    if (plan.indexIntoLucene && plan.useLuceneUpdateDocument == false) {
+                        List<LuceneDocument> docs = op.parsedDoc().docs();
+                        for (LuceneDocument doc : docs) {
+                            appendDocs.add(doc);
+                        }
+                    }
+
                     // Placeholder result — will be filled in below
                     results.add(null);
                 }
 
-                // Step 3: Lucene add for append-only operations (one call per document to preserve index sort)
-                for (int i = 0; i < batchSize; i++) {
-                    IndexingStrategy plan = plans.get(i);
-                    Index op = updatedOps.get(i);
-                    if (plan.indexIntoLucene && plan.useLuceneUpdateDocument == false) {
-                        indexWriter.addDocuments(op.parsedDoc().docs());
-                        numDocAppends.inc(op.parsedDoc().docs().size());
-                    }
+                // Step 3: Batch Lucene add for append-only operations
+                if (appendDocs.isEmpty() == false) {
+                    indexWriter.addDocuments(appendDocs);
+                    batchIndexWriter.batchAddDocuments(appendDocs);
+                    numDocAppends.inc(appendDocs.size());
                 }
 
                 // Step 4: Index non-append operations individually into Lucene
@@ -3424,7 +3433,7 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Returns the number of times a version was looked up either from the index.
+     * Returns the number of times a version was looked up from the index.
      * Note this is only available if assertions are enabled
      */
     long getNumIndexVersionsLookups() { // for testing

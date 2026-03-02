@@ -1023,6 +1023,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_DEFAULT_METRIC,
 
         /**
+         * Support avg as a possible default metric for aggregate_metric_double
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG_AS_DEFAULT_METRIC,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -1494,9 +1499,14 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
-         * Decay function for custom scoring
+         * Decay function for custom scoring.
          */
         DECAY_FUNCTION,
+
+        /**
+         * Fix conversions for parameters for {@code DECAY}.
+         */
+        DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
          * Support correct counting of skipped shards.
@@ -2023,7 +2033,7 @@ public class EsqlCapabilities {
         /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
          */
-        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
+        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION,
 
         /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an
@@ -2057,6 +2067,11 @@ public class EsqlCapabilities {
          * Support for dense_vector arithmetic operations (+, -, *, /)
          */
         DENSE_VECTOR_ARITHMETIC,
+
+        /**
+         * Support for arithmetic operations (+, -, *, /) between dense_vector and scalar values
+         */
+        DENSE_VECTOR_SCALAR_ARITHMETIC,
 
         /**
          * Dense_vector aggregation functions
@@ -2177,6 +2192,44 @@ public class EsqlCapabilities {
          * Support for the METRICS_INFO command.
          */
         METRICS_INFO_COMMAND,
+
+        /**
+         * Produce a {@code warning} and {@code null} when you run
+         * {@code ABS} on {@code Long.MIN_VALUE}.
+         */
+        FN_ABS_MIN_WARNING,
+
+        /**
+         * Supports the REGISTERED_DOMAIN command.
+         */
+        REGISTERED_DOMAIN_COMMAND,
+
+        /**
+         * The {@code GROK}, {@code DISSECT}, {@code URI_PARTS}, and {@code REGISTERED_DOMAIN}
+         * commands accept {@code null} typed parameters and produce {@code null} results.
+         */
+        STR_COMMANDS_ACCEPT_NULL,
+
+        /**
+         * Support for the EXTERNAL command (datasource access).
+         */
+        EXTERNAL_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/142219
+         */
+        INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
+
+        /**
+         * Support for function {@code JSON_EXTRACT}.
+         */
+        FN_JSON_EXTRACT,
+
+        /**
+         * Fix for an ArrayIndexOutOfBoundsException in the aggregation framework when the same field is passed twice.
+         * https://github.com/elastic/elasticsearch/issues/142180
+         */
+        FIX_AGGREGATION_FRAMEWORK_CHANNELS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

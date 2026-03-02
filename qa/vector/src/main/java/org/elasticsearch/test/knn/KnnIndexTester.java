@@ -159,14 +159,9 @@ public class KnnIndexTester {
 
         format = switch (args.indexType()) {
             case IVF -> {
-                ESNextDiskBBQVectorsFormat.QuantEncoding encoding = switch (quantizeBits) {
-                    case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
-                    case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
-                    case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
-                    default -> throw new IllegalArgumentException(
-                        "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + quantizeBits
-                    );
-                };
+                var encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
+                // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
+                int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
                 yield new ESNextDiskBBQVectorsFormat(
                     encoding,
                     args.ivfClusterSize(),
@@ -178,7 +173,8 @@ public class KnnIndexTester {
                     exec,
                     mergeWorkers,
                     args.doPrecondition(),
-                    args.preconditioningBlockDims()
+                    args.preconditioningBlockDims(),
+                    flatVectorThreshold
                 );
             }
             case GPU_HNSW -> switch (quantizeBits) {
@@ -408,9 +404,9 @@ public class KnnIndexTester {
     private static void checkQuantizeBits(TestConfiguration args) {
         switch (args.indexType()) {
             case IVF:
-                if (args.quantizeBits() == null || !Set.of(1, 2, 4).contains(args.quantizeBits())) {
+                if (args.quantizeBits() == null || !Set.of(1, 2, 4, 7).contains(args.quantizeBits())) {
                     throw new IllegalArgumentException(
-                        "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + args.quantizeBits()
+                        "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + args.quantizeBits()
                     );
                 }
                 break;

@@ -159,6 +159,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
                 IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
                 IndexSettings.INDEX_SEARCH_IDLE_AFTER,
+                IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING,
                 DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
                 DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
@@ -253,6 +254,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
             settings.add(IndexSettings.SYNTHETIC_ID);
+        }
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
+            settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
         }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);

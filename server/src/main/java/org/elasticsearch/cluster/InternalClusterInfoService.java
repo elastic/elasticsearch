@@ -215,6 +215,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private volatile Map<String, DiskUsage> mostAvailableSpaceUsages;
         private volatile Map<String, ByteSizeValue> maxHeapPerNode;
         private volatile Map<String, Long> estimatedHeapUsagePerNode;
+        private volatile Map<ShardId, ShardAndIndexHeapUsage> estimatedHeapUsagePerShard;
         private volatile Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStatsPerNode;
         private volatile IndicesStatsSummary indicesStatsSummary;
 
@@ -231,7 +232,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             try (var ignoredRefs = fetchRefs) {
                 maybeFetchIndicesStats(diskThresholdEnabled || writeLoadConstraintEnabled.atLeastLowThresholdEnabled());
                 maybeFetchNodeStats(diskThresholdEnabled || estimatedHeapThresholdEnabled);
-                maybeFetchNodesEstimatedHeapUsage(estimatedHeapThresholdEnabled);
+                maybeFetchEstimatedHeapUsage(estimatedHeapThresholdEnabled);
                 fetchNodesUsageStatsForThreadPools();
             }
         }
@@ -260,14 +261,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
-        private void maybeFetchNodesEstimatedHeapUsage(boolean shouldFetch) {
+        private void maybeFetchEstimatedHeapUsage(boolean shouldFetch) {
             if (shouldFetch) {
                 try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-                    fetchNodesEstimatedHeapUsage();
+                    fetchEstimatedHeapUsage();
                 }
             } else {
                 logger.trace("skipping collecting estimated heap usage from cluster, notifying listeners with empty estimated heap usage");
                 estimatedHeapUsagePerNode = Map.of();
+                estimatedHeapUsagePerShard = Map.of();
             }
         }
 
@@ -292,7 +294,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             }
         }
 
-        private void fetchNodesEstimatedHeapUsage() {
+        private void fetchEstimatedHeapUsage() {
             estimatedHeapUsageCollector.collectClusterHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(Map<String, Long> currentEstimatedHeapUsages) {
@@ -303,6 +305,19 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 public void onFailure(Exception e) {
                     logger.warn("failed to fetch heap usage for nodes", e);
                     estimatedHeapUsagePerNode = Map.of();
+                }
+            }, fetchRefs.acquire()));
+
+            estimatedHeapUsageCollector.collectShardHeapUsage(ActionListener.releaseAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(Map<ShardId, ShardAndIndexHeapUsage> currentEstimatedHeapUsages) {
+                    estimatedHeapUsagePerShard = currentEstimatedHeapUsages;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn("failed to fetch heap usage for shards", e);
+                    estimatedHeapUsagePerShard = Map.of();
                 }
             }, fetchRefs.acquire()));
         }
@@ -497,6 +512,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 indicesStatsSummary.dataPath,
                 indicesStatsSummary.reservedSpace,
                 estimatedHeapUsages,
+                estimatedHeapUsagePerShard,
                 nodeThreadPoolUsageStatsPerNode,
                 indicesStatsSummary.shardWriteLoads(),
                 maxHeapPerNode,

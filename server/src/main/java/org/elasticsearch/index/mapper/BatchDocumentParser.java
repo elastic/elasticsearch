@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.DocumentBatch;
 import org.elasticsearch.action.bulk.FieldColumn;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -65,10 +66,6 @@ public final class BatchDocumentParser {
      * @param mappingLookup the current mapping lookup
      * @return a result containing parsed documents and per-document exceptions
      */
-    public BatchResult parseBatch(DocumentBatch batch, MappingLookup mappingLookup, List<BytesReference> originalSources) {
-        return parseBatchInternal(batch, mappingLookup, originalSources);
-    }
-
     public BatchResult parseBatch(DocumentBatch batch, MappingLookup mappingLookup) {
         return parseBatchInternal(batch, mappingLookup, null);
     }
@@ -80,8 +77,8 @@ public final class BatchDocumentParser {
         // Pre-compute shared collections that are the same for all documents in the batch.
         // Batch parsing does not do dynamic mapping during per-doc iteration, so these remain unmodified.
         final Set<String> sharedCopyToFields = mappingLookup.fieldTypesLookup().getCopyToDestinationFields();
-        final Map<String, List<Mapper>> sharedDynamicMappers = new HashMap<>();
-        final Map<String, ObjectMapper> sharedDynamicObjectMappers = new HashMap<>();
+        final Map<String, List<Mapper.Builder>> sharedDynamicMappers = new HashMap<>();
+        final Map<String, ObjectMapper.Builder> sharedDynamicObjectMappers = new HashMap<>();
         final Map<String, List<RuntimeField>> sharedDynamicRuntimeFields = new HashMap<>();
 
         // Step 1: Create per-document SourceToParse and contexts
@@ -185,7 +182,7 @@ public final class BatchDocumentParser {
             if (exceptions[i] != null) continue;
             try {
                 BatchDocumentParserContext ctx = contexts[i];
-                Mapping dynamicUpdate = DocumentParser.createDynamicUpdate(ctx);
+                CompressedXContent dynamicUpdate = DocumentParser.createDynamicUpdate(ctx);
 
                 results[i] = new ParsedDocument(
                     ctx.version(),
@@ -210,13 +207,6 @@ public final class BatchDocumentParser {
         }
 
         return new BatchResult(results, exceptions);
-    }
-
-    /**
-     * Creates a {@link SourceToParse} from batch metadata for a given document index.
-     */
-    private static SourceToParse createSourceToParse(DocumentBatch batch, int docIndex) {
-        return createSourceToParse(batch, docIndex, BytesArray.EMPTY);
     }
 
     private static SourceToParse createSourceToParse(DocumentBatch batch, int docIndex, BytesReference source) {
@@ -397,9 +387,9 @@ public final class BatchDocumentParser {
          */
         public List<ParsedDocument> successfulDocuments() {
             List<ParsedDocument> result = new ArrayList<>();
-            for (int i = 0; i < documents.length; i++) {
-                if (documents[i] != null) {
-                    result.add(documents[i]);
+            for (ParsedDocument document : documents) {
+                if (document != null) {
+                    result.add(document);
                 }
             }
             return result;
@@ -426,8 +416,8 @@ public final class BatchDocumentParser {
             MappingParserContext mappingParserContext,
             SourceToParse source,
             Set<String> copyToFields,
-            Map<String, List<Mapper>> dynamicMappers,
-            Map<String, ObjectMapper> dynamicObjectMappers,
+            Map<String, List<Mapper.Builder>> dynamicMappers,
+            Map<String, ObjectMapper.Builder> dynamicObjectMappers,
             Map<String, List<RuntimeField>> dynamicRuntimeFields
         ) {
             super(

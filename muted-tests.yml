@@ -429,6 +429,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.LookupJoinWithMixPushableAndUnpushableFilters}
   issue: https://github.com/elastic/elasticsearch/issues/143378
+- class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
+  method: testBackToBackQueuedDeletes
+  issue: https://github.com/elastic/elasticsearch/issues/143387
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:lookup-join.MvJoinKeyOnTheLookupIndexAfterStats}
+  issue: https://github.com/elastic/elasticsearch/issues/143388
 
 # Examples:
 #

@@ -31,7 +31,7 @@ import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.GroupedActionListener;
+
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -1150,23 +1150,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             assert numProjectsToResolve > 0 : "At least one index is required to resolve cross project indices";
             assert rewritten.getResolvedIndexExpressions() != null : "ResolvedIndexExpressions must be set when cross project is enabled";
 
-            ActionListener<Collection<Map.Entry<String, ResolveIndexAction.Response>>> responsesByProjectListener = listener
-                .delegateFailureAndWrap(
-                    (l, responsesByProject) -> mergeResolvedIndices(
-                        originalResolvedIndices,
-                        responsesByProject,
-                        rewritten,
-                        resolutionIdxOpts,
-                        l
-                    )
-                );
-
-            ActionListener<Map.Entry<String, ResolveIndexAction.Response>> resolveIndexFanOutListener;
-            if (numProjectsToResolve > 1) {
-                resolveIndexFanOutListener = new GroupedActionListener<>(numProjectsToResolve, responsesByProjectListener);
-            } else {
-                resolveIndexFanOutListener = responsesByProjectListener.map(Collections::singleton);
-            }
+            final CountDown completionCounter = new CountDown(numProjectsToResolve);
+            final Map<String, ResolveIndexAction.Response> remoteResponses = new ConcurrentHashMap<>();
+            final Runnable terminalHandler = () -> {
+                if (completionCounter.countDown()) {
+                    mergeResolvedIndices(originalResolvedIndices, remoteResponses.entrySet(), rewritten, resolutionIdxOpts, listener);
+                }
+            };
 
             originalResolvedIndices.getRemoteClusterIndices()
                 .forEach(
@@ -1176,7 +1166,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         resolutionIdxOpts,
                         projectName,
                         projectIndices,
-                        resolveIndexFanOutListener
+                        remoteResponses,
+                        terminalHandler
                     )
                 );
         } else {
@@ -1231,8 +1222,26 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndicesOptions resolutionIdxOpts,
         String projectName,
         OriginalIndices projectIndices,
-        ActionListener<Map.Entry<String, ResolveIndexAction.Response>> listener
+        Map<String, ResolveIndexAction.Response> remoteResponses,
+        Runnable terminalHandler
     ) {
+        boolean shouldSkipOnFailure = remoteClusterService.shouldSkipOnFailure(
+            projectName,
+            Objects.requireNonNullElse(rewritten.allowPartialSearchResults(), searchService.defaultAllowPartialSearchResults())
+        );
+
+        ActionListener<ResolveIndexAction.Response> listener = ActionListener.wrap(response -> {
+            remoteResponses.put(projectName, response);
+            terminalHandler.run();
+        }, failure -> {
+            if (shouldSkipOnFailure) {
+                logger.info("failed to resolve indices on linked project [{}], skipping", projectName, failure);
+            } else {
+                logger.warn("failed to resolve indices on linked project [{}]", projectName, failure);
+            }
+            terminalHandler.run();
+        });
+
         SubscribableListener<Transport.Connection> connectionListener = getListenerWithOptionalTimeout(
             forceConnectTimeoutSecs,
             threadPool,
@@ -1250,7 +1259,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     resolveIndexRequest,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(
-                        listener.map(response -> Map.entry(projectName, response)),
+                        listener,
                         ResolveIndexAction.Response::new,
                         threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
                     )
@@ -1259,10 +1268,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
         remoteClusterService.maybeEnsureConnectedAndGetConnection(
             projectName,
-            shouldEstablishConnection(
-                forceConnectTimeoutSecs,
-                remoteClusterService.shouldSkipOnFailure(projectName, rewritten.allowPartialSearchResults())
-            ),
+            shouldEstablishConnection(forceConnectTimeoutSecs, shouldSkipOnFailure),
             connectionListener
         );
     }

@@ -739,8 +739,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             final var state = ClusterState.builder(new ClusterName("_name"))
                 .nodes(nodes)
                 .metadata(
-                    updateTasksCustomMetadata(Metadata.builder(), tasks)
-                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of(workerNode.getId(), shutdownMeta)))
+                    updateTasksCustomMetadata(Metadata.builder(), tasks).putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(Map.of(workerNode.getId(), shutdownMeta))
+                    )
                 )
                 .build();
 

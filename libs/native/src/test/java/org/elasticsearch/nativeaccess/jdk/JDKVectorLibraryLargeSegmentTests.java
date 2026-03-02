@@ -32,6 +32,9 @@ import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
  *
  * <p> This is a standalone (non-parameterized) test to avoid running the 2 GB+
  * allocation for every (function, size) combination in the parameterized suites.
+ *
+ * <p> These tests require sufficient direct memory (~2 GB) to be available.
+ * If the allocation fails due to memory constraints, the test is skipped.
  */
 public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
 
@@ -59,13 +62,22 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         assumeTrue("Vector similarity functions not available", functions != null);
     }
 
+    private static MemorySegment tryAllocate(Arena arena, long size) {
+        try {
+            return arena.allocate(size);
+        } catch (OutOfMemoryError e) {
+            return null;
+        }
+    }
+
     public void testInt8DotProductBulkWithOffsetsLargeSegment() throws Throwable {
         final int dims = 128;
         final int numVecs = 2;
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs;
 
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment vectorsSegment = arena.allocate(segmentSize);
+            MemorySegment vectorsSegment = tryAllocate(arena, segmentSize);
+            assumeTrue("Not enough direct memory to allocate >2GB segment", vectorsSegment != null);
             byte[][] vectors = new byte[numVecs][];
             for (int i = 0; i < numVecs; i++) {
                 vectors[i] = randomByteArrayOfLength(dims);
@@ -92,7 +104,8 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs;
 
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment vectorsSegment = arena.allocate(segmentSize);
+            MemorySegment vectorsSegment = tryAllocate(arena, segmentSize);
+            assumeTrue("Not enough direct memory to allocate >2GB segment", vectorsSegment != null);
             byte[][] vectors = new byte[numVecs][];
             for (int i = 0; i < numVecs; i++) {
                 vectors[i] = randomByteArrayOfLength(dims);
@@ -119,7 +132,8 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs;
 
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment vectorsSegment = arena.allocate(segmentSize);
+            MemorySegment vectorsSegment = tryAllocate(arena, segmentSize);
+            assumeTrue("Not enough direct memory to allocate >2GB segment", vectorsSegment != null);
             byte[][] vectors = new byte[numVecs][];
             for (int i = 0; i < numVecs; i++) {
                 vectors[i] = randomByteArrayOfLength(dims);
@@ -146,7 +160,8 @@ public class JDKVectorLibraryLargeSegmentTests extends ESTestCase {
         long segmentSize = Integer.MAX_VALUE + (long) dims * numVecs * Float.BYTES;
 
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment vectorsSegment = arena.allocate(segmentSize);
+            MemorySegment vectorsSegment = tryAllocate(arena, segmentSize);
+            assumeTrue("Not enough direct memory to allocate >2GB segment", vectorsSegment != null);
             float[][] vectors = new float[numVecs][];
             for (int i = 0; i < numVecs; i++) {
                 vectors[i] = randomFloatArray(dims);

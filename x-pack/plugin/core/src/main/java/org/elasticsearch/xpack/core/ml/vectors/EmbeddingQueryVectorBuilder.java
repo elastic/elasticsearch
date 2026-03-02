@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.vectors;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -27,7 +26,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 
@@ -93,36 +91,6 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     public void buildVector(Client client, ActionListener<float[]> listener) {
         if (inferenceId == null) {
             listener.onFailure(new IllegalArgumentException("[inference_id] must be specified"));
-            return;
-        }
-
-        var getModelRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.ANY);
-        executeAsyncWithOrigin(
-            client,
-            INFERENCE_ORIGIN,
-            GetInferenceModelAction.INSTANCE,
-            getModelRequest,
-            listener.delegateFailureAndWrap((l, getModelResponse) -> handleGetModelResponse(client, l, getModelResponse))
-        );
-    }
-
-    private void handleGetModelResponse(
-        Client client,
-        ActionListener<float[]> listener,
-        GetInferenceModelAction.Response getModelResponse
-    ) {
-        if (getModelResponse.getEndpoints().isEmpty()) {
-            listener.onFailure(new ResourceNotFoundException("inference endpoint [" + inferenceId + "] not found"));
-            return;
-        }
-
-        var taskType = getModelResponse.getEndpoints().get(0).getTaskType();
-        if (taskType != TaskType.EMBEDDING) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "inference endpoint [" + inferenceId + "] has task type [" + taskType + "], expected [" + TaskType.EMBEDDING + "]"
-                )
-            );
             return;
         }
 

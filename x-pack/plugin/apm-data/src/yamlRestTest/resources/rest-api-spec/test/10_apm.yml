@@ -26,6 +26,27 @@ setup:
       component_templates.0.component_template.template.mappings.properties.timestamp.properties.us.type: long
 
 ---
+"Test apm timestamp.us coercion":
+  - do:
+      index:
+        index: traces-apm-timestampus-testing
+        refresh: true
+        body:
+          "@timestamp": "2017-06-22T00:00:00Z"
+          data_stream.type: traces
+          data_stream.dataset: apm
+          data_stream.namespace: testing
+          timestamp:
+            us: 1.0
+  - do:
+      search:
+        index: traces-apm-timestampus-testing
+        body:
+          fields: ["timestamp.us"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.timestamp\.us: [1] }
+
+---
 "Test metrics-apm* template installation":
   - skip:
       reason: contains is a newly added assertion

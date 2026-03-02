@@ -52,6 +52,7 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,12 +62,7 @@ import static org.elasticsearch.datastreams.lifecycle.transitions.steps.CloneSte
 import static org.elasticsearch.datastreams.lifecycle.transitions.steps.CloneStep.formCloneRequest;
 import static org.elasticsearch.datastreams.lifecycle.transitions.steps.CloneStep.getDLMCloneIndexName;
 import static org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction.DLM_INDEX_FOR_FORCE_MERGE_KEY;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class CloneStepTests extends ESTestCase {
 
@@ -128,6 +124,11 @@ public class CloneStepTests extends ESTestCase {
 
     public void testStepName() {
         assertThat(cloneStep.stepName(), equalTo("Clone Index"));
+    }
+
+    public void testPossibleOutputIndexNamePatterns() {
+        List<String> patterns = cloneStep.possibleOutputIndexNamePatterns(indexName);
+        assertThat(patterns, contains(getDLMCloneIndexName(indexName), indexName));
     }
 
     public void testStepNotCompletedWhenNoCloneIndexExists() {

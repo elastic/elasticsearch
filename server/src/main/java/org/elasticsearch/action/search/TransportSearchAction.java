@@ -1249,7 +1249,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             terminalHandler.run();
         }, failure -> {
             if (shouldSkipOnFailure) {
-                logger.info("failed to resolve indices on linked project [{}], skipping", projectName, failure);
+                logger.info("failed to resolve indices on linked project [{}], skipping: [{}]", projectName, failure.getMessage());
             } else {
                 failures.accumulateAndGet(failure, (curr, next) -> {
                     if (curr == null) return next;

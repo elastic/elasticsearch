@@ -247,6 +247,7 @@ public class ComputeService {
             case "", "adaptive" -> new AdaptiveStrategy();
             case "coordinator_only" -> CoordinatorOnlyStrategy.INSTANCE;
             case "round_robin" -> new RoundRobinStrategy();
+            case "weighted_round_robin" -> new WeightedRoundRobinStrategy();
             default -> {
                 LOGGER.warn("unknown external_distribution pragma value [{}]; falling back to adaptive", value);
                 yield new AdaptiveStrategy();

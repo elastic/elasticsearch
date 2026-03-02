@@ -1152,9 +1152,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             final CountDown completionCounter = new CountDown(numProjectsToResolve);
             final Map<String, ResolveIndexAction.Response> remoteResponses = new ConcurrentHashMap<>();
+            final AtomicReference<Exception> failures = new AtomicReference<>();
             final Runnable terminalHandler = () -> {
                 if (completionCounter.countDown()) {
-                    mergeResolvedIndices(originalResolvedIndices, remoteResponses.entrySet(), rewritten, resolutionIdxOpts, listener);
+                    Exception failure = failures.get();
+                    if (failure != null) {
+                        listener.onFailure(failure);
+                    } else {
+                        mergeResolvedIndices(
+                            originalResolvedIndices,
+                            remoteResponses.entrySet(),
+                            rewritten,
+                            resolutionIdxOpts,
+                            listener
+                        );
+                    }
                 }
             };
 
@@ -1167,6 +1179,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         projectName,
                         projectIndices,
                         remoteResponses,
+                        failures,
                         terminalHandler
                     )
                 );
@@ -1223,6 +1236,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String projectName,
         OriginalIndices projectIndices,
         Map<String, ResolveIndexAction.Response> remoteResponses,
+        AtomicReference<Exception> failures,
         Runnable terminalHandler
     ) {
         boolean shouldSkipOnFailure = remoteClusterService.shouldSkipOnFailure(
@@ -1237,7 +1251,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (shouldSkipOnFailure) {
                 logger.info("failed to resolve indices on linked project [{}], skipping", projectName, failure);
             } else {
-                logger.warn("failed to resolve indices on linked project [{}]", projectName, failure);
+                failures.accumulateAndGet(failure, (curr, next) -> {
+                    if (curr == null) return next;
+                    curr.addSuppressed(next);
+                    return curr;
+                });
             }
             terminalHandler.run();
         });

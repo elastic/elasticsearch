@@ -9,6 +9,9 @@
 
 package org.elasticsearch.reindex;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -53,7 +56,55 @@ import static org.elasticsearch.reindex.ReindexTestCase.matcher;
 import static org.hamcrest.Matchers.containsString;
 
 public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
+
+    private final boolean withPit;
     private TransportAddress address;
+
+    public ReindexFromRemoteWithAuthTests(@Name("withPit") boolean withPit) {
+        this.withPit = withPit;
+    }
+
+    @ParametersFactory(argumentFormatting = "withPit=%s")
+    public static Iterable<Object[]> parameters() {
+        return Arrays.asList(new Object[] { false }, new Object[] { true });
+    }
+
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
+    }
+
+    /**
+     * The method {@code tearDown()} calls {@code startNode()}. This introduces a bug where the next tests node is instantiated
+     * with the current value of {@code withPit}, not the next one. {@code SKIP_START_FOR_NEXT_TEST} is a way to avoid this.
+     * When set, {@code startNode} skips starting so the next test's setUp starts with the correct {@code withPit}.
+     */
+    private static final ThreadLocal<Boolean> SKIP_START_FOR_NEXT_TEST = ThreadLocal.withInitial(() -> false);
+
+    @Override
+    public void tearDown() throws Exception {
+        SKIP_START_FOR_NEXT_TEST.set(true);
+        try {
+            super.tearDown();
+        } finally {
+            SKIP_START_FOR_NEXT_TEST.remove();
+        }
+    }
+
+    @Override
+    protected void startNode(long seed) throws Exception {
+        if (SKIP_START_FOR_NEXT_TEST.get()) {
+            SKIP_START_FOR_NEXT_TEST.remove();
+            return;
+        }
+        logger.info("withPit : {}", withPit);
+        ReindexFromRemoteWithAuthTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST.set(withPit);
+        try {
+            super.startNode(seed);
+        } finally {
+            ReindexFromRemoteWithAuthTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST.remove();
+        }
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

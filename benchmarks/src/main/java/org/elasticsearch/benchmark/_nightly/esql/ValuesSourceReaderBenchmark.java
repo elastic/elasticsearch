@@ -318,7 +318,8 @@ public class ValuesSourceReaderBenchmark {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             reuseColumnLoaders,
-            0
+            0,
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY)
         );
         long sum = 0;
         for (Page page : pages) {

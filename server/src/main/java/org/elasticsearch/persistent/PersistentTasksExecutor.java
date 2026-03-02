@@ -133,6 +133,13 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      *
      * <p>Executors that have no state to persist and want immediate, gap-free reassignment on node
      * shutdown (of any type, including RESTART) should override this to return {@code true}.
+     *
+     * <p><strong>Migration requirement:</strong> before enabling this flag, ensure that neither the
+     * executor nor any associated plugin or cluster-state listener independently handles node shutdown
+     * for this task (for example, by calling {@link AllocatedPersistentTask#markAsLocallyAborted}).
+     * Such bespoke handlers would race with the framework-level reassignment. If the handler fires first
+     * it will unassign the task and trigger a two-step unassign-then-reassign cycle, which is exactly the
+     * gap this mechanism is designed to eliminate.
      */
     public boolean automaticReassignmentOnShutdown() {
         return false;

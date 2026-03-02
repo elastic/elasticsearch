@@ -90,6 +90,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.SearchPlanningPhaseResolutionResult;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -1151,7 +1152,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             assert numProjectsToResolve > 0 : "At least one index is required to resolve cross project indices";
             assert rewritten.getResolvedIndexExpressions() != null : "ResolvedIndexExpressions must be set when cross project is enabled";
 
-            ActionListener<Collection<Map.Entry<String, ResolveIndexAction.Response>>> responsesByProjectListener = listener
+            ActionListener<Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>>> responsesByProjectListener = listener
                 .delegateFailureAndWrap(
                     (l, responsesByProject) -> mergeResolvedIndices(
                         originalResolvedIndices,
@@ -1162,7 +1163,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     )
                 );
 
-            ActionListener<Map.Entry<String, ResolveIndexAction.Response>> resolveIndexFanOutListener;
+            ActionListener<Map.Entry<String, SearchPlanningPhaseResolutionResult>> resolveIndexFanOutListener;
             if (numProjectsToResolve > 1) {
                 resolveIndexFanOutListener = new GroupedActionListener<>(numProjectsToResolve, responsesByProjectListener);
             } else {
@@ -1190,7 +1191,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      */
     private static void mergeResolvedIndices(
         ResolvedIndices originalResolvedIndices,
-        Collection<Map.Entry<String, ResolveIndexAction.Response>> responsesByProject,
+        Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>> responsesByProject,
         SearchRequest rewritten,
         IndicesOptions resolutionIdxOpts,
         ActionListener<ResolvedIndices> listener
@@ -1198,10 +1199,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         HashSet<String> unresponsiveProjects = new HashSet<>();
         HashMap<String, ResolvedIndexExpressions> resolvedExpressions = new HashMap<>();
 
-        for (Map.Entry<String, ResolveIndexAction.Response> entry : responsesByProject) {
-            if (entry.getValue().getResolvedIndexExpressions() != null) {
-                resolvedExpressions.put(entry.getKey(), entry.getValue().getResolvedIndexExpressions());
+        for (Map.Entry<String, SearchPlanningPhaseResolutionResult> entry : responsesByProject) {
+            // There was a valid, non-null response from the _resolve/index API for this linked project.
+            if (entry.getValue().response() instanceof ResolveIndexAction.Response response) {
+                resolvedExpressions.put(entry.getKey(), response.getResolvedIndexExpressions());
             } else {
+                // There was an error communicating with the linked project and the error was already logged.
                 unresponsiveProjects.add(entry.getKey());
             }
         }
@@ -1256,7 +1259,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndicesOptions resolutionIdxOpts,
         String projectName,
         OriginalIndices projectIndices,
-        ActionListener<Map.Entry<String, ResolveIndexAction.Response>> listener
+        ActionListener<Map.Entry<String, SearchPlanningPhaseResolutionResult>> listener
     ) {
         SubscribableListener<Transport.Connection> connectionListener = getListenerWithOptionalTimeout(
             forceConnectTimeoutSecs,
@@ -1267,29 +1270,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ResolveIndexAction.Request resolveIndexRequest = new ResolveIndexAction.Request(projectIndices.indices(), resolutionIdxOpts);
         resolveIndexRequest.setParentTask(parentTaskId);
 
-        connectionListener.addListener(
-            listener.delegateResponse(
-                /*
-                 * There was an error talking to the linked project so we'll associate an empty response
-                 * to it with all the required info missing. This should help us differentiate it from
-                 * a valid response.
-                 */
-                (l, ignored) -> l.onResponse(Map.entry(projectName, new ResolveIndexAction.Response(List.of(), List.of(), List.of())))
-            )
-                .delegateFailure(
-                    (responseListener, connection) -> transportService.sendRequest(
-                        connection,
-                        ResolveIndexAction.REMOTE_TYPE.name(),
-                        resolveIndexRequest,
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(
-                            listener.map(response -> Map.entry(projectName, response)),
-                            ResolveIndexAction.Response::new,
-                            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
-                        )
+        connectionListener.addListener(listener.delegateResponse((l, error) -> {
+            logger.info("Failed to communicate with the linked project [{}]", projectName, error);
+            l.onResponse(Map.entry(projectName, new SearchPlanningPhaseResolutionResult(null, error)));
+        })
+            .delegateFailure(
+                (ignored, connection) -> transportService.sendRequest(
+                    connection,
+                    ResolveIndexAction.REMOTE_TYPE.name(),
+                    resolveIndexRequest,
+                    TransportRequestOptions.EMPTY,
+                    new ActionListenerResponseHandler<>(
+                        listener.map(response -> Map.entry(projectName, new SearchPlanningPhaseResolutionResult(response, null))),
+                        ResolveIndexAction.Response::new,
+                        threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
                     )
                 )
-        );
+            ));
 
         remoteClusterService.maybeEnsureConnectedAndGetConnection(
             projectName,

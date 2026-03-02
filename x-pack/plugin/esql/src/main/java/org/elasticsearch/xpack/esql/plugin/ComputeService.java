@@ -217,7 +217,12 @@ public class ComputeService {
         if (operatorFactoryRegistry == null) {
             return plan;
         }
-        return SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+        try {
+            return SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+        } catch (Exception e) {
+            LOGGER.warn("split discovery failed for external source", e);
+            throw e;
+        }
     }
 
     static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {

@@ -69,3 +69,20 @@ setup:
                   value: "test query"
 
   - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  type: image
+                  value: "abcdef1234567890"
+
+  - match: { hits.total.value: 2 }

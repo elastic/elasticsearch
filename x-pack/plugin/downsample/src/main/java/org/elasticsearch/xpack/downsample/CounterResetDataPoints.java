@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * This class stores counter measurements necessary to detect a reset during downsampling. These measurements are
+ * Helper class that stores counter measurements necessary to detect a reset during downsampling. These measurements are
  * the last measurement before a reset and the next measurement.
  *
  * Note: this code is used sequentially, and therefore there is no thread-safety built-in.
@@ -23,13 +23,6 @@ class CounterResetDataPoints {
      * Tracks timestamp measurements and the counter values at that moment.
      */
     private final Map<Long, Map<String, Double>> dataPoints = new HashMap<>();
-
-    /**
-     * When the downsampled bucket is completed, the tracked measurements need to be reset.
-     */
-    void reset() {
-        dataPoints.clear();
-    }
 
     void addDataPoint(String counterName, ResetPoint resetPoint) {
         dataPoints.computeIfAbsent(resetPoint.timestamp, k -> new HashMap<>()).put(counterName, resetPoint.value);
@@ -48,7 +41,7 @@ class CounterResetDataPoints {
         }
     }
 
-    public int count() {
+    public int countResetDocuments() {
         return dataPoints.size();
     }
 

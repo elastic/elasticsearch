@@ -49,7 +49,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         producer.collect(counterValues, timeValues, docIdBuffer);
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue, equalTo(1.0));
-        assertThat(resetDataPoints.count(), equalTo(2));
+        assertThat(resetDataPoints.countResetDocuments(), equalTo(2));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(60L), equalTo(50L)));
             if (timestamp == 60L) {
@@ -65,8 +65,6 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(producer.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
         assertThat(producer.previousValue, equalTo(Double.NaN));
-        resetDataPoints.reset();
-        assertThat(resetDataPoints.isEmpty(), equalTo(true));
     }
 
     public void testAggregateCounterDoesNotDuplicateFirstValue() throws IOException {
@@ -79,7 +77,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         producer.collect(counterValues, timeValues, docIdBuffer);
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue, equalTo(1.0));
-        assertThat(resetDataPoints.count(), equalTo(1));
+        assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
             assertThat(dataPoints, equalTo(Map.of("my-counter", 0.0)));
@@ -90,8 +88,6 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(producer.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
         assertThat(producer.previousValue, equalTo(Double.NaN));
-        resetDataPoints.reset();
-        assertThat(resetDataPoints.isEmpty(), equalTo(true));
     }
 
     public void testAggregateCounterDoesNotAddNotRedundantValue() throws IOException {
@@ -107,16 +103,16 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(producer.downsampledValue, equalTo(4.0));
         assertThat(resetDataPoints.isEmpty(), equalTo(true));
         producer.reset();
-        resetDataPoints.reset();
 
         // Bucket #1
         docIdBuffer = IntArrayList.from(3, 2, 1, 0);
         timeValues = new long[] { 40, 30, 20, 10 };
         counterValues = createNumericValuesInstance(docIdBuffer, 2, 0, 8, 7);
         producer.collect(counterValues, timeValues, docIdBuffer);
+        resetDataPoints = new CounterResetDataPoints();
         producer.updateResetDataPoints(resetDataPoints);
         assertThat(producer.downsampledValue, equalTo(7.0));
-        assertThat(resetDataPoints.count(), equalTo(1));
+        assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
             assertThat(dataPoints, equalTo(Map.of("my-counter", 8.0)));
@@ -127,8 +123,6 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(producer.lastTimestamp, equalTo(-1L));
         producer.tsidReset();
         assertThat(producer.previousValue, equalTo(Double.NaN));
-        resetDataPoints.reset();
-        assertThat(resetDataPoints.isEmpty(), equalTo(true));
     }
 
     static SortedNumericDoubleValues createNumericValuesInstance(IntArrayList docIdBuffer, double... values) {

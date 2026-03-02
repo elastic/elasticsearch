@@ -71,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.groupingBy;
@@ -369,7 +370,6 @@ class DownsampleShardIndexer {
         private final TDigestHistogramFieldDownsampler[] tDigestHistogramDownsamplers;
         private final NumericMetricFieldDownsampler[] numericDownsamplers;
         private final NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] aggregateCounterDownsamplers;
-        private final CounterResetDataPoints counterResetDataPoints;
         private long docsProcessed;
         private long bucketsCreated;
         long lastTimestamp = Long.MAX_VALUE;
@@ -391,13 +391,11 @@ class DownsampleShardIndexer {
                 .filter(TDigestHistogramFieldDownsampler.class::isInstance)
                 .toArray(TDigestHistogramFieldDownsampler[]::new);
             if (DownsampleShardIndexer.this.samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE) {
-                this.counterResetDataPoints = new CounterResetDataPoints();
                 this.aggregateCounterDownsamplers = fieldDownsamplers.stream()
                     .filter(NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler.class::isInstance)
                     .toArray(NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[]::new);
 
             } else {
-                this.counterResetDataPoints = null;
                 this.aggregateCounterDownsamplers = EMPTY_AGGREGATE_COUNTERS;
             }
             DimensionFieldDownsampler[] dimensionDownsamplers = aggregateCounterDownsamplers.length == 0
@@ -407,8 +405,7 @@ class DownsampleShardIndexer {
                 fieldDownsamplers,
                 aggregateCounterDownsamplers,
                 dimensionDownsamplers,
-                dimensions,
-                counterResetDataPoints
+                dimensions
             );
         }
 
@@ -610,33 +607,10 @@ class DownsampleShardIndexer {
 
         private void flushIfNotEmpty() throws IOException {
             if (downsampleBucketBuilder.isEmpty() == false) {
-                // Flush the downsample bucket
-                XContentBuilder doc = downsampleBucketBuilder.buildDownsampleDocument();
-                indexBucket(doc);
+                XContentBuilder downsampleDocument = downsampleBucketBuilder.buildDownsampleDocument();
+                indexBucket(downsampleDocument);
 
-                // Process reset points
-                if (counterResetDataPoints != null) {
-                    for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
-                        aggregateCounterDownsamplers[i].updateResetDataPoints(counterResetDataPoints);
-                    }
-
-                    if (counterResetDataPoints.isEmpty()) {
-                        return;
-                    }
-
-                    AtomicReference<IOException> error = new AtomicReference<>();
-                    counterResetDataPoints.processDataPoints((timestamp, counterValues) -> {
-                        try {
-                            XContentBuilder resetDoc = downsampleBucketBuilder.buildExtraCounterDocument(timestamp, counterValues);
-                            indexBucket(resetDoc);
-                        } catch (IOException e) {
-                            error.set(e);
-                        }
-                    });
-                    if (error.get() != null) {
-                        throw error.get();
-                    }
-                }
+                downsampleBucketBuilder.flushResetDocumentsIfNeeded(this::indexBucket);
             }
         }
 
@@ -685,25 +659,23 @@ class DownsampleShardIndexer {
         private int tsidOrd = -1;
         private long timestamp;
         private int docCount;
+        private CounterResetDataPoints counterResetDataPoints;
         private final List<AbstractFieldDownsampler<?>> fieldDownsamplers;
         private final DownsampleFieldSerializer[] groupedDownsamplers;
         private final DimensionFieldDownsampler[] dimensionDownsamplers;
         private final NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] aggregateCounterDownsamplers;
         private final String[] dimensions;
-        private final CounterResetDataPoints counterResetDataPoints;
 
         DownsampleBucketBuilder(
             List<AbstractFieldDownsampler<?>> fieldDownsamplers,
             NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] aggregateCounterDownsamplers,
             DimensionFieldDownsampler[] dimensionDownsamplers,
-            String[] dimensions,
-            CounterResetDataPoints counterResetDataPoints
+            String[] dimensions
         ) {
             this.fieldDownsamplers = fieldDownsamplers;
             this.dimensions = dimensions;
             this.dimensionDownsamplers = dimensionDownsamplers;
             this.aggregateCounterDownsamplers = aggregateCounterDownsamplers;
-            this.counterResetDataPoints = counterResetDataPoints;
             /*
              * The field downsamplers for aggregate_metric_double all share the same name (this is
              * the name they will be serialized in the target index). We group all field downsamplers by
@@ -747,9 +719,7 @@ class DownsampleShardIndexer {
                 downsampler.reset();
             }
             // We need to clear the extra data points for this bucket
-            if (counterResetDataPoints != null) {
-                counterResetDataPoints.reset();
-            }
+            this.counterResetDataPoints = aggregateCounterDownsamplers.length > 0 ? new CounterResetDataPoints() : null;
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "New bucket for _tsid: [{}], @timestamp: [{}]",
@@ -808,6 +778,31 @@ class DownsampleShardIndexer {
 
             builder.endObject();
             return builder;
+        }
+
+        void flushResetDocumentsIfNeeded(Consumer<XContentBuilder> indexResetDoc) throws IOException {
+            if (counterResetDataPoints != null) {
+                for (int i = 0; i < aggregateCounterDownsamplers.length; i++) {
+                    aggregateCounterDownsamplers[i].updateResetDataPoints(counterResetDataPoints);
+                }
+
+                if (counterResetDataPoints.isEmpty()) {
+                    return;
+                }
+
+                AtomicReference<IOException> error = new AtomicReference<>();
+                counterResetDataPoints.processDataPoints((timestamp, counterValues) -> {
+                    try {
+                        XContentBuilder resetDoc = buildExtraCounterDocument(timestamp, counterValues);
+                        indexResetDoc.accept(resetDoc);
+                    } catch (IOException e) {
+                        error.set(e);
+                    }
+                });
+                if (error.get() != null) {
+                    throw error.get();
+                }
+            }
         }
 
         private void extractLegacyDimensionsIfNeeded(XContentBuilder builder) throws IOException {

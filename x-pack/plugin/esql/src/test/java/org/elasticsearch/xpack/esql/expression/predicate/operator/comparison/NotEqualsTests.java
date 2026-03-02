@@ -21,8 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.test.ESTestCase.randomFloat;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
 
 public class NotEqualsTests extends AbstractScalarFunctionTestCase {
     public NotEqualsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -254,7 +253,8 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
 
         // Dense vector cases
         suppliers.add(new TestCaseSupplier("<dense_vector>, <dense_vector>", List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {
-            List<Float> vector = randomDenseVector();
+            int dimensions = between(64, 128);
+            List<Float> vector = randomDenseVector(dimensions);
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(vector, DataType.DENSE_VECTOR, "lhs"),
@@ -267,12 +267,9 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
         }));
         suppliers.add(
             new TestCaseSupplier("<dense_vector>, <different dense_vector>", List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {
-                List<Float> left = randomDenseVector();
-                List<Float> right = randomDenseVector();
-                // Make sure vectors are different
-                if (left.equals(right) && left.size() > 0) {
-                    right.set(0, right.get(0) + 1.0f);
-                }
+                int dimensions = between(64, 128);
+                List<Float> left = randomDenseVector(dimensions);
+                List<Float> right = randomValueOtherThan(left, () -> randomDenseVector(dimensions));
                 return new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(left, DataType.DENSE_VECTOR, "lhs"),
@@ -291,14 +288,5 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new NotEquals(source, args.get(0), args.get(1));
-    }
-
-    private static List<Float> randomDenseVector() {
-        int dimensions = randomIntBetween(64, 128);
-        List<Float> vector = new ArrayList<>();
-        for (int i = 0; i < dimensions; i++) {
-            vector.add(randomFloat());
-        }
-        return vector;
     }
 }

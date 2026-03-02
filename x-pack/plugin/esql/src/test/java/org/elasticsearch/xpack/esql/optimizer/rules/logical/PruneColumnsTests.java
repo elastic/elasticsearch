@@ -1742,7 +1742,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         topProject = as(topLimit.child(), Project.class);
         assertThat(topProject.projections().size(), equalTo(1));
         assertThat(Expressions.names(topProject.projections()), contains("id"));
-        rerank = as (topProject.child(), Rerank.class);
+        rerank = as(topProject.child(), Rerank.class);
         project = as(rerank.child(), Project.class);
         assertThat(project.projections().size(), equalTo(3));
         assertThat(Expressions.names(project.projections()), contains("id", "$$languages$converted_to$keyword", "x"));

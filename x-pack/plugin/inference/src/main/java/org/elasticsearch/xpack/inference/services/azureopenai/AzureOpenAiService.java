@@ -62,7 +62,6 @@ import java.util.Set;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -71,7 +70,7 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
-public class AzureOpenAiService extends SenderService {
+public class AzureOpenAiService extends SenderService<AzureOpenAiModel> {
     public static final String NAME = "azureopenai";
 
     private static final String SERVICE_NAME = "Azure OpenAI";
@@ -104,7 +103,7 @@ public class AzureOpenAiService extends SenderService {
     }
 
     public AzureOpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -150,25 +149,6 @@ public class AzureOpenAiService extends SenderService {
         }
     }
 
-    private static AzureOpenAiModel createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings
-    ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            ConfigurationParseContext.PERSISTENT
-        );
-    }
-
     private static AzureOpenAiModel createModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -191,32 +171,6 @@ public class AzureOpenAiService extends SenderService {
     }
 
     @Override
-    public AzureOpenAiModel parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            secretSettingsMap
-        );
-    }
-
-    @Override
     public AzureOpenAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
             MODEL_CREATORS,
@@ -225,19 +179,6 @@ public class AzureOpenAiService extends SenderService {
             config.getService(),
             ConfigurationParseContext.PERSISTENT
         ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
-    public AzureOpenAiModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
     }
 
     @Override

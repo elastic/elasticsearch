@@ -16,6 +16,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -67,7 +68,7 @@ import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareD
 public class VectorScorerInt7uBulkBenchmark {
 
     static {
-        BenchmarkUtils.configureBenchmarkLogging();
+        Utils.configureBenchmarkLogging();
     }
 
     @Param({ "1024" })
@@ -88,7 +89,7 @@ public class VectorScorerInt7uBulkBenchmark {
     @Param({ "16", "32", "64", "256", "1024" })
     public int bulkSize;
 
-    @Param({ "SCALAR", "LUCENE", "NATIVE" })
+    @Param
     public VectorImplementation implementation;
 
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })

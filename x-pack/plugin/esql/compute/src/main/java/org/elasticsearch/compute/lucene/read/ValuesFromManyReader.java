@@ -157,6 +157,7 @@ class ValuesFromManyReader extends ValuesReader {
                 assert r.columnAtATime == null;
                 r.rowStride.read(doc, storedFields, r.builder);
             }
+            operator.trackSourceBytesAndRelease(storedFields);
         }
 
         private void readColumnAtATime(int segmentStart, int segmentEnd) throws IOException {
@@ -165,7 +166,7 @@ class ValuesFromManyReader extends ValuesReader {
             for (CurrentWork c : columnAtATime) {
                 assert c.rowStride == null;
                 try (Block read = (Block) c.columnAtATime.read(blockFactory, readerDocs, segmentStart, c.field.info.nullsFiltered())) {
-                    // TODO add a `read(builder, docs, offset, nullsFiltered)` override
+                    // TODO add a `read(builder, docs, offset, nullsFiltered)` override. Maybe even with the map.
                     assert read.getPositionCount() == segmentEnd - segmentStart
                         : read.getPositionCount() + " == " + segmentEnd + " - " + segmentStart + " " + read;
                     c.builder.copyFrom(read, 0, read.getPositionCount());

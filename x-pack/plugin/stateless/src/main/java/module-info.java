@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.stateless.templates.StatelessTemplateSettingsDeco
 module org.elasticsearch.xpack.stateless {
     requires org.elasticsearch.base;
     requires org.elasticsearch.blobcache;
+    requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcore;

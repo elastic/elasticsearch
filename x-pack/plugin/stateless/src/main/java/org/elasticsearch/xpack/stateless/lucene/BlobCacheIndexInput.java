@@ -27,6 +27,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
@@ -38,7 +40,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
+public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput implements DirectAccessInput {
 
     /**
      * Same as org.apache.lucene.store.IOContext#DEFAULT, except does not warn on missing files.
@@ -147,6 +149,11 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
 
     String getSliceDescription() {
         return sliceDescription;
+    }
+
+    @Override
+    public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+        return cacheFileReader.withByteBufferSlice(this.offset + offset, Math.toIntExact(length), action);
     }
 
     @Override

@@ -14,8 +14,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.WildcardFieldMaskingReader;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
@@ -43,8 +45,20 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         ).documentMapper();
     }
 
-    private ParsedDocument getParsedDocumentWithFieldLimit(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
-        DocumentMapper mapper = getDocumentMapperWithFieldLimit();
+    private ParsedDocument getParsedDocumentWithFieldLimitCoalesced(CheckedConsumer<XContentBuilder, IOException> build)
+        throws IOException {
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES),
+            Settings.builder()
+                .put("index.mapping.total_fields.limit", 2)
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+                .build(),
+            mapping(b -> {
+                b.startObject("foo").field("type", "keyword").endObject();
+                b.startObject("bar").field("type", "object").endObject();
+            })
+        ).documentMapper();
         return mapper.parse(source(build));
     }
 
@@ -340,7 +354,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
     public void testEncodeFieldToMap() throws IOException {
         String value = randomAlphaOfLength(5);
-        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(b -> b.field("my_value", value));
+        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimitCoalesced(b -> b.field("my_value", value));
         IgnoredSourceFieldMapper.MappedNameValue mappedNameValue;
         var bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
         mappedNameValue = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decodeAsMap(bytes).getFirst();
@@ -351,9 +365,9 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     @SuppressWarnings("unchecked")
     public void testEncodeObjectToMapAndDecode() throws IOException {
         String value = randomAlphaOfLength(5);
-        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(
-            b -> { b.startObject("my_object").field("my_value", value).endObject(); }
-        );
+        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimitCoalesced(b -> {
+            b.startObject("my_object").field("my_value", value).endObject();
+        });
         var bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue();
         IgnoredSourceFieldMapper.MappedNameValue mappedNameValue;
         mappedNameValue = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decodeAsMap(bytes).getFirst();
@@ -363,7 +377,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testEncodeArrayToMapAndDecode() throws IOException {
-        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(b -> {
+        ParsedDocument parsedDocument = getParsedDocumentWithFieldLimitCoalesced(b -> {
             b.startArray("my_array");
             b.startObject().field("int_value", 10).endObject();
             b.startObject().field("int_value", 20).endObject();
@@ -2484,6 +2498,141 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.startObject("top").startObject("level1").startObject("level2").field("n", 25).endObject().endObject().endObject();
         });
         assertEquals("{\"top\":{\"level1\":{\"level2\":{\"n\":25}}}}", syntheticSource);
+    }
+
+    public void testDocValuesFormatRoundTrip() throws IOException {
+        String value = randomAlphaOfLength(5);
+        String syntheticSource = getSyntheticSourceWithFieldLimit(b -> b.field("my_value", value));
+        assertEquals("{\"my_value\":\"" + value + "\"}", syntheticSource);
+    }
+
+    public void testDocValuesFormatMultipleValues() throws IOException {
+        String syntheticSource = getSyntheticSourceWithFieldLimit(b -> {
+            b.field("value1", "hello");
+            b.field("value2", "world");
+            b.field("value3", 42);
+        });
+        assertEquals("{\"value1\":\"hello\",\"value2\":\"world\",\"value3\":42}", syntheticSource);
+    }
+
+    public void testDocValuesFormatWithNestedObject() throws IOException {
+        String syntheticSource = getSyntheticSourceWithFieldLimit(b -> { b.startObject("obj").field("key", "val").endObject(); });
+        assertEquals("{\"obj\":{\"key\":\"val\"}}", syntheticSource);
+    }
+
+    public void testDocValuesFormatEncodeDecodeRoundTrip() throws IOException {
+        String name = "test_field";
+        int parentOffset = 0;
+        var encoded = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.encode(
+            new IgnoredSourceFieldMapper.NameValue(name, parentOffset, new org.apache.lucene.util.BytesRef("test_value"), null)
+        );
+        IgnoredSourceFieldMapper.NameValue decoded = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.decode(encoded);
+        assertEquals(name, decoded.name());
+        assertEquals(parentOffset, decoded.parentOffset());
+        assertEquals("test_value", decoded.value().utf8ToString());
+    }
+
+    public void testDocValuesFormatLegacyEncodeDecodePreservesParentOffset() throws IOException {
+        String name = "parent.child_field";
+        int parentOffset = 7;
+        var encoded = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.encode(
+            new IgnoredSourceFieldMapper.NameValue(name, parentOffset, new org.apache.lucene.util.BytesRef("data"), null)
+        );
+        IgnoredSourceFieldMapper.NameValue decoded = IgnoredSourceFieldMapper.LegacyIgnoredSourceEncoding.decode(encoded);
+        assertEquals(name, decoded.name());
+        assertEquals(parentOffset, decoded.parentOffset());
+        assertEquals("data", decoded.value().utf8ToString());
+        assertEquals("parent", decoded.getParentFieldName());
+    }
+
+    public void testBwcLegacyFormatSyntheticSource() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORED_SOURCE_COALESCED_ENTRIES_WITH_FF),
+            Settings.builder()
+                .put("index.mapping.total_fields.limit", 2)
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+                .build(),
+            mapping(b -> {
+                b.startObject("foo").field("type", "keyword").endObject();
+                b.startObject("bar").field("type", "object").endObject();
+            })
+        ).documentMapper();
+
+        String value = randomAlphaOfLength(5);
+        String syntheticSource = syntheticSource(mapper, b -> b.field("my_value", value));
+        assertEquals("{\"my_value\":\"" + value + "\"}", syntheticSource);
+    }
+
+    public void testBwcCoalescedFormatSyntheticSource() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES),
+            Settings.builder()
+                .put("index.mapping.total_fields.limit", 2)
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+                .build(),
+            mapping(b -> {
+                b.startObject("foo").field("type", "keyword").endObject();
+                b.startObject("bar").field("type", "object").endObject();
+            })
+        ).documentMapper();
+
+        String value = randomAlphaOfLength(5);
+        String syntheticSource = syntheticSource(mapper, b -> b.field("my_value", value));
+        assertEquals("{\"my_value\":\"" + value + "\"}", syntheticSource);
+    }
+
+    public void testBwcCoalescedFormatMultipleValues() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES),
+            Settings.builder()
+                .put("index.mapping.total_fields.limit", 2)
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+                .build(),
+            mapping(b -> {
+                b.startObject("foo").field("type", "keyword").endObject();
+                b.startObject("bar").field("type", "object").endObject();
+            })
+        ).documentMapper();
+
+        String syntheticSource = syntheticSource(mapper, b -> {
+            b.field("value1", "hello");
+            b.field("value2", "world");
+        });
+        assertEquals("{\"value1\":\"hello\",\"value2\":\"world\"}", syntheticSource);
+    }
+
+    public void testBwcCoalescedFormatWithObject() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES),
+            Settings.builder()
+                .put("index.mapping.total_fields.limit", 2)
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.total_fields.ignore_dynamic_beyond_limit", true)
+                .build(),
+            mapping(b -> {
+                b.startObject("foo").field("type", "keyword").endObject();
+                b.startObject("bar").field("type", "object").endObject();
+            })
+        ).documentMapper();
+
+        String syntheticSource = syntheticSource(mapper, b -> { b.startObject("obj").field("key", "val").endObject(); });
+        assertEquals("{\"obj\":{\"key\":\"val\"}}", syntheticSource);
+    }
+
+    public void testFormatSelectionByVersion() {
+        assertEquals(
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.LEGACY_SINGLE_IGNORED_SOURCE,
+            IgnoredSourceFieldMapper.ignoredSourceFormat(
+                IndexVersionUtils.getPreviousVersion(IndexVersions.IGNORED_SOURCE_COALESCED_ENTRIES_WITH_FF)
+            )
+        );
+        assertEquals(
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE,
+            IgnoredSourceFieldMapper.ignoredSourceFormat(IndexVersions.IGNORED_SOURCE_AS_DOC_VALUES)
+        );
     }
 
     private final Set<String> roundtripMaskedFields = Set.of(

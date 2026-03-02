@@ -411,10 +411,7 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testTsIndexConflictingTypes {null}
   issue: https://github.com/elastic/elasticsearch/issues/142410
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/142739
-  # TSDB synthetic ID / feature flag removal - PR 142366
+  # START TSDB synthetic ID / feature flag removal - PR 142366
   # NESTED DOCS
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   methods:
@@ -554,6 +551,7 @@ tests:
 - class: org.elasticsearch.datastreams.TSDBIndexingIT
   method: testTrimId
   issue: https://github.com/elastic/elasticsearch/pull/142366
+  # END TSDB synthetic ID / feature flag removal - PR 142366
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomKeywordFieldsInSubqueryIntermediateResults
   issue: https://github.com/elastic/elasticsearch/issues/143314

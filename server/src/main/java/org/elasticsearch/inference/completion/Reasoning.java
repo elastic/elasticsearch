@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ public record Reasoning(
     @Nullable ReasoningSummary summary,
     @Nullable Boolean exclude,
     @Nullable Boolean enable
-) implements ToXContent, NamedWriteable {
+) implements ToXContentObject, NamedWriteable {
 
     public static final String NAME = "reasoning";
 

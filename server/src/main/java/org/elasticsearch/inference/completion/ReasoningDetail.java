@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * The type of the reasoning detail is determined by the <code>type</code> field, which is required for all reasoning details.
  * Depending on the value of the <code>type</code> field, different fields are required or optional for the reasoning detail.
  */
-public abstract sealed class ReasoningDetail implements NamedWriteable, ToXContent permits ReasoningDetail.EncryptedReasoningDetail,
+public abstract sealed class ReasoningDetail implements NamedWriteable, ToXContentObject permits ReasoningDetail.EncryptedReasoningDetail,
     ReasoningDetail.SummaryReasoningDetail, ReasoningDetail.TextReasoningDetail {
 
     public static final ConstructingObjectParser<ReasoningDetail, Void> PARSER = new ConstructingObjectParser<>(

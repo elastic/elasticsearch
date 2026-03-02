@@ -26,6 +26,7 @@ import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -116,6 +117,20 @@ public class CacheFileReader {
      */
     public final boolean tryRead(ByteBuffer b, long position) throws IOException {
         return cacheFile.tryRead(b, position);
+    }
+
+    /**
+     * If a direct byte buffer view is available for the given range, passes it
+     * to {@code action} and returns {@code true}. Otherwise returns
+     * {@code false} without invoking the action.
+     *
+     * @param offset the byte offset within the file
+     * @param length the number of bytes requested
+     * @param action the action to perform with the byte buffer
+     * @return {@code true} if a buffer was available and the action was invoked
+     */
+    public final boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+        return cacheFile.withByteBufferSlice(offset, length, action);
     }
 
     /**

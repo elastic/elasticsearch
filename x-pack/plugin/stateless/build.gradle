@@ -43,6 +43,7 @@ GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.withType<Test
 dependencies {
     compileOnly(xpackModule("core"))
     compileOnly(xpackModule("blob-cache"))
+    compileOnly("org.elasticsearch:native")
     compileOnly(project(":libs:serverless-shared-constants"))
     implementation(project(":libs:serverless-stateless-api"))
     internalClusterTestImplementation(testArtifact(xpackModule("core")))

@@ -23,7 +23,7 @@ import java.util.stream.IntStream;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
-@Fork(value = 1, jvmArgs = {"--add-opens=java.base/java.nio=ALL-UNNAMED"})
+@Fork(value = 1, jvmArgs = { "--add-opens=java.base/java.nio=ALL-UNNAMED" })
 public class BlockReadBenchmark extends BlockBenchmark {
     static {
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {

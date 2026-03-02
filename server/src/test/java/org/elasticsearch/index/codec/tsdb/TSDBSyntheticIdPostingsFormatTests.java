@@ -509,36 +509,30 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
         if (rarely()) {
             settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
         }
-        return new IndexSettings(
-            IndexMetadata.builder(indexName)
-                .settings(settings.build())
-                .putMapping("""
-                    {
+        return new IndexSettings(IndexMetadata.builder(indexName).settings(settings.build()).putMapping("""
+            {
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "hostname": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "metric": {
                         "properties": {
-                            "@timestamp": {
-                                "type": "date"
-                            },
-                            "hostname": {
+                            "field": {
                                 "type": "keyword",
                                 "time_series_dimension": true
                             },
-                            "metric": {
-                                "properties": {
-                                    "field": {
-                                        "type": "keyword",
-                                        "time_series_dimension": true
-                                    },
-                                    "value": {
-                                        "type": "integer",
-                                        "time_series_metric": "counter"
-                                    }
-                                }
+                            "value": {
+                                "type": "integer",
+                                "time_series_metric": "counter"
                             }
                         }
-                    }""")
-                .build(),
-            Settings.EMPTY
-        );
+                    }
+                }
+            }""").build(), Settings.EMPTY);
     }
 
     /**

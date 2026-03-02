@@ -266,8 +266,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
             DiscoveryNode node = clusterService.state().nodes().get(nodeId);
             if (node == null) {
+                LOGGER.warn(
+                    "node [{}] assigned {} external splits is no longer in the cluster state; failing external distribution",
+                    nodeId,
+                    nodeSplits.size()
+                );
                 parentComputeListener.acquireCompute()
-                    .onFailure(new IllegalStateException("node [" + nodeId + "] not found in cluster state"));
+                    .onFailure(
+                        new IllegalStateException(
+                            "node [" + nodeId + "] assigned [" + nodeSplits.size() + "] external splits not found in cluster state"
+                        )
+                    );
                 return;
             }
 
@@ -275,6 +284,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             try {
                 connection = transportService.getConnection(node);
             } catch (Exception e) {
+                LOGGER.warn(
+                    "failed to connect to node [{}] ({}) for external source execution with {} splits",
+                    nodeId,
+                    node.getName(),
+                    nodeSplits.size(),
+                    e
+                );
                 parentComputeListener.acquireCompute().onFailure(e);
                 return;
             }
@@ -785,13 +801,25 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             computeListener.acquireCompute().onResponse(resp);
                         }));
                     }, e -> {
-                        LOGGER.debug("Error in external source compute on data node", e);
+                        LOGGER.warn(
+                            "external source compute failed on data node [{}] with {} splits, session [{}]",
+                            transportService.getLocalNode().getName(),
+                            request.externalSplits().size(),
+                            sessionId,
+                            e
+                        );
                         exchangeService.finishSinkHandler(sessionId, e);
                         computeListener.acquireCompute().onFailure(e);
                     })
                 );
                 parentListener.onResponse(null);
             } catch (Exception e) {
+                LOGGER.warn(
+                    "failed to start external source compute on data node [{}], session [{}]",
+                    transportService.getLocalNode().getName(),
+                    sessionId,
+                    e
+                );
                 exchangeService.finishSinkHandler(sessionId, e);
                 parentListener.onFailure(e);
             }

@@ -239,7 +239,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     private void addSyntheticIdFieldsToNestedDocs(DocumentParserContext context, BytesRef timeSeriesId, BytesRef uidEncoded) {
         final var nestedDocFields = new ArrayList<IndexableField>(4);
-        LuceneDocument parentDoc = null;
+        // The synthetic id fields are copied from the root document, so they're correct for any nesting depth
+        LuceneDocument rootParentDoc = null;
 
         for (LuceneDocument nestedDoc : context.nonRootDocuments()) {
             assert nestedDoc.getField(IdFieldMapper.NAME) == null;
@@ -247,22 +248,16 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             assert nestedDoc.getField(DataStreamTimestampFieldMapper.DEFAULT_PATH) == null;
             assert nestedDoc.getField(TimeSeriesRoutingHashFieldMapper.NAME) == null;
 
-            if (parentDoc != null) {
-                assert parentDoc == nestedDoc.getParent()
-                    : "Parent document is not the same among all nested docs, expected ["
-                        + parentDoc
-                        + "] but got:"
-                        + nestedDoc.getParent();
+            if (rootParentDoc != null) {
                 assert nestedDocFields.isEmpty() == false;
-
                 nestedDoc.addAll(nestedDocFields);
                 continue;
             }
-            parentDoc = nestedDoc.getParent();
-            assert parentDoc != null;
+            rootParentDoc = nestedDoc.getParent();
+            assert rootParentDoc != null;
 
             // _tsid
-            var parentTsIdField = parentDoc.getField(TimeSeriesIdFieldMapper.NAME);
+            var parentTsIdField = rootParentDoc.getField(TimeSeriesIdFieldMapper.NAME);
             assert parentTsIdField != null;
 
             final var parentTimeSeriesId = parentTsIdField.binaryValue();
@@ -275,7 +270,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
 
             // @timestamp
-            var parentTimestampField = parentDoc.getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+            var parentTimestampField = rootParentDoc.getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             assert parentTimestampField != null;
             assert parentTimestampField.numericValue() != null;
 
@@ -288,7 +283,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
 
             // _ts_routing_hash
-            var parentRoutingHashField = parentDoc.getField(TimeSeriesRoutingHashFieldMapper.NAME);
+            var parentRoutingHashField = rootParentDoc.getField(TimeSeriesRoutingHashFieldMapper.NAME);
             assert parentRoutingHashField != null;
             assert parentRoutingHashField.binaryValue() != null;
 

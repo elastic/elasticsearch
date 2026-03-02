@@ -372,6 +372,31 @@ message:keyword
 Disconnected
 ;
 
+nullInputRow
+required_capability: str_commands_accept_null
+
+ROW n = null
+| DISSECT n "%{abc}"
+;
+
+n:null | abc:keyword
+  null | null
+;
+
+nullInput
+required_capability: str_commands_accept_null
+
+FROM employees
+| EVAL n = null
+| DISSECT n "%{abc}"
+| WHERE emp_no == 10001
+| KEEP n, abc
+;
+
+n:null | abc:keyword
+  null | null
+;
+
 
 pruneAllDissectFields
 ROW message = "2023-01-23T12:15:00Z - error - 192.168.1.1"

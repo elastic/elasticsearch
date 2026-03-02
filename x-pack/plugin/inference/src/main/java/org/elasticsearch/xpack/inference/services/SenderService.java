@@ -18,15 +18,20 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -43,21 +48,41 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
+import static org.elasticsearch.inference.TaskType.EMBEDDING;
+import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedMultimodalUnifiedCompletionOperation;
 
-public abstract class SenderService implements InferenceService {
+public abstract class SenderService<M extends Model> implements InferenceService {
+
     protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
+
+    /**
+     * The task types that support chunking settings
+     */
+    protected static final EnumSet<TaskType> CHUNKING_TASK_TYPES = EnumSet.of(SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING);
+
     private final Sender sender;
     private final ServiceComponents serviceComponents;
     private final ClusterService clusterService;
+    private final Map<TaskType, ModelCreator<? extends M>> modelCreators;
 
-    public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+    public SenderService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ClusterService clusterService,
+        Map<TaskType, ModelCreator<? extends M>> modelCreators
+    ) {
         Objects.requireNonNull(factory);
         sender = factory.createSender();
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.modelCreators = Objects.requireNonNull(modelCreators);
     }
 
     public Sender getSender() {
@@ -88,8 +113,47 @@ public abstract class SenderService implements InferenceService {
         }).addListener(listener);
     }
 
+    public M parsePersistedConfig(UnparsedModel unparsedModel) {
+        var config = unparsedModel.settings();
+        var secrets = unparsedModel.secrets();
+        var taskType = unparsedModel.taskType();
+
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> secretSettingsMap = secrets == null ? null : removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
+
+        ChunkingSettings chunkingSettings = null;
+        if (CHUNKING_TASK_TYPES.contains(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
+        migrateBetweenTaskAndServiceSettings(serviceSettingsMap, taskSettingsMap);
+
+        return retrieveModelCreatorFromMapOrThrow(
+            modelCreators,
+            unparsedModel.inferenceEntityId(),
+            taskType,
+            name(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromMaps(
+            unparsedModel.inferenceEntityId(),
+            taskType,
+            name(),
+            serviceSettingsMap,
+            taskSettingsMap,
+            chunkingSettings,
+            secretSettingsMap,
+            ConfigurationParseContext.PERSISTENT
+        );
+    }
+
+    /**
+     * Allows for implementations to perform migration for the cases where settings were moved between service and task settings.
+     */
+    protected void migrateBetweenTaskAndServiceSettings(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {}
+
     private static InferenceInputs createInput(
-        SenderService service,
+        SenderService<?> service,
         Model model,
         List<String> input,
         InputType inputType,

@@ -191,7 +191,8 @@ public class OperatorTests extends MapperServiceTestCase {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             );
             List<Page> pages = new ArrayList<>();
             DriverContext driverContext = driverContext();

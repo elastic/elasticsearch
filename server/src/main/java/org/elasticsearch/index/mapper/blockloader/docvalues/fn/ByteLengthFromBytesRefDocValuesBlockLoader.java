@@ -40,10 +40,10 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         if (bc.counts() == null) {
             return new SingleValued(bc.binary());
@@ -62,11 +62,6 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         @Override
         public int docId() {
             return docValues.docValues().docID();
-        }
-
-        @Override
-        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (IntBuilder) builder);
         }
 
         @Override

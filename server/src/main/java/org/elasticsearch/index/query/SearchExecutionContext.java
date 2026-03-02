@@ -738,15 +738,19 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public ShardSearchStats stats() {
         return shardSearchStats;
     }
-    
+
     /**
-     * Track memory usage of an {@link Accountable} query (e.g. automaton-based queries like prefix, wildcard,
-     * regexp, range) during query construction, and trip the circuit breaker if the accumulated usage exceeds
-     * the configured limit.
+     * Adds memory usage to the circuit breaker for query construction.
+     * <p>
+     * This method tracks memory used during query construction and enforces circuit breaker limits
+     * to prevent excessive memory usage. The tracked memory can later be released using
+     * {@link #releaseQueryConstructionMemory()}.
+     *
+     * @param bytes the number of bytes to add to the circuit breaker
+     * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
      */
-    public void addCircuitBreakerMemory(Accountable accountable, String label) {
+    public void addCircuitBreakerMemory(long bytes, String label) {
         if (circuitBreaker != null) {
-            long bytes = accountable.ramBytesUsed();
             circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
             queryConstructionMemoryUsed.addAndGet(bytes);
         }

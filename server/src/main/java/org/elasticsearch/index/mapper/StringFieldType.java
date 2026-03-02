@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -105,14 +106,13 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
         failIfNotIndexed();
         Term prefix = new Term(name(), indexedValueForSearch(value));
-        Query query;
+        AutomatonQuery query;
         if (caseInsensitive) {
             query = method == null ? new CaseInsensitivePrefixQuery(prefix, false) : new CaseInsensitivePrefixQuery(prefix, false, method);
         } else {
             query = method == null ? new PrefixQuery(prefix) : new PrefixQuery(prefix, method);
         }
-        assert query instanceof Accountable : "PrefixQuery should implement Accountable";
-        context.addCircuitBreakerMemory((Accountable) query, "prefix:" + name());
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), "prefix:" + name());
         return query;
     }
 
@@ -177,14 +177,14 @@ public abstract class StringFieldType extends TermBasedFieldType {
         } else {
             term = new Term(name(), indexedValueForSearch(value));
         }
-        Query query;
+        AutomatonQuery query;
         if (caseInsensitive) {
             query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
         } else {
             query = method == null ? new WildcardQuery(term) : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
         }
         assert query instanceof Accountable : "WildcardQuery should implement Accountable";
-        context.addCircuitBreakerMemory((Accountable) query, "wildcard:" + name());
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), "wildcard:" + name());
         return query;
     }
 
@@ -203,7 +203,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        Query query = method == null
+        AutomatonQuery query = method == null
             ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
             : new RegexpQuery(
                 new Term(name(), indexedValueForSearch(value)),
@@ -213,8 +213,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 maxDeterminizedStates,
                 method
             );
-        assert query instanceof Accountable : "RegexpQuery should implement Accountable";
-        context.addCircuitBreakerMemory((Accountable) query, "regexp:" + name());
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), "regexp:" + name());
         return query;
     }
 
@@ -234,15 +233,14 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        Query query = new TermRangeQuery(
+        AutomatonQuery query = new TermRangeQuery(
             name(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
             upperTerm == null ? null : indexedValueForSearch(upperTerm),
             includeLower,
             includeUpper
         );
-        assert query instanceof Accountable : "TermRangeQuery should implement Accountable";
-        context.addCircuitBreakerMemory((Accountable) query, "range:" + name());
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), "range:" + name());
         return query;
     }
 }

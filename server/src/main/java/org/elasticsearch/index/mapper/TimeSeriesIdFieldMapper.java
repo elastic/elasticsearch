@@ -239,13 +239,26 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     private void addSyntheticIdFieldsToNestedDocs(DocumentParserContext context, BytesRef timeSeriesId, BytesRef uidEncoded) {
         final var nestedDocFields = new ArrayList<IndexableField>(4);
+        LuceneDocument parentDoc = null;
+
         for (LuceneDocument nestedDoc : context.nonRootDocuments()) {
             assert nestedDoc.getField(IdFieldMapper.NAME) == null;
             assert nestedDoc.getField(TimeSeriesIdFieldMapper.NAME) == null;
             assert nestedDoc.getField(DataStreamTimestampFieldMapper.DEFAULT_PATH) == null;
             assert nestedDoc.getField(TimeSeriesRoutingHashFieldMapper.NAME) == null;
 
-            final var parentDoc = nestedDoc.getParent();
+            if (parentDoc != null) {
+                assert parentDoc == nestedDoc.getParent()
+                    : "Parent document is not the same among all nested docs, expected ["
+                        + parentDoc
+                        + "] but got:"
+                        + nestedDoc.getParent();
+                assert nestedDocFields.isEmpty() == false;
+
+                nestedDoc.addAll(nestedDocFields);
+                continue;
+            }
+            parentDoc = nestedDoc.getParent();
             assert parentDoc != null;
 
             // _tsid
@@ -287,11 +300,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             );
             nestedDocFields.add(new SortedDocValuesField(TimeSeriesRoutingHashFieldMapper.NAME, parentRoutingHash));
 
-            assert nestedDoc.getField(IdFieldMapper.NAME) == null;
+            // (synthetic) _id
             nestedDocFields.add(syntheticIdField(uidEncoded));
-
             nestedDoc.addAll(nestedDocFields);
-            nestedDocFields.clear();
         }
     }
 

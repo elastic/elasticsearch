@@ -1,6 +1,0 @@
-area: CCS
-issues: []
-pr: 143369
-summary: "Fix CPS: track unreachable projects and their errors for search response's\
-  \ metadata"
-type: bug

@@ -275,3 +275,69 @@ FROM voyager
 x:datetime                                                                     | y:long
 [2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | 21190910706
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing foldables in the search field
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM voyager 
+| SORT row_no DESC
+| EVAL p = 3, q = null
+| STATS
+    a1 = FIRST(p, @timestamp), 
+    a2 = LAST(p, @timestamp),
+    b1 = FIRST(null, @timestamp),
+    b2 = LAST(null, @timestamp)
+;
+
+a1:integer | a2:integer | b1:null | b2:null
+3          | 3          | null    | null
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing foldables in the sort field
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM voyager
+| SORT row_no ASC
+| LIMIT 1000
+| EVAL p = 7::long, q = null
+| STATS
+    # runs the long-by-long aggregator and does nothing unusual
+    a1 = FIRST(active_instruments, p), 
+    a2 = LAST(active_instruments, p),
+    
+    # runs the new any-value-by-long aggregator which returns the first value it encounters
+    b1 = FIRST(active_instruments, 7::long), 
+    b2 = LAST(active_instruments, 7::long),
+    
+    # runs the new any-value-by-long aggregator which returns the first value it encounters
+    c1 = FIRST(active_instruments, null),
+    c2 = FIRST(active_instruments, q)
+;
+
+a1:integer | a2:integer | b1:integer | b2:integer | c1:integer | c2:integer
+[3, 4]     | [3, 4]     | [3, 4]     | [3, 4]     | [3, 4]     | [3, 4]
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing foldables with grouping
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM voyager 
+| SORT row_no ASC
+| EVAL p = 3.14, q = null
+| STATS
+    x = FIRST(p, null) BY status
+;
+
+x:double | status:keyword
+3.14     | null
+3.14     | yellow
+3.14     | green
+3.14     | OK
+3.14     | red
+;

@@ -50,7 +50,7 @@ public class PromqlCommand extends UnaryPlan
         TelemetryAware,
         PostAnalysisVerificationAware,
         TimestampAware,
-        TimestampBoundsAware<LogicalPlan> {
+        TimestampBoundsAware.OfLogicalPlan {
 
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
@@ -179,7 +179,7 @@ public class PromqlCommand extends UnaryPlan
     }
 
     @Override
-    public LogicalPlan withTimestampBounds(Literal start, Literal end) {
+    public PromqlCommand withTimestampBounds(Literal start, Literal end) {
         return new PromqlCommand(
             source(),
             child(),

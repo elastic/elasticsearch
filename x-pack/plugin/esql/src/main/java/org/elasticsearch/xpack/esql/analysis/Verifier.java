@@ -224,7 +224,7 @@ public class Verifier {
 
     private static void checkUnresolvedTimestampBounds(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> p.forEachExpression(Expression.class, e -> {
-            if (e instanceof TimestampBoundsAware<?> tba && tba.needsTimestampBounds()) {
+            if (e instanceof TimestampBoundsAware.OfExpression tba && tba.needsTimestampBounds()) {
                 failures.add(
                     fail(
                         e,

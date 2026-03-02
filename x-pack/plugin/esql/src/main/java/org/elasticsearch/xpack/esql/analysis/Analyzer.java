@@ -1737,19 +1737,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (bounds == null) {
                 return plan;
             }
-            if (plan instanceof TimestampBoundsAware<?> tba && tba.needsTimestampBounds()) {
-                @SuppressWarnings("unchecked")
-                var planAware = (TimestampBoundsAware<LogicalPlan>) tba;
-                plan = planAware.withTimestampBounds(
+            if (plan instanceof TimestampBoundsAware.OfLogicalPlan tba && tba.needsTimestampBounds()) {
+                plan = tba.withTimestampBounds(
                     Literal.dateTime(plan.source(), bounds.start()),
                     Literal.dateTime(plan.source(), bounds.end())
                 );
             }
             return plan.transformExpressionsUp(Expression.class, expression -> {
-                if (expression instanceof TimestampBoundsAware<?> tba && tba.needsTimestampBounds()) {
-                    @SuppressWarnings("unchecked")
-                    var exprAware = (TimestampBoundsAware<Expression>) tba;
-                    return exprAware.withTimestampBounds(
+                if (expression instanceof TimestampBoundsAware.OfExpression tba && tba.needsTimestampBounds()) {
+                    return tba.withTimestampBounds(
                         Literal.dateTime(expression.source(), bounds.start()),
                         Literal.dateTime(expression.source(), bounds.end())
                     );

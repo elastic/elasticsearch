@@ -31,7 +31,6 @@ import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
-
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -1159,13 +1158,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     if (failure != null) {
                         listener.onFailure(failure);
                     } else {
-                        mergeResolvedIndices(
-                            originalResolvedIndices,
-                            remoteResponses.entrySet(),
-                            rewritten,
-                            resolutionIdxOpts,
-                            listener
-                        );
+                        mergeResolvedIndices(originalResolvedIndices, remoteResponses.entrySet(), rewritten, resolutionIdxOpts, listener);
                     }
                 }
             };

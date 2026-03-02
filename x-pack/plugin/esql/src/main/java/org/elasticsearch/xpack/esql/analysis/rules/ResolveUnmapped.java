@@ -263,7 +263,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static void assertSourceType(LogicalPlan source) {
         switch (source) {
             case EsRelation esRelation -> {
-                if (esRelation.indexMode() != IndexMode.STANDARD) {
+                IndexMode mode = esRelation.indexMode();
+                if ((mode == IndexMode.STANDARD || mode == IndexMode.TIME_SERIES) == false) {
                     throw new EsqlIllegalArgumentException(
                         "invalid source type [{}] for unmapped field resolution",
                         esRelation.indexMode()

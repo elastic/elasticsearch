@@ -593,3 +593,8 @@ redirects:
     many:
       - to: 'reference/query-languages/esql/functions-operators/search-functions.md'
         anchors: { 'esql-limitations-text-fields' }
+
+  # Related to https://github.com/elastic/docs-content-internal/issues/807 (Elasticsearch Reference Landing Page Redirect)
+  'reference/index.md':
+    to: 'reference/elasticsearch/index.md'
+    anchors: '!'

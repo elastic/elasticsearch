@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -111,15 +112,21 @@ public class ReindexMetricsTests extends ESTestCase {
         assertEquals(SlicingMode.NONE, ReindexMetrics.resolveSlicingMode(request));
     }
 
+    public void testResolveSlicingModeNoneOneSlice() {
+        ReindexRequest request = new ReindexRequest();
+        request.setSlices(1);
+        assertEquals(SlicingMode.NONE, ReindexMetrics.resolveSlicingMode(request));
+    }
+
     public void testResolveSlicingModeFixed() {
         ReindexRequest request = new ReindexRequest();
-        request.setSlices(5);
+        request.setSlices(randomIntBetween(2, 20));
         assertEquals(SlicingMode.FIXED, ReindexMetrics.resolveSlicingMode(request));
     }
 
     public void testResolveSlicingModeAuto() {
         ReindexRequest request = new ReindexRequest();
-        request.setSlices(0);
+        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         assertEquals(SlicingMode.AUTO, ReindexMetrics.resolveSlicingMode(request));
     }
 

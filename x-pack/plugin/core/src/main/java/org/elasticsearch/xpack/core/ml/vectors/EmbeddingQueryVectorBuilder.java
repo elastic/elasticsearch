@@ -19,6 +19,7 @@ import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -95,7 +96,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         }
 
         var inferenceString = format != null ? new InferenceString(type, format, value) : new InferenceString(type, value);
-        var embeddingRequest = EmbeddingRequest.of(List.of(new InferenceStringGroup(inferenceString)));
+        var embeddingRequest = new EmbeddingRequest(List.of(new InferenceStringGroup(inferenceString)), InputType.SEARCH, null);
         // TODO: Don't hard-code timeout
         var request = new EmbeddingAction.Request(inferenceId, TaskType.EMBEDDING, embeddingRequest, TimeValue.THIRTY_SECONDS);
         executeAsyncWithOrigin(

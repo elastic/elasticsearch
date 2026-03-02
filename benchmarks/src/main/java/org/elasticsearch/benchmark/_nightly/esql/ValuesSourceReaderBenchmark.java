@@ -23,9 +23,9 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -93,8 +93,9 @@ import java.util.stream.IntStream;
 @State(Scope.Thread)
 @Fork(1)
 public class ValuesSourceReaderBenchmark {
+
     static {
-        LogConfigurator.configureESLogging();
+        Utils.configureBenchmarkLogging();
     }
 
     private static final String[] SUPPORTED_LAYOUTS = new String[] { "in_order", "shuffled", "shuffled_singles" };
@@ -317,7 +318,8 @@ public class ValuesSourceReaderBenchmark {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             reuseColumnLoaders,
-            0
+            0,
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY)
         );
         long sum = 0;
         for (Page page : pages) {

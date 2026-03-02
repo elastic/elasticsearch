@@ -704,13 +704,11 @@ public final class MultiRowTestCaseSupplier {
         cases.addAll(denseVectorCases(minRows, maxRows, TestCaseSupplier::randomDenseVector, "dense vector"));
         if (maxRows > 1) {
             cases.addAll(denseVectorCases(minRows, maxRows, (d) -> {
-                List<Float> vector = TestCaseSupplier.randomDenseVector(d, () -> ESTestCase.randomFloatBetween(0.1e-5f, 1F, true));
-                vector.set(randomIntBetween(0, d - 1), Float.MAX_VALUE);
+                List<Float> vector = TestCaseSupplier.randomDenseVector(d, () -> Float.MAX_VALUE);
                 return vector;
             }, "dense vector with positive overflow"));
             cases.addAll(denseVectorCases(maxRows, maxRows, (d) -> {
-                List<Float> vector = TestCaseSupplier.randomDenseVector(d, () -> ESTestCase.randomFloatBetween(-0.1e-5f, -1F, true));
-                vector.set(randomIntBetween(0, d - 1), Float.MIN_VALUE);
+                List<Float> vector = TestCaseSupplier.randomDenseVector(d, () -> -Float.MAX_VALUE);
                 return vector;
             }, "dense vector with negative overflow"));
         }

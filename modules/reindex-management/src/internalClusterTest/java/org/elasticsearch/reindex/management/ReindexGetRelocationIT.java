@@ -99,7 +99,7 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         // start throttled async reindex on nodeB, verify initial state via GET
         final TaskId originalTaskId = startAsyncThrottledReindexOnNode(nodeBName);
 
-        final GetReindexResponse initialResponse = getReindex(originalTaskId, false);
+        final GetReindexResponse initialResponse = getReindexWithWaitForCompletion(originalTaskId, false);
         final TaskResult initialTask = initialResponse.getOriginalTask();
         final TaskInfo initialInfo = initialTask.getTask();
         assertThat("initial reindex should not be completed", initialTask.isCompleted(), is(false));
@@ -117,7 +117,7 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         final TaskId relocatedTaskId = getRelocatedTaskIdFromTasksIndex(originalTaskId, nodeAId);
 
         // GET _reindex/{originalTaskId} after relocation
-        final GetReindexResponse relocatedResponse = getReindex(originalTaskId, false);
+        final GetReindexResponse relocatedResponse = getReindexWithWaitForCompletion(originalTaskId, false);
         final TaskResult completedOriginal = relocatedResponse.getOriginalTask();
         assertThat("original task should be completed", completedOriginal.isCompleted(), is(true));
         assertThat("original start time preserved", completedOriginal.getTask().startTime(), equalTo(originalStartTimeMillis));
@@ -137,11 +137,11 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         unthrottleReindex(relocatedTaskId);
 
         final long nanosElapsedFromReindexStart = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - originalStartTimeMillis);
-        final GetReindexResponse completedResponse = getReindex(originalTaskId, true);
+        final GetReindexResponse completedResponse = getReindexWithWaitForCompletion(originalTaskId, true);
         final Map<String, Object> responseMap = XContentTestUtils.convertToMap(completedResponse);
 
         // A subsequent non-waiting GET should return the same serialized result
-        final GetReindexResponse nonWaitingResponse = getReindex(originalTaskId, false);
+        final GetReindexResponse nonWaitingResponse = getReindexWithWaitForCompletion(originalTaskId, false);
         final Map<String, Object> nonWaitingMap = XContentTestUtils.convertToMap(nonWaitingResponse);
 
         assertThat("wait and non-wait responses are identical", nonWaitingResponse, equalTo(completedResponse));
@@ -184,7 +184,7 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         internalCluster().stopNode(nodeName);
     }
 
-    private GetReindexResponse getReindex(TaskId taskId, boolean waitForCompletion) {
+    private GetReindexResponse getReindexWithWaitForCompletion(TaskId taskId, boolean waitForCompletion) {
         return client().execute(
             TransportGetReindexAction.TYPE,
             new GetReindexRequest(taskId, waitForCompletion, TimeValue.timeValueSeconds(30))

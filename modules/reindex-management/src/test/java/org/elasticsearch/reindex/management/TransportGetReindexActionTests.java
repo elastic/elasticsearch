@@ -381,6 +381,40 @@ public class TransportGetReindexActionTests extends ESTestCase {
         assertEquals(secondRelocatedTaskId, requestCaptor.getAllValues().get(2).getTaskId());
     }
 
+    public void testRelocatedTaskNotFound() throws IOException {
+        final TaskId originalTaskId = taskId;
+        final TaskId relocatedTaskId = randomValueOtherThan(taskId, () -> new TaskId(randomAlphaOfLength(10), randomIntBetween(1, 1000)));
+
+        final TaskRelocatedException relocatedException = new TaskRelocatedException();
+        relocatedException.setOriginalAndRelocatedTaskIdMetadata(originalTaskId, relocatedTaskId);
+
+        final TaskInfo originalInfo = createTaskInfo(originalTaskId, ReindexAction.NAME);
+        final TaskResult originalResult = new TaskResult(originalInfo, (Exception) relocatedException);
+
+        final GetReindexRequest request = createGetReindexRequest(originalTaskId, false, timeout);
+
+        doAnswer(invocation -> {
+            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
+            inner.onResponse(new GetTaskResponse(originalResult));
+            return null;
+        }).doAnswer(invocation -> {
+            final ActionListener<GetTaskResponse> inner = invocation.getArgument(1);
+            inner.onFailure(new ResourceNotFoundException("task not found"));
+            return null;
+        }).when(client).getTask(any(GetTaskRequest.class), any());
+
+        action.doExecute(mock(), request, listener);
+
+        assertNull(responseRef.get());
+        assertThat(failureRef.get(), instanceOf(ResourceNotFoundException.class));
+        assertEquals(notFoundException(originalTaskId).getMessage(), failureRef.get().getMessage());
+
+        final ArgumentCaptor<GetTaskRequest> requestCaptor = ArgumentCaptor.captor();
+        verify(client, times(2)).getTask(requestCaptor.capture(), any());
+        assertEquals(originalTaskId, requestCaptor.getAllValues().get(0).getTaskId());
+        assertEquals(relocatedTaskId, requestCaptor.getAllValues().get(1).getTaskId());
+    }
+
     private TaskInfo createTaskInfo(TaskId taskId, String action) {
         return new TaskInfo(
             taskId,

@@ -16,9 +16,9 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -136,8 +136,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             if (o instanceof BigArrays) {
                 return 0; // shared
             }
-            if (o instanceof BlockHash) {
-                return 0; // TODO: Make it accountable
+            if (o instanceof BytesRefHashTable h) {
+                return h.ramBytesUsed();
             }
             return super.accumulateObject(o, shallowSize, fieldValues, queue);
         }

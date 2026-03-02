@@ -51,7 +51,6 @@ import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORT
 import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.elasticsearch.compute.test.BlockTestUtils.readInto;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class GroupedTopNOperatorTests extends TopNOperatorTests {
@@ -288,9 +287,10 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             new TestDriverRunner().run(driver);
         }
 
-        assertThat(actual.get(0), equalTo(List.of(10L, 10L, 30L))); // Sort key
-        assertThat(actual.get(1), equalTo(List.of(100L, 100L, 300L))); // Value
-        assertThat(actual.get(2), equalTo(List.of(1L, 2L, 3L))); // Group key
+        // List semantics: [1,2] is one group, 1 is another, 3 is another. Sorted ASC by sort key.
+        assertThat(actual.get(0), equalTo(List.of(10L, 20L, 30L))); // Sort key
+        assertThat(actual.get(1), equalTo(List.of(100L, 200L, 300L))); // Value
+        assertThat(actual.get(2), equalTo(List.of(List.of(1L, 2L), 1L, 3L))); // Group key (MV preserved)
     }
 
     public void testMultivalueGroupKeyDuplicateWinner() {
@@ -329,19 +329,16 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             new TestDriverRunner().run(driver);
         }
 
-        assertThat(actual.get(0), equalTo(List.of(5L, 5L))); // Sort key
-        assertThat(actual.get(1), equalTo(List.of(50L, 50L))); // Value
-        assertThat(actual.get(2), equalTo(List.of(1L, 2L))); // Group key
+        // List semantics: [1,2] is one group, 1 is another. Sorted ASC by sort key.
+        assertThat(actual.get(0), equalTo(List.of(5L, 10L))); // Sort key
+        assertThat(actual.get(1), equalTo(List.of(50L, 100L))); // Value
+        assertThat(actual.get(2), equalTo(List.of(List.of(1L, 2L), 1L))); // Group key (MV preserved)
     }
 
     /**
-     * Tests cartesian product expansion with two multivalue group keys:
-     * a row with group_key1=[1, 2] and group_key2=[10, 20] belongs to groups
-     * (1,10), (1,20), (2,10), (2,20), the same way as STATS BY handles
-     * multiple multivalue group keys.
-     *
-     * <p>Without MV fanning, row 0 would only be in one group (the first combination),
-     * so groups (1,20), (2,10), and (2,20) would be empty → output would have fewer rows.
+     * Tests list semantics with two multivalue group keys: a row with group_key1=[1, 2]
+     * and group_key2=[10, 20] belongs to exactly one group keyed by ([1,2], [10,20]).
+     * No cartesian product expansion occurs.
      */
     public void testMultipleMultivalueGroupKeys() {
         DriverContext driverContext = driverContext();
@@ -384,69 +381,11 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             new TestDriverRunner().run(driver);
         }
 
-        assertThat(actual.get(0), equalTo(List.of(5L, 10L, 10L, 10L))); // Sort key
-        assertThat(actual.get(1), equalTo(List.of(50L, 100L, 100L, 100L))); // Value
-        assertThat(actual.get(2), equalTo(List.of(1L, 1L, 2L, 2L))); // Group key 1
-        assertThat(actual.get(3), equalTo(List.of(10L, 20L, 10L, 20L))); // Group key 2
-    }
-
-    /**
-     * Verifies that a single page position whose group-ID count (from multivalued group key expansion)
-     * exceeds {@link GroupedTopNOperator}'s internal emit batch size (10K) is handled correctly.
-     * <p>
-     *     BlockHash's AddPage invokes the callback multiple times for the same position in this case.
-     *     Each {@code (position, groupId)} pair is processed independently in the callback, so
-     *     every combination is counted exactly once.
-     *     This test uses one row with two multivalued group keys of 150 values each (150×150 = 22_500 > 10_240).
-     * </p>
-     */
-    public void testSinglePositionExceedsEmitBatchSize() {
-        int elementsPerKey = 150;
-        assertThat(
-            "This test only makes sense if the total groups is bigger than the emit batch size",
-            elementsPerKey * elementsPerKey,
-            greaterThan(GroupedTopNOperator.EMIT_BATCH_SIZE)
-        );
-
-        DriverContext driverContext = driverContext();
-        BlockFactory bf = driverContext.blockFactory();
-
-        int topCount = 1;
-        int[] groupKeys = new int[] { 2, 3 };
-        List<ElementType> elementTypes = List.of(LONG, LONG, LONG, LONG);
-        List<TopNEncoder> encoders = List.of(TopNEncoder.DEFAULT_SORTABLE, DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE);
-        List<SortOrder> sortOrders = List.of(new SortOrder(0, true, false));
-
-        List<Long> keys1 = LongStream.range(0, 150).boxed().toList();
-        List<Long> keys2 = LongStream.range(0, 150).boxed().toList();
-        Page page = new Page(BlockUtils.fromList(bf, List.of(List.of(1L, 1L, keys1, keys2))));
-
-        List<List<Object>> actual = new ArrayList<>();
-        try (
-            Driver driver = TestDriverFactory.create(
-                driverContext,
-                new CannedSourceOperator(List.of(page).iterator()),
-                List.of(
-                    new GroupedTopNOperator(
-                        bf,
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        topCount,
-                        elementTypes,
-                        encoders,
-                        sortOrders,
-                        groupKeys,
-                        randomPageSize(),
-                        Long.MAX_VALUE
-                    )
-                ),
-                new PageConsumerOperator(p -> readInto(actual, p))
-            )
-        ) {
-            new TestDriverRunner().run(driver);
-        }
-
-        int expectedRows = keys1.size() * keys2.size();
-        assertThat(actual.getFirst().size(), equalTo(expectedRows));
+        // List semantics: 3 distinct groups, each with 1 row, sorted ASC by sort key
+        assertThat(actual.get(0), equalTo(List.of(5L, 10L, 15L))); // Sort key
+        assertThat(actual.get(1), equalTo(List.of(50L, 100L, 150L))); // Value
+        assertThat(actual.get(2), equalTo(List.of(1L, List.of(1L, 2L), 2L))); // Group key 1 (MV preserved)
+        assertThat(actual.get(3), equalTo(List.of(10L, List.of(10L, 20L), 20L))); // Group key 2 (MV preserved)
     }
 
     public void testShardContextManagement_limitEqualToCount_noShardContextIsReleased() {
@@ -518,9 +457,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         for (int i = 0; i < groupKeysCount; i++) {
             groupKeys.add(
                 randomValueOtherThanMany(
-                    c -> sortColumns.contains(c) || groupKeys.contains(c) || randomBlocksResult.validSortKeys[c] == false
-                    // BlockHash does not support FLOAT as a group key type.
-                        || randomBlocksResult.elementTypes.get(c) == ElementType.FLOAT,
+                    c -> sortColumns.contains(c) || groupKeys.contains(c) || randomBlocksResult.validSortKeys[c] == false,
                     () -> randomIntBetween(0, blocksCount - 1)
                 )
             );

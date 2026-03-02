@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -48,18 +47,15 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
         // (either 1 or 2 per group). If we propagate the original multi-value literal [1, 2] into
         // expressions after the Aggregate (e.g., `x = a + SUM(a)`), this would incorrectly treat `a`
         // as still being multi-valued, leading to wrong results.
-        // The same applies to LIMIT BY: ROW g = [10, 20, 30] | LIMIT 1 BY g | WHERE g == 20
-        // After LIMIT BY, `g` is single-valued per group; propagating [10, 20, 30] past it is wrong.
         plan = plan.transformUp(p -> {
-            List<Expression> groupings = p instanceof Aggregate aggregate
-                ? aggregate.groupings()
-                : (p instanceof Limit limit ? limit.groupings() : List.of());
-            groupings.forEach(group -> {
-                Expression resolved = collectRefs.resolve(group, group);
-                if (resolved instanceof Literal literal && literal.value() instanceof List<?>) {
-                    builder.remove(group);
-                }
-            });
+            if (p instanceof Aggregate aggregate) {
+                aggregate.groupings().forEach(group -> {
+                    Expression resolved = collectRefs.resolve(group, group);
+                    if (resolved instanceof Literal literal && literal.value() instanceof List<?>) {
+                        builder.remove(group);
+                    }
+                });
+            }
             // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
             // TODO: also allow aggregates once aggs on constants are supported.
             // C.f. https://github.com/elastic/elasticsearch/issues/100634

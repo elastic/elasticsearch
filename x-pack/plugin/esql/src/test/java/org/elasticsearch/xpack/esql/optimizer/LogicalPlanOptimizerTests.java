@@ -10385,11 +10385,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
-     * Limit[10000[INTEGER],[],false,false]
-     * \_Filter[g{r}#5469 == 20[INTEGER]]
-     *   \_TopN[[Order[x{r}#5467,DESC,FIRST]],1[INTEGER],[g{r}#5469],false]
-     *     \_LocalRelation[[x{r}#5467, g{r}#5469],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]],
-     *       IntArrayBlock[positions=1, mvOrdering=DEDUPLICATED_AND_SORTED_ASCENDING, vector=IntArrayVector[positions=3, values=[10, 20, 30]]]]}]
+     * TopN[[Order[x{r}#4200,DESC,FIRST]],1[INTEGER],[g{r}#4202],false]
+     * \_LocalRelation[[x{r}#4200, g{r}#4202],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]],
+     *   IntArrayBlock[positions=1, mvOrdering=DEDUPLICATED_AND_SORTED_ASCENDING, vector=IntArrayVector[positions=3, values=[10, 20, 30]]]]}]
      * }</pre>
      */
     public void testMvConstantLimitByWithWhere() {
@@ -10397,27 +10395,42 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             ROW x = 1, g = [10, 20, 30]
             | SORT x DESC
             | LIMIT 1 BY g
-            | WHERE g == 20
+            | WHERE MV_CONTAINS(g, 20)
             """);
 
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-
-        var condition = as(filter.condition(), Equals.class);
-        assertThat(condition.left(), instanceOf(ReferenceAttribute.class));
-        assertThat(Expressions.name(condition.left()), equalTo("g"));
-
-        var topN = as(filter.child(), TopN.class);
+        var topN = as(plan, TopN.class);
         assertThat(topN.groupings().size(), equalTo(1));
         as(topN.child(), LocalRelation.class);
     }
 
     /**
      * <pre>{@code
-     * Eval[[g{r}#8808 AS h#8813]]
-     * \_TopN[[Order[x{r}#8806,DESC,FIRST]],1[INTEGER],[g{r}#8808],false]
-     *   \_LocalRelation[[x{r}#8806, g{r}#8808],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]],
-     *     IntArrayBlock[positions=1, mvOrdering=DEDUPLICATED_UNORDERD, vector=IntArrayVector[positions=3, values=[10, 20, 30]]]]}]
+     * LocalRelation[[x{r}#7750, g{r}#7752],EMPTY]
+     * }</pre>
+     */
+    public void testMvConstantLimitByWithWhereFiltered() {
+        var plan = plan("""
+            ROW x = 1, g = [10, 20, 30]
+            | SORT x DESC
+            | LIMIT 1 BY g
+            | WHERE g == 20
+            """);
+
+        var localRelation = as(plan, LocalRelation.class);
+        assertThat(localRelation.hasEmptySupplier(), equalTo(true));
+
+        assertWarnings(
+            "Line 4:9: evaluation of [g == 20] failed, treating result as null. Only first 20 failures recorded.",
+            "Line 4:9: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+        );
+    }
+
+    /**
+     * <pre>{@code
+     * Eval[[[10, 20, 30][INTEGER] AS h#2321]]
+     * \_TopN[[Order[x{r}#2314,DESC,FIRST]],1[INTEGER],[g{r}#2316],false]
+     *   \_LocalRelation[[x{r}#2314, g{r}#2316],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]],
+     *     IntArrayBlock[positions=1, mvOrdering=DEDUPLICATED_AND_SORTED_ASCENDING, vector=IntArrayVector[positions=3, values=[10, 20, 30]]]]}]
      * }</pre>
      */
     public void testMvConstantLimitByGroupByEval() {
@@ -10432,7 +10445,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(eval.fields(), hasSize(1));
         var alias = as(eval.fields().getFirst(), Alias.class);
         assertThat(alias.name(), equalTo("h"));
-        assertThat(alias.child(), instanceOf(ReferenceAttribute.class));
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), equalTo(List.of(10, 20, 30)));
 
         var topN = as(eval.child(), TopN.class);
         assertThat(topN.groupings().size(), equalTo(1));

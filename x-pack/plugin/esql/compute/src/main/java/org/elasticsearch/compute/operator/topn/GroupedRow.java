@@ -19,7 +19,7 @@ import org.elasticsearch.core.Releasables;
 import java.util.Arrays;
 
 /**
- * A row that belongs to a group, identified by an integer group ID assigned by a BlockHash.
+ * A row that belongs to a group, identified by an integer group ID.
  * Stores encoded sort keys and values for a single row within a grouped top-N operation.
  */
 final class GroupedRow implements Accountable, Comparable<GroupedRow>, Releasable {
@@ -44,7 +44,7 @@ final class GroupedRow implements Accountable, Comparable<GroupedRow>, Releasabl
      * to ensure the shard context lives until we build the final result.
      */
     @Nullable
-    RefCounted shardRefCounter;
+    private RefCounted shardRefCounter;
 
     /**
      * The group ID this row belongs to.

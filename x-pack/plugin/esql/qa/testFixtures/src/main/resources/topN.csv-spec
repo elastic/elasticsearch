@@ -912,9 +912,7 @@ ROW x = 1, g = [10, 20, 30]
 ;
 
 x:integer | g:integer
-1         | 10
-1         | 20
-1         | 30
+1         | [10, 20, 30]
 ;
 
 sortByLimitMultivalueGroupKeySimpleFiltered
@@ -926,9 +924,10 @@ ROW x = 1, g = [10, 20, 30]
 | WHERE g == 20
 | KEEP x, g
 ;
+warning:Line 4:9: evaluation of [g == 20] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 x:integer | g:integer
-1         | 20
 ;
 
 sortByLimitTwoMultivalueGroupKeysSimple
@@ -942,18 +941,12 @@ ROW x = 1, g1 = [1, 2], g2 = [10, 20]
 ;
 
 x:integer | g1:integer | g2:integer
-1         | 1          | 10
-1         | 1          | 20
-1         | 2          | 10
-1         | 2          | 20
+1         | [1, 2]     | [10, 20]
 ;
 
 sortByLimitMultivalueGroupKey
 required_capability: limit_by
 
-// 10001 -> [Accountant, Senior Python Developer]
-// 10006 -> [Principal Support Engineer, Senior Team Lead, Tech Lead]
-// 10002 -> [Senior Team Lead]; loses to 10006 (salary 60335 > 56371)
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10006)
 | SORT salary DESC
@@ -963,11 +956,9 @@ FROM employees
 ;
 
 emp_no:integer | first_name:keyword | salary:integer | job_positions:keyword
-10001          | Georgi             | 57305          | Accountant
-10001          | Georgi             | 57305          | Senior Python Developer
-10006          | Anneke             | 60335          | Principal Support Engineer
-10006          | Anneke             | 60335          | Senior Team Lead
-10006          | Anneke             | 60335          | Tech Lead
+10001          | Georgi             | 57305          | [Accountant, Senior Python Developer]
+10002          | Bezalel            | 56371          | [Senior Team Lead]
+10006          | Anneke             | 60335          | [Principal Support Engineer, Senior Team Lead, Tech Lead]
 ;
 
 sortByLimitMultivalueGroupKeyFiltered
@@ -980,9 +971,11 @@ FROM employees
 | WHERE job_positions == "Senior Team Lead"
 | KEEP emp_no, first_name, salary, job_positions
 ;
+warningRegex:Line 5:9: evaluation of \[job_positions == \\\"Senior Team Lead\\\"\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 5:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 emp_no:integer | first_name:keyword | salary:integer | job_positions:keyword
-10006          | Anneke             | 60335          | Senior Team Lead
+10002          | Bezalel            | 56371          | Senior Team Lead
 ;
 
 sortByLimitMultivalueGroupKeyWithCompetition
@@ -997,11 +990,8 @@ FROM employees
 ;
 
 emp_no:integer | first_name:keyword | salary:integer | job_positions:keyword
-10001          | Georgi             | 57305          | Accountant
-10001          | Georgi             | 57305          | Senior Python Developer
-10008          | Saniya             | 43906          | Internship
-10008          | Saniya             | 43906          | Junior Developer
-10008          | Saniya             | 43906          | Purchase Manager
+10001          | Georgi             | 57305          | [Accountant, Senior Python Developer]
+10008          | Saniya             | 43906          | [Internship, Junior Developer, Purchase Manager, Senior Python Developer]
 ;
 
 sortByLimitMultipleMultivalueGroupKeys
@@ -1015,11 +1005,8 @@ FROM employees
 | KEEP emp_no, first_name, salary, job_positions, is_rehired
 ;
 
-emp_no:integer | first_name:keyword | salary:integer | job_positions:keyword   | is_rehired:boolean
-10001          | Georgi             | 57305          | Accountant              | false
-10001          | Georgi             | 57305          | Accountant              | true
-10001          | Georgi             | 57305          | Senior Python Developer | false
-10001          | Georgi             | 57305          | Senior Python Developer | true
+emp_no:integer | first_name:keyword | salary:integer | job_positions:keyword                 | is_rehired:boolean
+10001          | Georgi             | 57305          | [Accountant, Senior Python Developer] | [false, true]
 ;
 
 sortByLimitMultivalueGroupKeyLimit2
@@ -1034,15 +1021,9 @@ FROM employees
 ;
 
 emp_no:integer | first_name:keyword | salary:integer | job_positions:keyword
-10001          | Georgi             | 57305          | Accountant
-10008          | Saniya             | 43906          | Internship
-10008          | Saniya             | 43906          | Junior Developer
-10006          | Anneke             | 60335          | Principal Support Engineer
-10008          | Saniya             | 43906          | Purchase Manager
-10001          | Georgi             | 57305          | Senior Python Developer
-10008          | Saniya             | 43906          | Senior Python Developer
-10006          | Anneke             | 60335          | Senior Team Lead
-10006          | Anneke             | 60335          | Tech Lead
+10001          | Georgi             | 57305          | [Accountant, Senior Python Developer]
+10008          | Saniya             | 43906          | [Internship, Junior Developer, Purchase Manager, Senior Python Developer]
+10006          | Anneke             | 60335          | [Principal Support Engineer, Senior Team Lead, Tech Lead]
 ;
 
 //

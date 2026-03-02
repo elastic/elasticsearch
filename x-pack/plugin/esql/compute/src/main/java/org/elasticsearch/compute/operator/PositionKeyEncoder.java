@@ -7,8 +7,10 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -27,7 +29,9 @@ import java.util.List;
  * in block iteration order. This means {@code [1, 2]} and {@code [2, 1]} produce different keys.
  * Null positions are encoded as a value count of zero.
  */
-public class PositionKeyEncoder {
+public class PositionKeyEncoder implements Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(PositionKeyEncoder.class);
 
     private final int[] groupChannels;
     private final ElementType[] elementTypes;
@@ -127,5 +131,16 @@ public class PositionKeyEncoder {
     private void writeLong(long value) {
         writeInt((int) (value >> 32));
         writeInt((int) value);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOf(groupChannels);
+        size += RamUsageEstimator.shallowSizeOf(elementTypes);
+        size += RamUsageEstimator.shallowSizeOfInstance(BytesRefBuilder.class);
+        size += RamUsageEstimator.sizeOf(scratch.bytes());
+        size += RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+        return size;
     }
 }

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -475,6 +476,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 e = surrogate;
             }
         }
+        assertThat("expression required surrogates", e, not(instanceOf(OnlySurrogateExpression.class)));
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
         Expression.TypeResolution resolution = e.typeResolved();

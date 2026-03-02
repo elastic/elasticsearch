@@ -384,15 +384,9 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
-- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
-  method: testAccumulateSearchLoad
-  issue: https://github.com/elastic/elasticsearch/issues/142986
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023
-- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
-  method: testAccumulateSearchLoad
-  issue: https://github.com/elastic/elasticsearch/issues/143111
 - class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
   method: testCliConnectionWithApiKey
   issue: https://github.com/elastic/elasticsearch/issues/143125

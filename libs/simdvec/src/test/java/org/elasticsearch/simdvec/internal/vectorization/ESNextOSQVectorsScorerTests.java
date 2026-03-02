@@ -20,11 +20,9 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
-import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
@@ -32,12 +30,18 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQIndexData;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQQueryData;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomVector;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBulkOSQVectorData;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeSingleOSQVectorData;
+
 public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
 
     private final DirectoryType directoryType;
     private final byte indexBits;
+    private final byte queryBits;
     private final VectorSimilarityFunction similarityFunction;
-    private static final byte queryBits = 4;
 
     public enum DirectoryType {
         NIOFS,
@@ -45,45 +49,46 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         SNAP
     }
 
-    public ESNextOSQVectorsScorerTests(DirectoryType directoryType, byte indexBits, VectorSimilarityFunction similarityFunction) {
+    public ESNextOSQVectorsScorerTests(
+        DirectoryType directoryType,
+        byte indexBits,
+        byte queryBits,
+        VectorSimilarityFunction similarityFunction
+    ) {
         this.directoryType = directoryType;
         this.indexBits = indexBits;
+        this.queryBits = queryBits;
         this.similarityFunction = similarityFunction;
     }
 
     public void testQuantizeScore() throws Exception {
 
         final int dimensions = random().nextInt(1, 2000);
-        final int length2 = BQVectorUtils.discretize(dimensions, 64) / 8;
-
-        final int length = switch (indexBits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dimensions);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + indexBits);
-        };
-
         final int numVectors = random().nextInt(1, 100);
-        final byte[] vector = new byte[length];
 
+        final int length = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).getDocPackedLength(dimensions);
+
+        final byte[] vector = new byte[length];
         final int queryBytes = length * (queryBits / indexBits);
 
         try (Directory dir = newParametrizedDirectory()) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
                 for (int i = 0; i < numVectors; i++) {
                     random().nextBytes(vector);
+                    if (indexBits == 7) clampTo7Bit(vector, dimensions);
                     out.writeBytes(vector, 0, length);
                 }
                 CodecUtil.writeFooter(out);
             }
             final byte[] query = new byte[queryBytes];
             random().nextBytes(query);
+            if (indexBits == 7) clampTo7Bit(query, dimensions);
             try (IndexInput in = dir.openInput("tests.bin", IOContext.DEFAULT)) {
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) length * numVectors);
-                final var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
+                final ESNextOSQVectorsScorer defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
                     slice,
                     queryBits,
                     indexBits,
@@ -91,7 +96,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     length,
                     ESNextOSQVectorsScorer.BULK_SIZE
                 );
-                final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
+                final ESNextOSQVectorsScorer panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
                     in,
                     queryBits,
                     indexBits,
@@ -111,23 +116,13 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
     public void testScore() throws Exception {
         final int maxDims = random().nextInt(1, 1000) * 2;
         final int dimensions = random().nextInt(1, maxDims);
-
-        final int length = switch (indexBits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dimensions);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + indexBits);
-        };
-
-        final int queryBytes = length * (queryBits / indexBits);
-
         final int numVectors = random().nextInt(10, 50);
-        float[][] vectors = new float[numVectors][dimensions];
-        final int[] scratch = new int[dimensions];
-        final float[] residualScratch = new float[dimensions];
-        final byte[] qVector = new byte[length];
+
+        final int indexVectorPackedLengthInBytes = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits)
+            .getDocPackedLength(dimensions);
+
         final float[] centroid = new float[dimensions];
-        randomVector(centroid, similarityFunction);
+        randomVector(random(), centroid, similarityFunction);
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
         byte[] paddingBytes = new byte[padding];
@@ -135,40 +130,28 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
             try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
                 random().nextBytes(paddingBytes);
                 out.writeBytes(paddingBytes, 0, padding);
-                for (float[] vector : vectors) {
-                    randomVector(vector, similarityFunction);
-                    OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
-                        vector,
-                        residualScratch,
-                        scratch,
-                        (byte) 1,
-                        centroid
-                    );
-                    ESVectorUtil.packAsBinary(scratch, qVector);
-                    out.writeBytes(qVector, 0, qVector.length);
-                    out.writeInt(Float.floatToIntBits(result.lowerInterval()));
-                    out.writeInt(Float.floatToIntBits(result.upperInterval()));
-                    out.writeInt(Float.floatToIntBits(result.additionalCorrection()));
-                    out.writeInt(result.quantizedComponentSum());
+
+                float[] vector = new float[dimensions];
+                for (int i = 0; i < numVectors; i++) {
+                    randomVector(random(), vector, similarityFunction);
+                    var vectorData = createOSQIndexData(vector, centroid, quantizer, dimensions, indexBits, indexVectorPackedLengthInBytes);
+                    writeSingleOSQVectorData(out, vectorData);
                 }
                 CodecUtil.writeFooter(out);
             }
             final float[] query = new float[dimensions];
-            randomVector(query, similarityFunction);
-            OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
-                query,
-                residualScratch,
-                scratch,
-                queryBits,
-                centroid
-            );
-            final byte[] quantizeQuery = new byte[queryBytes];
-            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
+            randomVector(random(), query, similarityFunction);
+
+            final int queryVectorPackedLengthInBytes = indexBits == 7
+                ? ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).getQueryPackedLength(dimensions)
+                : indexVectorPackedLengthInBytes * (queryBits / indexBits);
+            var queryData = createOSQQueryData(query, centroid, quantizer, dimensions, queryBits, queryVectorPackedLengthInBytes);
+
             final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
             final float[] floatScratch = new float[3];
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
                 in.seek(padding);
-                final int perVectorBytes = length + 16;
+                final int perVectorBytes = indexVectorPackedLengthInBytes + 16;
                 assertEquals(in.length(), padding + (long) numVectors * perVectorBytes + CodecUtil.footerLength());
                 final IndexInput slice = in.slice("test", in.getFilePointer(), (long) perVectorBytes * numVectors);
                 // Work on a slice that has just the right number of bytes to make the test fail with an
@@ -180,7 +163,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         queryBits,
                         indexBits,
                         dimensions,
-                        length,
+                        indexVectorPackedLengthInBytes,
                         ESNextOSQVectorsScorer.BULK_SIZE
                     );
                     final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
@@ -188,17 +171,17 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         queryBits,
                         indexBits,
                         dimensions,
-                        length,
+                        indexVectorPackedLengthInBytes,
                         ESNextOSQVectorsScorer.BULK_SIZE
                     );
-                    long qDist = defaultScorer.quantizeScore(quantizeQuery);
+                    long qDist = defaultScorer.quantizeScore(queryData.quantizedVector());
                     slice.readFloats(floatScratch, 0, 3);
                     int quantizedComponentSum = slice.readInt();
-                    float defaulScore = defaultScorer.score(
-                        queryCorrections.lowerInterval(),
-                        queryCorrections.upperInterval(),
-                        queryCorrections.quantizedComponentSum(),
-                        queryCorrections.additionalCorrection(),
+                    float defaultScore = defaultScorer.score(
+                        queryData.lowerInterval(),
+                        queryData.upperInterval(),
+                        queryData.quantizedComponentSum(),
+                        queryData.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
                         floatScratch[0],
@@ -207,14 +190,14 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         floatScratch[2],
                         qDist
                     );
-                    qDist = panamaScorer.quantizeScore(quantizeQuery);
+                    qDist = panamaScorer.quantizeScore(queryData.quantizedVector());
                     in.readFloats(floatScratch, 0, 3);
                     quantizedComponentSum = in.readInt();
                     float panamaScore = panamaScorer.score(
-                        queryCorrections.lowerInterval(),
-                        queryCorrections.upperInterval(),
-                        queryCorrections.quantizedComponentSum(),
-                        queryCorrections.additionalCorrection(),
+                        queryData.lowerInterval(),
+                        queryData.upperInterval(),
+                        queryData.quantizedComponentSum(),
+                        queryData.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
                         floatScratch[0],
@@ -223,7 +206,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         floatScratch[2],
                         qDist
                     );
-                    assertEquals(defaulScore, panamaScore, 1e-2f);
+                    assertEquals(defaultScore, panamaScore, 1e-2f);
                     assertEquals(((long) (i + 1) * perVectorBytes), slice.getFilePointer());
                     assertEquals(padding + ((long) (i + 1) * perVectorBytes), in.getFilePointer());
                 }
@@ -246,23 +229,14 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
     private void doTestScoreBulk(int bulkSize) throws Exception {
         final int maxDims = random().nextInt(1, 1000) * 2;
         final int dimensions = random().nextInt(1, maxDims);
-
-        final int length = switch (indexBits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dimensions);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + indexBits);
-        };
-        final int queryBytes = length * (queryBits / indexBits);
-
         final int numVectors = bulkSize * random().nextInt(1, 10);
-        float[][] vectors = new float[numVectors][dimensions];
-        final int[] scratch = new int[dimensions];
-        final float[] residualScratch = new float[dimensions];
-        final byte[] qVector = new byte[length];
+
+        final int indexVectorPackedLengthInBytes = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits)
+            .getDocPackedLength(dimensions);
+
         final float[] centroid = new float[dimensions];
-        VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
-        randomVector(centroid, similarityFunction);
+        randomVector(random(), centroid, similarityFunction);
+
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         int padding = random().nextInt(100);
         byte[] paddingBytes = new byte[padding];
@@ -270,35 +244,32 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
             try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
                 random().nextBytes(paddingBytes);
                 out.writeBytes(paddingBytes, 0, padding);
-                OptimizedScalarQuantizer.QuantizationResult[] results = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
+
+                var vectors = new VectorScorerTestUtils.OSQVectorData[bulkSize];
+
                 for (int i = 0; i < numVectors; i += bulkSize) {
                     for (int j = 0; j < bulkSize; j++) {
-                        randomVector(vectors[i + j], similarityFunction);
-                        results[j] = quantizer.scalarQuantize(vectors[i + j], residualScratch, scratch, (byte) 1, centroid);
-                        ESVectorUtil.packAsBinary(scratch, qVector);
-                        out.writeBytes(qVector, 0, qVector.length);
+                        var vector = new float[dimensions];
+                        randomVector(random(), vector, similarityFunction);
+                        vectors[j] = createOSQIndexData(vector, centroid, quantizer, dimensions, indexBits, indexVectorPackedLengthInBytes);
                     }
-                    writeCorrections(results, out);
+                    writeBulkOSQVectorData(bulkSize, out, vectors);
                 }
                 CodecUtil.writeFooter(out);
             }
             final float[] query = new float[dimensions];
-            randomVector(query, similarityFunction);
-            OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
-                query,
-                residualScratch,
-                scratch,
-                (byte) 4,
-                centroid
-            );
-            final byte[] quantizeQuery = new byte[queryBytes];
-            ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
+            randomVector(random(), query, similarityFunction);
+            final int queryVectorPackedLengthInBytes = indexBits == 7
+                ? ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).getQueryPackedLength(dimensions)
+                : indexVectorPackedLengthInBytes * (queryBits / indexBits);
+            var queryData = createOSQQueryData(query, centroid, quantizer, dimensions, queryBits, queryVectorPackedLengthInBytes);
+
             final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
             final float[] scoresDefault = new float[ESNextOSQVectorsScorer.BULK_SIZE];
             final float[] scoresPanama = new float[ESNextOSQVectorsScorer.BULK_SIZE];
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
                 in.seek(padding);
-                final int perVectorBytes = length + 16;
+                final int perVectorBytes = indexVectorPackedLengthInBytes + 16;
                 assertEquals(in.length(), padding + (long) numVectors * perVectorBytes + CodecUtil.footerLength());
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
@@ -310,7 +281,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         queryBits,
                         indexBits,
                         dimensions,
-                        length,
+                        indexVectorPackedLengthInBytes,
                         ESNextOSQVectorsScorer.BULK_SIZE
                     );
                     final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
@@ -318,35 +289,33 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         queryBits,
                         indexBits,
                         dimensions,
-                        length,
+                        indexVectorPackedLengthInBytes,
                         ESNextOSQVectorsScorer.BULK_SIZE
                     );
                     float defaultMaxScore = defaultScorer.scoreBulk(
-                        quantizeQuery,
-                        queryCorrections.lowerInterval(),
-                        queryCorrections.upperInterval(),
-                        queryCorrections.quantizedComponentSum(),
-                        queryCorrections.additionalCorrection(),
+                        queryData.quantizedVector(),
+                        queryData.lowerInterval(),
+                        queryData.upperInterval(),
+                        queryData.quantizedComponentSum(),
+                        queryData.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
                         scoresDefault,
                         bulkSize
                     );
                     float panamaMaxScore = panamaScorer.scoreBulk(
-                        quantizeQuery,
-                        queryCorrections.lowerInterval(),
-                        queryCorrections.upperInterval(),
-                        queryCorrections.quantizedComponentSum(),
-                        queryCorrections.additionalCorrection(),
+                        queryData.quantizedVector(),
+                        queryData.lowerInterval(),
+                        queryData.upperInterval(),
+                        queryData.quantizedComponentSum(),
+                        queryData.additionalCorrection(),
                         similarityFunction,
                         centroidDp,
                         scoresPanama,
                         bulkSize
                     );
                     assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
-                    for (int j = 0; j < bulkSize; j++) {
-                        assertEquals(scoresDefault[j], scoresPanama[j], 1e-2f);
-                    }
+                    assertArrayEqualsPercent(scoresDefault, scoresPanama, 0.05f, 1e-2f);
                     assertEquals(((long) bulkSize * perVectorBytes), slice.getFilePointer());
                     assertEquals(padding + ((long) (i + bulkSize) * perVectorBytes), in.getFilePointer());
                 }
@@ -359,7 +328,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
      * for MAXIMUM_INNER_PRODUCT. Passing Float.NEGATIVE_INFINITY as queryAdditionalCorrection
      * (with all-zero corrections) forces every element's raw score to -Infinity before
      * scaleMaxInnerProductScore is applied. The correct result is 0.0 for all elements.
-     *
+     * <p>
      * This catches the AVX-512 bug where {@code _mm512_fpclass_ps_mask(res, 0x40)} (Negative Finite)
      * failed to classify -Infinity as negative, causing the positive branch ({@code 1 + res = -Infinity})
      * to be used instead of the negative branch ({@code 1/(1 - res) = 0}).
@@ -368,12 +337,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         final int dimensions = 768;
         final int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
 
-        final int length = switch (indexBits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dimensions);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + indexBits);
-        };
+        final int length = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).getDocPackedLength(dimensions);
         final int queryBytes = length * (queryBits / indexBits);
 
         try (Directory dir = newParametrizedDirectory()) {
@@ -381,6 +345,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 byte[] vector = new byte[length];
                 for (int i = 0; i < bulkSize; i++) {
                     random().nextBytes(vector);
+                    if (indexBits == 7) clampTo7Bit(vector, dimensions);
                     out.writeBytes(vector, 0, length);
                 }
                 // All-zero corrections: zero bytes are interpreted identically regardless of byte order
@@ -391,6 +356,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
 
             byte[] query = new byte[queryBytes];
             random().nextBytes(query);
+            if (indexBits == 7) clampTo7Bit(query, dimensions);
 
             float[] scoresDefault = new float[bulkSize];
             float[] scoresPanama = new float[bulkSize];
@@ -449,27 +415,9 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         }
     }
 
-    private static void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections, IndexOutput out) throws IOException {
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
-        }
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.upperInterval()));
-        }
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            out.writeInt(correction.quantizedComponentSum());
-        }
-        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
-        }
-    }
-
-    private void randomVector(float[] vector, VectorSimilarityFunction vectorSimilarityFunction) {
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = random().nextFloat();
-        }
-        if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
-            VectorUtil.l2normalize(vector);
+    private static void clampTo7Bit(byte[] vector, int dimensions) {
+        for (int i = 0; i < dimensions; i++) {
+            vector[i] = (byte) (vector[i] & 0x7F);
         }
     }
 
@@ -483,8 +431,14 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
 
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
-        return () -> Stream.of((byte) 1, (byte) 2, (byte) 4)
-            .flatMap(i -> Arrays.stream(DirectoryType.values()).map(f -> List.of(f, i)))
+        var bitCombinations = List.of(
+            List.of((byte) 1, (byte) 4),
+            List.of((byte) 2, (byte) 4),
+            List.of((byte) 4, (byte) 4),
+            List.of((byte) 7, (byte) 7)
+        );
+        return () -> bitCombinations.stream()
+            .flatMap(bits -> Arrays.stream(DirectoryType.values()).map(d -> List.of(d, bits.get(0), bits.get(1))))
             .flatMap(p -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> Stream.concat(p.stream(), Stream.of(f)).toArray()))
             .iterator();
     }

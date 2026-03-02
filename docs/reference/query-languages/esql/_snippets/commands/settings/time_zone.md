@@ -9,7 +9,7 @@ The default timezone to be used in the query. Defaults to UTC, and overrides the
 
 **Type**: `keyword`
 
-**Example**
+## Example
 
 ```esql
 SET time_zone = "+05:00";

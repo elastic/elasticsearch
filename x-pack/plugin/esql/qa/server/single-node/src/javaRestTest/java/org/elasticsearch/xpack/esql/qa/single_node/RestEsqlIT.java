@@ -1059,26 +1059,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             matchesList().item(resultMatcher)
         );
 
-        Map<String, Object> reader = null;
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
-        for (Map<String, Object> p : profiles) {
-            String description = p.get("description").toString();
-            if (description.equals("data") == false) {
-                continue;
-            }
-            fixTypesOnProfile(p);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
-            for (Map<String, Object> o : operators) {
-                String name = (String) o.get("operator");
-                if (name.startsWith("ValuesSourceReader")) {
-                    assertThat(reader, nullValue());
-                    reader = o;
-                }
-            }
-        }
-        assertNotNull(reader);
+        Map<String, Object> reader = findSingleReaderProfile("data", result);
         MapMatcher readersBuiltMatcher = matchesMap();
         for (int f = 0; f < fieldCount; f++) {
             readersBuiltMatcher = readersBuiltMatcher.entry(
@@ -1136,26 +1117,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
         assertResultMap(result, getResultMatcher(result).entry("profile", getProfileMatcher()), schemaMatcha, finalResultMatcher);
 
-        Map<String, Object> reader = null;
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
-        for (Map<String, Object> p : profiles) {
-            String description = p.get("description").toString();
-            if (description.equals("node_reduce") == false) {
-                continue;
-            }
-            fixTypesOnProfile(p);
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
-            for (Map<String, Object> o : operators) {
-                String name = (String) o.get("operator");
-                if (name.startsWith("ValuesSourceReader")) {
-                    assertThat(reader, nullValue());
-                    reader = o;
-                }
-            }
-        }
-        assertNotNull(reader);
+        Map<String, Object> reader = findSingleReaderProfile("node_reduce", result);
         MapMatcher readersBuiltMatcher = matchesMap();
         for (int f = 1; f < fieldCount; f++) { // <--- starts at 1 because we load 0 on the data node
             readersBuiltMatcher = readersBuiltMatcher.entry(
@@ -1223,6 +1185,89 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("sleeps", matchesMap().extraOk())
             .entry("documents_found", greaterThanOrEqualTo(0))
             .entry("values_loaded", greaterThanOrEqualTo(0));
+    }
+
+    public void testProfileConditionalBlockLoader() throws IOException {
+        createIndex(testIndexName(), Settings.builder().put("index.number_of_shards", "1").build(), """
+            {
+              "properties": {
+                "message": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        Request bulk = new Request("POST", testIndexName() + "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.addParameter("filter_path", "errors");
+        bulk.setJsonEntity(String.format(Locale.ROOT, """
+            {"index": {}}
+            {"message": "words words words"}
+            {"index": {}}
+            {"message": "%s"}
+            """, "words ".repeat(256)));
+
+        Response response = client().performRequest(bulk);
+        assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | KEEP message | SORT message ASC | LIMIT 2");
+        builder.profile(true);
+        // Lock to shard level partitioning, so we get consistent profile output
+        builder.pragmas(
+            Settings.builder().put(QueryPragmas.DATA_PARTITIONING.getKey(), "shard").put(QueryPragmas.PAGE_SIZE.getKey(), 1000).build()
+        );
+        builder.pragmasOk();
+        Map<String, Object> result = runEsql(builder);
+        ListMatcher schemaMatcha = matchesList();
+        schemaMatcha = schemaMatcha.item(Map.of("name", "message", "type", "text"));
+        ListMatcher rowsMatcher = matchesList();
+        rowsMatcher = rowsMatcher.item(List.of("words words words"));
+        rowsMatcher = rowsMatcher.item(Arrays.asList("words ".repeat(256)));
+        assertResultMap(result, getResultMatcher(result).entry("profile", getProfileMatcher()), schemaMatcha, rowsMatcher);
+
+        Map<String, Object> reader = findSingleReaderProfile("data", result);
+        MapMatcher readersBuiltMatcher = matchesMap();
+        readersBuiltMatcher = readersBuiltMatcher.entry("message:column_at_a_time:null", greaterThanOrEqualTo(1));
+        readersBuiltMatcher = readersBuiltMatcher.entry(
+            "stored_fields[requires_source:true, fields:0, sequential: false]",
+            greaterThanOrEqualTo(1)
+        );
+        readersBuiltMatcher = readersBuiltMatcher.entry(
+            "message:row_stride:[Delegating[to=message.keyword, impl=BytesRefsFromOrds.RowStride]/BlockSourceReader.Bytes]",
+            greaterThanOrEqualTo(1)
+        );
+        assertMap(reader, matchesMap().extraOk().entry("status", matchesMap().extraOk().entry("readers_built", readersBuiltMatcher)));
+    }
+
+    private Map<String, Object> findSingleReaderProfile(String driverDescription, Map<String, Object> result) {
+        Map<String, Object> reader = null;
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        for (Map<String, Object> p : profiles) {
+            String description = p.get("description").toString();
+            if (description.equals(driverDescription) == false) {
+                continue;
+            }
+            fixTypesOnProfile(p);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                String name = (String) o.get("operator");
+                if (name.startsWith("ValuesSourceReader")) {
+                    assertThat(reader, nullValue());
+                    reader = o;
+                }
+            }
+        }
+        assertNotNull(reader);
+        return reader;
     }
 
     /**

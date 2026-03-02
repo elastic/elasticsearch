@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -72,7 +73,6 @@ import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
@@ -722,7 +722,7 @@ public abstract class Engine implements Closeable {
         private final long seqNo;
         private final Exception failure;
         private final SetOnce<Boolean> freeze = new SetOnce<>();
-        private final Mapping requiredMappingUpdate;
+        private final CompressedXContent requiredMappingUpdate;
         private final String id;
         private Translog.Location translogLocation;
         private long took;
@@ -749,7 +749,7 @@ public abstract class Engine implements Closeable {
             this.id = id;
         }
 
-        protected Result(Operation.TYPE operationType, Mapping requiredMappingUpdate, String id) {
+        protected Result(Operation.TYPE operationType, CompressedXContent requiredMappingUpdate, String id) {
             this.operationType = operationType;
             this.version = Versions.NOT_FOUND;
             this.seqNo = UNASSIGNED_SEQ_NO;
@@ -785,9 +785,9 @@ public abstract class Engine implements Closeable {
 
         /**
          * If the operation was aborted due to missing mappings, this method will return the mappings
-         * that are required to complete the operation.
+         * that are required to complete the operation as serialized {@link CompressedXContent}.
          */
-        public Mapping getRequiredMappingUpdate() {
+        public CompressedXContent getRequiredMappingUpdate() {
             return requiredMappingUpdate;
         }
 
@@ -862,7 +862,7 @@ public abstract class Engine implements Closeable {
             this.created = false;
         }
 
-        public IndexResult(Mapping requiredMappingUpdate, String id) {
+        public IndexResult(CompressedXContent requiredMappingUpdate, String id) {
             super(Operation.TYPE.INDEX, requiredMappingUpdate, id);
             this.created = false;
         }

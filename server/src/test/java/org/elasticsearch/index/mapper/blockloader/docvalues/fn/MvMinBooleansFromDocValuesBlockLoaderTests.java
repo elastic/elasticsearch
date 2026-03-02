@@ -24,8 +24,8 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MvMinBooleansFromDocValuesBlockLoaderTests extends AbstractBooleansFromDocValuesBlockLoaderTests {
-    public MvMinBooleansFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        super(blockAtATime, multiValues, missingValues);
+    public MvMinBooleansFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
+        super(multiValues, missingValues);
     }
 
     @Override
@@ -36,10 +36,7 @@ public class MvMinBooleansFromDocValuesBlockLoaderTests extends AbstractBooleans
 
         try (var booleansReader = booleansLoader.reader(breaker, ctx); var mvMinBooleansReader = mvMinBooleansLoader.reader(breaker, ctx)) {
             assertThat(mvMinBooleansReader, readerMatcher());
-            try (
-                TestBlock booleans = read(booleansLoader, booleansReader, ctx, docs);
-                TestBlock minBooleans = read(mvMinBooleansLoader, mvMinBooleansReader, ctx, docs);
-            ) {
+            try (TestBlock booleans = read(booleansReader, docs); TestBlock minBooleans = read(mvMinBooleansReader, docs);) {
                 checkBlocks(booleans, minBooleans);
             }
         }
@@ -51,10 +48,7 @@ public class MvMinBooleansFromDocValuesBlockLoaderTests extends AbstractBooleans
                     docsArray[d] = i + d;
                 }
                 docs = TestBlock.docs(docsArray);
-                try (
-                    TestBlock booleans = read(booleansLoader, booleansReader, ctx, docs);
-                    TestBlock minBooleans = read(mvMinBooleansLoader, mvMinBooleansReader, ctx, docs);
-                ) {
+                try (TestBlock booleans = read(booleansReader, docs); TestBlock minBooleans = read(mvMinBooleansReader, docs);) {
                     checkBlocks(booleans, minBooleans);
                 }
             }

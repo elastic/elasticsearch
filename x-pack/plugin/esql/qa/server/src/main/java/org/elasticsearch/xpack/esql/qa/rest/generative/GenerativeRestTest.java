@@ -27,6 +27,7 @@ import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +35,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
@@ -101,6 +102,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "expected named expression for grouping; got ",
         "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, "
             + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/issues/140607
+        "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
+        // https://github.com/elastic/elasticsearch/issues/142860
+        "(Grok|Dissect) only supports KEYWORD or TEXT values, found expression \\[.*\\] type \\[NULL\\]",
+        // https://github.com/elastic/elasticsearch/issues/142543
+        "Column \\[.*\\] has conflicting data types in FORK branches: \\[NULL\\] and \\[.*\\]",
+        "Column \\[.*\\] has conflicting data types in FORK branches: \\[.*\\] and \\[NULL\\]",
 
         // Ts-command errors awaiting fixes
         "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
@@ -133,6 +140,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Pattern.DOTALL
     );
     /**
+     * Matches "... argument of [X] must be [Y], found value [unmapped_field] type [Z]" errors.
+     * This happens when an unmapped field ends up with a different data type that doesn't match the one of the function's argument(s).
+     */
+    private static final Pattern ANY_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*argument of \\[.*] must be \\[.*], found value \\[([^]]+)] type \\[.*].*",
+        Pattern.DOTALL
+    );
+    /**
      * Matches type mismatch errors where a function argument has one of the special types that most scalar functions reject.
      * For example: "must be [any type except counter types, dense_vector, ...], found value [...] type [counter_long]"
      */
@@ -158,7 +173,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     @Before
     public void setup() throws IOException {
-        if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
+        if (indexExists(CSV_DATASET.keySet().iterator().next()) == false) {
             loadDataSetIntoEs(client(), true, supportsSourceFieldMapping(), false);
         }
     }
@@ -184,7 +199,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     public void test() throws IOException {
         List<String> indices = availableIndices();
         List<LookupIdx> lookupIndices = lookupIndices();
-        List<CsvTestsDataLoader.EnrichConfig> policies = availableEnrichPolicies();
+        Collection<CsvTestsDataLoader.EnrichConfig> policies = ENRICH_POLICIES.values();
         CommandGenerator.QuerySchema mappingInfo = new CommandGenerator.QuerySchema(indices, lookupIndices, policies);
 
         for (int i = 0; i < ITERATIONS; i++) {
@@ -285,7 +300,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     return outputValidation;
                 }
             }
-            if (isUnmappedFieldError(outputValidation.errorMessage()) || isScalarTypeMismatchError(outputValidation.errorMessage())) {
+            if (isUnmappedFieldError(outputValidation.errorMessage(), result.query())
+                || isScalarTypeMismatchError(outputValidation.errorMessage())) {
                 return outputValidation;
             }
             if (isFirstLastSameFieldError(outputValidation.errorMessage(), result.query())) {
@@ -305,7 +321,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 return;
             }
         }
-        if (isUnmappedFieldError(query.exception().getMessage()) || isScalarTypeMismatchError(query.exception().getMessage())) {
+        if (isUnmappedFieldError(query.exception().getMessage(), query.query())
+            || isScalarTypeMismatchError(query.exception().getMessage())) {
             return;
         }
         if (isFirstLastSameFieldError(query.exception().getMessage(), query.query())) {
@@ -338,7 +355,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      *   <li>"Rule execution limit [100] reached" - can happen with complex plans involving "nullify" unmapped fields</li>
      * </ul>
      */
-    private static boolean isUnmappedFieldError(String errorMessage) {
+    private static boolean isUnmappedFieldError(String errorMessage, String query) {
+        if (query.startsWith(SET_UNMAPPED_FIELDS_PREFIX) == false) {
+            return false;
+        }
         String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
         // Try the more specific pattern first (with suggestion)
         Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
@@ -359,7 +379,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             String expression = matcher.group(1);
             return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
         }
-
+        // a non-NULL type mismatch for an unmapped field name used in a function as argument
+        matcher = ANY_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String expression = matcher.group(1);
+            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+        }
         // https://github.com/elastic/elasticsearch/issues/142390
         if (errorWithoutLineBreaks.contains("Rule execution limit [100] reached")) {
             return true;
@@ -476,9 +501,5 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         );
         result.add(new LookupIdx("multi_column_joinable_lookup", multiColumnJoinableLookupKeys));
         return result;
-    }
-
-    List<CsvTestsDataLoader.EnrichConfig> availableEnrichPolicies() {
-        return ENRICH_POLICIES;
     }
 }

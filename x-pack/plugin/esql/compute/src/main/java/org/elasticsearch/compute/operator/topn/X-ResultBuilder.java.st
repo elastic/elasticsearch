@@ -79,6 +79,11 @@ $endif$
     }
 
     @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
+    }
+
+    @Override
     public String toString() {
         return "ResultBuilderFor$Type$[inKey=" + inKey + "]";
     }

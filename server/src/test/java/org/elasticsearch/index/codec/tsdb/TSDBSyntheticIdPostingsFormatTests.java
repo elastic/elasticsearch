@@ -503,14 +503,15 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * Builds time-series index settings.
      */
     private static IndexSettings buildIndexSettings(final String indexName) {
+        var settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), List.of("hostname", "metric.field"));
+        if (rarely()) {
+            settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
+        }
         return new IndexSettings(
             IndexMetadata.builder(indexName)
-                .settings(
-                    indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
-                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-                        .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), List.of("hostname", "metric.field"))
-                        .build()
-                )
+                .settings(settings.build())
                 .putMapping("""
                     {
                         "properties": {

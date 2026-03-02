@@ -1,0 +1,5 @@
+area: CCS
+issues: []
+pr: 143367
+summary: "CPS fix: include only relevant projects in the search response metadata"
+type: bug

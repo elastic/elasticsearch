@@ -844,6 +844,41 @@ c:long
 22
 ;
 
+matchOperatorBeforeMvExpand
+required_capability: match_operator_colon
+
+from books
+| where author : "Faulkner" and book_no == "2378"
+| mv_expand author
+| keep book_no, author
+;
+ignoreOrder: true
+
+book_no:keyword | author:text
+2378            | Carol Faulkner
+2378            | Holly Byers Ochoa
+2378            | Lucretia Mott
+;
+
+matchOperatorBeforeMvExpandWithStats
+required_capability: match_operator_colon
+
+from books
+| where author : "Tolkien"
+| mv_expand author
+| stats count = count(*) by book_no
+| sort book_no
+| limit 5
+;
+
+   count:long  |    book_no:keyword
+1              |1463           
+2              |2130           
+1              |2301           
+1              |2675           
+1              |2714
+;
+
 testMatchOperatorUnionAll
 required_capability: subquery_in_from_command
 required_capability: full_text_functions_accept_null_field

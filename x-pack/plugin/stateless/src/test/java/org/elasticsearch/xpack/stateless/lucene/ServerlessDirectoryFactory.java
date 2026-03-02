@@ -1,0 +1,317 @@
+/*
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
+ */
+
+package org.elasticsearch.xpack.stateless.lucene;
+
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.lucene.store.FilterIndexOutput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
+import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_MMAP;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
+
+/**
+ * Factory for creating a serverless directory for use by the KnnIndexTester
+ * benchmark tool. This class is loaded via reflection from the elasticsearch repo's
+ * {@code qa/vector} module, so the method signatures form a stable public API.
+ *
+ * <p>The returned directory supports both reads and writes: writes go to a local
+ * NIOFSDirectory, and reads flow through the serverless blob cache
+ * (StatelessSharedBlobCacheService). This faithfully reproduces the serverless
+ * SearchDirectory read path for benchmarking purposes.
+ */
+public final class ServerlessDirectoryFactory {
+
+    private ServerlessDirectoryFactory() {}
+
+    /**
+     * Creates a directory with data and cache co-located in {@code dataPath}.
+     * The cache is sized to fit all existing index files on disk.
+     */
+    public static Directory create(Path dataPath) throws IOException {
+        return create(dataPath, dataPath);
+    }
+
+    /**
+     * Creates a directory with the index data stored in {@code indexPath} and cache
+     * infrastructure in {@code workPath}. The cache is sized to fit all existing index
+     * files on disk (rounded up to 16MB alignment).
+     *
+     * @param indexPath path where index files are stored (and written to by IndexWriter)
+     * @param workPath  scratch directory for cache and node environment files
+     * @return a read-write directory backed by the serverless blob cache
+     */
+    public static Directory create(Path indexPath, Path workPath) throws IOException {
+        return ServerlessDirectory.create(indexPath, workPath);
+    }
+
+    /**
+     * A read-write directory backed by the serverless blob cache. Writes go to a local
+     * NIOFSDirectory; reads for committed files flow through the SearchDirectory /
+     * StatelessSharedBlobCacheService, faithfully reproducing the serverless read path.
+     * Uncommitted files (temp files, lock files) are read directly from disk.
+     *
+     * <p> This is a test utility intended for benchmarking (e.g. KnnIndexTester).
+     */
+    private static class ServerlessDirectory extends FilterDirectory {
+
+        static ServerlessDirectory create(Path dataPath, Path workPath) throws IOException {
+            var cacheSize = ByteSizeValue.ofBytes(roundUpTo16MB(computeIndexSize(dataPath)));
+            var nodeSettings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), workPath)
+                .putList(Environment.PATH_DATA_SETTING.getKey(), workPath.toString())
+                .put(SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                .put(SHARED_CACHE_MMAP.getKey(), true)
+                .put("node.id.seed", 0L)
+                .build();
+            var nodeEnvironment = new NodeEnvironment(nodeSettings, new Environment(nodeSettings, null));
+            var threadPool = new ThreadPool(
+                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "serverless-directory").build(),
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders(),
+                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, false)
+            );
+            var cacheService = new StatelessSharedBlobCacheService(
+                nodeEnvironment,
+                nodeSettings,
+                threadPool,
+                new BlobCacheMetrics(MeterRegistry.NOOP),
+                new ThreadLocalDirectoryMetricHolder<>(BlobStoreCacheDirectoryMetrics::new)
+            );
+            var fakeBlobStoreDirectory = new NIOFSDirectory(dataPath);
+            var blobNameToFileName = new ConcurrentHashMap<String, String>();
+
+            var cacheBlobReaderService = new CacheBlobReaderService(nodeSettings, cacheService, null, threadPool);
+            var shardId = new ShardId(new Index("index", "_na_"), 0);
+
+            var searchDirectory = new SearchDirectory(
+                cacheService,
+                cacheBlobReaderService,
+                MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
+                shardId
+            );
+
+            var blobStore = new FsBlobStore(8192, dataPath, true);
+            var fakeBlobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, dataPath) {
+                @Override
+                public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                    return super.readBlob(purpose, resolveBlobName(blobName), position, length);
+                }
+
+                @Override
+                public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+                    return super.readBlob(purpose, resolveBlobName(blobName));
+                }
+
+                private String resolveBlobName(String blobName) {
+                    var fileName = blobNameToFileName.get(blobName);
+                    if (fileName == null) {
+                        throw new IllegalStateException("unknown blob [" + blobName + "]");
+                    }
+                    return fileName;
+                }
+            };
+            searchDirectory.setBlobContainer(primaryTerm -> fakeBlobContainer);
+
+            return new ServerlessDirectory(
+                searchDirectory,
+                fakeBlobStoreDirectory,
+                blobNameToFileName,
+                threadPool,
+                cacheService,
+                nodeEnvironment
+            );
+        }
+
+        private final SearchDirectory searchDirectory;
+        private final Directory fakeBlobStoreDirectory;
+        private final Map<String, String> blobNameToFileName;
+        private final ThreadPool threadPool;
+        private final StatelessSharedBlobCacheService cacheService;
+        private final NodeEnvironment nodeEnvironment;
+        private final Map<String, BlobFileRanges> metadata = new ConcurrentHashMap<>();
+        private final AtomicInteger blobFileGenerationGenerator = new AtomicInteger();
+
+        private ServerlessDirectory(
+            SearchDirectory searchDirectory,
+            Directory fakeBlobStoreDirectory,
+            Map<String, String> blobNameToFileName,
+            ThreadPool threadPool,
+            StatelessSharedBlobCacheService cacheService,
+            NodeEnvironment nodeEnvironment
+        ) {
+            super(searchDirectory);
+            this.searchDirectory = searchDirectory;
+            this.fakeBlobStoreDirectory = fakeBlobStoreDirectory;
+            this.blobNameToFileName = blobNameToFileName;
+            this.threadPool = threadPool;
+            this.cacheService = cacheService;
+            this.nodeEnvironment = nodeEnvironment;
+        }
+
+        private BlobFileRanges newBlobFileRanges(String name) throws IOException {
+            long fileLength = fakeBlobStoreDirectory.fileLength(name);
+            int generation = blobFileGenerationGenerator.incrementAndGet();
+            var blobName = StatelessCompoundCommit.PREFIX + generation;
+            blobNameToFileName.put(blobName, name);
+            return new BlobFileRanges(new BlobLocation(new BlobFile(blobName, new PrimaryTermAndGeneration(1, generation)), 0, fileLength));
+        }
+
+        private void refreshMetadata() {
+            long total = metadata.values().stream().mapToLong(BlobFileRanges::fileLength).sum();
+            searchDirectory.updateMetadata(Map.copyOf(metadata), total);
+        }
+
+        @Override
+        public String[] listAll() throws IOException {
+            return fakeBlobStoreDirectory.listAll();
+        }
+
+        @Override
+        public long fileLength(String name) throws IOException {
+            return fakeBlobStoreDirectory.fileLength(name);
+        }
+
+        @Override
+        public IndexOutput createOutput(String name, IOContext context) throws IOException {
+            return new FilterIndexOutput(name, fakeBlobStoreDirectory.createOutput(name, context)) {
+                @Override
+                public void close() throws IOException {
+                    super.close();
+                    metadata.put(name, newBlobFileRanges(name));
+                    refreshMetadata();
+                }
+            };
+        }
+
+        @Override
+        public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) throws IOException {
+            return fakeBlobStoreDirectory.createTempOutput(prefix, suffix, context);
+        }
+
+        @Override
+        public void deleteFile(String name) throws IOException {
+            fakeBlobStoreDirectory.deleteFile(name);
+            if (metadata.remove(name) != null) {
+                refreshMetadata();
+            }
+        }
+
+        @Override
+        public void rename(String source, String dest) throws IOException {
+            fakeBlobStoreDirectory.rename(source, dest);
+            metadata.remove(source);
+            metadata.put(dest, newBlobFileRanges(dest));
+            refreshMetadata();
+        }
+
+        @Override
+        public void sync(Collection<String> names) throws IOException {
+            fakeBlobStoreDirectory.sync(names);
+        }
+
+        @Override
+        public void syncMetaData() throws IOException {
+            fakeBlobStoreDirectory.syncMetaData();
+        }
+
+        @Override
+        public Lock obtainLock(String name) throws IOException {
+            return fakeBlobStoreDirectory.obtainLock(name);
+        }
+
+        @Override
+        public Set<String> getPendingDeletions() throws IOException {
+            return fakeBlobStoreDirectory.getPendingDeletions();
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            if (metadata.containsKey(name) == false) {
+                metadata.put(name, newBlobFileRanges(name));
+                refreshMetadata();
+            }
+            return super.openInput(name, context);
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(searchDirectory, fakeBlobStoreDirectory);
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+            cacheService.close();
+            nodeEnvironment.close();
+        }
+
+        private static long computeIndexSize(Path dataPath) throws IOException {
+            long totalSize = 0;
+            try (var dir = new NIOFSDirectory(dataPath)) {
+                for (String file : dir.listAll()) {
+                    if (file.equals("write.lock") == false) {
+                        totalSize += dir.fileLength(file);
+                    }
+                }
+            }
+            return totalSize;
+        }
+
+        private static long roundUpTo16MB(long value) {
+            long block = 16L * 1024 * 1024;
+            return ((value + block - 1) / block) * block;
+        }
+    }
+}

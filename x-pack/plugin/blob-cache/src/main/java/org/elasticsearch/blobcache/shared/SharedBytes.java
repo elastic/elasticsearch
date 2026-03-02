@@ -375,6 +375,22 @@ public class SharedBytes extends AbstractRefCounted {
             return bytesRead;
         }
 
+        /**
+         * Returns a read-only ByteBuffer slice of the memory-mapped region,
+         * or {@code null} if not memory-mapped.
+         *
+         * @param position the starting position within the region, must be non-negative
+         * @param length   the number of bytes, {@code position + length} must not exceed the region size
+         * @throws IllegalArgumentException if the position/length are out of bounds
+         */
+        public ByteBuffer byteBufferSlice(int position, int length) {
+            if (mmap) {
+                checkOffsets(position, length);
+                return mappedByteBuffer.buffer().slice(position, length).asReadOnlyBuffer();
+            }
+            return null;
+        }
+
         @SuppressForbidden(reason = "Use positional writes on purpose")
         public int write(ByteBuffer src, int position) throws IOException {
             // check if writes are page size aligned for optimal performance

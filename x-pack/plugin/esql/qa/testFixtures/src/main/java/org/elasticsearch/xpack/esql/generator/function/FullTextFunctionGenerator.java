@@ -48,7 +48,8 @@ public final class FullTextFunctionGenerator {
             if ("limit".equals(cmd.commandName())
                 || "stats".equals(cmd.commandName())
                 || "inline stats".equals(cmd.commandName())
-                || "change_point".equals(cmd.commandName())) {
+                || "change_point".equals(cmd.commandName())
+                || "mv_expand".equals(cmd.commandName())) {
                 return false;
             }
         }

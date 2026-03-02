@@ -1200,10 +1200,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         HashMap<String, ResolvedIndexExpressions> resolvedExpressions = new HashMap<>();
 
         for (Map.Entry<String, SearchPlanningPhaseResolutionResult> entry : responsesByProject) {
-            // There was a valid, non-null response from the _resolve/index API for this linked project.
             String projectName = entry.getKey();
             SearchPlanningPhaseResolutionResult result = entry.getValue();
 
+            // There was a valid, non-null response from the _resolve/index API for this linked project.
             if (result.response() instanceof ResolveIndexAction.Response response) {
                 resolvedExpressions.put(projectName, response.getResolvedIndexExpressions());
             } else if (result.error() != null) {

@@ -65,6 +65,7 @@ public class TestEntitlementsRule implements TestRule {
                         try {
                             pathLookup.reset();
                             policyManager.setActive(false == withoutEntitlements);
+                            ESTestCase.ensureSupportedLocale(); // In case setDefaultLocale() is needed
                             policyManager.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
                             if (entitledPackages != null) {
                                 assert entitledPackages.value().length > 0 : "No test packages specified in @EntitledTestPackages";

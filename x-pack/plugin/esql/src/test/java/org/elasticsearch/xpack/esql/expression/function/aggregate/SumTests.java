@@ -158,30 +158,19 @@ public class SumTests extends AbstractAggregationTestCase {
                                 sum.set(j, sum.get(j) + vectors.get(i).get(j));
                             }
                         }
-                        yield sum;
+                        yield sum.stream().anyMatch(f -> Float.isFinite(f) == false) ? null : sum;
                     }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
             }
 
             // Doubles currently return +/-Infinity on overflow.
-            // Dense vectors use lists of floats, which also return +/-Infinity on overflow
             // After https://github.com/elastic/elasticsearch/issues/111026,
             // replace it with an "if + expected = null"
             assumeFalse(
                 "Sums of doubles may return infinity in their current implementation",
                 expected instanceof Double d && Double.isFinite(d) == false
             );
-            if (expected instanceof List<?> vector) {
-                for (Object o : vector) {
-                    assert o instanceof Float;
-                    Float f = (Float) o;
-                    assumeFalse(
-                        "Sums of floats in dense_vector may return infinity in their current implementation",
-                        Float.isFinite(f) == false
-                    );
-                }
-            }
 
             var returnType = type == DENSE_VECTOR ? DENSE_VECTOR
                 : type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE

@@ -131,6 +131,11 @@ class SumDenseVectorAggregator {
             if (seen == false || sum == null) {
                 return driverContext.blockFactory().newConstantNullBlock(1);
             }
+            for (float f : sum) {
+                if (Float.isFinite(f) == false) {
+                    return driverContext.blockFactory().newConstantNullBlock(1);
+                }
+            }
             try (FloatBlock.Builder builder = driverContext.blockFactory().newFloatBlockBuilder(sum.length)) {
                 builder.beginPositionEntry();
                 for (float f : sum) {

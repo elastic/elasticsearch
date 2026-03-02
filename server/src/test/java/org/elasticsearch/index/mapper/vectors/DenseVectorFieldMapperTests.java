@@ -1978,7 +1978,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testConfidenceIntervalDeprecationOnLatestIndexVersion() throws IOException {
-        createDocumentMapper(IndexVersions.UPGRADE_TO_LUCENE_10_4_0, fieldMapping(b -> {
+        DocumentMapper mapper = createDocumentMapper(IndexVersions.UPGRADE_TO_LUCENE_10_4_0, fieldMapping(b -> {
             b.field("type", "dense_vector");
             b.field("dims", 6);
             b.field("index", true);
@@ -1988,6 +1988,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             b.field("confidence_interval", 0.95f);
             b.endObject();
         }));
+        assertTrue(mapper.mappingSource().string().contains("\"confidence_interval\":0.95"));
         assertWarnings(
             "Parameter [confidence_interval] in [index_options] for dense_vector field "
                 + "[field] is deprecated and will be removed in a future version"
@@ -1995,16 +1996,20 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     public void testConfidenceIntervalNoDeprecationBeforeLatestIndexVersion() throws IOException {
-        createDocumentMapper(IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_4_0), fieldMapping(b -> {
-            b.field("type", "dense_vector");
-            b.field("dims", 6);
-            b.field("index", true);
-            b.field("similarity", "dot_product");
-            b.startObject("index_options");
-            b.field("type", "int8_hnsw");
-            b.field("confidence_interval", 0.95f);
-            b.endObject();
-        }));
+        DocumentMapper mapper = createDocumentMapper(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_4_0),
+            fieldMapping(b -> {
+                b.field("type", "dense_vector");
+                b.field("dims", 6);
+                b.field("index", true);
+                b.field("similarity", "dot_product");
+                b.startObject("index_options");
+                b.field("type", "int8_hnsw");
+                b.field("confidence_interval", 0.95f);
+                b.endObject();
+            })
+        );
+        assertTrue(mapper.mappingSource().string().contains("\"confidence_interval\":0.95"));
         assertWarnings();
     }
 

@@ -308,9 +308,8 @@ final class DynamicFieldsBuilder {
 
         boolean createDynamicField(Mapper.Builder builder, DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
             throws IOException {
-            String fullPath = mapperBuilderContext.buildFullName(builder.leafName());
-            if (context.addDynamicMapper(builder, fullPath)) {
-                Mapper mapper = builder.build(mapperBuilderContext);
+            Mapper mapper = context.getDynamicMapper(builder.leafName(), () -> builder, mapperBuilderContext);
+            if (mapper != null) {
                 parseField.accept(context, mapper);
                 return true;
             } else {

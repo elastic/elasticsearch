@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -694,16 +695,31 @@ public abstract class DocumentParserContext {
      * @return the mapper, or null if the field limit was exceeded
      */
     final Mapper getDynamicMapper(String fieldName) {
-        String fullPath = path().pathAsText(fieldName);
+        return getDynamicMapper(
+            fieldName,
+            () -> DynamicFieldsBuilder.createDynamicObjectMapperBuilder(this, fieldName),
+            createDynamicMapperBuilderContext()
+        );
+    }
+
+    /**
+     * Returns a dynamically created mapper for the given field name, creating one from the
+     * supplied builder factory if it doesn't already exist. Caches the result so that
+     * subsequent calls for the same field path reuse the same mapper instance.
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    final Mapper getDynamicMapper(String fieldName, Supplier<Mapper.Builder> builderFactory, MapperBuilderContext builderContext) {
+        String fullPath = builderContext.buildFullName(fieldName);
         Mapper existing = builtDynamicMappers.get(fullPath);
         if (existing != null) {
             return existing;
         }
-        Mapper.Builder builder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(this, fieldName);
+        Mapper.Builder builder = builderFactory.get();
         if (addDynamicMapper(builder, fullPath) == false) {
             return null;
         }
-        Mapper mapper = builder.build(createDynamicMapperBuilderContext());
+        Mapper mapper = builder.build(builderContext);
         builtDynamicMappers.put(fullPath, mapper);
         return mapper;
     }

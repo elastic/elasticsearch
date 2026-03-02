@@ -783,6 +783,7 @@ public final class DocumentParser {
         XContentParser parser = context.parser();
         XContentParser.Token token;
         XContentParser.Token previousToken = parser.currentToken();
+        int valueElements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, lastFieldName);
@@ -795,6 +796,7 @@ public final class DocumentParser {
             } else {
                 assert token.isValue();
                 parseValue(context, lastFieldName);
+                valueElements++;
             }
             previousToken = token;
         }
@@ -805,13 +807,13 @@ public final class DocumentParser {
             && context.isImmediateParentAnArray()) {
             context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
         }
-        postProcessDynamicArrayMapping(context, lastFieldName);
+        postProcessDynamicArrayMapping(context, lastFieldName, valueElements);
     }
 
     /**
      * Arrays that have been classified as floats and meet specific criteria are re-mapped to dense_vector.
      */
-    private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName) {
+    private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName, int arraySize) {
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
             final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
             final String fullFieldName = builderContext.buildFullName(fieldName);
@@ -819,8 +821,8 @@ public final class DocumentParser {
             if (builders == null
                 || context.isFieldAppliedFromTemplate(fullFieldName)
                 || context.isCopyToDestinationField(fullFieldName)
-                || builders.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
-                || builders.size() > MAX_DIMS_COUNT
+                || arraySize < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+                || arraySize > MAX_DIMS_COUNT
                 || builders.stream()
                     .anyMatch(
                         b -> b instanceof NumberFieldMapper.Builder == false
@@ -836,7 +838,7 @@ public final class DocumentParser {
                 IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
                 context.getVectorFormatProviders()
             );
-            builder.dimensions(builders.size());
+            builder.dimensions(arraySize);
             context.updateDynamicMappers(fullFieldName, List.of(builder));
         }
     }

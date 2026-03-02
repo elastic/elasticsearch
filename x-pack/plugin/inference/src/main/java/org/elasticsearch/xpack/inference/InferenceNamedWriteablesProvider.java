@@ -85,6 +85,9 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalSer
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.MultilingualE5SmallInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.RerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
@@ -189,6 +192,7 @@ public class InferenceNamedWriteablesProvider {
         addAi21NamedWriteables(namedWriteables);
         addOpenShiftAiNamedWriteables(namedWriteables);
         addNvidiaNamedWriteables(namedWriteables);
+        addFireworksAiNamedWriteables(namedWriteables);
         addMixedbreadNamedWriteables(namedWriteables);
 
         addUnifiedNamedWriteables(namedWriteables);
@@ -358,6 +362,30 @@ public class InferenceNamedWriteablesProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(TaskSettings.class, NvidiaEmbeddingsTaskSettings.NAME, NvidiaEmbeddingsTaskSettings::new)
+        );
+    }
+
+    private static void addFireworksAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                FireworksAiEmbeddingsServiceSettings.NAME,
+                FireworksAiEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                FireworksAiChatCompletionServiceSettings.NAME,
+                FireworksAiChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                FireworksAiChatCompletionTaskSettings.NAME,
+                FireworksAiChatCompletionTaskSettings::new
+            )
         );
     }
 

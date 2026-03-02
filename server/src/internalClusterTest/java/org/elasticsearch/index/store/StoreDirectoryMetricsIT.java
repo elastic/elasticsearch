@@ -21,6 +21,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -30,7 +31,7 @@ public class StoreDirectoryMetricsIT extends ESIntegTestCase {
         final String indexName = randomIndexName();
         createIndex(indexName, 1, 0);
         IntStream.range(0, between(10, 100)).forEach(i -> indexDoc(indexName, "id " + i, "f", i));
-        flush(indexName);
+        flushAndRefresh(indexName);
 
         String node = internalCluster().nodesInclude(indexName).iterator().next();
 
@@ -41,27 +42,31 @@ public class StoreDirectoryMetricsIT extends ESIntegTestCase {
         Tuple<Long, DirectoryMetrics> tuple = indicesService.withDirectoryMetrics(() -> {
             try (Engine.Searcher searcher = searchShard.acquireSearcher("test")) {
                 Directory directory = searcher.getDirectoryReader().directory();
-                String[] files = directory.listAll();
+                Collection<String> files = searcher.getDirectoryReader().getIndexCommit().getFileNames();
                 long reads = 0;
                 for (String file : files) {
-                    if (file.endsWith("lock") == false) {
-                        IndexInput indexInput = directory.openInput(
-                            file,
-                            file.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT
-                        );
-                        indexInput.readByte();
-                        ++reads;
-                        indexInput.seek(directory.fileLength(file) - 1);
-                        indexInput.readByte();
-                        ++reads;
-                        indexInput.close();
-                    }
+                    IndexInput indexInput = directory.openInput(
+                        file,
+                        file.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT
+                    );
+                    indexInput.readByte();
+                    ++reads;
+                    indexInput.seek(directory.fileLength(file) - 1);
+                    indexInput.readByte();
+                    ++reads;
+                    indexInput.close();
                 }
                 return reads;
             }
         });
         DirectoryMetrics metrics = tuple.v2();
         StoreMetrics storeMetrics = metrics.metrics("store").cast(StoreMetrics.class);
-        assertThat(storeMetrics.getBytesRead(), equalTo(tuple.v1()));
+        // In release builds the directory_metrics feature flag is disabled by default, so the store directory is not
+        // wrapped with StoreMetricsDirectory and bytes read are not tracked.
+        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            assertThat(storeMetrics.getBytesRead(), equalTo(tuple.v1()));
+        } else {
+            assertThat(storeMetrics.getBytesRead(), equalTo(0L));
+        }
     }
 }

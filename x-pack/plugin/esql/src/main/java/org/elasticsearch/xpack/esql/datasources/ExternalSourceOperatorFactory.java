@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -192,6 +194,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final List<String> projectedColumns;
         private final int batchSize;
         private final ExternalSliceQueue sliceQueue;
+        private final ArrayDeque<ExternalSplit> pendingChildren = new ArrayDeque<>();
         private CloseableIterator<Page> currentPages;
         private boolean finished = false;
 
@@ -220,22 +223,42 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                         return currentPages.next();
                     }
                     closeCurrentPages();
-                    ExternalSplit split = sliceQueue.nextSplit();
-                    if (split == null) {
+                    ExternalSplit next = nextLeafSplit();
+                    if (next == null) {
                         finished = true;
                         return null;
                     }
-                    if (split instanceof FileSplit fileSplit) {
-                        StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                        currentPages = formatReader.read(obj, projectedColumns, batchSize);
-                    } else {
-                        throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
-                    }
+                    currentPages = openFileSplit(next);
                 }
             } catch (Exception e) {
                 finished = true;
                 throw new RuntimeException("Error reading from external source split", e);
             }
+        }
+
+        private ExternalSplit nextLeafSplit() {
+            while (true) {
+                if (pendingChildren.isEmpty() == false) {
+                    return pendingChildren.poll();
+                }
+                ExternalSplit split = sliceQueue.nextSplit();
+                if (split == null) {
+                    return null;
+                }
+                if (split instanceof CoalescedSplit coalesced) {
+                    pendingChildren.addAll(coalesced.children());
+                } else {
+                    return split;
+                }
+            }
+        }
+
+        private CloseableIterator<Page> openFileSplit(ExternalSplit split) throws IOException {
+            if (split instanceof FileSplit fileSplit) {
+                StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
+                return formatReader.read(obj, projectedColumns, batchSize);
+            }
+            throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
         }
 
         @Override

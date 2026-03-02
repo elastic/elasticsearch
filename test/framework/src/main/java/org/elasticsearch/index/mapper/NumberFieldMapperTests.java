@@ -453,7 +453,12 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                     .map(t -> round.apply((Number) t.v2()))
                     .sorted()
                     .collect(Collectors.toCollection(ArrayList::new));
-                values.stream().filter(v -> false == v.v2() instanceof Number).map(Tuple::v2).forEach(outList::add);
+                List<Object> malformed = values.stream()
+                    .filter(v -> false == v.v2() instanceof Number)
+                    .map(Tuple::v2)
+                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                    .toList();
+                malformed.forEach(outList::add);
                 var out = outList.size() == 1 ? outList.get(0) : outList;
 
                 return new SyntheticSourceExample(in, out, this::mapping);

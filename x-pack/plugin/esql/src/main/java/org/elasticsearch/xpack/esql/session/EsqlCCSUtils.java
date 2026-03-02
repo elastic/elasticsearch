@@ -197,6 +197,13 @@ public class EsqlCCSUtils {
         }
     }
 
+    /**
+     * Update the state for clusters that returned zero matching indices — fail the query, mark the cluster as skipped, or mark it as done.
+     * <p>
+     * @param executionInfo - The per-cluster CCS state
+     * @param indexResolutions - The collection of IndexResolution objects produced by field-caps
+     * @param usedFilter - Whether the query had a request-level filter.
+     */
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         Collection<IndexResolution> indexResolutions,
@@ -236,7 +243,8 @@ public class EsqlCCSUtils {
                     }
                 }
                 if (usedFilter == false) {
-                    // We check for filter since the filter may be the reason why the index is missing, and then we don't want to mark yet
+                    // A filter can cause field-caps to return zero indices for a pattern that actually exists. If so, we don't want to
+                    // prematurely fail — we'll retry without the filter.
                     markClusterWithFinalStateAndNoShards(
                         executionInfo,
                         c,
@@ -267,13 +275,16 @@ public class EsqlCCSUtils {
             }
         }
         // When views split a query into multiple branches, each branch gets its own IndexResolution. A branch for an unauthorized
-        // concrete index will have an empty resolution that the per-cluster check above misses (because another branch on the same
-        // cluster has matches). Detect these individually.
+        // concrete index will have an empty resolution that the per-cluster check above misses. Detect these individually.
         for (IndexResolution indexResolution : indexResolutions) {
             if (indexResolution.isValid()
                 && indexResolution.resolvedIndices().isEmpty()
                 && concreteIndexRequested(indexResolution.get().name())) {
                 String clusterAlias = RemoteClusterAware.parseClusterAlias(indexResolution.get().name());
+                // Already handled
+                if (clustersWithNoMatchingIndices.contains(clusterAlias) || executionInfo.getCluster(clusterAlias) == null) {
+                    continue;
+                }
                 if (executionInfo.shouldSkipOnFailure(clusterAlias) == false || usedFilter) {
                     String error = Strings.format("Unknown index [%s]", indexResolution.get().name());
                     if (fatalErrorMessage == null) {

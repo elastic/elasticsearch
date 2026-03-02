@@ -1385,10 +1385,7 @@ public class InternalEngine extends Engine {
 
                     // Collect append-only docs for batch Lucene add
                     if (plan.indexIntoLucene && plan.useLuceneUpdateDocument == false) {
-                        List<LuceneDocument> docs = op.parsedDoc().docs();
-                        for (LuceneDocument doc : docs) {
-                            appendDocs.add(doc);
-                        }
+                        appendDocs.addAll(op.parsedDoc().docs());
                     }
 
                     // Placeholder result — will be filled in below

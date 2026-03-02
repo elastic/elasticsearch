@@ -10,7 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.index.mapper.LuceneDocument;
 
 import java.io.IOException;
 
@@ -22,7 +22,10 @@ public class BatchIndexWriter {
         this.indexWriter = indexWriter;
     }
 
-    public long batchAddDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
-        return indexWriter.addDocuments(docs);
+    public void batchAddDocuments(Iterable<LuceneDocument> docs) throws IOException {
+//        return indexWriter.batchAddDocuments(docs);
+        for (LuceneDocument doc : docs) {
+            indexWriter.addDocument(doc);
+        }
     }
 }

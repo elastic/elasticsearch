@@ -23,7 +23,7 @@ public class BatchIndexWriter {
     }
 
     public void batchAddDocuments(Iterable<LuceneDocument> docs) throws IOException {
-//        return indexWriter.batchAddDocuments(docs);
+        // return indexWriter.batchAddDocuments(docs);
         for (LuceneDocument doc : docs) {
             indexWriter.addDocument(doc);
         }

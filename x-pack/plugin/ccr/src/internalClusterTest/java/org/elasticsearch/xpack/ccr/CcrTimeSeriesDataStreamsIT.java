@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -270,8 +268,6 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
             assertHitCount(followerClient().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), nonDeletedDocs.size());
         });
 
-        Thread.sleep(30_000L);
-        leaderClient().execute(ForceMergeAction.INSTANCE, new ForceMergeRequest()).actionGet();
     }
 
     private static void putDataStreamTemplate(Client client, String dataStreamName, int primaries, int replicas, boolean useSyntheticId)

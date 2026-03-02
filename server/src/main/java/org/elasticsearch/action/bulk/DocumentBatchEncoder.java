@@ -117,6 +117,7 @@ public class DocumentBatchEncoder {
                 }
                 case START_ARRAY -> {
                     // Store entire array as raw XContent bytes
+                    // TODO: Widen does not work here
                     BytesReference rawBytes = captureRawXContent(parser, xContentType);
                     ColumnBuilder col = columns.computeIfAbsent(fieldPath, k -> new ColumnBuilder(docCount));
                     col.setBinary(docIdx, rawBytes);

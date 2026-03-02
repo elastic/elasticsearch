@@ -1429,10 +1429,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
             for (Alias field : row.fields()) {
-                Alias result = (Alias) field.transformUp(
-                    UnresolvedAttribute.class,
-                    ua -> fieldExpressions.getOrDefault(ua.name(), ua)
-                );
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> fieldExpressions.getOrDefault(ua.name(), ua));
 
                 changed |= result != field;
                 newFields.add(result);

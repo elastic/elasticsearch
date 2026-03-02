@@ -928,6 +928,21 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     continue;
                 }
 
+                // Ensure all terms in group g can fit their trim in a byte.
+                // Terms may have effectiveLen < sharedLen from earlier shortening,
+                // making their trim (prevStoredLen - effectiveLen) exceed 255.
+                int minEffective = sharedLen;
+                for (int i = groupStart[g]; i < groupEnd[g]; i++) {
+                    int eff = effectivePrefixLens[i] & 0xFFFF;
+                    if (eff < minEffective) {
+                        minEffective = eff;
+                    }
+                }
+                if (prevStoredLen - minEffective > 255) {
+                    prevActiveGroup = g;
+                    continue;
+                }
+
                 double savingsCompressed = curPrefixLen / PREFIX_COMPRESSION_RATIO + OFFSET_COST_BYTES;
 
                 long extraSuffixBytes = 0;

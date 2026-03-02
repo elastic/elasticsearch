@@ -701,24 +701,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
 
         DlmStep previousStep = action.steps().get(stepToExecuteIndex - 1);
-        List<String> possibleOutputIndexNamePatterns = previousStep.possibleOutputIndexNamePatterns(index.getName());
+        List<String> possibleIndexNames = previousStep.possibleOutputIndexNamePatterns(index.getName());
 
-        for (String candidateIndexName : possibleOutputIndexNamePatterns) {
-            if (projectState.metadata().hasIndex(candidateIndexName)) {
-                return projectState.metadata().index(candidateIndexName).getIndex();
-            }
-        }
-
-        assert false
-            : "Unable to resolve index name for executing step ["
-                + action.steps().get(stepToExecuteIndex).stepName()
-                + "] for action ["
-                + action.name()
-                + "] with index ["
-                + index.getName()
-                + "]";
-
-        return index;
+        return possibleIndexNames.stream()
+            .filter(projectState.metadata()::hasIndex)
+            .findFirst()
+            .map(possibleName -> projectState.metadata().index(possibleName).getIndex())
+            .orElseGet(() -> {
+                assert false
+                    : "Unable to resolve index name for executing step ["
+                        + action.steps().get(stepToExecuteIndex).stepName()
+                        + "] for action ["
+                        + action.name()
+                        + "] with index ["
+                        + index.getName()
+                        + "]";
+                return index;
+            });
     }
 
     // visible for testing

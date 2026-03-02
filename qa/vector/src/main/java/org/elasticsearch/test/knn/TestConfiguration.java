@@ -69,7 +69,8 @@ record TestConfiguration(
     boolean doPrecondition,
     int preconditioningBlockDims,
     int flatVectorThreshold,
-    int secondaryClusterSize
+    int secondaryClusterSize,
+    String directoryType
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -110,6 +111,7 @@ record TestConfiguration(
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
+    static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -174,6 +176,7 @@ record TestConfiguration(
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
+        PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -230,6 +233,11 @@ record TestConfiguration(
                 "search_params",
                 "array[object]",
                 "Explicit per-search settings; each object may include search fields like num_candidates, k, and visit_percentage."
+            ),
+            new ParameterHelp(
+                "directory_type",
+                "string",
+                "Directory type: default (mmap), frozen (searchable snapshot), or custom types registered by external wrappers."
             )
         );
 
@@ -304,6 +312,7 @@ record TestConfiguration(
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
         private int flatIndexThreshold = -1; // use format's default threshold
+        private String directoryType = "default";
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -507,6 +516,11 @@ record TestConfiguration(
 
         public Builder setSecondaryClusterSize(int secondaryClusterSize) {
             this.secondaryClusterSize = secondaryClusterSize;
+            return this;
+        }
+
+        public Builder setDirectoryType(String directoryType) {
+            this.directoryType = directoryType.toLowerCase(Locale.ROOT);
             return this;
         }
 
@@ -727,7 +741,8 @@ record TestConfiguration(
                 doPrecondition,
                 preconditioningBlockDims,
                 flatVectorThreshold,
-                secondaryClusterSize
+                secondaryClusterSize,
+                directoryType
             );
         }
 
@@ -784,7 +799,8 @@ record TestConfiguration(
             if (searchParams != null) {
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
-            builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatIndexThreshold);
+            builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
+            builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
             return builder.endObject();
         }
 

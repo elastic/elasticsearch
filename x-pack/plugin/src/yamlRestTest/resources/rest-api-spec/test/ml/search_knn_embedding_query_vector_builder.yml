@@ -125,3 +125,60 @@ setup:
   - match: { error.type: "status_exception" }
   - match: { error.reason: "Incompatible task_type for embedding API, the inference endpoint
                             [text-embedding-inference-id] has task type [text_embedding], expected [embedding]" }
+
+---
+"missing required params":
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  type: text
+                  value: "test query"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[inference_id] must be specified" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  value: "test query"
+
+  - match: { error.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.reason: "Required [type]" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  type: text
+
+  - match: { error.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.reason: "Required [value]" }
+

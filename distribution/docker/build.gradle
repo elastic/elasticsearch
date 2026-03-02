@@ -568,7 +568,7 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
       DockerBase base = DockerBase.WOLFI
 
       TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(taskName("build", architecture, base, "DockerImage"))
-      inputs.files(buildBaseTask)
+      inputs.files(buildBaseTask).withPathSensitivity(PathSensitivity.RELATIVE)
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
@@ -650,7 +650,7 @@ subprojects { Project subProject ->
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
     def exportTask = tasks.register(exportTaskName, LoggedExec) {
-      inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
+      inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker").withPathSensitivity(PathSensitivity.RELATIVE)
       executable = 'docker'
       outputs.file(tarFile)
       outputs.doNotCacheIf("Build cache is disabled for export tasks") { true }

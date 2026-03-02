@@ -57,6 +57,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -66,10 +67,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
-import java.util.function.ToLongFunction;
+
+import static org.elasticsearch.action.admin.cluster.snapshots.get.PreflightFilterResult.EXCLUDE;
+import static org.elasticsearch.action.admin.cluster.snapshots.get.PreflightFilterResult.INCLUDE;
+import static org.elasticsearch.action.admin.cluster.snapshots.get.PreflightFilterResult.INCONCLUSIVE;
 
 /**
  * Transport action for get-snapshots API
@@ -78,6 +81,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     public static final ActionType<GetSnapshotsResponse> TYPE = new ActionType<>("cluster:admin/snapshot/get");
     private static final Logger logger = LogManager.getLogger(TransportGetSnapshotsAction.class);
+
+    private static final EnumSet<SnapshotState> COMPLETED_STATES = EnumSet.copyOf(
+        Arrays.stream(SnapshotState.values()).filter(SnapshotState::completed).toList()
+    );
 
     private final RepositoriesService repositoriesService;
     private final ProjectResolver projectResolver;
@@ -200,14 +207,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
          *                      |                                                                               |
          *                      +---------------------X  Skipped as also in-progress                            |
          *                      +---------------------X  snapshotNamePredicate (requested names/wildcards)      |
-         *                      +---------------------X  ?from_sort_value (when ?sort = name)                   |
+         *                      +---------------------X  ?from_sort_value (when ?sort = name/indices)           |
          *                      |                                                                               |
          *                      +-->  Look up SnapshotDetails                                                   |
          *                            |                                                                         |
          *                            | Preflight filtering (may be incomplete)                                 |
-         *                            +---------------X  ?from_sort_value (when ?sort = start/duration/indices) |
+         *                            +---------------X  ?from_sort_value (when ?sort = start/duration)         |
          *                            +---------------X  ?state                                                 |
          *                            +---------------X  ?slm_policy_filter                                     |
+         *                            |                                                                         |
+         *                            | (proceed if preflight result is INCLUDE or INCONCLUSIVE)                |
          *                            |                                                                         |
          *                            |                                                                         |
          *                            |                                                                         |
@@ -258,16 +267,17 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         // snapshots selection
         private final SnapshotNamePredicate snapshotNamePredicate;
-        private final SnapshotPredicates fromSortValuePredicates;
+        private final FromSortValuePredicates fromSortValuePredicates;
         private final Predicate<String> slmPolicyPredicate;
         private final EnumSet<SnapshotState> states;
+        private final boolean matchAllCompletedStates;
 
         // snapshot ordering/pagination
         private final SnapshotSortKey sortBy;
         private final SortOrder order;
         @Nullable
         private final String fromSortValue;
-        private final Predicate<SnapshotInfo> afterPredicate;
+        private final AfterPredicates afterPredicates;
 
         // current state
         private final SnapshotsInProgress snapshotsInProgress;
@@ -299,7 +309,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             SortOrder order,
             String fromSortValue,
             int offset,
-            SnapshotSortKey.After after,
+            After after,
             int size,
             SnapshotsInProgress snapshotsInProgress,
             boolean verbose,
@@ -317,11 +327,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.verbose = verbose;
             this.indices = indices;
             this.states = states;
+            this.matchAllCompletedStates = states.containsAll(COMPLETED_STATES);
 
             this.snapshotNamePredicate = SnapshotNamePredicate.forSnapshots(ignoreUnavailable, snapshots);
-            this.fromSortValuePredicates = SnapshotPredicates.forFromSortValue(fromSortValue, sortBy, order);
+            this.fromSortValuePredicates = FromSortValuePredicates.forFromSortValue(fromSortValue, sortBy, order);
             this.slmPolicyPredicate = SlmPolicyPredicate.forPolicies(policies);
-            this.afterPredicate = sortBy.getAfterPredicate(after, order);
+            this.afterPredicates = AfterPredicates.forAfter(after, sortBy, order);
 
             this.getSnapshotInfoExecutor = new GetSnapshotInfoExecutor(
                 threadPool.info(ThreadPool.Names.SNAPSHOT_META).getMax(),
@@ -344,7 +355,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 .addListener(
                     listener.map(ignored -> buildResponse()),
                     // If we didn't load any SnapshotInfo blobs from the repo (e.g. verbose=false or current-snapshots-only) then this
-                    // listener chain will already be complete, no need to fork again. Otherwise we forked to SNAPSHOT_META so must
+                    // listener chain will already be complete, no need to fork again. Otherwise, we forked to SNAPSHOT_META so must
                     // fork back to MANAGEMENT for the final step.
                     executor,
                     threadPool.getThreadContext()
@@ -409,7 +420,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                         public void onResponse(SnapshotInfo snapshotInfo) {
                                             if (matchesPredicates(snapshotInfo)) {
                                                 totalCount.incrementAndGet();
-                                                if (afterPredicate.test(snapshotInfo)) {
+                                                if (afterPredicates.test(snapshotInfo)) {
                                                     snapshotInfoCollector.add(snapshotInfo.maybeWithoutIndices(indices));
                                                 }
                                             }
@@ -588,14 +599,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                             repositoryData.getSnapshotIds().iterator(),
                             snapshotId -> matchingInProgressSnapshots.contains(snapshotId) == false
                                 && snapshotNamePredicate.test(snapshotId.getName(), false)
-                                && matchesPredicates(snapshotId, repositoryData)
+                                && matchesPredicates(snapshotId, repositoryData) != EXCLUDE
                         ),
                         snapshotId -> forCompletedSnapshot(repository, snapshotId, repositoryData, indicesLookup)
                     )
             );
         }
 
-        @Nullable
         private Map<SnapshotId, List<String>> getIndicesLookup(RepositoryData repositoryData) {
             if (repositoryData == null || verbose || indices == false) {
                 return Map.of();
@@ -604,8 +614,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final Map<SnapshotId, List<String>> snapshotsToIndices = new HashMap<>();
             for (IndexId indexId : repositoryData.getIndices().values()) {
                 for (SnapshotId snapshotId : repositoryData.getSnapshots(indexId)) {
-                    if (snapshotNamePredicate.test(snapshotId.getName(), false) && matchesPredicates(snapshotId, repositoryData)) {
-                        snapshotsToIndices.computeIfAbsent(snapshotId, (k) -> new ArrayList<>()).add(indexId.getName());
+                    if (snapshotNamePredicate.test(snapshotId.getName(), false)
+                        && matchesPredicates(snapshotId, repositoryData) != EXCLUDE) {
+                        snapshotsToIndices.computeIfAbsent(snapshotId, ignored -> new ArrayList<>()).add(indexId.getName());
                     }
                 }
             }
@@ -620,7 +631,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             final int remaining = snapshotInfoCollector.getRemaining();
             return new GetSnapshotsResponse(
                 snapshotInfos,
-                remaining > 0 ? sortBy.encodeAfterQueryParam(snapshotInfos.getLast()) : null,
+                remaining > 0 ? After.fromSnapshotInfo(snapshotInfos.getLast(), sortBy).toQueryParam() : null,
                 totalCount.get(),
                 remaining
             );
@@ -629,28 +640,63 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private boolean assertSatisfiesAllPredicates(List<SnapshotInfo> snapshotInfos) {
             snapshotInfos.forEach(snapshotInfo -> {
                 assert matchesPredicates(snapshotInfo);
-                assert afterPredicate.test(snapshotInfo);
+                assert afterPredicates.test(snapshotInfo);
                 assert indices || snapshotInfo.indices().isEmpty();
             });
             return true;
         }
 
-        private boolean matchesPredicates(SnapshotId snapshotId, RepositoryData repositoryData) {
-            if (fromSortValuePredicates.test(snapshotId, repositoryData) == false) {
-                return false;
+        private PreflightFilterResult matchesPredicates(SnapshotId snapshotId, RepositoryData repositoryData) {
+            final var fromSortValueResult = fromSortValuePredicates.test(snapshotId, repositoryData);
+            if (fromSortValueResult == EXCLUDE) {
+                return EXCLUDE;
+            }
+
+            if (matchAllCompletedStates && slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
+                return fromSortValueResult;
             }
 
             final var details = repositoryData.getSnapshotDetails(snapshotId);
-
-            if (details != null && details.getSnapshotState() != null && states.contains(details.getSnapshotState()) == false) {
-                return false;
+            if (details == null) {
+                return INCONCLUSIVE;
             }
 
+            final var statesFilterResult = testStatesFilter(details);
+            if (statesFilterResult == EXCLUDE) {
+                return EXCLUDE;
+            }
+
+            final var slmPolicyResult = testSlmPolicy(details);
+            if (slmPolicyResult == EXCLUDE) {
+                return EXCLUDE;
+            }
+
+            if (fromSortValueResult == INCONCLUSIVE || statesFilterResult == INCONCLUSIVE || slmPolicyResult == INCONCLUSIVE) {
+                return INCONCLUSIVE;
+            }
+            return INCLUDE;
+        }
+
+        private PreflightFilterResult testStatesFilter(RepositoryData.SnapshotDetails details) {
+            if (matchAllCompletedStates) {
+                return INCLUDE;
+            }
+            final var snapshotState = details.getSnapshotState();
+            if (snapshotState == null) {
+                return INCONCLUSIVE;
+            }
+            return states.contains(snapshotState) ? INCLUDE : EXCLUDE;
+        }
+
+        private PreflightFilterResult testSlmPolicy(RepositoryData.SnapshotDetails details) {
             if (slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
-                return true;
+                return INCLUDE;
             }
-
-            return details == null || details.getSlmPolicy() == null || slmPolicyPredicate.test(details.getSlmPolicy());
+            final var slmPolicy = details.getSlmPolicy();
+            if (slmPolicy == null) {
+                return INCONCLUSIVE;
+            }
+            return slmPolicyPredicate.test(slmPolicy) ? INCLUDE : EXCLUDE;
         }
 
         private boolean matchesPredicates(SnapshotInfo snapshotInfo) {
@@ -670,143 +716,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return slmPolicyPredicate.test(
                 metadata != null && metadata.get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String s ? s : ""
             );
-        }
-    }
-
-    /**
-     * A pair of predicates for the get snapshots action. The {@link #test(SnapshotId, RepositoryData)} predicate is applied to combinations
-     * of snapshot id and repository data to determine which snapshots to fully load from the repository and rules out all snapshots that do
-     * not match the given {@link GetSnapshotsRequest} that can be ruled out through the information in {@link RepositoryData}.
-     * The predicate returned by {@link #test(SnapshotInfo)} predicate is then applied the instances of {@link SnapshotInfo} that were
-     * loaded from the repository to filter out those remaining that did not match the request but could not be ruled out without loading
-     * their {@link SnapshotInfo}.
-     */
-    private static final class SnapshotPredicates {
-
-        private static final SnapshotPredicates MATCH_ALL = new SnapshotPredicates(null, null);
-
-        @Nullable // if all snapshot IDs match
-        private final BiPredicate<SnapshotId, RepositoryData> preflightPredicate;
-
-        @Nullable // if all snapshots match
-        private final Predicate<SnapshotInfo> snapshotPredicate;
-
-        private SnapshotPredicates(
-            @Nullable BiPredicate<SnapshotId, RepositoryData> preflightPredicate,
-            @Nullable Predicate<SnapshotInfo> snapshotPredicate
-        ) {
-            this.snapshotPredicate = snapshotPredicate;
-            this.preflightPredicate = preflightPredicate;
-        }
-
-        boolean test(SnapshotId snapshotId, RepositoryData repositoryData) {
-            return preflightPredicate == null || preflightPredicate.test(snapshotId, repositoryData);
-        }
-
-        boolean isMatchAll() {
-            return snapshotPredicate == null;
-        }
-
-        boolean test(SnapshotInfo snapshotInfo) {
-            return snapshotPredicate == null || snapshotPredicate.test(snapshotInfo);
-        }
-
-        static SnapshotPredicates forFromSortValue(String fromSortValue, SnapshotSortKey sortBy, SortOrder order) {
-            if (fromSortValue == null) {
-                return MATCH_ALL;
-            }
-
-            switch (sortBy) {
-                case START_TIME:
-                    final long after = Long.parseLong(fromSortValue);
-                    return new SnapshotPredicates(order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
-                        final long startTime = getStartTime(snapshotId, repositoryData);
-                        return startTime == -1 || after <= startTime;
-                    } : (snapshotId, repositoryData) -> {
-                        final long startTime = getStartTime(snapshotId, repositoryData);
-                        return startTime == -1 || after >= startTime;
-                    }, filterByLongOffset(SnapshotInfo::startTime, after, order));
-
-                case NAME:
-                    return new SnapshotPredicates(
-                        order == SortOrder.ASC
-                            ? (snapshotId, repositoryData) -> fromSortValue.compareTo(snapshotId.getName()) <= 0
-                            : (snapshotId, repositoryData) -> fromSortValue.compareTo(snapshotId.getName()) >= 0,
-                        null
-                    );
-
-                case DURATION:
-                    final long afterDuration = Long.parseLong(fromSortValue);
-                    return new SnapshotPredicates(order == SortOrder.ASC ? (snapshotId, repositoryData) -> {
-                        final long duration = getDuration(snapshotId, repositoryData);
-                        return duration == -1 || afterDuration <= duration;
-                    } : (snapshotId, repositoryData) -> {
-                        final long duration = getDuration(snapshotId, repositoryData);
-                        return duration == -1 || afterDuration >= duration;
-                    }, filterByLongOffset(info -> info.endTime() - info.startTime(), afterDuration, order));
-
-                case INDICES:
-                    final int afterIndexCount = Integer.parseInt(fromSortValue);
-                    return new SnapshotPredicates(
-                        order == SortOrder.ASC
-                            ? (snapshotId, repositoryData) -> afterIndexCount <= indexCount(snapshotId, repositoryData)
-                            : (snapshotId, repositoryData) -> afterIndexCount >= indexCount(snapshotId, repositoryData),
-                        null
-                    );
-
-                case REPOSITORY:
-                    // already handled in #maybeFilterRepositories
-                    return MATCH_ALL;
-
-                case SHARDS:
-                    return new SnapshotPredicates(
-                        null,
-                        filterByLongOffset(SnapshotInfo::totalShards, Integer.parseInt(fromSortValue), order)
-                    );
-                case FAILED_SHARDS:
-                    return new SnapshotPredicates(
-                        null,
-                        filterByLongOffset(SnapshotInfo::failedShards, Integer.parseInt(fromSortValue), order)
-                    );
-                default:
-                    throw new AssertionError("unexpected sort column [" + sortBy + "]");
-            }
-        }
-
-        private static Predicate<SnapshotInfo> filterByLongOffset(ToLongFunction<SnapshotInfo> extractor, long after, SortOrder order) {
-            return order == SortOrder.ASC ? info -> after <= extractor.applyAsLong(info) : info -> after >= extractor.applyAsLong(info);
-        }
-
-        private static long getDuration(SnapshotId snapshotId, RepositoryData repositoryData) {
-            final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
-            if (details == null) {
-                return -1;
-            }
-            final long startTime = details.getStartTimeMillis();
-            if (startTime == -1) {
-                return -1;
-            }
-            final long endTime = details.getEndTimeMillis();
-            if (endTime == -1) {
-                return -1;
-            }
-            return endTime - startTime;
-        }
-
-        private static long getStartTime(SnapshotId snapshotId, RepositoryData repositoryData) {
-            final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
-            return details == null ? -1 : details.getStartTimeMillis();
-        }
-
-        private static int indexCount(SnapshotId snapshotId, RepositoryData repositoryData) {
-            // TODO: this could be made more efficient by caching this number in RepositoryData
-            int indexCount = 0;
-            for (IndexId idx : repositoryData.getIndices().values()) {
-                if (repositoryData.getSnapshots(idx).contains(snapshotId)) {
-                    indexCount++;
-                }
-            }
-            return indexCount;
         }
     }
 
@@ -851,7 +760,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         @Override
         public boolean test(String policy) {
-            if (policy.equals("")) {
+            if (policy.isEmpty()) {
                 // empty string means that snapshot was not created by an SLM policy
                 return matchWithoutPolicy;
             }

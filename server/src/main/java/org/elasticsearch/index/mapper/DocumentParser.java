@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -112,7 +113,7 @@ public final class DocumentParser {
         }
         assert context.path.pathAsText("").isEmpty() : "found leftover path elements: " + context.path.pathAsText("");
 
-        Mapping dynamicUpdate = createDynamicUpdate(context);
+        CompressedXContent dynamicUpdate = createDynamicUpdate(context);
 
         return new ParsedDocument(
             context.version(),
@@ -283,7 +284,7 @@ public final class DocumentParser {
         return new DocumentParsingException(context.parser().getTokenLocation(), "failed to parse: " + e.getMessage(), e);
     }
 
-    static Mapping createDynamicUpdate(DocumentParserContext context) {
+    static CompressedXContent createDynamicUpdate(DocumentParserContext context) {
         if (context.hasDynamicMappersOrRuntimeFields() == false) {
             return null;
         }
@@ -293,8 +294,7 @@ public final class DocumentParser {
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
-        RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic(), false));
-        return context.mappingLookup().getMapping().mappingUpdate(root);
+        return new MappingBuilder(rootBuilder, Map.of(), null).build(MapperService.MergeReason.MAPPING_UPDATE).toCompressedXContent();
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {
@@ -833,6 +833,7 @@ public final class DocumentParser {
                 fieldName,
                 context.indexSettings().getIndexVersionCreated(),
                 IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
+                IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
                 context.getVectorFormatProviders()
             );
             builder.dimensions(builders.size());

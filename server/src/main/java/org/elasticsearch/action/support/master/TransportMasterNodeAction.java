@@ -80,12 +80,11 @@ import static org.elasticsearch.core.Strings.format;
  * <ul>
  *   <li>{@code masterNodeTimeout} – how long the request will wait when no master is available or the
  *       current master is unreachable. For REST-originated requests this is set via the
- *       {@code master_timeout} query parameter; internally-generated requests typically use
+ *       {@code master_timeout} query parameter. Internally-generated requests typically use
  *       {@code INFINITE_MASTER_NODE_TIMEOUT} to wait indefinitely.</li>
  *   <li>{@code masterTerm} – the term of the cluster state used to route this request, which prevents
  *       routing loops. When a node receives a forwarded request whose {@code masterTerm} exceeds its
- *       own cluster state term, it waits for its local term to catch up before proceeding rather than
- *       forwarding the request again.</li>
+ *       own cluster state term, it waits for its local term to catch up before proceeding.</li>
  * </ul>
  *
  * <p>The {@link #localExecute} method can be overridden to allow the action to run on the local node
@@ -124,7 +123,7 @@ import static org.elasticsearch.core.Strings.format;
  *
  * <p>All retries are driven by a {@link org.elasticsearch.cluster.ClusterStateObserver}, which watches
  * for cluster state changes satisfying a given predicate. The observer uses the remaining
- * {@code masterNodeTimeout} as its deadline. If no suitable state appears before the timeout expires,
+ * {@code masterNodeTimeout} as its deadline. If the predicate is not satisfied before the timeout expires,
  * the request fails with a {@link org.elasticsearch.discovery.MasterNotDiscoveredException}. For
  * {@link org.elasticsearch.tasks.CancellableTask}s, a cancellation listener is also registered so
  * that the retry aborts immediately if the task is canceled. Each retry re-enters {@code doStart}

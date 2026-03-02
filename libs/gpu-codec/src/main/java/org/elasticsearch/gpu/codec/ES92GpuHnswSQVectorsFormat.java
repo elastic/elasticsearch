@@ -47,7 +47,14 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
         this(new CuVSGPUSupport(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, null, 7, false);
     }
 
-    public ES92GpuHnswSQVectorsFormat(GPUSupport gpuSupport, int maxConn, int beamWidth, Float confidenceInterval, int bits, boolean compress) {
+    public ES92GpuHnswSQVectorsFormat(
+        GPUSupport gpuSupport,
+        int maxConn,
+        int beamWidth,
+        Float confidenceInterval,
+        int bits,
+        boolean compress
+    ) {
         super(NAME);
         this.gpuSupport = gpuSupport;
         this.cuVSResourceManagerSupplier = CuVSResourceManager::pooling;

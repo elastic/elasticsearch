@@ -15,7 +15,6 @@ import com.nvidia.cuvs.CuVSResources;
 import com.nvidia.cuvs.spi.CuVSProvider;
 
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 

@@ -34,7 +34,6 @@ public interface GPUSupport {
      */
     String getGpuName();
 
-
     // TODO: move this to a more appropriate place (ad-hoc class? GPUPlugin?)
     AtomicLong GPU_USAGE_COUNT = new AtomicLong();
 

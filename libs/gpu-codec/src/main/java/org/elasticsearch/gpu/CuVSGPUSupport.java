@@ -11,6 +11,7 @@ package org.elasticsearch.gpu;
 
 import com.nvidia.cuvs.GPUInfoProvider;
 import com.nvidia.cuvs.spi.CuVSProvider;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -25,7 +26,6 @@ public class CuVSGPUSupport implements GPUSupport {
 
     // Set the minimum at 7.5GB: 8GB GPUs (which are our targeted minimum) report less than that via the API
     private static final long MIN_DEVICE_MEMORY_IN_BYTES = 8053063680L;
-
 
     private record GpuInfo(long totalMemory, String name) {
 
@@ -113,7 +113,6 @@ public class CuVSGPUSupport implements GPUSupport {
             return GpuInfo.UNSUPPORTED;
         }
     }
-
 
     @Override
     public boolean isSupported() {

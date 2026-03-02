@@ -139,7 +139,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
             DocIdSetIterator iter = lookup.lookup(context);
             if (iter == null) {
                 breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-                return ConstantNull.READER;
+                return ConstantNull.ROW_READER;
             }
             return rowStrideReader(breaker, context, iter);
         }

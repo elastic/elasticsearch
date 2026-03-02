@@ -41,6 +41,9 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.junit.After;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
+import org.junit.runners.model.Statement;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,11 +57,6 @@ import static org.elasticsearch.reindex.ReindexTestCase.matcher;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-
-import org.junit.Rule;
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
 /**
  * Integration test for bulk retry behavior. Useful because retrying relies on the way that the
@@ -135,14 +133,14 @@ public class RetryTests extends ESIntegTestCase {
     }
 
     public void testReindexFromRemote() throws Exception {
-        testIndexFromRemoteInternal();
+        indexFromRemoteInternal();
     }
 
     public void testReindexFromRemoteWithPit() throws Exception {
-        testIndexFromRemoteInternal();
+        indexFromRemoteInternal();
     }
 
-    private void testIndexFromRemoteInternal() throws Exception {
+    private void indexFromRemoteInternal() throws Exception {
         Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> function = client -> {
             /*
              * Use the master node for the reindex from remote because that node

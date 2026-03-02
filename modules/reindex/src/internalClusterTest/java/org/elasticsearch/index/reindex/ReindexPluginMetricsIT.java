@@ -17,12 +17,15 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.ReindexWithPointInTimeSearchTestFeatureSpecification;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.After;
+import org.junit.Before;
 
 import java.net.InetSocketAddress;
 import java.util.Arrays;
@@ -45,6 +48,19 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class ReindexPluginMetricsIT extends ESIntegTestCase {
+
+    @Before
+    public void setPitFlagForTest() {
+        if ("testReindexFromRemoteMetricsWithPit".equals(getTestName())) {
+            ReindexWithPointInTimeSearchTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST = true;
+        }
+    }
+
+    @After
+    public void clearPitFlag() {
+        ReindexWithPointInTimeSearchTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST = false;
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(ReindexPlugin.class, TestTelemetryPlugin.class, MainRestPlugin.class);
@@ -80,6 +96,14 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
     }
 
     public void testReindexFromRemoteMetrics() throws Exception {
+        reindexFromRemoteMetricsInternal();
+    }
+
+    public void testReindexFromRemoteMetricsWithPit() throws Exception {
+        reindexFromRemoteMetricsInternal();
+    }
+
+    private void reindexFromRemoteMetricsInternal() throws Exception {
         final String dataNodeName = internalCluster().startNode();
 
         InetSocketAddress remoteAddress = randomFrom(cluster().httpAddresses());
@@ -132,7 +156,6 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             assertNull(completions.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
             assertThat(completions.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_REMOTE));
         });
-
     }
 
     public void testReindexMetrics() throws Exception {

@@ -83,9 +83,12 @@ setup:
 ---
 "Downsample index":
   - requires:
-      cluster_features: ["gte_v8.10.0"]
-      reason: "Downsampling executed using persistent task framework from version 8.10"
-      test_runner_features: allowed_warnings
+      capabilities:
+        - method: POST
+          path: /{index}/_downsample/{target_index}
+          capabilities: [ "downsampling.store_reset_counters" ]
+      test_runner_features: [ capabilities, allowed_warnings ]
+      reason: Storing counter resets when downsampling was added in 9.4
 
   - do:
       allowed_warnings:
@@ -105,28 +108,110 @@ setup:
         body:
           sort: [ "_tsid", "@timestamp" ]
 
-  - length: { hits.hits: 4 }
-  - match:  { hits.hits.0._source._doc_count: 2 }
-  # Verify dimensions & time
-  - match:  { hits.hits.0._source.metricset: pod }
-  - match:  { hits.hits.0._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
-  - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  - length: { hits.hits: 7 }
 
-  # Verify metrics
-  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.min: 100 }
-  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.max: 102 }
-  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.sum: 607 }
-  - match:  { hits.hits.0._source.k8s.pod.multi-gauge.value_count: 6 }
-  - match:  { hits.hits.0._source.k8s.pod.multi-counter: 0 }
-  - match:  { hits.hits.0._source.k8s.pod.network.tx.min: 1434521831 }
-  - match:  { hits.hits.0._source.k8s.pod.network.tx.max: 1434577921 }
-  - match:  { hits.hits.0._source.k8s.pod.network.tx.value_count: 2 }
-  - match:  { hits.hits.0._source.k8s.pod.ip: "10.10.55.56" }
-  - match:  { hits.hits.0._source.k8s.pod.created_at: "2021-04-28T19:43:00.000Z" }
-  - match:  { hits.hits.0._source.k8s.pod.number_of_containers: 1 }
-  - match:  { hits.hits.0._source.k8s.pod.tags: [ "backend", "test", "us-west2" ] }
-  - match:  { hits.hits.0._source.k8s.pod.values: [ 1, 1, 2 ] }
-  - is_false: hits.hits.0._source.k8s.pod.running
+  # Downsampled doc
+  - match:  { hits.hits.0._source._doc_count: 2 }
+  - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
+  # Dimensions
+  - match:  { hits.hits.0._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match:  { hits.hits.0._source.metricset: pod }
+  # Metrics
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-counter: 7 }
+  - match:  { hits.hits.0._source.k8s\.pod\.scaled-counter: 7.0 }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.min: 100 }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.max: 102 }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.sum: 607 }
+  - match:  { hits.hits.0._source.k8s\.pod\.multi-gauge.value_count: 6 }
+  - match: { hits.hits.0._source.k8s\.pod\.scaled-gauge.min: 100.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.scaled-gauge.max: 101.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.scaled-gauge.sum: 201.0 }
+  - match: { hits.hits.0._source.k8s\.pod\.scaled-gauge.value_count: 2 }
+  - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.min: 1434521831 }
+  - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.max: 1434577921 }
+  - match:  { hits.hits.0._source.k8s\.pod\.network\.tx.value_count: 2 }
+  # Labels
+  - match:  { hits.hits.0._source.k8s\.pod\.ip: "10.10.55.56" }
+  - match:  { hits.hits.0._source.k8s\.pod\.created_at: "2021-04-28T19:43:00.000Z" }
+  - match:  { hits.hits.0._source.k8s\.pod\.number_of_containers: 1 }
+  - match:  { hits.hits.0._source.k8s\.pod\.tags: ["backend", "test", "us-west2"] }
+  - match:  { hits.hits.0._source.k8s\.pod\.values: [1, 1, 2] }
+  - is_false: hits.hits.0._source.k8s\.pod\.running
+
+  # Reset doc
+  - is_false: hits.hits.1._source._doc_count
+  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z }
+  # Dimensions
+  - match: { hits.hits.1._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.1._source.metricset: pod }
+  # Metrics
+  - match: { hits.hits.1._source.k8s\.pod\.multi-counter: 0 }
+  - match: { hits.hits.1._source.k8s\.pod\.scaled-counter: 0.0 }
+  # Only dimensions and counters that have been reset are in this doc
+  - is_false: hits.hits.1._source.k8s\.pod\.multi-gauge
+
+  # Next downsampled doc
+  - match:  { hits.hits.2._source._doc_count: 2 }
+  - match:  { hits.hits.2._source.@timestamp: 2021-04-28T19:00:00.000Z }
+  # Dimensions
+  - match:  { hits.hits.2._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match:  { hits.hits.2._source.metricset: pod }
+  # Metrics
+  - match:  { hits.hits.2._source.k8s\.pod\.multi-counter: 1000 }
+  - match:  { hits.hits.2._source.k8s\.pod\.scaled-counter: 1000.0 }
+  - match:  { hits.hits.2._source.k8s\.pod\.multi-gauge.min: 95 }
+
+  # Reset doc
+  - is_false: hits.hits.3._source._doc_count
+  - match: { hits.hits.3._source.@timestamp: 2021-04-28T19:51:03.142Z }
+  # Dimensions
+  - match: { hits.hits.3._source.k8s\.pod\.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+  - match: { hits.hits.3._source.metricset: pod }
+  # Metrics
+  - match: { hits.hits.3._source.k8s\.pod\.multi-counter: 76 }
+  # Only dimensions and counters that have been reset are in this doc
+  - is_false: hits.hits.3._source.k8s\.pod\.scaled-counter
+  - is_false: hits.hits.3._source.k8s\.pod\.multi-gauge
+
+  # Assert downsample index settings
+  - do:
+      indices.get_settings:
+        index: test-downsample
+
+  - match: { test-downsample.settings.index.mode: time_series }
+  - match: { test-downsample.settings.index.time_series.end_time:   2021-04-29T00:00:00Z }
+  - match: { test-downsample.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
+  - match: { test-downsample.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
+  - match: { test-downsample.settings.index.downsample.source.name: test }
+  - match: { test-downsample.settings.index.number_of_shards: "1" }
+
+  # Assert downsample index mapping
+  - do:
+      indices.get_mapping:
+        index: test-downsample
+
+  - match: { test-downsample.mappings.properties.@timestamp.type: date }
+  - match: { test-downsample.mappings.properties.@timestamp.meta.fixed_interval: 1h }
+  - match: { test-downsample.mappings.properties.@timestamp.meta.time_zone: UTC }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.type: aggregate_metric_double }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-gauge.time_series_metric: gauge }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.type: long }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.multi-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.type: scaled_float }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.scaling_factor: 100 }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-counter.time_series_metric: counter }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.type: aggregate_metric_double }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.scaled-gauge.time_series_metric: gauge }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.uid.type: keyword }
+  - match: { test-downsample.mappings.properties.k8s\.pod\.uid.time_series_dimension: true }
+
+
+  # Assert source index has not been deleted
+  - do:
+      indices.get:
+        index: test
 
   # Assert rollup index settings
   - do:

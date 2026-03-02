@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.logging;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.activity.ActivityLogProducer;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.index.ActionLoggingFields;
 
 import java.util.Optional;
@@ -18,9 +19,9 @@ public class EqlLogProducer implements ActivityLogProducer<EqlLogContext> {
     @Override
     public Optional<ESLogMessage> produce(EqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
-        msg.field(ES_QUERY_FIELDS_PREFIX + "query", context.getQuery());
-        msg.field(ES_QUERY_FIELDS_PREFIX + "indices", context.getIndices());
-        msg.field(ES_QUERY_FIELDS_PREFIX + "hits", context.getHits());
+        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
+        msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
+        msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());
         return Optional.of(msg);
     }
 }

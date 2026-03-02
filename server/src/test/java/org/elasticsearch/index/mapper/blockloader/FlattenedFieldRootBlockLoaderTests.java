@@ -26,8 +26,10 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
 
@@ -96,7 +98,30 @@ public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        return value;
+        var nullValue = (String) fieldMapping.get("null_value");
+        return nullValue == null ? value : applyFlattenedNullValue(value, nullValue);
+    }
+
+    /**
+     * Mirrors flattened source normalization by materializing mapped {@code null_value}
+     * for null leaves in the expected source tree before comparison.
+     */
+    private static Object applyFlattenedNullValue(Object value, String nullValue) {
+        return switch (value) {
+            case null -> nullValue;
+            case Map<?, ?> map -> map.entrySet()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        e -> (String) e.getKey(),
+                        e -> applyFlattenedNullValue(e.getValue(), nullValue),
+                        (a, b) -> b,
+                        LinkedHashMap::new
+                    )
+                );
+            case List<?> list -> list.stream().map(v -> applyFlattenedNullValue(v, nullValue)).toList();
+            default -> value;
+        };
     }
 
     @Override

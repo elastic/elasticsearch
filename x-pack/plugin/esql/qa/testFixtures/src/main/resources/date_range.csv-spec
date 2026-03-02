@@ -30,7 +30,7 @@ date_range:date_range  | decade:integer | description:keyword | range:keyword
 1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01T00:00:00.000Z..1909-12-31T23:59:59.999Z
 ;
 
-toDateRangeFromString
+toDateRangeFromString#[skip:-9.5.0,reason:TO_DATE_RANGE(keyword) support added after 9.4.0]
 required_capability: date_range_field_type
 
 // tag::to_date_range-str[]
@@ -57,7 +57,7 @@ date_range:date_range  | decade:integer | description:keyword | range:date_range
 1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01..1910-01-01
 ;
 
-toDateRangeFromShortFormat
+toDateRangeFromShortFormat#[skip:-9.5.0,reason:TO_DATE_RANGE(keyword) support added after 9.4.0]
 required_capability: date_range_field_type
 
 ROW str = "2024-06-01..2024-06-30"
@@ -68,7 +68,7 @@ str:keyword            | range:date_range
 2024-06-01..2024-06-30 | 2024-06-01..2024-06-30
 ;
 
-toDateRangeWithEval
+toDateRangeWithEval#[skip:-9.5.0,reason:TO_DATE_RANGE(keyword) support added after 9.4.0]
 required_capability: date_range_field_type
 
 ROW start_date = "2023-01-01T00:00:00.000Z", end_date = "2023-12-31T23:59:59.999Z"
@@ -81,7 +81,7 @@ start_date:keyword              | end_date:keyword                | range:date_r
 2023-01-01T00:00:00.000Z        | 2023-12-31T23:59:59.999Z        | 2023-01-01T00:00:00.000Z..2023-12-31T23:59:59.999Z
 ;
 
-toDateRangeSingleDay
+toDateRangeSingleDay#[skip:-9.5.0,reason:TO_DATE_RANGE(keyword) support added after 9.4.0]
 required_capability: date_range_field_type
 
 ROW str = "2024-07-04T00:00:00.000Z..2024-07-04T23:59:59.999Z"

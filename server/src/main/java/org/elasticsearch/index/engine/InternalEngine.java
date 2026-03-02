@@ -1397,7 +1397,6 @@ public class InternalEngine extends Engine {
 
                 // Step 3: Batch Lucene add for append-only operations
                 if (appendDocs.isEmpty() == false) {
-                    indexWriter.addDocuments(appendDocs);
                     batchIndexWriter.batchAddDocuments(appendDocs);
                     numDocAppends.inc(appendDocs.size());
                 }

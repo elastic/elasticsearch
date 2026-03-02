@@ -1,0 +1,97 @@
+[1mdiff --git a/docs/changelog/138798.yaml b/docs/changelog/138798.yaml[m
+[1mdeleted file mode 100644[m
+[1mindex 57d09389259..00000000000[m
+[1m--- a/docs/changelog/138798.yaml[m
+[1m+++ /dev/null[m
+[36m@@ -1,5 +0,0 @@[m
+[31m-area: ES|QL[m
+[31m-issues: [][m
+[31m-pr: 138798[m
+[31m-summary: Fix incorrect error message for double division overflow in ESQL[m
+[31m-type: bug[m
+[1mdiff --git a/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/expression/function/fulltext/FullTextFunction.java b/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/expression/function/fulltext/FullTextFunction.java[m
+[1mindex 39b6a6e6990..ac77bd83b5a 100644[m
+[1m--- a/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/expression/function/fulltext/FullTextFunction.java[m
+[1m+++ b/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/expression/function/fulltext/FullTextFunction.java[m
+[36m@@ -46,6 +46,7 @@[m [mimport org.elasticsearch.xpack.esql.plan.logical.EsRelation;[m
+ import org.elasticsearch.xpack.esql.plan.logical.Filter;[m
+ import org.elasticsearch.xpack.esql.plan.logical.Limit;[m
+ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;[m
+[32m+[m[32mimport org.elasticsearch.xpack.esql.plan.logical.MvExpand;[m
+ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;[m
+ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;[m
+ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;[m
+[36m@@ -225,9 +226,32 @@[m [mpublic abstract class FullTextFunction extends Function[m
+         }[m
+     }[m
+ [m
+[31m-    private static void checkFullTextFunctionsInFilter(Filter filter, Failures failures, boolean checkFullTextFunctionsAboveSubqueries) {[m
+[32m+[m[32m    private static void checkFullTextFunctionsInFilter([m
+[32m+[m[32m        Filter filter,[m
+[32m+[m[32m        Failures failures,[m
+[32m+[m[32m        boolean checkFullTextFunctionsAboveSubqueries[m
+[32m+[m[32m    ) {[m
+         Expression condition = filter.condition();[m
+[31m-        checkFullTextQueryFunctionForCondition(filter, failures, condition, false, checkFullTextFunctionsAboveSubqueries);[m
+[32m+[m[32m        if (filter.child() instanceof MvExpand mvExpand) {[m
+[32m+[m[32m            condition.forEachDown(FullTextFunction.class, ftf -> {[m
+[32m+[m[32m                failures.add([m
+[32m+[m[32m                    fail([m
+[32m+[m[32m                        ftf,[m
+[32m+[m[32m                        "[{}] {} cannot be used after mv_expand because it requires document-level execution",[m
+[32m+[m[32m                        ftf.functionName(),[m
+[32m+[m[32m                        ftf.functionType()[m
+[32m+[m[32m                    )[m
+[32m+[m[32m                );[m
+[32m+[m[32m            });[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        checkFullTextQueryFunctionForCondition([m
+[32m+[m[32m            filter,[m
+[32m+[m[32m            failures,[m
+[32m+[m[32m            condition,[m
+[32m+[m[32m            false,[m
+[32m+[m[32m            checkFullTextFunctionsAboveSubqueries[m
+[32m+[m[32m        );[m
+     }[m
+ [m
+     private static void checkFullTextQueryFunctionForCondition([m
+[1mdiff --git a/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/expression/function/fulltext/MultiMatch.java b/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/expression/function/fulltext/MultiMatch.java[m
+[1mindex 412beef1d20..1e7f068c580 100644[m
+[1m--- a/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/expression/function/fulltext/MultiMatch.java[m
+[1m+++ b/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/expression/function/fulltext/MultiMatch.java[m
+[36m@@ -39,6 +39,7 @@[m [mimport org.elasticsearch.xpack.esql.expression.function.Param;[m
+ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;[m
+ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;[m
+ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;[m
+[32m+[m[32mimport org.elasticsearch.xpack.esql.plan.logical.MvExpand;[m
+ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;[m
+ import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;[m
+ [m
+[36m@@ -484,26 +485,4 @@[m [mpublic class MultiMatch extends FullTextFunction implements OptionalArgument, Po[m
+     public int hashCode() {[m
+         return Objects.hash(fields(), query(), queryBuilder());[m
+     }[m
+[31m-[m
+[31m-    @Override[m
+[31m-    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {[m
+[31m-        return (plan, failures) -> {[m
+[31m-            super.postAnalysisPlanVerification().accept(plan, failures);[m
+[31m-            plan.forEachExpression(MultiMatch.class, mm -> {[m
+[31m-                for (Expression field : fields) {[m
+[31m-                    if ((Expressions.isGuaranteedNull(field) == false) && (fieldAsFieldAttribute(field) == null)) {[m
+[31m-                        failures.add([m
+[31m-                            Failure.fail([m
+[31m-                                field,[m
+[31m-                                "[{}] {} cannot operate on [{}], which is not a field from an index mapping",[m
+[31m-                                functionName(),[m
+[31m-                                functionType(),[m
+[31m-                                field.sourceText()[m
+[31m-                            )[m
+[31m-                        );[m
+[31m-                    }[m
+[31m-                }[m
+[31m-            });[m
+[31m-        };[m
+[31m-    }[m
+ }[m

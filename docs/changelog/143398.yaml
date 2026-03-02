@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143398
+summary: Fix FIRST/LAST aggregation when field and sort field are identical
+type: bug

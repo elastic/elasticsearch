@@ -465,3 +465,181 @@ ROW a = 1, b = a + 1, c = b + 1, d = c + 1, e = d + 1;
 a:integer | b:integer | c:integer | d:integer | e:integer
 1         | 2         | 3         | 4         | 5
 ;
+
+rowFieldResolutionWithSubsequentRenamesAndEvals
+required_capability: row_field_resolution
+
+ROW a = 2, b = 3, c = 4, result = (a + b) * c - a
+| rename a as a1, b as b2, c as c2
+| eval a = 100, b = 300, c = 400
+| eval result = result + result
+;
+
+      a1:i     |      b2:i     |      c2:i     |       a:i     |       b:i     |       c:i     |    result:i     
+2              |3              |4              |100            |300            |400            |36   
+;
+
+rowFieldResolutionDropAndRecreate
+required_capability: row_field_resolution
+
+ROW a = 5, b = a * 2
+| DROP a
+| EVAL a = b + 1
+;
+
+b:integer | a:integer
+10        | 11
+;
+
+rowFieldResolutionKeepReorder
+required_capability: row_field_resolution
+
+ROW a = 1, b = a + 1, c = b + 1
+| KEEP c, a, b
+;
+
+c:integer | a:integer | b:integer
+3         | 1         | 2
+;
+
+rowFieldResolutionRenameAndReuseOldName
+required_capability: row_field_resolution
+
+ROW x = 10, y = x + 5
+| RENAME x AS original_x
+| EVAL x = original_x * 2
+;
+
+original_x:integer | y:integer | x:integer
+10                 | 15        | 20
+;
+
+rowFieldResolutionWhereOnComputed
+required_capability: row_field_resolution
+
+ROW a = 10, b = a - 3, c = b > 5
+| WHERE c == true
+| KEEP a, b
+;
+
+a:integer | b:integer
+10        | 7
+;
+
+rowFieldResolutionWhereFiltersOut
+required_capability: row_field_resolution
+
+ROW a = 2, b = a + 1, c = b > 5
+| WHERE c == true
+| KEEP a, b
+;
+
+a:integer | b:integer
+;
+
+rowFieldResolutionEvalShadowThenWhere
+required_capability: row_field_resolution
+
+ROW a = 5, b = a * 2
+| EVAL a = 1
+| WHERE b > a
+;
+
+   b:integer   |   a:integer       
+10             |1
+;
+
+rowFieldResolutionDissectOnComputed
+required_capability: row_field_resolution
+
+ROW f = "John", l = "Doe", full = CONCAT(f, " ", l)
+| DISSECT full "%{f} %{l}"
+;
+
+ full:keyword  |   f:keyword   |   l:keyword       
+John Doe       |John           |Doe            
+;
+
+rowFieldResolutionShadowingThenDrop
+required_capability: row_field_resolution
+required_capability: unique_names
+
+ROW x = 5, y = x * 2, x = y + 1
+| DROP y
+;
+
+x:integer
+11
+;
+
+rowFieldResolutionRenameChainThenEval
+required_capability: row_field_resolution
+
+ROW a = 1, b = a + 1, c = b + 1
+| RENAME a AS x, b AS y, c AS z
+| EVAL total = x + y + z
+;
+
+x:integer | y:integer | z:integer | total:integer
+1         | 2         | 3         | 6
+;
+
+rowFieldResolutionEvalWhereThenEvalChain
+required_capability: row_field_resolution
+
+ROW a = 3, b = a + 7
+| EVAL c = a * b
+| WHERE c > 20
+| EVAL d = c - b
+;
+
+a:integer | b:integer | c:integer | d:integer
+3         | 10        | 30        | 20
+;
+
+rowFieldResolutionWithStats
+required_capability: row_field_resolution
+
+ROW a = 5, b = a * 2, c = a * 3
+| STATS s = SUM(b), m = MAX(c)
+;
+
+s:long | m:integer
+10     | 15
+;
+
+rowFieldResolutionDropAllThenRecreate
+required_capability: row_field_resolution
+
+ROW a = 3, b = a + 1, c = b + 1
+| DROP a, b, c
+| EVAL x = 42
+;
+
+x:integer
+42
+;
+
+rowFieldResolutionRenameToShadowAnother
+required_capability: row_field_resolution
+
+ROW a = 1, b = a + 1, c = b + 1
+| RENAME c AS a
+| KEEP a, b
+;
+
+a:integer | b:integer
+3         | 2
+;
+
+rowFieldResolutionGrokOnComputed
+required_capability: row_field_resolution
+
+ROW x = 100, label = CONCAT("val:", TO_STRING(x))
+| GROK label "val:%{WORD:parsed}"
+| KEEP x, parsed
+;
+
+x:integer | parsed:keyword
+100       | 100
+;

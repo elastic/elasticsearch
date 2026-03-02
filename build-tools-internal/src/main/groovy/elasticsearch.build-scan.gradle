@@ -7,15 +7,18 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import java.lang.management.ManagementFactory;
-import java.time.LocalDateTime;
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
+import java.util.concurrent.TimeUnit
 
+import static org.elasticsearch.gradle.internal.util.CiUtils.runBuildkiteAgent
+import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
+
+// Resolving this early to avoid issues with the build scan plugin in combination with the configuration cache usage
 def taskNames = gradle.startParameter.taskNames.join(' ')
 
 develocity {
@@ -30,15 +33,16 @@ develocity {
     // Automatically publish scans from Elasticsearch CI
     if (onCI) {
       publishing.onlyIf { true }
-      if(server.isPresent() == false) {
+      if (server.isPresent() == false) {
         server = 'https://gradle-enterprise.elastic.co'
       }
-    } else if( server.isPresent() == false) {
+    } else if (server.isPresent() == false) {
       publishing.onlyIf { false }
     }
 
     def fips = buildParams.inFipsJvm
     def gitRevision = buildParams.gitRevision
+    def testSeed = buildParams.testSeed
 
     background {
       tag OS.current().name()
@@ -65,6 +69,8 @@ develocity {
 
         value 'Pipeline', System.getenv('BUILDKITE_PIPELINE_SLUG')
         tag System.getenv('BUILDKITE_PIPELINE_SLUG')
+
+        value 'tests.seed', testSeed
 
         value 'Job Name', jobName
         tag jobName
@@ -97,42 +103,59 @@ develocity {
           tag 'pull-request'
           link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
           link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
+        } else if (System.getenv('ELASTICSEARCH_PR_NUMBER')) {
+          // For tracking es-pr-check failures in the serverless repo caused by elasticsearch PRs
+          def esPr = System.getenv('ELASTICSEARCH_PR_NUMBER')
+          def esCommit = System.getenv('ELASTICSEARCH_SUBMODULE_COMMIT')
+          value 'Git Commit ID', esCommit
+          tag "pr/${esPr}"
+          tag 'pull-request'
+          link 'Source', "https://github.com/elastic/elasticsearch/pull/${esPr}/commits/${esCommit}"
+          link 'Pull Request', "https://github.com/elastic/elasticsearch/pull/${esPr}"
         } else {
           value 'Git Commit ID', gitRevision.get()
           link 'Source', "https://github.com/${repository}/tree/${gitRevision.get()}"
         }
 
+        // Store test seed in Buildkite metadata so it can be retrieved by retries or other steps in the pipeline
+        // strictly speaking this is not build scan specific, but it's a convenient place and the one place
+        // where we deal with build metadata within the gradle build.
+        def jobId = System.getenv('BUILDKITE_JOB_ID')
+        if (jobId) {
+          // Explicitly convert to String to avoid Groovy/Java array type mismatch
+          runBuildkiteAgent(
+            ['meta-data', 'set', "tests-seed-${jobId}".toString(), testSeed.toString()],
+            "storing test seed in Buildkite metadata"
+          )
+        }
+
         buildFinished { result ->
 
-          buildScanPublished { scan
-            ->
+          buildScanPublished { scan ->
             // Attach build scan link as build metadata
             // See: https://buildkite.com/docs/pipelines/build-meta-data
-            new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}")
-              .start()
-              .waitFor()
+            runBuildkiteAgent(
+              ['meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanUri}".toString()],
+              "storing build scan link in Buildkite metadata"
+            )
 
             // Attach build scan ID as build metadata
-            new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanId}")
-              .start()
-              .waitFor()
+            runBuildkiteAgent(
+              ['meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanId}".toString()],
+              "storing build scan ID in Buildkite metadata"
+            )
 
             // Add a build annotation
             // See: https://buildkite.com/docs/agent/v3/cli-annotate
-            def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT')?:"0") > 0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
+            def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
+              0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
             def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
-            def process = [
-              'buildkite-agent',
-              'annotate',
-              '--context',
-              result.failures ? 'gradle-build-scans-failed' : 'gradle-build-scans',
-              '--append',
-              '--style',
-              result.failures ? 'error' : 'info'
-            ].execute()
-            process.withWriter { it.write(body) }
             // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
-            process.waitFor()
+            runBuildkiteAgent(
+              ['annotate', '--context', result.failures ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', result.failures ? 'error' : 'info'],
+              "adding build annotation",
+              { it.write(body) }
+            )
           }
         }
       } else {
@@ -143,8 +166,4 @@ develocity {
       }
     }
   }
-}
-
-static def safeName(String string) {
-  return string.replaceAll(/[^a-zA-Z0-9_\-\.]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
 }

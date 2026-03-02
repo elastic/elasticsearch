@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceString;
@@ -407,7 +408,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final List<ChunkInferenceInput> inputs = requests.stream()
                 .map(
                     r -> new ChunkInferenceInput(
-                        new InferenceStringGroup(singletonList(new InferenceString(InferenceString.DataType.TEXT, r.input))),
+                        new InferenceStringGroup(singletonList(new InferenceString(DataType.TEXT, r.input))),
                         r.chunkingSettings
                     )
                 )

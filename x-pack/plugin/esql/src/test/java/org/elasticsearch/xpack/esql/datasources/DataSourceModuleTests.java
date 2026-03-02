@@ -428,7 +428,7 @@ public class DataSourceModuleTests extends ESTestCase {
         assertTrue("Custom provider should be registered", module.storageProviderRegistry().hasProvider("custom"));
         StorageProvider customProvider = module.storageProviderRegistry().provider(StoragePath.of("custom://bucket/file.txt"));
         assertNotNull("Custom provider should be retrievable", customProvider);
-        assertTrue("Custom provider should be MockStorageProvider", customProvider instanceof MockStorageProvider);
+        assertTrue("Custom provider should be wrapped with retry for non-file schemes", customProvider instanceof RetryableStorageProvider);
     }
 
     /**

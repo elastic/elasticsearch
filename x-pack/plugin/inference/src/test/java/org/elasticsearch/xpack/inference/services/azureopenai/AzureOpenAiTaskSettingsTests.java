@@ -41,7 +41,11 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
     private static final Headers HEADERS = new Headers(StatefulValue.of(HEADERS_MAP));
 
     public T createRandom() {
-        StatefulValue<String> user = randomFrom(StatefulValue.undefined(), StatefulValue.nullInstance(), StatefulValue.of(randomAlphaOfLength(15)));
+        StatefulValue<String> user = randomFrom(
+            StatefulValue.undefined(),
+            StatefulValue.nullInstance(),
+            StatefulValue.of(randomAlphaOfLength(15))
+        );
         var headers = HeadersTests.createRandom();
         return create(user, headers);
     }

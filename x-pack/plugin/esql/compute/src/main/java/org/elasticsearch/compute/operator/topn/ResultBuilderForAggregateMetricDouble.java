@@ -55,6 +55,11 @@ public class ResultBuilderForAggregateMetricDouble implements ResultBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
+    }
+
+    @Override
     public String toString() {
         return "ResultBuilderForAggregateMetricDouble";
     }

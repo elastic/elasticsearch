@@ -284,10 +284,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final FeatureFlag BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase");
+
     public static final Setting<Boolean> BATCHED_QUERY_PHASE = Setting.boolSetting(
         "search.batched_query_phase",
-        true,
-        Property.Dynamic,
+        BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled(),
+        Property.OperatorDynamic,
         Property.NodeScope
     );
 
@@ -300,8 +302,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         0, // 0 would mean we only execute online prewarming if there's no queuing in the search tp
         Setting.Property.NodeScope
     );
-
-    public static final FeatureFlag BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase");
 
     public static final FeatureFlag PIT_RELOCATION_FEATURE_FLAG = new FeatureFlag("pit_relocation_feature");
 
@@ -449,11 +449,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
-        if (BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled()) {
-            batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
-        } else {
-            batchQueryPhase = false;
-        }
+        batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
         clusterService.getClusterSettings()

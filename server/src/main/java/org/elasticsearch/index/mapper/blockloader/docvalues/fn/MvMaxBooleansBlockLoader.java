@@ -27,12 +27,12 @@ public class MvMaxBooleansBlockLoader extends AbstractBooleansBlockLoader {
     }
 
     @Override
-    protected AllReader singletonReader(TrackingNumericDocValues docValues) {
+    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues) {
         return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues) {
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
         return new MvMaxSorted(docValues);
     }
 
@@ -58,11 +58,6 @@ public class MvMaxBooleansBlockLoader extends AbstractBooleansBlockLoader {
                 }
                 return builder.build();
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BooleanBuilder) builder);
         }
 
         private void read(int doc, BooleanBuilder builder) throws IOException {

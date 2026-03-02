@@ -541,6 +541,32 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(true));
     }
 
+    public void testProjectRoutingParsing() throws IOException {
+        BytesReference request;
+        try (XContentBuilder b = JsonXContent.contentBuilder()) {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.field("index", "source");
+                    b.field("project_routing", "_alias:_origin");
+                }
+                b.endObject();
+                b.startObject("dest");
+                {
+                    b.field("index", "dest");
+                }
+                b.endObject();
+            }
+            b.endObject();
+            request = BytesReference.bytes(b);
+        }
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
+            ReindexRequest r = ReindexRequest.fromXContent(p, Predicates.never());
+            assertEquals("_alias:_origin", r.getSearchRequest().getProjectRouting());
+        }
+    }
+
     private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {
         BytesReference request;
         try (XContentBuilder b = JsonXContent.contentBuilder()) {

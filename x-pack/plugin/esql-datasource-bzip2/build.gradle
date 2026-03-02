@@ -8,10 +8,6 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 
-versions << [
-  'commonsCompress': '1.26.1'
-]
-
 esplugin {
   name = 'esql-datasource-bzip2'
   description = 'Bzip2 decompression support for ESQL external data sources'
@@ -30,7 +26,7 @@ dependencies {
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
 
-  implementation("org.apache.commons:commons-compress:${versions.commonsCompress}") {
+  implementation("org.apache.commons:commons-compress:${versions.esql_commons_compress}") {
     exclude group: 'commons-codec', module: 'commons-codec'
   }
 
@@ -43,5 +39,29 @@ tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).confi
 }
 
 tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses()
+  ignoreMissingClasses(
+    // commons-compress optional deps for formats we don't use (pack200, xz, zstd, brotli)
+    'org.objectweb.asm.AnnotationVisitor',
+    'org.objectweb.asm.Attribute',
+    'org.objectweb.asm.ClassReader',
+    'org.objectweb.asm.ClassVisitor',
+    'org.objectweb.asm.FieldVisitor',
+    'org.objectweb.asm.Label',
+    'org.objectweb.asm.MethodVisitor',
+    'org.objectweb.asm.Type',
+    'org.tukaani.xz.DeltaOptions',
+    'org.tukaani.xz.FilterOptions',
+    'org.tukaani.xz.LZMA2InputStream',
+    'org.tukaani.xz.LZMA2Options',
+    'org.tukaani.xz.LZMAInputStream',
+    'org.tukaani.xz.LZMAOutputStream',
+    'org.tukaani.xz.MemoryLimitException',
+    'org.tukaani.xz.UnsupportedOptionsException',
+    'org.tukaani.xz.XZ',
+    'org.tukaani.xz.XZOutputStream',
+    'com.github.luben.zstd.BufferPool',
+    'com.github.luben.zstd.ZstdInputStream',
+    'com.github.luben.zstd.ZstdOutputStream',
+    'org.brotli.dec.BrotliInputStream'
+  )
 }

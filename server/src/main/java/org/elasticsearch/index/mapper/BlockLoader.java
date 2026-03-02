@@ -188,8 +188,21 @@ public interface BlockLoader {
          * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
          */
         boolean canReuse(int startingDocID);
+
+        /**
+         * A string representation of the {@link Reader}. It's important that this
+         * have a nice implementation because this is used in the {@code profile}.
+         */
+        String toString();
     }
 
+    /**
+     * Load an entire block at a time.
+     * <p>
+     *     It's <strong>important</strong> that these have a nice {@link #toString()}. It's used
+     *     in the {@code profile}.
+     * </p>
+     */
     interface ColumnAtATimeReader extends Reader {
         /**
          * Reads the values of all documents in {@code docs}.
@@ -287,6 +300,13 @@ public interface BlockLoader {
         }
     }
 
+    /**
+     * Load the values for one row at a time.
+     * <p>
+     *     It's <strong>important</strong> that these have a nice {@link #toString()}. It's used
+     *     in the {@code profile}.
+     * </p>
+     */
     interface RowStrideReader extends Reader {
         /**
          * Reads the values of the given document into the builder.
@@ -474,6 +494,11 @@ public interface BlockLoader {
             @Override
             public void close() {
                 Releasables.close(preferReader, fallbackReader);
+            }
+
+            @Override
+            public String toString() {
+                return "[" + preferReader + "/" + fallbackReader + "]";
             }
         }
 

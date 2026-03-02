@@ -80,7 +80,8 @@ import static org.elasticsearch.core.Strings.format;
  * <ul>
  *   <li>{@code masterNodeTimeout} – how long the request will wait when no master is available or the
  *       current master is unreachable. For REST-originated requests this is set via the
- *       {@code master_timeout} query parameter. Internally-generated requests typically use
+ *       {@code master_timeout} query parameter and parsed via
+ *       {@link org.elasticsearch.rest.RestUtils#getMasterNodeTimeout}. Internally-generated requests typically use
  *       {@code INFINITE_MASTER_NODE_TIMEOUT} to wait indefinitely.</li>
  *   <li>{@code masterTerm} – the term of the cluster state used to route this request, which prevents
  *       routing loops. When a node receives a forwarded request whose {@code masterTerm} exceeds its
@@ -90,7 +91,8 @@ import static org.elasticsearch.core.Strings.format;
  * <p>The {@link #localExecute} method can be overridden to allow the action to run on the local node
  * rather than being forwarded to the master (see {@link TransportMasterNodeReadAction} as an example).
  * This is typically used for read-only operations (e.g. cluster health or cluster state queries) where
- * a potentially stale local view is acceptable.
+ * a potentially stale local view is acceptable. It is conventionally controlled by the {@code ?local}
+ * request parameter.
  *
  * <h2>Execution Flow</h2>
  *

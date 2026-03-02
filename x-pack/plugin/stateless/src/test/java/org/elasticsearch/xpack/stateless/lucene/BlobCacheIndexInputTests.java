@@ -632,6 +632,267 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         }
     }
 
+    // Verifies withByteBufferSlice returns correct data for full and sub-range reads.
+    // Uses mmap-backed cache with 10 regions (4-64 KB each); file fits within a single region.
+    public void testWithByteBufferSlice() throws IOException {
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
+        final var settings = Settings.builder()
+            .put(sharedCacheSettings(cacheSize, regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .build();
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
+        ) {
+            final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+            // Keep file small enough to fit in one region
+            final int fileLength = randomIntBetween(1, (int) regionSize.getBytes() / 2);
+            final byte[] input = randomByteArrayOfLength(fileLength);
+            final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+            final long primaryTerm = randomNonNegativeLong();
+            final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
+                fileName,
+                randomIOContext(),
+                new CacheFileReader(
+                    sharedBlobCacheService.getCacheFile(
+                        new FileCacheKey(shardId, primaryTerm, fileName),
+                        input.length,
+                        SharedBlobCacheService.CacheMissHandler.NOOP
+                    ),
+                    createBlobReader(fileName, input, sharedBlobCacheService),
+                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    null,
+                    System::currentTimeMillis
+                ),
+                null,
+                input.length,
+                0
+            );
+
+            // Read all data to populate the cache
+            byte[] output = randomReadAndSlice(indexInput, input.length);
+            assertArrayEquals(input, output);
+
+            // Now verify withByteBufferSlice provides the correct data
+            boolean available = indexInput.withByteBufferSlice(0, input.length, slice -> {
+                assertTrue(slice.isReadOnly());
+                assertEquals(input.length, slice.remaining());
+                byte[] sliceBytes = new byte[input.length];
+                slice.get(sliceBytes);
+                assertArrayEquals(input, sliceBytes);
+            });
+            assertTrue("withByteBufferSlice(0, " + input.length + ") returned false; regionSize=" + regionSize, available);
+
+            // Verify a sub-range works too
+            if (input.length > 10) {
+                int subOffset = randomIntBetween(1, input.length / 2);
+                int subLength = randomIntBetween(1, input.length - subOffset);
+                boolean subAvailable = indexInput.withByteBufferSlice(subOffset, subLength, slice -> {
+                    byte[] subBytes = new byte[subLength];
+                    slice.get(subBytes);
+                    assertArrayEquals(Arrays.copyOfRange(input, subOffset, subOffset + subLength), subBytes);
+                });
+                assertTrue(subAvailable);
+            }
+        }
+    }
+
+    // Verifies withByteBufferSlice on a sliced BlobCacheIndexInput correctly translates the
+    // slice offset. Uses doSlice to bypass the buffer-based fast path that returns ByteArrayIndexInput.
+    public void testWithByteBufferSliceOnSlice() throws IOException {
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
+        final var settings = Settings.builder()
+            .put(sharedCacheSettings(cacheSize, regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .build();
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
+        ) {
+            final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+            // Keep file small enough to fit in one region
+            final int fileLength = randomIntBetween(100, (int) regionSize.getBytes() / 2);
+            final byte[] input = randomByteArrayOfLength(fileLength);
+            final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+            final long primaryTerm = randomNonNegativeLong();
+            final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
+                fileName,
+                randomIOContext(),
+                new CacheFileReader(
+                    sharedBlobCacheService.getCacheFile(
+                        new FileCacheKey(shardId, primaryTerm, fileName),
+                        input.length,
+                        SharedBlobCacheService.CacheMissHandler.NOOP
+                    ),
+                    createBlobReader(fileName, input, sharedBlobCacheService),
+                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    null,
+                    System::currentTimeMillis
+                ),
+                null,
+                input.length,
+                0
+            );
+
+            // Read all data to populate the cache
+            byte[] output = randomReadAndSlice(indexInput, input.length);
+            assertArrayEquals(input, output);
+
+            // Use doSlice to bypass the buffer-based fast path (trySliceBuffer) that may return a ByteArrayIndexInput
+            int sliceOffset = randomIntBetween(1, input.length / 2);
+            int sliceLength = randomIntBetween(1, input.length - sliceOffset);
+            BlobCacheIndexInput blobSlice = asInstanceOf(
+                BlobCacheIndexInput.class,
+                indexInput.doSlice("test-slice", sliceOffset, sliceLength)
+            );
+
+            // withByteBufferSlice(0, sliceLength) on the slice should return data starting at sliceOffset
+            boolean available = blobSlice.withByteBufferSlice(0, sliceLength, slice -> {
+                byte[] sliceBytes = new byte[sliceLength];
+                slice.get(sliceBytes);
+                assertArrayEquals(Arrays.copyOfRange(input, sliceOffset, sliceOffset + sliceLength), sliceBytes);
+            });
+            assertTrue(available);
+        }
+    }
+
+    // Verifies withByteBufferSlice returns false when the cache is not mmap-backed,
+    // since no direct byte buffer view is available. Uses 10 regions (4-64 KB each) without mmap.
+    public void testWithByteBufferSliceNoMmapReturnsFalse() throws IOException {
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 64)));
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 10);
+        final var settings = sharedCacheSettings(cacheSize, regionSize);
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
+        ) {
+            final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+            final int fileLength = randomIntBetween(1, (int) regionSize.getBytes() / 2);
+            final byte[] input = randomByteArrayOfLength(fileLength);
+            final String fileName = randomAlphaOfLength(5) + randomFileExtension();
+            final long primaryTerm = randomNonNegativeLong();
+            final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
+                fileName,
+                randomIOContext(),
+                new CacheFileReader(
+                    sharedBlobCacheService.getCacheFile(
+                        new FileCacheKey(shardId, primaryTerm, fileName),
+                        input.length,
+                        SharedBlobCacheService.CacheMissHandler.NOOP
+                    ),
+                    createBlobReader(fileName, input, sharedBlobCacheService),
+                    createBlobFileRanges(primaryTerm, 0L, 0, input.length),
+                    null,
+                    System::currentTimeMillis
+                ),
+                null,
+                input.length,
+                0
+            );
+
+            // Read all data to populate the cache
+            byte[] output = randomReadAndSlice(indexInput, input.length);
+            assertArrayEquals(input, output);
+
+            // withByteBufferSlice should return false when mmap is not enabled
+            boolean available = indexInput.withByteBufferSlice(0, input.length, slice -> {
+                fail("action should not be invoked when mmap is not enabled");
+            });
+            assertFalse(available);
+        }
+    }
+
+    // Verifies withByteBufferSlice returns false after the backing region has been evicted.
+    // Uses a small mmap-backed cache with only 3 regions (4-16 KB each); populating 4 additional
+    // files forces eviction of file A's region, after which withByteBufferSlice must return false.
+    public void testWithByteBufferSliceReturnsFalseAfterEviction() throws IOException {
+        final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 16)));
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 3);
+        final var settings = Settings.builder()
+            .put(sharedCacheSettings(cacheSize, regionSize))
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .build();
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
+        ) {
+            final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+            final long primaryTerm = randomNonNegativeLong();
+
+            // File A: fits in one region
+            final int fileLengthA = randomIntBetween(1, (int) regionSize.getBytes() / 2);
+            final byte[] inputA = randomByteArrayOfLength(fileLengthA);
+            final String fileNameA = "fileA_" + randomAlphaOfLength(5);
+            final BlobCacheIndexInput indexInputA = new BlobCacheIndexInput(
+                fileNameA,
+                randomIOContext(),
+                new CacheFileReader(
+                    sharedBlobCacheService.getCacheFile(
+                        new FileCacheKey(shardId, primaryTerm, fileNameA),
+                        inputA.length,
+                        SharedBlobCacheService.CacheMissHandler.NOOP
+                    ),
+                    createBlobReader(fileNameA, inputA, sharedBlobCacheService),
+                    createBlobFileRanges(primaryTerm, 0L, 0, inputA.length),
+                    null,
+                    System::currentTimeMillis
+                ),
+                null,
+                inputA.length,
+                0
+            );
+
+            // Populate cache with file A
+            byte[] outputA = randomReadAndSlice(indexInputA, inputA.length);
+            assertArrayEquals(inputA, outputA);
+
+            // Verify buffer is available before eviction
+            boolean availableBefore = indexInputA.withByteBufferSlice(0, inputA.length, slice -> {
+                byte[] sliceBytes = new byte[inputA.length];
+                slice.get(sliceBytes);
+                assertArrayEquals(inputA, sliceBytes);
+            });
+            assertTrue("expected buffer to be available before eviction", availableBefore);
+
+            // Fill the cache with other files to evict file A's region
+            for (int i = 0; i < 4; i++) {
+                int evictFileLength = (int) regionSize.getBytes() / 2;
+                byte[] evictInput = randomByteArrayOfLength(evictFileLength);
+                String evictFileName = "evict_" + i + "_" + randomAlphaOfLength(5);
+                BlobCacheIndexInput evictIndexInput = new BlobCacheIndexInput(
+                    evictFileName,
+                    randomIOContext(),
+                    new CacheFileReader(
+                        sharedBlobCacheService.getCacheFile(
+                            new FileCacheKey(shardId, primaryTerm, evictFileName),
+                            evictInput.length,
+                            SharedBlobCacheService.CacheMissHandler.NOOP
+                        ),
+                        createBlobReader(evictFileName, evictInput, sharedBlobCacheService),
+                        createBlobFileRanges(primaryTerm, 0L, 0, evictInput.length),
+                        null,
+                        System::currentTimeMillis
+                    ),
+                    null,
+                    evictInput.length,
+                    0
+                );
+                byte[] evictOutput = randomReadAndSlice(evictIndexInput, evictInput.length);
+                assertArrayEquals(evictInput, evictOutput);
+            }
+
+            // After eviction, withByteBufferSlice should return false for file A
+            boolean availableAfter = indexInputA.withByteBufferSlice(
+                0,
+                inputA.length,
+                slice -> { fail("action should not be invoked after eviction"); }
+            );
+            assertFalse("expected buffer to be unavailable after eviction", availableAfter);
+        }
+    }
+
     private SparseFileTracker.Gap mockGap(long start, long end) {
         final SparseFileTracker.Gap gap = mock(SparseFileTracker.Gap.class);
         when(gap.start()).thenReturn(start);

@@ -18,8 +18,10 @@
 package org.elasticsearch.xpack.stateless.lucene;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -182,6 +184,20 @@ public class SearchDirectoryTests extends ESTestCase {
                 return blobContainerWrapper.apply(innerContainer);
             }
         };
+    }
+
+    public void testServerlessDirectory() throws IOException {
+        try (Directory directory = ServerlessDirectoryFactory.create(LuceneTestCase.createTempDir().toAbsolutePath())) {
+            // It's important to close the IndexOutput so the necessary metadata gets updated
+            try (var output = directory.createOutput("vectors", IOContext.DEFAULT)) {
+                output.writeInt(12);
+            }
+
+            var input = directory.openInput("vectors", IOContext.DEFAULT);
+            var value = input.readInt();
+            assertThat(value, equalTo(12));
+            input.close();
+        }
     }
 
     /**

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -1694,20 +1695,18 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(syntheticField.dataType(), equalTo(LONG));
     }
 
-    /**
-     * Expects
-     * <pre>{@code
+    /*
      * Limit[1000[INTEGER],false,false]
-     * \_Project[[id{f}#11]]
-     *   \_Project[[id{f}#11]]
-     *     \_EsRelation[union_types_index*][!first_name, id{f}#11, !languages, !last_name, !sal..]
-     * }</pre>
+     * \_Project[[id{f}#14]]
+     *   \_Rerank[reranking-inference-id[KEYWORD],1000[INTEGER],test[KEYWORD],[x{r}#5 AS x#7],_score{m}#16]
+     *     \_Project[[id{f}#14, $$languages$converted_to$keyword{f$}#15, $$languages$converted_to$keyword{f$}#15 AS x#5]]
+     *       \_EsRelation[union_types_index*][!first_name, id{f}#14, !languages, !last_name, !sal..]
      */
-    public void testPruneColumnsInProject_WithDissect() {
+    public void testPruneColumnsInProject_WithGeneratingPlan_Rerank() {
         var query = """
             from union_types_index*
             | eval x = languages::string
-            | dissect x "%{foo}"
+            | rerank "test" ON x WITH { "inference_id" : "reranking-inference-id" }
             | keep id
             """;
 
@@ -1719,18 +1718,18 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         /*
          * Limit[1000[INTEGER],false,false]
-         * \_Project[[id{f}#10]]
-         *   \_Dissect[x{r}#5,Parser[pattern=%{foo}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser@16d0b308],[foo{r}#6]]
-         *     \_Project[[!first_name, id{f}#10, !languages, !last_name, !salary_change, $$languages$converted_to$keyword{f$}#14, $$lan
-         * guages$converted_to$keyword{f$}#14 AS x#5]]
-         *       \_EsRelation[union_types_index*][!first_name, id{f}#10, !languages, !last_name, !sal..]
+         * \_Project[[id{f}#13]]
+         *   \_Rerank[reranking-inference-id[KEYWORD],1000[INTEGER],test[KEYWORD],[x{r}#5 AS x#7],_score{m}#16]
+         *     \_Project[[!first_name, id{f}#13, !languages, !last_name, !salary_change, $$languages$converted_to$keyword{f$}#15, $$lan
+         * guages$converted_to$keyword{f$}#15 AS x#5]]
+         *       \_EsRelation[union_types_index*][!first_name, id{f}#13, !languages, !last_name, !sal..]
          */
         Limit topLimit = as(prunedEval, Limit.class);
         Project topProject = as(topLimit.child(), Project.class);
         assertThat(topProject.projections().size(), equalTo(1));
         assertThat(Expressions.names(topProject.projections()), contains("id"));
-        Dissect dissect = as(topProject.child(), Dissect.class);
-        Project project = as(dissect.child(), Project.class);
+        Rerank rerank = as(topProject.child(), Rerank.class);
+        Project project = as(rerank.child(), Project.class);
         assertThat(project.projections().size(), equalTo(7));
         assertThat(
             Expressions.names(project.projections()),
@@ -1739,16 +1738,20 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         var prunedProject = new PruneColumns().apply(prunedEval);
 
-        // Dissect has been fully pruned since 'foo' field is not used
         topLimit = as(prunedProject, Limit.class);
         topProject = as(topLimit.child(), Project.class);
         assertThat(topProject.projections().size(), equalTo(1));
         assertThat(Expressions.names(topProject.projections()), contains("id"));
-        project = as(topProject.child(), Project.class);
-        assertThat(project.projections().size(), equalTo(1));
-        assertThat(Expressions.names(project.projections()), contains("id"));
+        rerank = as (topProject.child(), Rerank.class);
+        project = as(rerank.child(), Project.class);
+        assertThat(project.projections().size(), equalTo(3));
+        assertThat(Expressions.names(project.projections()), contains("id", "$$languages$converted_to$keyword", "x"));
         EsRelation relation = as(project.child(), EsRelation.class);
         assertCommonIncompatibleDataTypesEsRelation(relation);
+        var relationOutput = relation.output();
+        var syntheticField = relationOutput.get(5);
+        assertThat(syntheticField.name(), equalTo("$$languages$converted_to$keyword"));
+        assertThat(syntheticField.dataType(), equalTo(KEYWORD));
     }
 
     public static void assertCommonIncompatibleDataTypesEsRelation(EsRelation relation) {
@@ -1945,9 +1948,10 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             """);
 
         var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()).contains("extracted_first"), is(false));
-        assertThat(Expressions.names(project.projections()).contains("extracted_last"), is(false));
-        assertThat(Expressions.names(project.projections()).contains("full_name"), is(false));
+        var projections = Expressions.names(project.projections());
+        assertThat(projections.contains("extracted_first"), is(false));
+        assertThat(projections.contains("extracted_last"), is(false));
+        assertThat(projections.contains("full_name"), is(false));
         var limit = as(project.child(), Limit.class);
         as(limit.child(), EsRelation.class);
     }
@@ -1971,9 +1975,10 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             """);
 
         var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()).contains("extracted_first"), is(false));
-        assertThat(Expressions.names(project.projections()).contains("extracted_last"), is(false));
-        assertThat(Expressions.names(project.projections()).contains("full_name"), is(false));
+        var projections = Expressions.names(project.projections());
+        assertThat(projections.contains("extracted_first"), is(false));
+        assertThat(projections.contains("extracted_last"), is(false));
+        assertThat(projections.contains("full_name"), is(false));
         var limit = as(project.child(), Limit.class);
         as(limit.child(), EsRelation.class);
     }

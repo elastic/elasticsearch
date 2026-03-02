@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -536,7 +535,7 @@ public abstract class DocumentParserContext {
      * @throws IllegalArgumentException if the field limit has been exceeded.
      * This can happen when dynamic is set to {@link ObjectMapper.Dynamic#TRUE} or {@link ObjectMapper.Dynamic#RUNTIME}.
      */
-    public final boolean addDynamicMapper(Mapper.Builder builder, String fullPath) {
+    private boolean addDynamicMapper(Mapper.Builder builder, String fullPath) {
         // eagerly check object depth limit here to avoid stack overflow errors
         if (builder instanceof ObjectMapper.Builder) {
             MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), fullPath);
@@ -695,27 +694,34 @@ public abstract class DocumentParserContext {
      * @return the mapper, or null if the field limit was exceeded
      */
     final Mapper getDynamicMapper(String fieldName) {
-        return getDynamicMapper(
-            fieldName,
-            () -> DynamicFieldsBuilder.createDynamicObjectMapperBuilder(this, fieldName),
-            createDynamicMapperBuilderContext()
-        );
+        Mapper.Builder builder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(this, fieldName);
+        return getDynamicMapper(builder);
     }
 
     /**
-     * Returns a dynamically created mapper for the given field name, creating one from the
-     * supplied builder factory if it doesn't already exist. Caches the result so that
-     * subsequent calls for the same field path reuse the same mapper instance.
+     * Registers a dynamically created mapper builder if one doesn't already exist for the same
+     * field path, builds the mapper, and caches the result. Subsequent calls for the same field
+     * path reuse the cached mapper, avoiding redundant builder and mapper accumulation when
+     * parsing arrays of objects.
      *
      * @return the mapper, or null if the field limit was exceeded
      */
-    final Mapper getDynamicMapper(String fieldName, Supplier<Mapper.Builder> builderFactory, MapperBuilderContext builderContext) {
-        String fullPath = builderContext.buildFullName(fieldName);
+    public final Mapper getDynamicMapper(Mapper.Builder builder) {
+        return getDynamicMapper(builder, createDynamicMapperBuilderContext());
+    }
+
+    /**
+     * Like {@link #getDynamicMapper(Mapper.Builder)} but uses the provided builder context
+     * to compute the full field path and build the mapper.
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    public final Mapper getDynamicMapper(Mapper.Builder builder, MapperBuilderContext builderContext) {
+        String fullPath = builderContext.buildFullName(builder.leafName());
         Mapper existing = builtDynamicMappers.get(fullPath);
         if (existing != null) {
             return existing;
         }
-        Mapper.Builder builder = builderFactory.get();
         if (addDynamicMapper(builder, fullPath) == false) {
             return null;
         }

@@ -326,7 +326,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             }
             var builder = (Builder) getMergeBuilder();
             builder.dimensions(currentDims);
-            context.addDynamicMapper(builder, fullPath());
+            context.getDynamicMapper(builder);
             return;
         }
         int dims = fieldType().dims;

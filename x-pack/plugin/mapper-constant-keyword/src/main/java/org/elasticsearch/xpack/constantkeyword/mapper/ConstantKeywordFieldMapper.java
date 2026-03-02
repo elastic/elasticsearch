@@ -341,9 +341,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         if (fieldType().value == null) {
             Builder builder = new Builder(leafName()).setValue(value);
-            boolean dynamicMapperAdded = context.addDynamicMapper(builder, fullPath());
             // the mapper is already part of the mapping, we're just updating it with the new value
-            assert dynamicMapperAdded;
+            assert context.getDynamicMapper(builder) != null;
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["

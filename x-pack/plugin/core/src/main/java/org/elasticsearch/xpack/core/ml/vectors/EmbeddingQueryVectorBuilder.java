@@ -156,6 +156,22 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         return builder;
     }
 
+    public String getInferenceId() {
+        return inferenceId;
+    }
+
+    public DataType getType() {
+        return type;
+    }
+
+    public DataFormat getFormat() {
+        return format;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

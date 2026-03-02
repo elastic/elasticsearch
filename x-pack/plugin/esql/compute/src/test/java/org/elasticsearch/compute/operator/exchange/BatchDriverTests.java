@@ -804,8 +804,9 @@ public class BatchDriverTests extends ESTestCase {
         // This helps catch timing-related issues that might be hidden when everything runs sequentially
         Thread batchFeedingThread = new Thread(() -> {
             try {
-                // Feed first batch - this will trigger the callback chain
-                threadPool.executor(ThreadPool.Names.SEARCH).execute(feedBatch);
+                // Feed first batch directly to avoid racing with driver scheduling on the same SEARCH executor.
+                // Subsequent batches are still triggered by onBatchEnd callbacks.
+                feedBatch.run();
             } catch (Exception e) {
                 logger.error("[TEST] Error in batch feeding thread", e);
                 throw new AssertionError("Error in batch feeding thread", e);

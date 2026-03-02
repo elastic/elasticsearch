@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceBuffer;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
@@ -110,7 +111,7 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
                 ResultCursor cursor = connector.execute(request, Split.SINGLE);
                 executor.execute(() -> {
                     try {
-                        org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.drainPages(cursor, buffer);
+                        ExternalSourceDrainUtils.drainPages(cursor, buffer);
                         buffer.finish(false);
                     } catch (Exception e) {
                         buffer.onFailure(e);
@@ -218,7 +219,7 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
                         ExternalSplit split;
                         while ((split = sliceQueue.nextSplit()) != null) {
                             try (ResultCursor cursor = connector.execute(request, split)) {
-                                org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.drainPages(cursor, buffer);
+                                ExternalSourceDrainUtils.drainPages(cursor, buffer);
                             }
                         }
                         buffer.finish(false);
@@ -276,7 +277,9 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
                 for (ExternalSplit split : splits) {
                     try (ResultCursor cursor = connector.execute(request, split)) {
                         while (cursor.hasNext()) {
-                            totalRows += cursor.next().getPositionCount();
+                            Page page = cursor.next();
+                            totalRows += page.getPositionCount();
+                            page.releaseBlocks();
                         }
                     }
                 }
@@ -309,7 +312,9 @@ public class AsyncConnectorFactoryFlightTests extends ESTestCase {
                 for (ExternalSplit split : splits) {
                     try (ResultCursor cursor = connector.execute(request, split)) {
                         while (cursor.hasNext()) {
-                            totalRows += cursor.next().getPositionCount();
+                            Page page = cursor.next();
+                            totalRows += page.getPositionCount();
+                            page.releaseBlocks();
                         }
                     }
                 }

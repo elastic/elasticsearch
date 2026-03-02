@@ -28,12 +28,10 @@ public abstract class HeapByteVectorScorerSupplier implements RandomVectorScorer
     private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
 
     protected final ByteVectorValues values;
-    protected final int maxOrd;
     protected final int dims;
 
     HeapByteVectorScorerSupplier(ByteVectorValues values) {
         this.values = values;
-        this.maxOrd = values.size();
         this.dims = values.dimension();
     }
 
@@ -52,8 +50,9 @@ public abstract class HeapByteVectorScorerSupplier implements RandomVectorScorer
     @Override
     public UpdateableRandomVectorScorer scorer() {
         return new UpdateableRandomVectorScorer.AbstractUpdateableRandomVectorScorer(values) {
-            private int firstOrd = -1;
             private MemorySegment firstSegment;
+            private byte[] packedVectors = new byte[0];
+            private MemorySegment packedVectorsSegment = MemorySegment.ofArray(packedVectors);
 
             @Override
             public float score(int node) throws IOException {
@@ -64,9 +63,15 @@ public abstract class HeapByteVectorScorerSupplier implements RandomVectorScorer
 
             @Override
             public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+                if (numNodes == 0) {
+                    return Float.NEGATIVE_INFINITY;
+                }
+                final MemorySegment vectorsSegment = packVectors(nodes, numNodes);
+                final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
+                bulkScoreFromSegments(vectorsSegment, firstSegment, numNodes, scoresSegment);
+                normalizeBulkScores(scores, numNodes);
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; i++) {
-                    scores[i] = score(nodes[i]);
                     max = Math.max(max, scores[i]);
                 }
                 return max;
@@ -75,13 +80,29 @@ public abstract class HeapByteVectorScorerSupplier implements RandomVectorScorer
             @Override
             public void setScoringOrdinal(int node) throws IOException {
                 checkOrdinal(node);
-                this.firstOrd = node;
-                this.firstSegment = MemorySegment.ofArray(values.vectorValue(firstOrd));
+                this.firstSegment = MemorySegment.ofArray(values.vectorValue(node));
+            }
+
+            private MemorySegment packVectors(int[] nodes, int numNodes) throws IOException {
+                final int requiredValues = Math.multiplyExact(numNodes, dims);
+                if (packedVectors.length < requiredValues) {
+                    packedVectors = new byte[requiredValues];
+                    packedVectorsSegment = MemorySegment.ofArray(packedVectors);
+                }
+
+                for (int i = 0; i < numNodes; i++) {
+                    final int node = nodes[i];
+                    checkOrdinal(node);
+                    final byte[] vector = values.vectorValue(node);
+                    System.arraycopy(vector, 0, packedVectors, i * dims, dims);
+                }
+                return packedVectorsSegment;
             }
         };
     }
 
     private void checkOrdinal(int ord) {
+        final int maxOrd = values.size();
         if (ord < 0 || ord >= maxOrd) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
@@ -89,12 +110,9 @@ public abstract class HeapByteVectorScorerSupplier implements RandomVectorScorer
 
     abstract float scoreFromSegments(MemorySegment a, MemorySegment b);
 
-    abstract HeapByteVectorScorerSupplier copyInternal();
+    abstract void bulkScoreFromSegments(MemorySegment a, MemorySegment b, int count, MemorySegment scores);
 
-    @Override
-    public HeapByteVectorScorerSupplier copy() {
-        return copyInternal();
-    }
+    abstract void normalizeBulkScores(float[] scores, int count);
 
     static final class CosineSupplier extends HeapByteVectorScorerSupplier {
         CosineSupplier(ByteVectorValues values) {
@@ -107,7 +125,19 @@ public abstract class HeapByteVectorScorerSupplier implements RandomVectorScorer
         }
 
         @Override
-        HeapByteVectorScorerSupplier copyInternal() {
+        void bulkScoreFromSegments(MemorySegment a, MemorySegment b, int count, MemorySegment scores) {
+            Similarities.cosineI8Bulk(a, b, dims, count, scores);
+        }
+
+        @Override
+        void normalizeBulkScores(float[] scores, int count) {
+            for (int i = 0; i < count; i++) {
+                scores[i] = (1 + scores[i]) / 2;
+            }
+        }
+
+        @Override
+        public HeapByteVectorScorerSupplier copy() {
             return new CosineSupplier(values);
         }
     }
@@ -125,7 +155,19 @@ public abstract class HeapByteVectorScorerSupplier implements RandomVectorScorer
         }
 
         @Override
-        HeapByteVectorScorerSupplier copyInternal() {
+        void bulkScoreFromSegments(MemorySegment a, MemorySegment b, int count, MemorySegment scores) {
+            Similarities.dotProductI8Bulk(a, b, dims, count, scores);
+        }
+
+        @Override
+        void normalizeBulkScores(float[] scores, int count) {
+            for (int i = 0; i < count; i++) {
+                scores[i] = 0.5f + scores[i] / denom;
+            }
+        }
+
+        @Override
+        public HeapByteVectorScorerSupplier copy() {
             return new DotProductSupplier(values);
         }
     }
@@ -141,7 +183,19 @@ public abstract class HeapByteVectorScorerSupplier implements RandomVectorScorer
         }
 
         @Override
-        HeapByteVectorScorerSupplier copyInternal() {
+        void bulkScoreFromSegments(MemorySegment a, MemorySegment b, int count, MemorySegment scores) {
+            Similarities.squareDistanceI8Bulk(a, b, dims, count, scores);
+        }
+
+        @Override
+        void normalizeBulkScores(float[] scores, int count) {
+            for (int i = 0; i < count; i++) {
+                scores[i] = VectorUtil.normalizeDistanceToUnitInterval(scores[i]);
+            }
+        }
+
+        @Override
+        public HeapByteVectorScorerSupplier copy() {
             return new EuclideanSupplier(values);
         }
     }
@@ -157,7 +211,19 @@ public abstract class HeapByteVectorScorerSupplier implements RandomVectorScorer
         }
 
         @Override
-        HeapByteVectorScorerSupplier copyInternal() {
+        void bulkScoreFromSegments(MemorySegment a, MemorySegment b, int count, MemorySegment scores) {
+            Similarities.dotProductI8Bulk(a, b, dims, count, scores);
+        }
+
+        @Override
+        void normalizeBulkScores(float[] scores, int count) {
+            for (int i = 0; i < count; i++) {
+                scores[i] = VectorUtil.scaleMaxInnerProductScore(scores[i]);
+            }
+        }
+
+        @Override
+        public HeapByteVectorScorerSupplier copy() {
             return new MaxInnerProductSupplier(values);
         }
     }

@@ -81,9 +81,9 @@ public class ReindexMetrics {
     public enum SlicingMode {
         // slices resolved automatically from source index shard count (e.g. ?slices=auto)
         AUTO("auto"),
-        // caller specifies a fixed slice count (e.g. ?slices=4)
+        // reindex request specifies a fixed slice count (e.g. ?slices=4)
         FIXED("fixed"),
-        // caller provides slice id (e.g. "slice": { "id": 0, "max": 4 })
+        // reindex request specifies a slice id (e.g. "slice": { "id": 0, "max": 4 })
         MANUAL("manual"),
         // no slicing (e.g. ?slices=1)
         NONE("none");

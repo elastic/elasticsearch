@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankR
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ml.vectors.EmbeddingQueryVectorBuilder.EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE;
 import static org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder.RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_AUTO_PREFILTERING;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SEMANTIC_TEXT_BFLOAT16_SUPPORT;
@@ -140,7 +141,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS,
                 RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER,
                 TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING,
-                TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING
+                TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING,
+                EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE
             )
         );
         testFeatures.addAll(getFeatures());

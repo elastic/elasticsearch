@@ -1,0 +1,71 @@
+setup:
+  - requires:
+      cluster_features: "embedding_query_vector_builder"
+      reason: embedding query vector builder
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-embedding-index
+        body:
+          mappings:
+            properties:
+              content:
+                type: keyword
+              embedding:
+                type: dense_vector
+                dims: 10
+                similarity: cosine
+
+  - do:
+      index:
+        index: test-embedding-index
+        id: doc_1
+        body:
+          content: "first document"
+          embedding: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        refresh: true
+
+  - do:
+      index:
+        index: test-embedding-index
+        id: doc_2
+        body:
+          content: "second document"
+          embedding: [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
+        refresh: true
+
+---
+"knn query with embedding query vector builder":
+  - do:
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  type: text
+                  value: "test query"
+
+  - match: { hits.total.value: 2 }

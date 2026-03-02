@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
@@ -50,6 +51,8 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     public static final TimeValue DEFAULT_TIMEOUT = InferenceAction.Request.DEFAULT_TIMEOUT;
 
+    public static final NodeFeature EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE = new NodeFeature("embedding_query_vector_builder");
+
     public static final ConstructingObjectParser<EmbeddingQueryVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         args -> new EmbeddingQueryVectorBuilder(
@@ -73,7 +76,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         return PARSER.parse(parser, null);
     }
 
-    private static final TransportVersion EMBEDDING_QUERY_VECTOR_BUILDER = TransportVersion.fromName("embedding_query_vector_builder");
+    private static final TransportVersion EMBEDDING_QUERY_VECTOR_BUILDER_TV = TransportVersion.fromName("embedding_query_vector_builder");
 
     private final String inferenceId;
     private final DataType type;
@@ -150,7 +153,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return EMBEDDING_QUERY_VECTOR_BUILDER;
+        return EMBEDDING_QUERY_VECTOR_BUILDER_TV;
     }
 
     @Override

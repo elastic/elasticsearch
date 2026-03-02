@@ -87,4 +87,43 @@ public class StoragePathTests extends ESTestCase {
         StoragePath path = StoragePath.of("s3://b/data/*.{parquet,csv}");
         assertEquals("*.{parquet,csv}", path.globPart());
     }
+
+    // -- file:// URI handling (including Windows paths) --
+
+    public void testFileUriUnixAbsolute() {
+        StoragePath path = StoragePath.of("file:///home/user/data.parquet");
+        assertEquals("file", path.scheme());
+        assertEquals("", path.host());
+        assertEquals(-1, path.port());
+        assertEquals("/home/user/data.parquet", path.path());
+    }
+
+    public void testFileUriWindowsDriveLetter() {
+        StoragePath path = StoragePath.of("file://C:/Users/data/file.txt");
+        assertEquals("file", path.scheme());
+        assertEquals("", path.host());
+        assertEquals("/C:/Users/data/file.txt", path.path());
+    }
+
+    public void testFileUriWindowsBackslashes() {
+        StoragePath path = StoragePath.of("file://C:\\Users\\data\\file.txt");
+        assertEquals("file", path.scheme());
+        assertEquals("", path.host());
+        assertEquals("/C:/Users/data/file.txt", path.path());
+    }
+
+    public void testFileUriWindowsTripleSlash() {
+        StoragePath path = StoragePath.of("file:///C:/path/to/file.parquet");
+        assertEquals("file", path.scheme());
+        assertEquals("", path.host());
+        assertEquals("/C:/path/to/file.parquet", path.path());
+    }
+
+    public void testFileUriFunctionOnUnix() {
+        java.nio.file.Path p = java.nio.file.Path.of("/tmp/test/data.parquet");
+        String uri = StoragePath.fileUri(p);
+        assertEquals("file:///tmp/test/data.parquet", uri);
+        StoragePath sp = StoragePath.of(uri);
+        assertEquals("/tmp/test/data.parquet", sp.path());
+    }
 }

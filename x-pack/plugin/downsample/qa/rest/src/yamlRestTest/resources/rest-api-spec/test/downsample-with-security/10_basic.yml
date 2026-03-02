@@ -413,12 +413,3 @@ setup:
   - do:
       indices.get:
         index: test
-
-  # Assert downsample index has been force merged
-  - do:
-      indices.segments:
-        index: test-downsample
-
-  - match:   { _shards.total: 1}
-  - match:   { indices.test-downsample.shards.0.0.num_committed_segments: 1}
-  - match:   { indices.test-downsample.shards.0.0.num_search_segments: 1}

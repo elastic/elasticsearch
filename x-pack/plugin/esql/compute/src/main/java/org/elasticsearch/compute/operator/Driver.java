@@ -174,10 +174,10 @@ public class Driver implements Releasable, Describable {
      * Returns a blocked future when the chain of operators is blocked, allowing the caller
      * thread to do other work instead of blocking or busy-spinning on the blocked operator.
      */
-    SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier nowSupplier) {
+    SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
         long maxTimeNanos = maxTime.nanos();
         // Start time, used to stop the calculations after maxTime has passed.
-        long startTime = nowSupplier.getAsLong();
+        long startTime = currentTimeNanosSupplier.getAsLong();
         updateStatus(0, 0, DriverStatus.Status.RUNNING, "driver running", startTime);
         // The time of the next forced status update.
         long nextStatus = startTime + statusNanos;
@@ -191,9 +191,13 @@ public class Driver implements Releasable, Describable {
             IsBlockedResult isBlocked = Operator.NOT_BLOCKED;
             try {
                 assert driverContext.assertBeginRunLoop();
-                isBlocked = runSingleLoopIteration(nowSupplier, lastStatusUpdateTime);
+                isBlocked = runSingleLoopIteration(currentTimeNanosSupplier, lastStatusUpdateTime);
             } catch (DriverEarlyTerminationException unused) {
-                closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()), nowSupplier, lastStatusUpdateTime);
+                closeEarlyFinishedOperators(
+                    activeOperators.listIterator(activeOperators.size()),
+                    currentTimeNanosSupplier,
+                    lastStatusUpdateTime
+                );
                 assert isFinished() : "not finished after early termination";
             } catch (TaskCancelledException e) {
                 LOGGER.debug("Cancelling running driver [{}]", shortDescription, e);
@@ -216,7 +220,7 @@ public class Driver implements Releasable, Describable {
             totalIterationsThisRun++;
             iterationsSinceLastStatusUpdate++;
 
-            long now = nowSupplier.getAsLong();
+            long now = currentTimeNanosSupplier.getAsLong();
             if (isBlocked.listener().isDone() == false) {
                 updateStatus(
                     now - lastStatusUpdateTime,
@@ -295,7 +299,7 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    private IsBlockedResult runSingleLoopIteration(LongSupplier nowSupplier, long lastStatusUpdate) {
+    private IsBlockedResult runSingleLoopIteration(LongSupplier currentTimeNanosSupplier, long lastStatusUpdate) {
         driverContext.checkForEarlyTermination();
         boolean movedPage = false;
 
@@ -338,14 +342,14 @@ public class Driver implements Releasable, Describable {
             if (op.isFinished()) {
                 driverContext.checkForEarlyTermination();
                 var originalIndex = iterator.previousIndex();
-                var index = closeEarlyFinishedOperators(iterator, nowSupplier, lastStatusUpdate);
+                var index = closeEarlyFinishedOperators(iterator, currentTimeNanosSupplier, lastStatusUpdate);
                 if (index >= 0) {
                     iterator = new ArrayList<>(activeOperators).listIterator(originalIndex - index);
                 }
             }
         }
 
-        closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()), nowSupplier, lastStatusUpdate);
+        closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()), currentTimeNanosSupplier, lastStatusUpdate);
 
         if (movedPage == false) {
             blockedResults.clear();
@@ -366,7 +370,11 @@ public class Driver implements Releasable, Describable {
     }
 
     // Returns the index of the last operator that was closed, -1 if no operator was closed.
-    protected int closeEarlyFinishedOperators(ListIterator<Operator> operators, LongSupplier nowSupplier, long lastStatusUpdate) {
+    protected int closeEarlyFinishedOperators(
+        ListIterator<Operator> operators,
+        LongSupplier currentTimeNanosSupplier,
+        long lastStatusUpdate
+    ) {
         var iterator = activeOperators.listIterator(operators.nextIndex());
         while (iterator.hasPrevious()) {
             if (iterator.previous().isFinished()) {
@@ -382,7 +390,7 @@ public class Driver implements Releasable, Describable {
                     Operator op = finishedOperators.next();
                     statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
                     if (op instanceof SourceOperator sourceOperator) {
-                        long now = nowSupplier.getAsLong();
+                        long now = currentTimeNanosSupplier.getAsLong();
                         // report one last time before closing
                         sourceOperator.reportSearchLoad(now - lastStatusUpdate, now);
                     }
@@ -426,10 +434,18 @@ public class Driver implements Releasable, Describable {
     ) {
         driver.completionListener.addListener(listener);
         if (driver.started.compareAndSet(false, true)) {
-            LongSupplier nowSupplier = System::nanoTime;
-            driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting", nowSupplier.getAsLong());
+            LongSupplier currentTimeNanosSupplier = System::nanoTime;
+            driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting", currentTimeNanosSupplier.getAsLong());
             initializeEarlyTerminationChecker(driver);
-            schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, driver.completionListener, nowSupplier);
+            schedule(
+                DEFAULT_TIME_BEFORE_YIELDING,
+                maxIterations,
+                threadContext,
+                executor,
+                driver,
+                driver.completionListener,
+                currentTimeNanosSupplier
+            );
         }
     }
 
@@ -481,22 +497,22 @@ public class Driver implements Releasable, Describable {
         Executor executor,
         Driver driver,
         ActionListener<Void> listener,
-        LongSupplier nowSupplier
+        LongSupplier currentTimeNanosSupplier
     ) {
         final var task = new AbstractRunnable() {
 
             @Override
             protected void doRun() {
-                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, nowSupplier);
+                SubscribableListener<Void> fut = driver.run(maxTime, maxIterations, currentTimeNanosSupplier);
                 if (driver.isFinished()) {
                     onComplete(listener);
                     return;
                 }
                 if (fut.isDone()) {
-                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener, nowSupplier);
+                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier);
                 } else {
                     ActionListener<Void> readyListener = ActionListener.wrap(
-                        ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener, nowSupplier),
+                        ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener, currentTimeNanosSupplier),
                         this::onFailure
                     );
                     fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));

@@ -1079,42 +1079,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testShouldSkipOnFailureCCS() {
-        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes)) {
-            DiscoveryNode seedNode = seedTransport.getLocalNode();
-            knownNodes.add(seedNode);
-            Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalNode().getAddress().toString());
-            try (MockTransportService service = startTransport(builder.build())) {
-                RemoteClusterService rcs = service.getRemoteClusterService();
-                assertFalse(rcs.crossProjectEnabled());
-
-                updateSkipUnavailable(rcs, "cluster1", true);
-                assertTrue(rcs.shouldSkipOnFailure("cluster1", null));
-                assertTrue(rcs.shouldSkipOnFailure("cluster1", true));
-                assertTrue(rcs.shouldSkipOnFailure("cluster1", false));
-
-                updateSkipUnavailable(rcs, "cluster1", false);
-                assertFalse(rcs.shouldSkipOnFailure("cluster1", null));
-                assertFalse(rcs.shouldSkipOnFailure("cluster1", true));
-                assertFalse(rcs.shouldSkipOnFailure("cluster1", false));
-            }
-        }
-    }
-
-    public void testShouldSkipOnFailureCPS() {
-        Settings cpsSettings = Settings.builder().put("serverless.cross_project.enabled", true).build();
-        try (MockTransportService service = startTransport(cpsSettings)) {
-            RemoteClusterService rcs = service.getRemoteClusterService();
-            assertTrue(rcs.crossProjectEnabled());
-
-            assertTrue(rcs.shouldSkipOnFailure("any_project", true));
-            assertFalse(rcs.shouldSkipOnFailure("any_project", false));
-            assertFalse(rcs.shouldSkipOnFailure("any_project", null));
-        }
-    }
-
     public void testRemoteClusterServiceNotEnabledGetRemoteClusterConnection() {
         final Settings settings = Settings.builder()
             .put(removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)))

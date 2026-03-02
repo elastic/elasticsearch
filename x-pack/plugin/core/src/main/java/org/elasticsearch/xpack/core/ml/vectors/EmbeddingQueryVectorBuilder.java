@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -48,18 +50,13 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     public static final ConstructingObjectParser<EmbeddingQueryVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        args -> new EmbeddingQueryVectorBuilder(
-            (String) args[0],
-            (InferenceString.DataType) args[1],
-            (InferenceString.DataFormat) args[2],
-            (String) args[3]
-        )
+        args -> new EmbeddingQueryVectorBuilder((String) args[0], (DataType) args[1], (DataFormat) args[2], (String) args[3])
     );
 
     static {
         PARSER.declareString(optionalConstructorArg(), INFERENCE_ID_FIELD);
-        PARSER.declareString(constructorArg(), InferenceString.DataType::fromString, TYPE_FIELD);
-        PARSER.declareString(optionalConstructorArg(), InferenceString.DataFormat::fromString, FORMAT_FIELD);
+        PARSER.declareString(constructorArg(), DataType::fromString, TYPE_FIELD);
+        PARSER.declareString(optionalConstructorArg(), DataFormat::fromString, FORMAT_FIELD);
         PARSER.declareString(constructorArg(), VALUE_FIELD);
     }
 
@@ -70,20 +67,15 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     private static final TransportVersion EMBEDDING_QUERY_VECTOR_BUILDER = TransportVersion.fromName("embedding_query_vector_builder");
 
     private final String inferenceId;
-    private final InferenceString.DataType type;
-    private final InferenceString.DataFormat format;
+    private final DataType type;
+    private final DataFormat format;
     private final String value;
 
-    public EmbeddingQueryVectorBuilder(InferenceString.DataType type, String value) {
+    public EmbeddingQueryVectorBuilder(DataType type, String value) {
         this(null, type, null, value);
     }
 
-    public EmbeddingQueryVectorBuilder(
-        @Nullable String inferenceId,
-        InferenceString.DataType type,
-        @Nullable InferenceString.DataFormat format,
-        String value
-    ) {
+    public EmbeddingQueryVectorBuilder(@Nullable String inferenceId, DataType type, @Nullable DataFormat format, String value) {
         this.inferenceId = inferenceId;
         this.type = Objects.requireNonNull(type);
         this.format = format;
@@ -92,8 +84,8 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     public EmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
         this.inferenceId = in.readOptionalString();
-        this.type = in.readEnum(InferenceString.DataType.class);
-        this.format = in.readOptionalEnum(InferenceString.DataFormat.class);
+        this.type = in.readEnum(DataType.class);
+        this.format = in.readOptionalEnum(DataFormat.class);
         this.value = in.readString();
     }
 

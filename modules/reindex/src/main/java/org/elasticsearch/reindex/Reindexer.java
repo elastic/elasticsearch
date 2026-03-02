@@ -343,7 +343,7 @@ public class Reindexer {
         final ReindexRequest request,
         final ActionListener<BulkByScrollResponse> listener
     ) {
-        final boolean workerTaskWillPotentiallyBeRelocatedByParent = task.getParentTaskId().isSet();
+        final boolean workerTaskWillPotentiallyBeRelocatedByParent = getReindexParent(task).isPresent();
         if (workerTaskWillPotentiallyBeRelocatedByParent) {
             return listener;
         }
@@ -444,27 +444,27 @@ public class Reindexer {
         }
     }
 
+    /**
+     * Returns the parent {@link BulkByScrollTask} leader if this task is a worker whose parent will handle relocation on its behalf.
+     * A parent task ID can also refer to an external caller (e.g. enrich, system migration) -- those don't handle relocation.
+     * N.b. relies on reindex subtasks existing on the same node as the parent.
+     */
+    private Optional<BulkByScrollTask> getReindexParent(final BulkByScrollTask task) {
+        if (task.isWorker() == false || task.getParentTaskId().isSet() == false) {
+            return Optional.empty();
+        }
+        final CancellableTask parent = taskManager.getCancellableTasks().get(task.getParentTaskId().getId());
+        if (parent instanceof BulkByScrollTask parentBbs && parentBbs.isLeader()) {
+            return Optional.of(parentBbs);
+        }
+        return Optional.empty();
+    }
+
     private Supplier<Optional<String>> getWorkerNodeToRelocateToSupplier(final BulkByScrollTask workerTask) {
         assert workerTask.isWorker() : "task should be a worker";
-        final boolean singleSlicedReindex = workerTask.getParentTaskId().isSet() == false;
-        if (singleSlicedReindex) {
+        return getReindexParent(workerTask).map(leader -> (Supplier<Optional<String>>) leader.getLeaderState()::getNodeToRelocateTo)
             // we don't need a thread-safe nodeToRelocateToSupplier for non-sliced, but re-using leads to less code
-            return new NodeToRelocateToSupplier(clusterService, relocationNodePicker);
-        }
-        // n.b. relies on reindex subtasks existing on the same node.
-        final CancellableTask parentTask = taskManager.getCancellableTasks().get(workerTask.getParentTaskId().getId());
-        if (parentTask == null) {
-            throw new IllegalStateException("parent task should exist and be running");
-        }
-        // parent might be something other than reindex, running a single-sliced reindex
-        if (ReindexAction.NAME.equals(parentTask.getAction()) == false) {
-            // we don't need a thread-safe nodeToRelocateToSupplier for non-sliced, but re-using leads to less code
-            return new NodeToRelocateToSupplier(clusterService, relocationNodePicker);
-        }
-        if (!(parentTask instanceof BulkByScrollTask parentBulkByScrollTask)) {
-            throw new IllegalStateException("parent task should be a bulk-by-scroll task");
-        }
-        return parentBulkByScrollTask.getLeaderState()::getNodeToRelocateTo;
+            .orElseGet(() -> new NodeToRelocateToSupplier(clusterService, relocationNodePicker));
     }
 
     /**

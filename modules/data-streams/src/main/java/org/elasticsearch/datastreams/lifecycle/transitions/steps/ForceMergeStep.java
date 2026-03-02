@@ -179,7 +179,7 @@ public class ForceMergeStep implements DlmStep {
         assert forceMergeRequest.indices() != null && forceMergeRequest.indices().length == 1 : "DLM force merges one index at a time";
 
         final String targetIndex = forceMergeRequest.indices()[0];
-        logger.info("DLM is issuing a request to force merge index [{}]", targetIndex);
+        logger.info("DLM is issuing a request to force merge index [{}] to a single segment", targetIndex);
         stepContext.client()
             .projectClient(projectId)
             .admin()

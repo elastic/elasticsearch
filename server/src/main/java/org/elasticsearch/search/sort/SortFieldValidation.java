@@ -179,7 +179,11 @@ public final class SortFieldValidation {
             // Rewrite the sort field to DOUBLE
             SortField originalField = newSortFields[fieldIdx];
             SortField doubleField = new SortField(originalField.getField(), SortField.Type.DOUBLE, originalField.getReverse());
-            doubleField.setMissingValue(originalField.getMissingValue());
+            Object missingValue = originalField.getMissingValue();
+            if (missingValue != null && missingValue instanceof Number num) {
+                missingValue = num.doubleValue();
+            }
+            doubleField.setMissingValue(missingValue);
             newSortFields[fieldIdx] = doubleField;
 
             // Convert all sort values to Double

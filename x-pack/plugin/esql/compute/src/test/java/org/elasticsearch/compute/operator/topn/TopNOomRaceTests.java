@@ -31,7 +31,6 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -85,12 +84,14 @@ public class TopNOomRaceTests extends ESTestCase {
         assumeFalse("previous test failed", watcher.anyFailed);
         int driverCount = 6;
         double usedByEachThread = .3;
-        ByteSizeValue limit = ByteSizeValue.ofBytes(Runtime.getRuntime().freeMemory());
+        ByteSizeValue limit = ByteSizeValue.ofBytes(Runtime.getRuntime().totalMemory() - ByteSizeValue.ofMb(30).getBytes());
         int approxObjectRefsPerFilledRow = 5;
-        int approxSizePerFilledRow = RamUsageEstimator.NUM_BYTES_OBJECT_REF * approxObjectRefsPerFilledRow + repeats * Integer.BYTES;
+        // One byte for the null/non-null marker
+        int approxSizePerFilledRow = RamUsageEstimator.NUM_BYTES_OBJECT_REF * approxObjectRefsPerFilledRow + repeats * (1 + Integer.BYTES);
         int topCount = (int) ((double) limit.getBytes() / approxSizePerFilledRow * usedByEachThread) - 1;
         int maxInput = topCount * 3;
         assertThat(topCount, greaterThan(0));
+        logger.info("limit={} approxSizePerFilledRow={} topCount={}", limit, approxSizePerFilledRow, topCount);
 
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit);
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
@@ -143,7 +144,7 @@ public class TopNOomRaceTests extends ESTestCase {
     }
 
     public static class AnyFailedWatcher extends TestWatcher {
-        private boolean anyFailed = false;
+       private boolean anyFailed = false;
 
         @Override
         protected void failed(Throwable e, Description description) {

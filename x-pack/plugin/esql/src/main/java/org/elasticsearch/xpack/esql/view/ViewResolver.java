@@ -249,7 +249,7 @@ public class ViewResolver {
                 });
             }
             chain.andThenApply(ignored -> {
-                var unresolvedPatterns = buildUnresolvedPatterns(response, seenViews);
+                var unresolvedPatterns = buildUnresolvedPatterns(response, seenViews, patterns);
                 if (unresolvedPatterns.isEmpty() && subqueries.size() == 1) {
                     // only one view, no need for UnionAll, return view plan directly
                     return subqueries.getFirst().plan();
@@ -277,22 +277,43 @@ public class ViewResolver {
     /**
      * Builds the list of unresolved (non-view) patterns from the view resolution response.
      * <p>
-     * Expressions marked as {@code CONCRETE_RESOURCE_NOT_VISIBLE} or {@code CONCRETE_RESOURCE_UNAUTHORIZED}
-     * by the security filter are preserved so they flow through to field caps and eventually fail
-     * via the same security checks that handle non-view queries (e.g. the {@code search_shards} action).
+     * Expressions marked as {@code CONCRETE_RESOURCE_NOT_VISIBLE}, {@code CONCRETE_RESOURCE_UNAUTHORIZED} or isn't a view flows through to
+     * field caps. There they either fail via the same security checks that handle non-view queries (a search) or are resolved to a non-view
+     * resource. Exclusion patterns from the original query that target non-view resources are also preserved. This ensures that
+     * index-level exclusions are re-applied during the later index resolution step.
      */
-    private List<String> buildUnresolvedPatterns(EsqlResolveViewAction.Response response, LinkedHashSet<String> seenViews) {
-        return response.getResolvedIndexExpressions().expressions().stream().flatMap(resolvedIndexExpression -> {
+    private List<String> buildUnresolvedPatterns(
+        EsqlResolveViewAction.Response response,
+        LinkedHashSet<String> seenViews,
+        String[] originalPatterns
+    ) {
+        List<String> unresolvedPatterns = new ArrayList<>();
+        for (var resolvedIndexExpression : response.getResolvedIndexExpressions().expressions()) {
             var result = resolvedIndexExpression.localExpressions().localIndexResolutionResult();
+            // If any concrete resource (view, alias, datastream or index) was unauthorized, pass it along as an unresolved relation
             if (result == ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE
                 || result == ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED) {
-                return Stream.of(resolvedIndexExpression.original());
+                unresolvedPatterns.add(resolvedIndexExpression.original());
+                continue;
             }
+            // If any of the concrete resources were not views, pass them along as an unresolved relation
             if (resolvedIndexExpression.localExpressions().indices().stream().anyMatch(index -> seenViews.contains(index) == false)) {
-                return Stream.of(resolvedIndexExpression.original());
+                unresolvedPatterns.add(resolvedIndexExpression.original());
             }
-            return Stream.empty();
-        }).toList();
+        }
+        if (unresolvedPatterns.isEmpty() == false) {
+            var viewNames = getMetadata().views();
+            for (String pattern : originalPatterns) {
+                // If there is an exclusion, check if it references a view or is a wildcard
+                if (pattern.startsWith("-")) {
+                    String target = pattern.substring(1);
+                    if (Regex.isSimpleMatchPattern(target) || viewNames.containsKey(target) == false) {
+                        unresolvedPatterns.add(pattern);
+                    }
+                }
+            }
+        }
+        return unresolvedPatterns;
     }
 
     private ViewPlan createUnresolvedRelationPlan(UnresolvedRelation ur, List<String> unresolvedPatterns) {

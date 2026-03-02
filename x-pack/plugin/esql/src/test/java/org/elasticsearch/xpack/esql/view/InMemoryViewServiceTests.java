@@ -115,7 +115,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp")));
     }
 
-    public void testExclusion() {
+    public void testViewExclusion() {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");
         LogicalPlan plan = query("FROM view*, -view2");
@@ -123,8 +123,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     public void testExclusionWithRemainingIndexMatch() {
-        addView("logs-nginx", "FROM logs | WHERE logs.type == nginx");
-        addIndex("logs");
+        addView("logs-nginx", "FROM logs-1 | WHERE logs.type == nginx");
+        addIndex("logs-1");
         LogicalPlan plan = query("FROM logs*, -logs-nginx");
         assertThat(replaceViews(plan), matchesPlan(query("FROM logs*, -logs-nginx")));
     }
@@ -133,6 +133,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("logs-nginx", "FROM logs | WHERE logs.type == nginx");
         LogicalPlan plan = query("FROM logs*, -logs-nginx");
         assertThat(replaceViews(plan), matchesPlan(query("FROM logs*, -logs-nginx")));
+    }
+
+    public void testExclusionPreservedForIndexResolution() {
+        addView("logs1", "FROM logs2");
+        addIndex("logs2");
+        addIndex("logs3");
+        LogicalPlan plan = query("FROM logs*,-logs3");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*,-logs3,logs2")));
     }
 
     public void testExclusionMultipleViews() {
@@ -190,7 +198,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testExclusionWithIndex() {
+    public void testExclusionWithMatchingIndexAndViewExclusion() {
         addIndex("viewX");
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");
@@ -204,6 +212,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         LogicalPlan plan = query("FROM view*, -view1, -view2");
         assertThat(replaceViews(plan), matchesPlan(query("FROM view*, -view1, -view2")));
+    }
+
+    public void testExclusionNonExistingResource() {
+        addIndex("viewX");
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM view*, -donotexist");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view*,-donotexist,emp1")));
     }
 
     public void testFailureSelector() {

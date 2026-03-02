@@ -162,24 +162,32 @@ public class Reindexer {
                 projectResolver.getProjectState(clusterService.state()),
                 reindexSslConfig,
                 request,
-                workerListenerWithRelocationAndMetrics(listenerWithRelocations, startTime, request.getRemoteInfo() != null),
+                workerListenerWithRelocationAndMetrics(listenerWithRelocations, task, request, startTime),
                 remoteVersion
             );
             searchAction.start();
         };
+
+        final ActionListener<BulkByScrollResponse> responseListener = wrapWithMetrics(
+            listenerWithRelocations,
+            reindexMetrics,
+            task,
+            request,
+            startTime
+        );
 
         /**
          * If this is a request to reindex from remote, then we need to determine the remote version prior to execution
          * NB {@link ReindexRequest} forbids remote requests and slices > 1, so we're guaranteed to be running on the only slice
          */
         if (REINDEX_PIT_SEARCH_ENABLED && request.getRemoteInfo() != null) {
-            lookupRemoteVersionAndExecute(task, request, listenerWithRelocations, workerAction);
+            lookupRemoteVersionAndExecute(task, request, responseListener, workerAction);
         } else {
             BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
                 task,
                 request,
                 ReindexAction.INSTANCE,
-                listenerWithRelocations,
+                responseListener,
                 client,
                 clusterService.localNode(),
                 null,
@@ -196,7 +204,7 @@ public class Reindexer {
     private void lookupRemoteVersionAndExecute(
         BulkByScrollTask task,
         ReindexRequest request,
-        ActionListener<BulkByScrollResponse> listenerWithRelocations,
+        ActionListener<BulkByScrollResponse> listener,
         Consumer<Version> workerAction
     ) {
         RemoteInfo remoteInfo = request.getRemoteInfo();
@@ -211,7 +219,7 @@ public class Reindexer {
                         task,
                         request,
                         ReindexAction.INSTANCE,
-                        listenerWithRelocations,
+                        listener,
                         client,
                         clusterService.localNode(),
                         version,
@@ -222,12 +230,12 @@ public class Reindexer {
 
             @Override
             public void onFailure(Exception e) {
-                closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e));
+                closeRestClientAndRun(restClient, () -> listener.onFailure(e));
             }
 
             @Override
             public void onRejection(Exception e) {
-                closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e));
+                closeRestClientAndRun(restClient, () -> listener.onFailure(e));
             }
         };
         RemoteReindexingUtils.lookupRemoteVersionWithRetries(
@@ -259,14 +267,16 @@ public class Reindexer {
     /** Wraps the listener with metrics tracking and relocation handling (if applicable). Visible for testing. */
     ActionListener<BulkByScrollResponse> workerListenerWithRelocationAndMetrics(
         ActionListener<BulkByScrollResponse> potentiallyWrappedRelocationListener,
-        long startTime,
-        boolean isRemote
+        BulkByScrollTask task,
+        ReindexRequest request,
+        long startTime
     ) {
         final ActionListener<BulkByScrollResponse> metricListener = wrapWithMetrics(
             potentiallyWrappedRelocationListener,
             reindexMetrics,
-            startTime,
-            isRemote
+            task,
+            request,
+            startTime
         );
 
         return metricListener.delegateFailure((l, resp) -> {
@@ -282,16 +292,27 @@ public class Reindexer {
         });
     }
 
-    // Visible for testing
+    /**
+     * Wrap listener with reindex metrics. For sliced reindex, this should record once only when all slices complete
+     * Visible for testing
+     */
     static ActionListener<BulkByScrollResponse> wrapWithMetrics(
         ActionListener<BulkByScrollResponse> listener,
         @Nullable ReindexMetrics metrics,
-        long startTime,
-        boolean isRemote
+        BulkByScrollTask task,
+        ReindexRequest request,
+        long startTime
     ) {
         if (metrics == null) {
             return listener;
         }
+        if (task.isWorker() && task.getParentTaskId().isSet()) {
+            // Do not record metrics for slice worker, only leader will record them when all slices are completed
+            // Potentially add slice-level metrics for slice worker
+            return listener;
+        }
+        final boolean isRemote = request.getRemoteInfo() != null;
+        final ReindexMetrics.SlicingMode slicingMode = ReindexMetrics.resolveSlicingMode(request);
         // todo(szy): add relocation metrics
         // add completion metrics
         var withCompletionMetrics = new ActionListener<BulkByScrollResponse>() {
@@ -310,17 +331,17 @@ public class Reindexer {
                 if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
                     // record only the first sample error in metric
                     Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
-                    metrics.recordFailure(isRemote, e);
+                    metrics.recordFailure(isRemote, slicingMode, e);
                     listener.onResponse(bulkByScrollResponse);
                 } else {
-                    metrics.recordSuccess(isRemote);
+                    metrics.recordSuccess(isRemote, slicingMode);
                     listener.onResponse(bulkByScrollResponse);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                metrics.recordFailure(isRemote, e);
+                metrics.recordFailure(isRemote, slicingMode, e);
                 listener.onFailure(e);
             }
         };
@@ -328,7 +349,7 @@ public class Reindexer {
         // add duration metric
         return ActionListener.runAfter(withCompletionMetrics, () -> {
             long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-            metrics.recordTookTime(elapsedTime, isRemote);
+            metrics.recordTookTime(elapsedTime, isRemote, slicingMode);
         });
     }
 

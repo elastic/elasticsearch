@@ -1312,11 +1312,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         final TermsDictEntry entry;
         final LongValues prefixOffsets;
-        final LongValues prefixIds;
         final LongValues suffixOffsets;
         final RandomAccessInput prefixData;
         final RandomAccessInput suffixData;
-        final RandomAccessInput prefixTrimData;
+        /** Combined bit-packed array holding (prefixId, trim) per term. */
+        final RandomAccessInput combinedData;
+        final int pidBits;
+        final int bitsPerEntry;
+        final long pidMask;
+        final long combinedMask;
         final LongValues indexAddresses;
         final RandomAccessInput indexBytes;
         final BytesRef term;
@@ -1338,15 +1342,17 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             RandomAccessInput prefixOffsetsSlice = data.randomAccessSlice(entry.prefixOffsetsDataOffset, entry.prefixOffsetsDataLength);
             prefixOffsets = DirectMonotonicReader.getInstance(entry.prefixOffsetsMeta, prefixOffsetsSlice, merging);
 
-            RandomAccessInput prefixIdsSlice = data.randomAccessSlice(entry.prefixIdsDataOffset, entry.prefixIdsDataLength);
-            prefixIds = DirectMonotonicReader.getInstance(entry.prefixIdsMeta, prefixIdsSlice, merging);
-
             RandomAccessInput suffixOffsetsSlice = data.randomAccessSlice(entry.suffixOffsetsDataOffset, entry.suffixOffsetsDataLength);
             suffixOffsets = DirectMonotonicReader.getInstance(entry.suffixOffsetsMeta, suffixOffsetsSlice, merging);
 
             prefixData = data.randomAccessSlice(entry.prefixDataOffset, entry.prefixDataLength);
             suffixData = data.randomAccessSlice(entry.suffixDataOffset, entry.suffixDataLength);
-            prefixTrimData = data.randomAccessSlice(entry.prefixTrimDataOffset, entry.prefixTrimDataLength);
+            combinedData = data.randomAccessSlice(entry.combinedDataOffset, entry.combinedDataLength);
+
+            pidBits = entry.pidBits;
+            bitsPerEntry = pidBits + 8;
+            pidMask = (1L << pidBits) - 1L;
+            combinedMask = (1L << bitsPerEntry) - 1L;
 
             RandomAccessInput indexAddressesSlice = data.randomAccessSlice(
                 entry.termsIndexAddressesOffset,
@@ -1361,9 +1367,23 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         private void decompressTerm(long targetOrd) throws IOException {
-            int termLen = 0;
+            // Read prefixId and trim from combined bit-packed array (one random access region).
+            // Values are packed little-endian: pidBits for prefixId, then 8 bits for trim.
+            long bitPos = targetOrd * bitsPerEntry;
+            long bytePos = bitPos >>> 3;
+            int bitOff = (int) (bitPos & 7);
+            // 6 bytes covers pidBits+8 <= 40 bits, shifted by up to 7: 47 bits max
+            long word = (combinedData.readByte(bytePos) & 0xFFL)
+                | ((combinedData.readByte(bytePos + 1) & 0xFFL) << 8)
+                | ((combinedData.readByte(bytePos + 2) & 0xFFL) << 16)
+                | ((combinedData.readByte(bytePos + 3) & 0xFFL) << 24)
+                | ((combinedData.readByte(bytePos + 4) & 0xFFL) << 32)
+                | ((combinedData.readByte(bytePos + 5) & 0xFFL) << 40);
+            long combined = (word >>> bitOff) & combinedMask;
+            long prefixId = combined & pidMask;
+            int trim = (int) ((combined >>> pidBits) & 0xFF);
 
-            long prefixId = prefixIds.get(targetOrd);
+            int termLen = 0;
             long prefixStart = prefixOffsets.get(prefixId);
             long prefixEnd = prefixOffsets.get(prefixId + 1);
             int prefixCompLen = (int) (prefixEnd - prefixStart);
@@ -1373,9 +1393,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     compressedBuf = new byte[ArrayUtil.oversize(prefixCompLen, 1)];
                 }
                 prefixData.readBytes(prefixStart, compressedBuf, 0, prefixCompLen);
-                termLen = FSST.decompress(compressedBuf, 0, prefixCompLen, fsstDecoder, decompressBuf);
-                int trim = prefixTrimData.readByte(targetOrd) & 0xFF;
-                termLen -= trim;
+                int fullPrefixLen = FSST.decompress(compressedBuf, 0, prefixCompLen, fsstDecoder, decompressBuf);
+                termLen = fullPrefixLen - trim;
                 System.arraycopy(decompressBuf, 0, term.bytes, 0, termLen);
             }
 
@@ -1910,7 +1929,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final long size = entry.termsDictSize;
 
         entry.suffixOffsetsMeta = DirectMonotonicReader.loadMeta(meta, Math.max(size + 1, 1), blockShift);
-        entry.prefixIdsMeta = DirectMonotonicReader.loadMeta(meta, Math.max(size, 1), blockShift);
 
         entry.numPrefixes = meta.readVLong();
         entry.prefixOffsetsMeta = DirectMonotonicReader.loadMeta(meta, entry.numPrefixes + 1, blockShift);
@@ -1924,12 +1942,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         entry.prefixDataLength = meta.readLong();
         entry.suffixOffsetsDataOffset = meta.readLong();
         entry.suffixOffsetsDataLength = meta.readLong();
-        entry.prefixIdsDataOffset = meta.readLong();
-        entry.prefixIdsDataLength = meta.readLong();
+        entry.pidBits = meta.readByte() & 0xFF;
+        entry.combinedDataOffset = meta.readLong();
+        entry.combinedDataLength = meta.readLong();
         entry.prefixOffsetsDataOffset = meta.readLong();
         entry.prefixOffsetsDataLength = meta.readLong();
-        entry.prefixTrimDataOffset = meta.readLong();
-        entry.prefixTrimDataLength = meta.readLong();
 
         entry.termsDictIndexShift = meta.readInt();
         final long indexSize = (size + (1L << entry.termsDictIndexShift) - 1) >>> entry.termsDictIndexShift;
@@ -2614,16 +2631,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         long suffixOffsetsDataOffset;
         long suffixOffsetsDataLength;
 
-        DirectMonotonicReader.Meta prefixIdsMeta;
-        long prefixIdsDataOffset;
-        long prefixIdsDataLength;
+        /** Number of bits used for prefix ID in the combined pid+trim packed array. */
+        int pidBits;
+        long combinedDataOffset;
+        long combinedDataLength;
 
         DirectMonotonicReader.Meta prefixOffsetsMeta;
         long prefixOffsetsDataOffset;
         long prefixOffsetsDataLength;
-
-        long prefixTrimDataOffset;
-        long prefixTrimDataLength;
 
         int termsDictIndexShift;
         DirectMonotonicReader.Meta termsIndexAddressesMeta;

@@ -1029,16 +1029,15 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             DIRECT_MONOTONIC_BLOCK_SHIFT
         );
 
-        ByteBuffersDataOutput prefixIdsMetaBuffer = new ByteBuffersDataOutput();
-        ByteBuffersIndexOutput prefixIdsMetaOutput = new ByteBuffersIndexOutput(prefixIdsMetaBuffer, "temp", "temp");
-        ByteBuffersDataOutput prefixIdsData = new ByteBuffersDataOutput();
-        ByteBuffersIndexOutput prefixIdsOutput = new ByteBuffersIndexOutput(prefixIdsData, "temp", "temp");
-        DirectMonotonicWriter prefixIdsWriter = DirectMonotonicWriter.getInstance(
-            prefixIdsMetaOutput,
-            prefixIdsOutput,
-            Math.max(size, 1),
-            DIRECT_MONOTONIC_BLOCK_SHIFT
-        );
+        // Combined bit-packed array storing (prefixId, trim) per term in a single region.
+        // pidBits bits hold the prefix ID (up to 2^32-1), followed by 8 bits for trim (0-255).
+        // Using the minimum bits needed for the actual numPrefixes avoids wasted space.
+        final int pidBits = numPrefixes <= 1 ? 1 : 32 - Integer.numberOfLeadingZeros(numPrefixes - 1);
+        final int bitsPerEntry = pidBits + 8;
+        final long pidMaskL = (1L << pidBits) - 1L;
+        final int combinedByteLen = size == 0 ? 0 : (int) ((size * bitsPerEntry + 7) >>> 3);
+        // +8 sentinel bytes so the reader can always safely load a full long at the last entry
+        final byte[] combinedPacked = new byte[combinedByteLen + 8];
 
         // Write FSST symbol table
         long symbolTableStart = data.getFilePointer();
@@ -1065,8 +1064,15 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             BytesRef cur = writeIterator.next();
             int prefixId = assignedPrefixIds[(int) ord];
             int prefixLen = effectivePrefixLens[(int) ord] & 0xFFFF;
+            int trim = prefixTrimBuf[(int) ord] & 0xFF;
 
-            prefixIdsWriter.add(prefixId);
+            // Pack (prefixId, trim) into the combined bit-packed array (little-endian).
+            long bitPos = ord * bitsPerEntry;
+            int byteOff = (int) (bitPos >>> 3);
+            int bitOff = (int) (bitPos & 7);
+            long value = (prefixId & pidMaskL) | ((long) trim << pidBits);
+            long existing = readLELong(combinedPacked, byteOff);
+            writeLELong(combinedPacked, byteOff, existing | (value << bitOff));
 
             int suffixLen = cur.length - prefixLen;
             if (batchCount > 0 && batchPos + suffixLen > FSST_BULK_BUFFER_SIZE) {
@@ -1112,15 +1118,10 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             );
         }
         suffixOffsetsWriter.add(suffixCompressedPos);
-        if (size == 0) {
-            prefixIdsWriter.add(0);
-        }
         suffixOffsetsWriter.finish();
-        prefixIdsWriter.finish();
 
-        // Write DMW metadata to the real meta stream in order (suffix offsets first, then prefix IDs)
+        // Write DMW metadata for suffix offsets to the real meta stream
         suffixOffsetsMetaBuffer.copyTo(meta);
-        prefixIdsMetaBuffer.copyTo(meta);
 
         long suffixDataEnd = data.getFilePointer();
 
@@ -1182,23 +1183,19 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
 
         long prefixDataEnd = data.getFilePointer();
 
-        // Write DMW data sections to data file
+        // Write data sections to data file
         long suffixOffsetsDataStart = data.getFilePointer();
         suffixOffsetsData.copyTo(data);
         long suffixOffsetsDataEnd = data.getFilePointer();
 
-        long prefixIdsDataStart = data.getFilePointer();
-        prefixIdsData.copyTo(data);
-        long prefixIdsDataEnd = data.getFilePointer();
+        // Write combined (prefixId, trim) bit-packed array
+        long combinedDataStart = data.getFilePointer();
+        data.writeBytes(combinedPacked, 0, combinedByteLen + 8);
+        long combinedDataEnd = data.getFilePointer();
 
         long prefixOffsetsDataStart = data.getFilePointer();
         prefixOffsetsData.copyTo(data);
         long prefixOffsetsDataEnd = data.getFilePointer();
-
-        // Write per-term prefix trim bytes
-        long prefixTrimDataStart = data.getFilePointer();
-        data.writeBytes(prefixTrimBuf, 0, (int) size);
-        long prefixTrimDataEnd = data.getFilePointer();
 
         // Write remaining metadata
         meta.writeInt(maxLength);
@@ -1210,46 +1207,43 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         meta.writeLong(prefixDataEnd - prefixDataStart);
         meta.writeLong(suffixOffsetsDataStart);
         meta.writeLong(suffixOffsetsDataEnd - suffixOffsetsDataStart);
-        meta.writeLong(prefixIdsDataStart);
-        meta.writeLong(prefixIdsDataEnd - prefixIdsDataStart);
+        meta.writeByte((byte) pidBits);
+        meta.writeLong(combinedDataStart);
+        meta.writeLong(combinedDataEnd - combinedDataStart);
         meta.writeLong(prefixOffsetsDataStart);
         meta.writeLong(prefixOffsetsDataEnd - prefixOffsetsDataStart);
-        meta.writeLong(prefixTrimDataStart);
-        meta.writeLong(prefixTrimDataEnd - prefixTrimDataStart);
 
         long termsIndexStart = data.getFilePointer();
         writeTermsIndex(values);
         long termsIndexEnd = data.getFilePointer();
 
         long suffixOffsetsMetaSize = suffixOffsetsMetaBuffer.size();
-        long prefixIdsMetaSize = prefixIdsMetaBuffer.size();
 
         if (logger.isDebugEnabled()) {
             long symbolTableSize = symbolTableEnd - symbolTableStart;
             long suffixDataSize = suffixDataEnd - suffixDataStart;
             long prefixDataSize = prefixDataEnd - prefixDataStart;
             long suffixOffsetsDataSize = suffixOffsetsDataEnd - suffixOffsetsDataStart;
-            long prefixIdsDataSize = prefixIdsDataEnd - prefixIdsDataStart;
+            long combinedDataSize = combinedDataEnd - combinedDataStart;
             long prefixOffsetsDataSize = prefixOffsetsDataEnd - prefixOffsetsDataStart;
-            long prefixTrimDataSize = prefixTrimDataEnd - prefixTrimDataStart;
             long termsIndexSize = termsIndexEnd - termsIndexStart;
-            long totalTermsDict = symbolTableSize + suffixDataSize + prefixDataSize + suffixOffsetsDataSize + prefixIdsDataSize
-                + prefixOffsetsDataSize + prefixTrimDataSize + termsIndexSize;
+            long totalTermsDict = symbolTableSize + suffixDataSize + prefixDataSize + suffixOffsetsDataSize
+                + combinedDataSize + prefixOffsetsDataSize + termsIndexSize;
 
             logger.debug(
                 "TermsDict space breakdown for field [{}]: "
-                    + "numTerms=[{}], numPrefixes=[{}], totalSize=[{}] bytes\n"
+                    + "numTerms=[{}], numPrefixes=[{}], pidBits=[{}], totalSize=[{}] bytes\n"
                     + "  Symbol table:           [{}] bytes\n"
                     + "  Suffix data (FSST):     [{}] bytes (uncompressed: [{}] bytes, ratio: [{}]x)\n"
                     + "  Suffix offsets (DMW):    [{}] bytes data + [{}] bytes meta\n"
                     + "  Prefix data (FSST):     [{}] bytes (uncompressed: [{}] bytes, ratio: [{}]x)\n"
                     + "  Prefix offsets (DMW):    [{}] bytes data\n"
-                    + "  Prefix IDs (DMW):        [{}] bytes data + [{}] bytes meta\n"
-                    + "  Prefix trim data:       [{}] bytes\n"
+                    + "  Combined pid+trim:      [{}] bytes ({} bits/entry)\n"
                     + "  Terms index:            [{}] bytes\n",
                 "sorted/sortedset",
                 size,
                 numPrefixes,
+                pidBits,
                 totalTermsDict,
                 symbolTableSize,
                 suffixDataSize,
@@ -1263,9 +1257,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 prefixAccumPos,
                 prefixAccumPos > 0 ? String.format(java.util.Locale.ROOT, "%.2f", (double) prefixAccumPos / prefixDataSize) : "N/A",
                 prefixOffsetsDataSize,
-                prefixIdsDataSize,
-                prefixIdsMetaSize,
-                prefixTrimDataSize,
+                combinedDataSize,
+                bitsPerEntry,
                 termsIndexSize
             );
         }
@@ -1305,6 +1298,30 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
 
         return batchBaseCompressedPos + compressedTotal;
+    }
+
+    /** Reads 8 bytes from {@code buf} at {@code off} as a little-endian long. */
+    private static long readLELong(byte[] buf, int off) {
+        return (buf[off] & 0xFFL)
+            | ((buf[off + 1] & 0xFFL) << 8)
+            | ((buf[off + 2] & 0xFFL) << 16)
+            | ((buf[off + 3] & 0xFFL) << 24)
+            | ((buf[off + 4] & 0xFFL) << 32)
+            | ((buf[off + 5] & 0xFFL) << 40)
+            | ((buf[off + 6] & 0xFFL) << 48)
+            | ((buf[off + 7] & 0xFFL) << 56);
+    }
+
+    /** Writes {@code v} as a little-endian long into {@code buf} at {@code off}. */
+    private static void writeLELong(byte[] buf, int off, long v) {
+        buf[off] = (byte) v;
+        buf[off + 1] = (byte) (v >>> 8);
+        buf[off + 2] = (byte) (v >>> 16);
+        buf[off + 3] = (byte) (v >>> 24);
+        buf[off + 4] = (byte) (v >>> 32);
+        buf[off + 5] = (byte) (v >>> 40);
+        buf[off + 6] = (byte) (v >>> 48);
+        buf[off + 7] = (byte) (v >>> 56);
     }
 
     private static int computeLCP(BytesRef a, BytesRef b) {

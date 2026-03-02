@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.TaskType;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.ml.MachineLearningTests;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ml.vectors.EmbeddingQueryVectorBuilder.DEFAULT_TIMEOUT;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
@@ -41,10 +43,14 @@ public class EmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilder
     protected void doAssertClientRequest(ActionRequest request, EmbeddingQueryVectorBuilder builder) {
         assertThat(request, instanceOf(EmbeddingAction.Request.class));
         EmbeddingAction.Request embeddingRequest = (EmbeddingAction.Request) request;
+
         assertEquals(builder.getInferenceId(), embeddingRequest.getInferenceEntityId());
         assertEquals(TaskType.EMBEDDING, embeddingRequest.getTaskType());
         assertThat(embeddingRequest.getEmbeddingRequest().inputs(), hasSize(1));
         assertThat(embeddingRequest.getEmbeddingRequest().inputs().getFirst().inferenceStrings(), hasSize(1));
+
+        TimeValue expectedTimeout = builder.getTimeout() != null ? builder.getTimeout() : DEFAULT_TIMEOUT;
+        assertEquals(expectedTimeout, embeddingRequest.getTimeout());
     }
 
     @Override
@@ -61,34 +67,59 @@ public class EmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilder
     protected EmbeddingQueryVectorBuilder createTestInstance() {
         DataType type = randomFrom(DataType.values());
         DataFormat format = randomBoolean() ? randomFrom(type.getSupportedFormats()) : null;
-        return new EmbeddingQueryVectorBuilder(randomAlphaOfLength(10), type, format, randomAlphaOfLength(20));
+        TimeValue timeout = randomBoolean() ? TimeValue.timeValueMillis(randomLongBetween(1, 60000)) : null;
+        return new EmbeddingQueryVectorBuilder(randomAlphaOfLength(10), type, format, randomAlphaOfLength(20), timeout);
     }
 
     @Override
     protected EmbeddingQueryVectorBuilder mutateInstance(EmbeddingQueryVectorBuilder instance) throws IOException {
-        return switch (randomIntBetween(0, 3)) {
+        return switch (randomIntBetween(0, 4)) {
             case 0 -> new EmbeddingQueryVectorBuilder(
                 randomValueOtherThan(instance.getInferenceId(), () -> randomAlphaOfLength(10)),
                 instance.getType(),
                 instance.getFormat(),
-                instance.getValue()
+                instance.getValue(),
+                instance.getTimeout()
             );
             case 1 -> {
                 DataType newType = randomValueOtherThan(instance.getType(), () -> randomFrom(DataType.values()));
                 DataFormat newFormat = randomBoolean() ? randomFrom(newType.getSupportedFormats()) : null;
-                yield new EmbeddingQueryVectorBuilder(instance.getInferenceId(), newType, newFormat, instance.getValue());
+                yield new EmbeddingQueryVectorBuilder(
+                    instance.getInferenceId(),
+                    newType,
+                    newFormat,
+                    instance.getValue(),
+                    instance.getTimeout()
+                );
             }
             case 2 -> {
                 DataFormat currentFormat = instance.getFormat();
                 DataFormat newFormat = currentFormat == null ? randomFrom(instance.getType().getSupportedFormats()) : null;
-                yield new EmbeddingQueryVectorBuilder(instance.getInferenceId(), instance.getType(), newFormat, instance.getValue());
+                yield new EmbeddingQueryVectorBuilder(
+                    instance.getInferenceId(),
+                    instance.getType(),
+                    newFormat,
+                    instance.getValue(),
+                    instance.getTimeout()
+                );
             }
             case 3 -> new EmbeddingQueryVectorBuilder(
                 instance.getInferenceId(),
                 instance.getType(),
                 instance.getFormat(),
-                randomValueOtherThan(instance.getValue(), () -> randomAlphaOfLength(20))
+                randomValueOtherThan(instance.getValue(), () -> randomAlphaOfLength(20)),
+                instance.getTimeout()
             );
+            case 4 -> {
+                TimeValue newTimeout = instance.getTimeout() == null ? TimeValue.timeValueMillis(randomLongBetween(1, 60000)) : null;
+                yield new EmbeddingQueryVectorBuilder(
+                    instance.getInferenceId(),
+                    instance.getType(),
+                    instance.getFormat(),
+                    instance.getValue(),
+                    newTimeout
+                );
+            }
             default -> throw new AssertionError("Unexpected value");
         };
     }

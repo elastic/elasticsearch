@@ -46,10 +46,19 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField FORMAT_FIELD = new ParseField("format");
     public static final ParseField VALUE_FIELD = new ParseField("value");
+    public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
+
+    public static final TimeValue DEFAULT_TIMEOUT = InferenceAction.Request.DEFAULT_TIMEOUT;
 
     public static final ConstructingObjectParser<EmbeddingQueryVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        args -> new EmbeddingQueryVectorBuilder((String) args[0], (DataType) args[1], (DataFormat) args[2], (String) args[3])
+        args -> new EmbeddingQueryVectorBuilder(
+            (String) args[0],
+            (DataType) args[1],
+            (DataFormat) args[2],
+            (String) args[3],
+            args[4] == null ? null : TimeValue.parseTimeValue((String) args[4], TIMEOUT_FIELD.getPreferredName())
+        )
     );
 
     static {
@@ -57,6 +66,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         PARSER.declareString(constructorArg(), DataType::fromString, TYPE_FIELD);
         PARSER.declareString(optionalConstructorArg(), DataFormat::fromString, FORMAT_FIELD);
         PARSER.declareString(constructorArg(), VALUE_FIELD);
+        PARSER.declareString(optionalConstructorArg(), TIMEOUT_FIELD);
     }
 
     public static EmbeddingQueryVectorBuilder fromXContent(XContentParser parser) throws IOException {
@@ -69,16 +79,24 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     private final DataType type;
     private final DataFormat format;
     private final String value;
+    private final TimeValue timeout;
 
     public EmbeddingQueryVectorBuilder(DataType type, String value) {
-        this(null, type, null, value);
+        this(null, type, null, value, null);
     }
 
-    public EmbeddingQueryVectorBuilder(@Nullable String inferenceId, DataType type, @Nullable DataFormat format, String value) {
+    public EmbeddingQueryVectorBuilder(
+        @Nullable String inferenceId,
+        DataType type,
+        @Nullable DataFormat format,
+        String value,
+        @Nullable TimeValue timeout
+    ) {
         this.inferenceId = inferenceId;
         this.type = Objects.requireNonNull(type);
         this.format = format;
         this.value = Objects.requireNonNull(value);
+        this.timeout = timeout;
     }
 
     public EmbeddingQueryVectorBuilder(StreamInput in) throws IOException {
@@ -86,6 +104,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         this.type = in.readEnum(DataType.class);
         this.format = in.readOptionalEnum(DataFormat.class);
         this.value = in.readString();
+        this.timeout = in.readOptionalTimeValue();
     }
 
     @Override
@@ -97,8 +116,8 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
         var inferenceString = format != null ? new InferenceString(type, format, value) : new InferenceString(type, value);
         var embeddingRequest = new EmbeddingRequest(List.of(new InferenceStringGroup(inferenceString)), InputType.SEARCH, null);
-        // TODO: Don't hard-code timeout
-        var request = new EmbeddingAction.Request(inferenceId, TaskType.EMBEDDING, embeddingRequest, TimeValue.THIRTY_SECONDS);
+        var actualTimeout = timeout != null ? timeout : DEFAULT_TIMEOUT;
+        var request = new EmbeddingAction.Request(inferenceId, TaskType.EMBEDDING, embeddingRequest, actualTimeout);
         executeAsyncWithOrigin(
             client,
             INFERENCE_ORIGIN,
@@ -140,6 +159,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         out.writeEnum(type);
         out.writeOptionalEnum(format);
         out.writeString(value);
+        out.writeOptionalTimeValue(timeout);
     }
 
     @Override
@@ -153,6 +173,9 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             builder.field(FORMAT_FIELD.getPreferredName(), format);
         }
         builder.field(VALUE_FIELD.getPreferredName(), value);
+        if (timeout != null) {
+            builder.field(TIMEOUT_FIELD.getPreferredName(), timeout.getStringRep());
+        }
         builder.endObject();
         return builder;
     }
@@ -173,6 +196,10 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         return value;
     }
 
+    public TimeValue getTimeout() {
+        return timeout;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -181,11 +208,12 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         return Objects.equals(inferenceId, that.inferenceId)
             && type == that.type
             && format == that.format
-            && Objects.equals(value, that.value);
+            && Objects.equals(value, that.value)
+            && Objects.equals(timeout, that.timeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(inferenceId, type, format, value);
+        return Objects.hash(inferenceId, type, format, value, timeout);
     }
 }

@@ -117,7 +117,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
             List.of(new SortOrder(0, true, false)),
             List.of(1),
-            pageSize
+            pageSize,
+            Long.MAX_VALUE
         );
     }
 
@@ -226,7 +227,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         encoders,
                         sortOrders,
                         groupKeys,
-                        randomPageSize()
+                        randomPageSize(),
+                        Long.MAX_VALUE
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
@@ -276,7 +278,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         encoders,
                         sortOrders,
                         groupKeys,
-                        randomPageSize()
+                        randomPageSize(),
+                        Long.MAX_VALUE
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
@@ -316,7 +319,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         encoders,
                         sortOrders,
                         groupKeys,
-                        randomPageSize()
+                        randomPageSize(),
+                        Long.MAX_VALUE
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
@@ -370,7 +374,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         encoders,
                         sortOrders,
                         groupKeys,
-                        randomPageSize()
+                        randomPageSize(),
+                        Long.MAX_VALUE
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
@@ -430,7 +435,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                         encoders,
                         sortOrders,
                         groupKeys,
-                        randomPageSize()
+                        randomPageSize(),
+                        Long.MAX_VALUE
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
@@ -533,7 +539,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                     randomBlocksResult.encoders,
                     uniqueOrders.stream().toList(),
                     groupKeys.stream().mapToInt(Integer::intValue).toArray(),
-                    rows
+                    rows,
+                    Long.MAX_VALUE
                 )
             );
         List<List<Object>> actualValues = new ArrayList<>();

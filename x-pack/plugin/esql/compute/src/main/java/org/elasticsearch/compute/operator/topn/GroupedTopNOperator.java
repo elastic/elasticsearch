@@ -56,7 +56,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
         List<TopNEncoder> encoders,
         List<TopNOperator.SortOrder> sortOrders,
         List<Integer> groupKeys,
-        int maxPageSize
+        int maxPageSize,
+        long jumboPageBytes
     ) implements OperatorFactory {
         public GroupedTopNOperatorFactory {
             for (ElementType e : elementTypes) {
@@ -79,7 +80,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 encoders,
                 sortOrders,
                 groupKeys.stream().mapToInt(Integer::intValue).toArray(),
-                maxPageSize
+                maxPageSize,
+                jumboPageBytes
             );
         }
 
@@ -102,6 +104,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
     private final int maxPageSize;
+    private final long jumboPageBytes;
     private final int topCount;
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
@@ -130,7 +133,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
         List<TopNEncoder> encoders,
         List<TopNOperator.SortOrder> sortOrders,
         int[] groupKeys,
-        int maxPageSize
+        int maxPageSize,
+        long jumboPageBytes
     ) {
         BlockHash blockHash = null;
         GroupedQueue inputQueue = null;
@@ -152,6 +156,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
         this.blockFactory = blockFactory;
         this.breaker = breaker;
         this.maxPageSize = maxPageSize;
+        this.jumboPageBytes = jumboPageBytes;
         this.topCount = topCount;
         this.elementTypes = elementTypes;
         this.encoders = encoders;
@@ -413,6 +418,12 @@ public class GroupedTopNOperator implements Operator, Accountable {
                         readValues(builders, row.values().bytesRefView());
                     }
                     idx++;
+                    if (totalSize(builders) > jumboPageBytes) {
+                        break;
+                    }
+                }
+                if (idx < size) {
+                    rowKeyPositions = Arrays.copyOf(rowKeyPositions, idx);
                 }
 
                 Block[] blocks = ResultBuilder.buildAll(builders);
@@ -427,6 +438,14 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 Releasables.close(builders);
                 emitNanos += System.nanoTime() - start;
             }
+        }
+
+        private long totalSize(ResultBuilder[] builders) {
+            long total = 0;
+            for (ResultBuilder b : builders) {
+                total += b.estimatedBytes();
+            }
+            return total;
         }
 
         @Override

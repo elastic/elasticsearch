@@ -222,6 +222,32 @@ setup:
         8.0: 100.0
 
 ---
+"Boxplot aggregation over tdigest and exponential_histogram":
+  - requires:
+      cluster_features: [ "search.exponential_histogram_querydsl_boxplot" ]
+      reason: exponential_histogram boxplot aggregation was introduced
+  - do:
+      search:
+        index: test-data-stream
+        size: 0
+        body:
+          aggs:
+            boxplot_agg:
+              boxplot:
+                field: tdigest_or_exp_histo
+
+  - match: { hits.total.value: 2 }
+  - match: { aggregations.boxplot_agg.min: 0.9 }
+  - match: { aggregations.boxplot_agg.max: 10.0 }
+  # Use range comparisons to handle small numeric errors across different machines
+  - gte: { aggregations.boxplot_agg.q1: 1.007 }
+  - lte: { aggregations.boxplot_agg.q1: 1.009 }
+  - gte: { aggregations.boxplot_agg.q2: 1.999 }
+  - lte: { aggregations.boxplot_agg.q2: 2.001 }
+  - gte: { aggregations.boxplot_agg.q3: 2.665 }
+  - lte: { aggregations.boxplot_agg.q3: 2.667 }
+
+---
 "Exists query over tdigest and exponential_histogram":
   - do:
       search:

@@ -50,7 +50,7 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
         }
     }
 
-    final void bulkScoreFromOrds(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
+    final float bulkScoreFromOrds(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
         MemorySegment vectorsSeg = input.segmentSliceOrNull(0, input.length());
         if (vectorsSeg == null) {
             // we might be able to get segments for individual vectors, so try separately
@@ -74,6 +74,11 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
                 }
             }
         }
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < numNodes; i++) {
+            max = Math.max(max, scores[i]);
+        }
+        return max;
     }
 
     private void scoreSeparately(int firstOrd, int[] ordinals, float[] scores, int numNodes) throws IOException {
@@ -149,8 +154,8 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
             }
 
             @Override
-            public void bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
-                bulkScoreFromOrds(ord, nodes, scores, numNodes);
+            public float bulkScore(int[] nodes, float[] scores, int numNodes) throws IOException {
+                return bulkScoreFromOrds(ord, nodes, scores, numNodes);
             }
 
             @Override

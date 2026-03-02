@@ -64,31 +64,7 @@
  * For the zero-bucket, we merge the zero threshold from both histograms and collapse any overlapping buckets into the resulting new
  * zero bucket.
  * <p>
- * In order to bring both histograms to the same scale, we can make adjustments in both directions: we can increase or decrease the
- * scale of histograms as needed.
- * <p>
- * See the upscaling section for details on how the upscaling works. Upscaling helps prevent the precision of
- * the result histogram merged from many histograms from being dragged down to the lowest scale of a potentially misconfigured input
- * histogram. For example, if a histogram is recorded with a too low zero threshold, this can result in a degraded scale when using
- * dense histogram storage, even if the histogram only contains two points.
- *
- * <h3>Upscaling</h3>
- *
- * In general, we assume that all values in a bucket lie on a single point: the point of least relative error. This is the point
- * {@code x} in the bucket such that:
- *
- * <pre>
- * (x - l) / l = (u - x) / u
- * </pre>
- *
- * where {@code l} is the lower bucket boundary and {@code u} is the upper bucket boundary.
- * <p>
- * This assumption allows us to increase the scale of histograms without increasing the bucket count. Buckets are simply mapped to
- * the ones in the new scale containing the point of least relative error of the original buckets.
- * <p>
- * This can introduce a small error, as the original center might be moved slightly. Therefore, we ensure that the upscaling happens
- * at most once to prevent errors from adding up. The higher the amount of upscaling, the less the error (higher scale means smaller
- * buckets, which in turn means we get a better fit around the original point of least relative error).
+ * In order to bring both histograms to the same scale, we only reduce the scale of higher-scale histograms to match the lower one. If the merged histogram would exceed the allowed number of buckets, we reduce the scale further.
  *
  * <h2>Distributions with Few Distinct Values</h2>
  *

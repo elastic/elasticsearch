@@ -179,16 +179,6 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         return (result == null) ? ExponentialHistogram.empty() : result;
     }
 
-    /**
-     * Merges the given histogram into the current result, not upscaling it.
-     * This should be used when merging intermediate results to prevent accumulating errors.
-     *
-     * @param toAdd the histogram to merge
-     */
-    public void addWithoutUpscaling(ExponentialHistogram toAdd) {
-        add(toAdd);
-    }
-
     // This algorithm is very efficient if B has roughly as many buckets as A.
     // However, if B is much smaller we still have to iterate over all buckets of A.
     // This can be optimized by buffering the buckets of small histograms and only merging them when we have enough buckets.

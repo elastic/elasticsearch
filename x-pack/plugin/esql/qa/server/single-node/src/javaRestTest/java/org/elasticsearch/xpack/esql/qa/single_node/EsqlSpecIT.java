@@ -52,6 +52,12 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         return cluster.getNumNodes() == 1;
     }
 
+    @Override
+    protected String maybeRandomizeQuery(String query) {
+        // TODO we should implement more generic randomization for SET parameters
+        return randomBoolean() && query.startsWith("SET") == false ? query = "SET unmapped_fields=\"nullify\"; " + query : query;
+    }
+
     @Before
     public void configureChunks() throws IOException {
         assumeTrue("test clusters were broken", testClustersOk);

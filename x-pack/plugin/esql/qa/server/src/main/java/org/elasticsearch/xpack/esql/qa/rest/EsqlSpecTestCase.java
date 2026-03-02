@@ -339,12 +339,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return Boolean.getBoolean("tests.esql.csv.timeseries_only");
     }
 
-    protected boolean supportsIndexModeLookup() throws IOException {
+    protected boolean supportsIndexModeLookup() {
         return true;
     }
 
-    protected boolean supportsSourceFieldMapping() throws IOException {
+    protected boolean supportsSourceFieldMapping() {
         return true;
+    }
+
+    protected String maybeRandomizeQuery(String query) {
+        return query;
     }
 
     /**
@@ -365,16 +369,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
             builder.tables(tables());
         }
+        query = maybeRandomizeQuery(query);
 
         boolean checkTook = supportsTook() && rarely();
         Map<?, ?> prevTooks = checkTook ? tooks() : null;
 
         addPragmas(builder);
-
-        // TODO we should implement more generic randomization for SET parameters
-        if (randomBoolean() && query.startsWith("SET") == false) {
-            query = "SET unmapped_fields=\"nullify\"; " + query;
-        }
 
         Map<String, Object> answer = RestEsqlTestCase.runEsql(
             builder.query(query),
@@ -594,7 +594,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return tables;
     }
 
-    protected boolean supportsTook() throws IOException {
+    protected boolean supportsTook() {
         if (supportsTook == null) {
             supportsTook = hasCapabilities(adminClient(), List.of("usage_contains_took"));
         }

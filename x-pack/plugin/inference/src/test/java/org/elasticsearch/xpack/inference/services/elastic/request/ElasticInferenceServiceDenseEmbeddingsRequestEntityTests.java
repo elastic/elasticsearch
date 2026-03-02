@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.test.ESTestCase;
@@ -76,7 +78,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestEntityTests extends ES
         var entity = new ElasticInferenceServiceDenseEmbeddingsRequestEntity(
             List.of(
                 new InferenceStringGroup("abc"),
-                new InferenceStringGroup(new InferenceString(InferenceString.DataType.IMAGE, InferenceString.DataFormat.BASE64, "def"))
+                new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "def"))
             ),
             createEmbeddingModel("", "my-model-id"),
             ElasticInferenceServiceUsageContext.UNSPECIFIED

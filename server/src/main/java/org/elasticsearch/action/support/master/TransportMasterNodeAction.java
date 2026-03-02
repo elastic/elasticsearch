@@ -60,7 +60,7 @@ import static org.elasticsearch.core.Strings.format;
  * node. This class provides a common framework that handles routing requests to the current master,
  * retrying when the master changes, and checking for cluster blocks.
  *
- * <h2>Subclasses responsibility</h2>
+ * <h2>Subclass Responsibilities</h2>
  *
  * <p>Subclasses must implement two abstract methods:
  * <ul>
@@ -75,7 +75,7 @@ import static org.elasticsearch.core.Strings.format;
  *
  * <h2>Request Types</h2>
  *
- * <p> The {@link MasterNodeRequest} is the request type this class is parameterized on. It carries two
+ * <p>The {@link MasterNodeRequest} is the request type this class is parameterized on. It carries two
  * fields relevant to master routing:
  * <ul>
  *   <li>{@code masterNodeTimeout} – how long the request will wait when no master is available or the

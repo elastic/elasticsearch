@@ -438,6 +438,9 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
   method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=false, preference=NONE]}
   issue: https://github.com/elastic/elasticsearch/issues/143413
+- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
+  method: testBlockLoaderForFieldInObject {preference=Params[syntheticSource=false, preference=DOC_VALUES]}
+  issue: https://github.com/elastic/elasticsearch/issues/143414
 
 # Examples:
 #

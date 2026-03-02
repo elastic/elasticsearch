@@ -21,6 +21,23 @@ setup:
           }
 
   - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: text-embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
       indices.create:
         index: test-embedding-index
         body:
@@ -86,3 +103,25 @@ setup:
                   value: "abcdef1234567890"
 
   - match: { hits.total.value: 2 }
+
+---
+"inference service uses incorrect task type":
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: text-embedding-inference-id
+                  type: text
+                  value: "test query"
+
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "Incompatible task_type for embedding API, the inference endpoint
+                            [text-embedding-inference-id] has task type [text_embedding], expected [embedding]" }

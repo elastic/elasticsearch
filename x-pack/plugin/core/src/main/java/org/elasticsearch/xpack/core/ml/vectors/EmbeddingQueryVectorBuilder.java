@@ -120,7 +120,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         var inferenceString = format != null ? new InferenceString(type, format, value) : new InferenceString(type, value);
         var embeddingRequest = new EmbeddingRequest(List.of(new InferenceStringGroup(inferenceString)), InputType.SEARCH, null);
         var actualTimeout = timeout != null ? timeout : DEFAULT_TIMEOUT;
-        var request = new EmbeddingAction.Request(inferenceId, TaskType.EMBEDDING, embeddingRequest, actualTimeout);
+        var request = new EmbeddingAction.Request(inferenceId, TaskType.ANY, embeddingRequest, actualTimeout);
         executeAsyncWithOrigin(
             client,
             INFERENCE_ORIGIN,

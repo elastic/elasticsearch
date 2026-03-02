@@ -361,14 +361,12 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         // ignore options when comparing two Knn functions
         if (o == null || getClass() != o.getClass()) return false;
         Knn knn = (Knn) o;
-        return super.equals(knn)
-            && Objects.equals(implicitK(), knn.implicitK())
-            && Objects.equals(filterExpressions(), knn.filterExpressions());
+        return super.equals(knn) && Objects.equals(filterExpressions(), knn.filterExpressions());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions());
+        return Objects.hash(field(), query(), queryBuilder(), filterExpressions());
     }
 
 }

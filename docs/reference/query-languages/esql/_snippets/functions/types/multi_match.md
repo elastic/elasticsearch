@@ -5,32 +5,61 @@
 | query | fields | options | result |
 | --- | --- | --- | --- |
 | boolean | boolean | named parameters | boolean |
+| boolean | boolean | | boolean |
 | boolean | keyword | named parameters | boolean |
+| boolean | keyword | | boolean |
 | date | date | named parameters | boolean |
+| date | date | | boolean |
 | date | keyword | named parameters | boolean |
+| date | keyword | | boolean |
 | date_nanos | date_nanos | named parameters | boolean |
+| date_nanos | date_nanos | | boolean |
 | date_nanos | keyword | named parameters | boolean |
+| date_nanos | keyword | | boolean |
 | double | double | named parameters | boolean |
+| double | double | | boolean |
 | double | integer | named parameters | boolean |
+| double | integer | | boolean |
 | double | keyword | named parameters | boolean |
+| double | keyword | | boolean |
 | double | long | named parameters | boolean |
+| double | long | | boolean |
 | integer | double | named parameters | boolean |
+| integer | double | | boolean |
 | integer | integer | named parameters | boolean |
+| integer | integer | | boolean |
 | integer | keyword | named parameters | boolean |
+| integer | keyword | | boolean |
 | integer | long | named parameters | boolean |
+| integer | long | | boolean |
 | ip | ip | named parameters | boolean |
+| ip | ip | | boolean |
 | ip | keyword | named parameters | boolean |
+| ip | keyword | | boolean |
 | keyword | keyword | named parameters | boolean |
+| keyword | keyword | | boolean |
 | long | double | named parameters | boolean |
+| long | double | | boolean |
 | long | integer | named parameters | boolean |
+| long | integer | | boolean |
 | long | keyword | named parameters | boolean |
+| long | keyword | | boolean |
 | long | long | named parameters | boolean |
+| long | long | | boolean |
 | text | keyword | named parameters | boolean |
+| text | keyword | | boolean |
 | unsigned_long | double | named parameters | boolean |
+| unsigned_long | double | | boolean |
 | unsigned_long | integer | named parameters | boolean |
+| unsigned_long | integer | | boolean |
 | unsigned_long | keyword | named parameters | boolean |
+| unsigned_long | keyword | | boolean |
 | unsigned_long | long | named parameters | boolean |
+| unsigned_long | long | | boolean |
 | unsigned_long | unsigned_long | named parameters | boolean |
+| unsigned_long | unsigned_long | | boolean |
 | version | keyword | named parameters | boolean |
+| version | keyword | | boolean |
 | version | version | named parameters | boolean |
+| version | version | | boolean |
 

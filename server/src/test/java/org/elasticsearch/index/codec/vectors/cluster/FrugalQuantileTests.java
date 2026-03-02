@@ -40,7 +40,7 @@ public class FrugalQuantileTests extends ESTestCase {
         final int n = 100_000;
         final float lambda = 1;
 
-        float[] values =  new float[n];
+        float[] values = new float[n];
 
         for (float q : List.of(0.25f, 0.5f, 0.75f)) {
             for (int trial = 0; trial < nTrials; trial++) {

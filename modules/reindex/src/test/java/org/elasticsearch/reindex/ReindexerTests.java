@@ -57,38 +57,43 @@ import static org.mockito.Mockito.when;
 
 public class ReindexerTests extends ESTestCase {
 
+    // --- wrapWithMetrics tests ---
+
     public void testWrapWithMetricsSuccess() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true);
+        BulkByScrollTask task = createNonSlicedWorkerTask();
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
 
         BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics).recordSuccess(true);
-        verify(metrics, never()).recordFailure(anyBoolean(), any());
-        verify(metrics).recordTookTime(anyLong(), eq(true));
+        verify(metrics).recordSuccess(eq(false), any());
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
+        verify(metrics).recordTookTime(anyLong(), eq(false), any());
     }
 
     public void testWrapWithMetricsFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true);
+        BulkByScrollTask task = createNonSlicedWorkerTask();
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
 
         Exception exception = new Exception("random failure");
         wrapped.onFailure(exception);
 
         verify(listener).onFailure(exception);
-        verify(metrics, never()).recordSuccess(anyBoolean());
-        verify(metrics).recordFailure(true, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(true));
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics).recordFailure(eq(false), any(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any());
     }
 
     public void testWrapWithMetricsBulkFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), false);
+        BulkByScrollTask task = createNonSlicedWorkerTask();
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
@@ -99,15 +104,16 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics, never()).recordSuccess(anyBoolean());
-        verify(metrics).recordFailure(false, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(false));
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics).recordFailure(eq(false), any(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any());
     }
 
     public void testWrapWithMetricsSearchFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true);
+        BulkByScrollTask task = createNonSlicedWorkerTask();
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
@@ -118,9 +124,36 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics, never()).recordSuccess(anyBoolean());
-        verify(metrics).recordFailure(true, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(true));
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics).recordFailure(eq(false), any(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+    }
+
+    public void testWrapWithMetricsSkipsSliceWorker() {
+        ReindexMetrics metrics = mock();
+        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        BulkByScrollTask task = createSliceWorkerTask();
+
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+
+        assertSame(listener, wrapped);
+        verifyNoMoreInteractions(metrics);
+    }
+
+    public void testWrapWithMetricsWrapsLeader() {
+        ReindexMetrics metrics = mock();
+        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        BulkByScrollTask task = createLeaderTask();
+
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+
+        assertNotSame(listener, wrapped);
+
+        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        wrapped.onResponse(response);
+
+        verify(metrics).recordSuccess(eq(false), any());
+        verify(metrics).recordTookTime(anyLong(), eq(false), any());
     }
 
     // listenerWithRelocations tests
@@ -223,17 +256,16 @@ public class ReindexerTests extends ESTestCase {
         final ReindexMetrics metrics = mock();
         final Reindexer reindexer = reindexerWithRelocationAndMetrics(metrics);
         final ActionListener<BulkByScrollResponse> outer = spy(ActionListener.noop());
+        final BulkByScrollTask task = createNonSlicedWorkerTask();
 
-        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(outer, randomNonNegativeLong(), randomBoolean());
+        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(outer, task, reindexRequest(), randomNonNegativeLong());
 
         final BulkByScrollResponse response = reindexResponseWithResumeInfo();
         wrapped.onResponse(response);
 
-        // metrics should NOT be recorded for a relocation response
-        verify(metrics, never()).recordSuccess(anyBoolean());
-        verify(metrics, never()).recordFailure(anyBoolean(), any());
-        verify(metrics, never()).recordTookTime(anyLong(), anyBoolean());
-        // outer listener should still receive the response
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
+        verify(metrics, never()).recordTookTime(anyLong(), anyBoolean(), any());
         verify(outer).onResponse(response);
 
         verifyNoMoreInteractions(metrics, outer);
@@ -244,17 +276,35 @@ public class ReindexerTests extends ESTestCase {
         final ReindexMetrics metrics = mock();
         final Reindexer reindexer = reindexerWithRelocationAndMetrics(metrics);
         final ActionListener<BulkByScrollResponse> outer = spy(ActionListener.noop());
+        final BulkByScrollTask task = createNonSlicedWorkerTask();
 
-        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(outer, randomNonNegativeLong(), true);
+        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(outer, task, reindexRequest(), randomNonNegativeLong());
 
         final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         verify(outer).onResponse(response);
-        verify(metrics).recordSuccess(true);
-        verify(metrics).recordTookTime(anyLong(), eq(true));
+        verify(metrics).recordSuccess(eq(false), any());
+        verify(metrics).recordTookTime(anyLong(), eq(false), any());
 
         verifyNoMoreInteractions(metrics, outer);
+    }
+
+    public void testWorkerListenerSkipsMetricsForSliceWorker() {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final ReindexMetrics metrics = mock();
+        final Reindexer reindexer = reindexerWithRelocationAndMetrics(metrics);
+        final ActionListener<BulkByScrollResponse> outer = spy(ActionListener.noop());
+        final BulkByScrollTask task = createSliceWorkerTask();
+
+        final var wrapped = reindexer.workerListenerWithRelocationAndMetrics(outer, task, reindexRequest(), randomNonNegativeLong());
+
+        final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        wrapped.onResponse(response);
+
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
+        verify(metrics, never()).recordTookTime(anyLong(), anyBoolean(), any());
     }
 
     // --- helpers ---
@@ -287,6 +337,48 @@ public class ReindexerTests extends ESTestCase {
             false,
             new ResumeInfo(workerResumeInfo, null)
         );
+    }
+
+    private static BulkByScrollTask createNonSlicedWorkerTask() {
+        BulkByScrollTask task = new BulkByScrollTask(
+            1,
+            "test_type",
+            "test_action",
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false
+        );
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+        return task;
+    }
+
+    private static BulkByScrollTask createSliceWorkerTask() {
+        BulkByScrollTask task = new BulkByScrollTask(
+            2,
+            "test_type",
+            "test_action",
+            "test",
+            new TaskId("node", 1),
+            Collections.emptyMap(),
+            false
+        );
+        task.setWorker(randomFloat(), 0);
+        return task;
+    }
+
+    private static BulkByScrollTask createLeaderTask() {
+        BulkByScrollTask task = new BulkByScrollTask(
+            3,
+            "test_type",
+            "test_action",
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            false
+        );
+        task.setWorkerCount(randomIntBetween(2, 10));
+        return task;
     }
 
     private static BulkByScrollTask createTaskWithParentIdAndRelocationEnabled(final TaskId parentTaskId) {

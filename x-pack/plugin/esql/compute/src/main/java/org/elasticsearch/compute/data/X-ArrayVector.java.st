@@ -197,8 +197,37 @@ $endif$
         return new $Type$Lookup(asBlock(), positions, targetBlockSize);
     }
 
+$if(BytesRef)$
+    /**
+     * Estimates the RAM usage using default overestimate settings.
+     * See {@link BlockFactory#DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD} and
+     * {@link BlockFactory#DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR}.
+     */
+$endif$
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
+$if(BytesRef)$
+        return ramBytesEstimated(
+            values,
+            BlockFactory.DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
+            BlockFactory.DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR
+        );
+    }
+
+    /**
+     * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
+     * underlying byte data exceeds {@code overestimateThreshold}. This compensates for heap
+     * overhead that {@link RamUsageEstimator} does not track, such as page-level waste in
+     * {@link BytesRefArray} when loading large text fields from {@code _source}.
+     */
+    public static long ramBytesEstimated(BytesRefArray values, long overestimateThreshold, double overestimateFactor) {
+        long valuesSize = RamUsageEstimator.sizeOf(values);
+        if (valuesSize > overestimateThreshold) {
+            valuesSize = Math.round(valuesSize * overestimateFactor);
+        }
+        return BASE_RAM_BYTES_USED + valuesSize;
+$else$
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+$endif$
     }
 
 $if(int)$
@@ -262,7 +291,11 @@ $endif$
 
     @Override
     public long ramBytesUsed() {
+$if(BytesRef)$
+        return ramBytesEstimated(values, blockFactory().bytesRefRamOverestimateThreshold(), blockFactory().bytesRefRamOverestimateFactor());
+$else$
         return ramBytesEstimated(values);
+$endif$
     }
 
     @Override

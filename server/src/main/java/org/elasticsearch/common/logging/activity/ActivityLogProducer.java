@@ -30,7 +30,7 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
     String EVENT_DURATION_FIELD = "event.duration";
     // Fields specific to querying logs - search, esql, etc. Common fields are in ES_FIELDS_PREFIX.
     String ES_QUERY_FIELDS_PREFIX = "elasticsearch.activitylog.querying.";
-    String LOGGER_NAME = "elasticsearch.activitylog";
+    String QUERY_LOGGER_NAME = "elasticsearch.querylog";
 
     /**
      * Produces a {@link ESLogMessage} if the producer decides to log, or nothing otherwise.
@@ -38,7 +38,7 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
     Optional<ESLogMessage> produce(Context context, ActionLoggingFields additionalFields);
 
     default String loggerName() {
-        return LOGGER_NAME;
+        return QUERY_LOGGER_NAME;
     }
 
     /**

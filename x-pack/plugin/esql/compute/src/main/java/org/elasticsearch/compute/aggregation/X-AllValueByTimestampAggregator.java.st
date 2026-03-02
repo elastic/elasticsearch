@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.ByteArray;
 $if(!v1_boolean)$
 import org.elasticsearch.common.util.$v1_Type$Array;
 $endif$
-import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.$v2_Type$Array;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -25,7 +25,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.$v1_Type$Block;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.$v2_Type$Block;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
@@ -40,42 +40,46 @@ import java.util.BitSet;
     {
         @IntermediateState(name = "observed", type = "BOOLEAN"),
         @IntermediateState(name = "timestampPresent", type = "BOOLEAN"),
-        @IntermediateState(name = "timestamp", type = "LONG"),
+        @IntermediateState(name = "timestamp", type = "$v2_TYPE$"),
         @IntermediateState(name = "values", type = "$v1_TYPE$_BLOCK") }
 )
 @GroupingAggregator(
     {
         @IntermediateState(name = "observed", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestampsPresent", type = "BOOLEAN_BLOCK"),
-        @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
+        @IntermediateState(name = "timestamps", type = "$v2_TYPE$_BLOCK"),
         @IntermediateState(name = "values", type = "$v1_TYPE$_BLOCK") }
 )
-public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
+public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
     public static String describe() {
         $if(v1_BytesRef)$
-        return "all_$occurrence$_bytesref_by_timestamp";
+        return "all_$occurrence$_bytesref_by_$v2_type$";
         $else$
-        return "all_$occurrence$_$v1_type$_by_timestamp";
+        return "all_$occurrence$_$v1_type$_by_$v2_type$";
         $endif$
     }
 
-    public static $Prefix$Long$v1_Type$State initSingle(DriverContext driverContext) {
-        return new $Prefix$Long$v1_Type$State(driverContext.bigArrays());
+    public static $Prefix$$v2_Type$$v1_Type$State initSingle(DriverContext driverContext) {
+        return new $Prefix$$v2_Type$$v1_Type$State(driverContext.bigArrays());
     }
 
-    $if(v1_long || v1_int)$
-    private static void overrideState($Prefix$Long$v1_Type$State current, boolean timestampPresent, long timestamp, $v1_Type$Block values, int position) {
+    $if(v1_long || v1_int || (v1_float && v2_int))$
+    private static void overrideState($Prefix$$v2_Type$$v1_Type$State current, boolean timestampPresent, $v2_type$ timestamp, $v1_Type$Block values, int position) {
     $else$
     private static void overrideState(
-        $Prefix$Long$v1_Type$State current,
+        $Prefix$$v2_Type$$v1_Type$State current,
         boolean timestampPresent,
-        long timestamp,
+        $v2_type$ timestamp,
         $v1_Type$Block values,
         int position
     ) {
     $endif$
         current.observed(true);
+        $if(v2_long)$
         current.v1(timestampPresent ? timestamp : -1L);
+        $else$
+        current.v1(timestampPresent ? timestamp : -1);
+        $endif$
         current.v1Seen(timestampPresent);
         if (values.isNull(position)) {
             Releasables.close(current.v2());
@@ -121,25 +125,25 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
         }
     }
 
-    private static long dominantTimestampAtPosition(int position, LongBlock timestamps) {
+    private static $v2_type$ dominantTimestampAtPosition(int position, $v2_Type$Block timestamps) {
         assert timestamps.isNull(position) == false : "The timestamp is null at this position";
         int lo = timestamps.getFirstValueIndex(position);
         int hi = lo + timestamps.getValueCount(position);
-        long result = timestamps.getLong(lo++);
+        $v2_type$ result = timestamps.get$v2_Type$(lo++);
 
         for (int i = lo; i < hi; i++) {
             $if(First)$
-            result = Math.min(result, timestamps.getLong(i));
+            result = Math.min(result, timestamps.get$v2_Type$(i));
             $else$
-            result = Math.max(result, timestamps.getLong(i));
+            result = Math.max(result, timestamps.get$v2_Type$(i));
             $endif$
         }
 
         return result;
     }
 
-    public static void combine($Prefix$Long$v1_Type$State current, @Position int position, $v1_Type$Block values, LongBlock timestamps) {
-        long timestamp = timestamps.isNull(position) ? -1 : dominantTimestampAtPosition(position, timestamps);
+    public static void combine($Prefix$$v2_Type$$v1_Type$State current, @Position int position, $v1_Type$Block values, $v2_Type$Block timestamps) {
+        $v2_type$ timestamp = timestamps.isNull(position) ? -1 : dominantTimestampAtPosition(position, timestamps);
         boolean timestampPresent = timestamps.isNull(position) == false;
 
         if (current.observed() == false) {
@@ -152,10 +156,10 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
     }
 
     public static void combineIntermediate(
-        $Prefix$Long$v1_Type$State current,
+        $Prefix$$v2_Type$$v1_Type$State current,
         boolean observed,
         boolean timestampPresent,
-        long timestamp,
+        $v2_type$ timestamp,
         $v1_Type$Block values
     ) {
         if (observed == false) {
@@ -178,7 +182,7 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
         }
     }
 
-    public static Block evaluateFinal($Prefix$Long$v1_Type$State current, DriverContext ctx) {
+    public static Block evaluateFinal($Prefix$$v2_Type$$v1_Type$State current, DriverContext ctx) {
         return current.intermediateValuesBlockBuilder(ctx);
     }
 
@@ -186,8 +190,12 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
         return new GroupingState(driverContext.bigArrays());
     }
 
-    public static void combine(GroupingState current, int group, @Position int position, $v1_Type$Block values, LongBlock timestamps) {
-        long timestamp = timestamps.isNull(position) ? 0L : dominantTimestampAtPosition(position, timestamps);
+    public static void combine(GroupingState current, int group, @Position int position, $v1_Type$Block values, $v2_Type$Block timestamps) {
+        $if(v2_long)$
+        $v2_type$ timestamp = timestamps.isNull(position) ? 0L : dominantTimestampAtPosition(position, timestamps);
+        $else$
+        $v2_type$ timestamp = timestamps.isNull(position) ? 0 : dominantTimestampAtPosition(position, timestamps);
+        $endif$
         current.collectValue(group, timestamps.isNull(position) == false, timestamp, position, values);
     }
 
@@ -196,7 +204,7 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
         int group,
         BooleanBlock observed,
         BooleanBlock timestampPresent,
-        LongBlock timestamps,
+        $v2_Type$Block timestamps,
         $v1_Type$Block values,
         int otherPosition
     ) {
@@ -204,7 +212,7 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
             // The incoming state hasn't observed anything for this particular group. No work is needed.
             return;
         }
-        long timestamp = timestamps.isNull(otherPosition) ? -1 : timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
+        $v2_type$ timestamp = timestamps.isNull(otherPosition) ? -1 : timestamps.get$v2_Type$(timestamps.getFirstValueIndex(otherPosition));
         boolean hasTimestamp = timestampPresent.getBoolean(timestampPresent.getFirstValueIndex(otherPosition));
         current.collectValue(group, hasTimestamp, timestamp, otherPosition, values);
     }
@@ -229,7 +237,7 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
         /**
          * The group-indexed timestamps
          */
-        private LongArray timestamps;
+        private $v2_Type$Array timestamps;
 
         /**
          * The group-indexed values
@@ -244,7 +252,7 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
             boolean success = false;
             ByteArray observed = null;
             ByteArray hasTimestamp = null;
-            LongArray timestamps = null;
+            $v2_Type$Array timestamps = null;
             try {
                 // Initialize observed
                 observed = bigArrays.newByteArray(1, false);
@@ -257,8 +265,12 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
                 this.hasTimestamp = hasTimestamp;
 
                 // Initialize timestamps
-                timestamps = bigArrays.newLongArray(1, false);
+                timestamps = bigArrays.new$v2_Type$Array(1, false);
+                $if(v2_long)$
                 timestamps.set(0, -1L);
+                $else$
+                timestamps.set(0, -1);
+                $endif$
                 this.timestamps = timestamps;
 
                 // Initialize values
@@ -285,7 +297,7 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
             }
         }
 
-        void collectValue(int group, boolean timestampPresent, long timestamp, int position, $v1_Type$Block valuesBlock) {
+        void collectValue(int group, boolean timestampPresent, $v2_type$ timestamp, int position, $v1_Type$Block valuesBlock) {
             boolean updated = false;
             if (withinBounds(group)) {
                 if (hasValue(group) == false
@@ -374,7 +386,7 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
             try (
                 var observedBlockBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
                 var hasTimestampBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
-                var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())
+                var timestampsBuilder = driverContext.blockFactory().new$v2_Type$BlockBuilder(selected.getPositionCount())
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
@@ -382,7 +394,7 @@ public class $Prefix$$Occurrence$$v1_Type$ByTimestampAggregator {
                         // We must have seen this group before and saved its state
                         observedBlockBuilder.appendBoolean(observed.get(group) == 1);
                         hasTimestampBuilder.appendBoolean(hasTimestamp.get(group) == 1);
-                        timestampsBuilder.appendLong(timestamps.get(group));
+                        timestampsBuilder.append$v2_Type$(timestamps.get(group));
                     } else {
                         // Unknown group so we append nulls everywhere
                         observedBlockBuilder.appendBoolean(false);

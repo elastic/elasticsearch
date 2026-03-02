@@ -282,16 +282,12 @@ public final class LuceneSliceQueue {
         },
         /**
          * See {@link DataPartitioning#SEGMENT}.
+         * Uses the searcher's {@link IndexSearcher#getSlices()} to partition segments.
          */
         SEGMENT(1) {
             @Override
             List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
-                IndexSearcher.LeafSlice[] gs = IndexSearcher.slices(
-                    searcher.getLeafContexts(),
-                    MAX_DOCS_PER_SLICE,
-                    MAX_SEGMENTS_PER_SLICE,
-                    false
-                );
+                IndexSearcher.LeafSlice[] gs = searcher.getSlices();
                 return Arrays.stream(gs).map(g -> Arrays.stream(g.partitions).map(PartialLeafReaderContext::new).toList()).toList();
             }
         },

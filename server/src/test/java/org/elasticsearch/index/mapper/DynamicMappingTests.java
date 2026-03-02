@@ -1063,4 +1063,31 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
         assertThat(context.getDynamicMappers("items.id"), hasSize(1));
     }
+
+    /**
+     * When a dynamic template matches an array field as an object but the array contains scalar
+     * values, the object template builder must not be registered or cached. Otherwise the cached
+     * object mapper would be returned when creating dynamic mappers for the scalar elements,
+     * causing a parsing failure.
+     */
+    public void testArrayWithObjectDynamicTemplateNotRegistered() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            b.startObject();
+            b.startObject("my_template");
+            b.field("match", "my_*");
+            b.field("match_mapping_type", "object");
+            b.startObject("mapping").field("type", "object").endObject();
+            b.endObject();
+            b.endObject();
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.array("my_field", "foo", "bar")));
+        Mapping update = parseDynamicUpdate(doc.dynamicMappingsUpdate());
+        assertNotNull(update);
+        Mapper fieldMapper = update.getRoot().getMapper("my_field");
+        assertNotNull(fieldMapper);
+        assertThat(((FieldMapper) fieldMapper).fieldType().typeName(), equalTo("text"));
+    }
 }

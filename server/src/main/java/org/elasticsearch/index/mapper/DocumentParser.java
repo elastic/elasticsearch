@@ -716,17 +716,19 @@ public final class DocumentParser {
 
             parseNonDynamicArray(context, null, currentFieldName, currentFieldName);
         } else {
-            Mapper mapper = context.getDynamicMapper(builderFromTemplate);
-            if (mapper == null) {
-                skipChildren(context);
-                return;
-            }
-            if (parsesArrayValue(mapper)) {
+            MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
+            Mapper objectMapperFromTemplate = builderFromTemplate.build(builderContext);
+            if (parsesArrayValue(objectMapperFromTemplate)) {
+                Mapper mapper = context.getDynamicMapper(builderFromTemplate, objectMapperFromTemplate, builderContext);
+                if (mapper == null) {
+                    skipChildren(context);
+                    return;
+                }
                 context.path().add(currentFieldName);
                 parseObjectOrField(context, mapper);
                 context.path().remove();
             } else {
-                parseNonDynamicArray(context, mapper, currentFieldName, currentFieldName);
+                parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
             }
         }
     }

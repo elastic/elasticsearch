@@ -717,6 +717,17 @@ public abstract class DocumentParserContext {
      * @return the mapper, or null if the field limit was exceeded
      */
     public final Mapper getDynamicMapper(Mapper.Builder builder, MapperBuilderContext builderContext) {
+        return getDynamicMapper(builder, null, builderContext);
+    }
+
+    /**
+     * Registers a dynamically created mapper builder and caches the result. If {@code preBuiltMapper}
+     * is provided, it is used directly instead of building from the builder, avoiding a redundant build
+     * when the caller has already built the mapper (e.g. to check its type before deciding to register).
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    final Mapper getDynamicMapper(Mapper.Builder builder, @Nullable Mapper preBuiltMapper, MapperBuilderContext builderContext) {
         String fullPath = builderContext.buildFullName(builder.leafName());
         Mapper existing = builtDynamicMappers.get(fullPath);
         if (existing != null) {
@@ -725,7 +736,7 @@ public abstract class DocumentParserContext {
         if (addDynamicMapper(builder, fullPath) == false) {
             return null;
         }
-        Mapper mapper = builder.build(builderContext);
+        Mapper mapper = preBuiltMapper != null ? preBuiltMapper : builder.build(builderContext);
         builtDynamicMappers.put(fullPath, mapper);
         return mapper;
     }

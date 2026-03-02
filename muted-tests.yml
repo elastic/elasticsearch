@@ -450,6 +450,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.LookupJoinIT
   method: testMultiValueJoinKeyWarnings
   issue: https://github.com/elastic/elasticsearch/issues/143350
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.*}
+  issue: https://github.com/elastic/elasticsearch/issues/143368
 
 # Examples:
 #

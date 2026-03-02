@@ -25,7 +25,7 @@ import java.io.IOException;
  */
 public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     protected final String fieldName;
-    private final ByteSizeValue size;
+    protected final ByteSizeValue size;
 
     public AbstractBytesRefsFromOrdsBlockLoader(String fieldName, ByteSizeValue size) {
         this.fieldName = fieldName;
@@ -38,10 +38,10 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
     }
 
     @Override
-    public final AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public final ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         SortedDvSingletonOrSet dv = SortedDvSingletonOrSet.get(breaker, size, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         if (dv.singleton() != null) {
             return singletonReader(dv.singleton());
@@ -49,9 +49,9 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
         return sortedSetReader(dv.set());
     }
 
-    protected abstract AllReader singletonReader(TrackingSortedDocValues docValues);
+    protected abstract ColumnAtATimeReader singletonReader(TrackingSortedDocValues docValues);
 
-    protected abstract AllReader sortedSetReader(TrackingSortedSetDocValues docValues);
+    protected abstract ColumnAtATimeReader sortedSetReader(TrackingSortedSetDocValues docValues);
 
     protected class Singleton extends BlockDocValuesReader {
         private final TrackingSortedDocValues ordinals;
@@ -92,15 +92,6 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
                     }
                 }
                 return builder.build();
-            }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            if (ordinals.docValues().advanceExact(docId)) {
-                ((BytesRefBuilder) builder).appendBytesRef(ordinals.docValues().lookupOrd(ordinals.docValues().ordValue()));
-            } else {
-                builder.appendNull();
             }
         }
 
@@ -156,11 +147,6 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
                 }
                 return builder.build();
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BytesRefBuilder) builder);
         }
 
         private Block readSingleDoc(BlockFactory factory, int docId) throws IOException {

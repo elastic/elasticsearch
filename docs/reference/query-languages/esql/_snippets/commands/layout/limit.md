@@ -3,28 +3,27 @@ serverless: ga
 stack: ga
 ```
 
-The `LIMIT` processing command enables you to limit the number of rows that are
-returned.
+The `LIMIT` processing command limits the number of rows returned.
 
-**Syntax**
+## Syntax
 
 ```esql
 LIMIT max_number_of_rows
 ```
 
-**Parameters**
+## Parameters
 
 `max_number_of_rows`
 :   The maximum number of rows to return.
 
-**Description**
+## Description
 
-The `LIMIT` processing command enables you to limit the number of rows that are
-returned.
+Use the `LIMIT` processing command to limit the number of rows returned.
+
 :::{include} ../../common/result-set-size-limitation.md
 :::
 
-**Example**
+## Example
 
 :::{include} ../examples/limit.csv-spec/basic.md
 :::

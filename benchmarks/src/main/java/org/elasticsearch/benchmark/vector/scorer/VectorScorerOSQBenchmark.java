@@ -17,8 +17,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.NodeNamePatternConverter;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
@@ -61,9 +60,7 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
 public class VectorScorerOSQBenchmark {
 
     static {
-        NodeNamePatternConverter.setGlobalNodeName("benchmark");
-        LogConfigurator.loadLog4jPlugins();
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     public enum DirectoryType {
@@ -80,7 +77,7 @@ public class VectorScorerOSQBenchmark {
     @Param({ "384", "768", "1024" })
     public int dims;
 
-    @Param({ "1", "2", "4" })
+    @Param({ "1", "2", "4", "7" })
     public byte bits;
 
     @Param
@@ -107,7 +104,6 @@ public class VectorScorerOSQBenchmark {
     IndexInput input;
 
     float[] scratchScores;
-    float[] corrections;
 
     record VectorData(
         VectorScorerTestUtils.OSQVectorData[] indexVectors,
@@ -138,11 +134,12 @@ public class VectorScorerOSQBenchmark {
         }
 
         int binaryQueryLength = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
+        byte queryBits = bits == 7 ? (byte) 7 : (byte) 4;
         VectorScorerTestUtils.OSQVectorData[] queryVectors = new VectorScorerTestUtils.OSQVectorData[numVectors];
         var query = new float[dims];
         for (int i = 0; i < numVectors; i++) {
             randomVector(random, query, similarityFunction);
-            queryVectors[i] = createOSQQueryData(query, centroid, quantizer, dims, (byte) 4, binaryQueryLength);
+            queryVectors[i] = createOSQQueryData(query, centroid, quantizer, dims, queryBits, binaryQueryLength);
         }
 
         return new VectorData(indexVectors, queryVectors, binaryIndexLength, VectorUtil.dotProduct(centroid, centroid));
@@ -186,6 +183,10 @@ public class VectorScorerOSQBenchmark {
                 docBits = 4;
                 yield 4;
             }
+            case 7 -> {
+                docBits = 7;
+                yield 7;
+            }
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
         scorer = switch (implementation) {
@@ -194,7 +195,6 @@ public class VectorScorerOSQBenchmark {
                 .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, data.binaryIndexLength, BULK_SIZE);
         };
         scratchScores = new float[BULK_SIZE];
-        corrections = new float[3];
     }
 
     Path createTempDirectory(String name) throws IOException {
@@ -210,26 +210,37 @@ public class VectorScorerOSQBenchmark {
     @Benchmark
     public float[] score() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+
+        float[] lowerIntervals = new float[BULK_SIZE];
+        float[] upperIntervals = new float[BULK_SIZE];
+        int[] sums = new int[BULK_SIZE];
+        float[] additional = new float[BULK_SIZE];
+
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
-            for (int i = 0; i < NUM_VECTORS; i++) {
-                float qDist = scorer.quantizeScore(binaryQueries[j].quantizedVector());
-                input.readFloats(corrections, 0, corrections.length);
-                int addition = Short.toUnsignedInt(input.readShort());
-                float score = scorer.score(
-                    binaryQueries[j].lowerInterval(),
-                    binaryQueries[j].upperInterval(),
-                    binaryQueries[j].quantizedComponentSum(),
-                    binaryQueries[j].additionalCorrection(),
-                    similarityFunction,
-                    centroidDp,
-                    corrections[0],
-                    corrections[1],
-                    addition,
-                    corrections[2],
-                    qDist
-                );
-                results[j * NUM_VECTORS + i] = score;
+            for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {
+                scorer.quantizeScoreBulk(binaryQueries[j].quantizedVector(), BULK_SIZE, scratchScores);
+                input.readFloats(lowerIntervals, 0, BULK_SIZE);
+                input.readFloats(upperIntervals, 0, BULK_SIZE);
+                input.readInts(sums, 0, BULK_SIZE);
+                input.readFloats(additional, 0, BULK_SIZE);
+
+                for (int b = 0; b < BULK_SIZE; b++) {
+                    float score = scorer.score(
+                        binaryQueries[j].lowerInterval(),
+                        binaryQueries[j].upperInterval(),
+                        binaryQueries[j].quantizedComponentSum(),
+                        binaryQueries[j].additionalCorrection(),
+                        similarityFunction,
+                        centroidDp,
+                        lowerIntervals[b],
+                        upperIntervals[b],
+                        sums[b],
+                        additional[b],
+                        scratchScores[b]
+                    );
+                    results[j * NUM_VECTORS + i + b] = score;
+                }
             }
         }
         return results;

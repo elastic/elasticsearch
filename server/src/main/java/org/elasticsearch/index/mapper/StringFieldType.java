@@ -183,7 +183,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
         } else {
             query = method == null ? new WildcardQuery(term) : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
         }
-        assert query instanceof Accountable : "WildcardQuery should implement Accountable";
         context.addCircuitBreakerMemory(query.ramBytesUsed(), "wildcard:" + name());
         return query;
     }

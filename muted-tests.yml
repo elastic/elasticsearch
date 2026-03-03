@@ -456,6 +456,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.LookupJoinWithCoalesceFilterOnRight}
   issue: https://github.com/elastic/elasticsearch/issues/143443
+- class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
+  method: testLoadAll
+  issue: https://github.com/elastic/elasticsearch/issues/143471
 
 # Examples:
 #

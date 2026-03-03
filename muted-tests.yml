@@ -384,9 +384,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
   method: testTSDBIndexUsesCorrectDocValuesFormat
   issue: https://github.com/elastic/elasticsearch/issues/143198
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_aggregate_metric_double_implicit_casting}
-  issue: https://github.com/elastic/elasticsearch/issues/143292
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testTsIndexConflictingTypes {null}
   issue: https://github.com/elastic/elasticsearch/issues/142410
@@ -402,9 +399,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.LookupJoinIT
   method: testMultiValueJoinKeyWarnings
   issue: https://github.com/elastic/elasticsearch/issues/143350
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-irate.*}
-  issue: https://github.com/elastic/elasticsearch/issues/143368
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.LookupJoinWithMixPushableAndUnpushableFilters}
   issue: https://github.com/elastic/elasticsearch/issues/143378
@@ -447,9 +441,6 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/143430
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:k8s-timeseries.Datenanos_derivative_compared_to_rate}
-  issue: https://github.com/elastic/elasticsearch/issues/143431
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.MvJoinKeyFromRow}
   issue: https://github.com/elastic/elasticsearch/issues/143432

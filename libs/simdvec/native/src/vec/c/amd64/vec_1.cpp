@@ -50,6 +50,10 @@ static inline int32_t doti7u_inner(const int8_t* a, const int8_t* b, const int32
     return mm256_reduce_epi32<_mm_add_epi32>(acc1);
 }
 
+static inline int32_t doti7u_scalar(int8_t a, int8_t b) {
+    return a * b;
+}
+
 EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
@@ -63,8 +67,14 @@ EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) 
     return res;
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*), int batches = 2>
-static inline void doti7u_inner_bulk(
+template <
+    int64_t(*mapper)(int32_t, const int32_t*),
+    auto inner_op,
+    auto scalar_op,
+    auto bulk_tail,
+    int batches = 2
+>
+static inline void call_bulk(
     const int8_t* a,
     const int8_t* b,
     const int32_t dims,
@@ -98,13 +108,13 @@ static inline void doti7u_inner_bulk(
         if (dims > STRIDE_BYTES_LEN) {
             i = blk;
             apply_indexed<batches>([&](auto I) {
-                res[I] = doti7u_inner(ptrs[I], b, i);
+                res[I] = inner_op(ptrs[I], b, i);
             });
         }
         for (; i < dims; i++) {
             const int8_t bb = b[i];
             apply_indexed<batches>([&](auto I) {
-                res[I] += ptrs[I][i] * bb;
+                res[I] += scalar_op(ptrs[I][i], bb);
             });
         }
 
@@ -117,12 +127,12 @@ static inline void doti7u_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_doti7u(a0, b, dims);
+        results[c] = (f32_t)bulk_tail(a0, b, dims);
     }
 }
 
 EXPORT void vec_doti7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    doti7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+    call_bulk<identity_mapper, doti7u_inner, doti7u_scalar, vec_doti7u>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_doti7u_bulk_offsets(
@@ -133,7 +143,7 @@ EXPORT void vec_doti7u_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    doti7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    call_bulk<array_mapper, doti7u_inner, doti7u_scalar, vec_doti7u>(a, b, dims, pitch, offsets, count, results);
 }
 
 static inline int32_t sqri7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {

@@ -1219,6 +1219,17 @@ the persisted term to `0` and marks `clusterUUIDCommitted` as false.
 
 ### Master Transport Actions
 
+[TransportMasterNodeAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeAction.java
+
+Many cluster operations
+([creating indices](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/admin/indices/create/TransportCreateIndexAction.java),
+[managing snapshots](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/admin/cluster/snapshots/create/TransportCreateSnapshotAction.java), etc.)
+run on the elected master node because they result in [ClusterState] updates. The [TransportMasterNodeAction] class
+is the base class for such operations. It provides a common framework that handles routing requests to the current
+master, retrying when the master changes, and checking for cluster blocks. 
+
+See `TransportMasterNodeAction` Javadoc for a detailed description of the execution flow and retry mechanism.
+
 # Replication
 
 (More Topics: ReplicationTracker concepts / highlights.)

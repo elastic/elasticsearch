@@ -159,10 +159,9 @@ public class TsInfoOperator implements Operator {
         }
     }
 
-    // TODO: Improve memory tracking
-    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TsInfoKey.class) + RamUsageEstimator.shallowSizeOfInstance(
-        TsInfoEntry.class
-    );
+    /** Shallow size of a TsInfoKey + TsInfoEntry pair (object headers and field slots only). */
+    static final long ENTRY_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TsInfoKey.class) + RamUsageEstimator
+        .shallowSizeOfInstance(TsInfoEntry.class);
 
     public enum Mode {
         INITIAL,
@@ -251,7 +250,7 @@ public class TsInfoOperator implements Operator {
                 // Assign dimension keys to all metrics touched by this tsid
                 if (dimensionKeys.isEmpty() == false) {
                     for (TsInfoEntry entry : touchedEntries) {
-                        entry.dimensionFieldKeys.addAll(dimensionKeys);
+                        trackSetAddAll(entry.dimensionFieldKeys, dimensionKeys);
                     }
                 }
             }
@@ -333,21 +332,15 @@ public class TsInfoOperator implements Operator {
                 TsInfoKey infoKey = new TsInfoKey(fieldInfo.name(), dataStreamName, dimensionsJson);
                 TsInfoEntry tsEntry = entriesByKey.get(infoKey);
                 if (tsEntry == null) {
-                    trackNewEntry();
+                    trackNewEntry(fieldInfo.name(), dataStreamName, dimensionsJson);
                     tsEntry = new TsInfoEntry(infoKey.metricName(), infoKey.dataStreamName(), infoKey.dimensionsJson());
                     entriesByKey.put(infoKey, tsEntry);
                 }
                 touchedEntries.add(tsEntry);
 
-                if (fieldInfo.unit() != null) {
-                    tsEntry.units.add(fieldInfo.unit());
-                }
-                if (fieldInfo.fieldType() != null) {
-                    tsEntry.fieldTypes.add(fieldInfo.fieldType());
-                }
-                if (fieldInfo.metricType() != null) {
-                    tsEntry.metricTypes.add(fieldInfo.metricType());
-                }
+                trackSetAdd(tsEntry.units, fieldInfo.unit());
+                trackSetAdd(tsEntry.fieldTypes, fieldInfo.fieldType());
+                trackSetAdd(tsEntry.metricTypes, fieldInfo.metricType());
             } else if (value instanceof Map<?, ?> nested) {
                 collectMetrics((Map<String, Object>) nested, key, indexName, dataStreamName, dimensionsJson, touchedEntries);
             }
@@ -400,14 +393,14 @@ public class TsInfoOperator implements Operator {
                     TsInfoKey key = new TsInfoKey(metricName, ds, dimensionsJson);
                     TsInfoEntry entry = entriesByKey.get(key);
                     if (entry == null) {
-                        trackNewEntry();
+                        trackNewEntry(metricName, ds, dimensionsJson);
                         entry = new TsInfoEntry(key.metricName(), key.dataStreamName(), key.dimensionsJson());
                         entriesByKey.put(key, entry);
                     }
-                    entry.units.addAll(units);
-                    entry.fieldTypes.addAll(fieldTypes);
-                    entry.metricTypes.addAll(metricTypes);
-                    entry.dimensionFieldKeys.addAll(dimensionFields);
+                    trackSetAddAll(entry.units, units);
+                    trackSetAddAll(entry.fieldTypes, fieldTypes);
+                    trackSetAddAll(entry.metricTypes, metricTypes);
+                    trackSetAddAll(entry.dimensionFieldKeys, dimensionFields);
                 }
             }
         } finally {
@@ -435,9 +428,31 @@ public class TsInfoOperator implements Operator {
         return values;
     }
 
-    private void trackNewEntry() {
-        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "TsInfoOperator");
-        trackedBytes += SHALLOW_SIZE;
+    private void trackBytes(long delta) {
+        breaker.addEstimateBytesAndMaybeBreak(delta, "TsInfoOperator");
+        trackedBytes += delta;
+    }
+
+    private void trackNewEntry(String metricName, String dataStream, String dimensionsJson) {
+        trackBytes(
+            ENTRY_SHALLOW_SIZE + RamUsageEstimator.sizeOf(metricName) + RamUsageEstimator.sizeOf(dataStream) + RamUsageEstimator.sizeOf(
+                dimensionsJson
+            )
+        );
+    }
+
+    private void trackSetAddAll(Set<String> set, Set<String> values) {
+        for (String value : values) {
+            if (set.add(value)) {
+                trackBytes(RamUsageEstimator.sizeOf(value));
+            }
+        }
+    }
+
+    private void trackSetAdd(Set<String> set, String value) {
+        if (value != null && set.add(value)) {
+            trackBytes(RamUsageEstimator.sizeOf(value));
+        }
     }
 
     private List<TsInfoRow> mergeRowsBySignature(Map<TsInfoKey, TsInfoEntry> entriesByKey) {

@@ -77,7 +77,6 @@ public final class NumericEncodePipeline {
         PayloadEncoder payloadStage = null;
 
         final PipelineConfig.DataType configDataType = config.dataType();
-        final boolean isFloat = configDataType == PipelineConfig.DataType.FLOAT;
 
         for (final StageSpec spec : specs) {
             if (payloadStage != null) {
@@ -86,7 +85,7 @@ public final class NumericEncodePipeline {
             if (isPayloadSpec(spec)) {
                 payloadStage = StageFactory.newPayloadEncoder(spec, blockSize);
             } else {
-                stages.add(StageFactory.newTransformEncoder(spec, blockSize, isFloat));
+                stages.add(StageFactory.newTransformEncoder(spec, blockSize));
             }
         }
         for (final StageSpec spec : specs) {

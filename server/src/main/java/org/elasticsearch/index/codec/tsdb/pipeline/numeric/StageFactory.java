@@ -65,10 +65,6 @@ public final class StageFactory {
     private StageFactory() {}
 
     static TransformEncoder newTransformEncoder(final StageSpec spec, int blockSize) {
-        return newTransformEncoder(spec, blockSize, false);
-    }
-
-    static TransformEncoder newTransformEncoder(final StageSpec spec, int blockSize, boolean isFloat) {
         return switch (spec) {
             case StageSpec.Delta() -> DeltaCodecStage.INSTANCE;
             case StageSpec.DeltaDelta() -> DeltaDeltaCodecStage.INSTANCE;
@@ -101,10 +97,6 @@ public final class StageFactory {
     }
 
     static TransformDecoder newTransformDecoder(final StageSpec spec, int blockSize) {
-        return newTransformDecoder(spec, blockSize, false);
-    }
-
-    static TransformDecoder newTransformDecoder(final StageSpec spec, int blockSize, boolean isFloat) {
         return switch (spec) {
             case StageSpec.Delta() -> DeltaCodecStage.INSTANCE;
             case StageSpec.DeltaDelta() -> DeltaDeltaCodecStage.INSTANCE;

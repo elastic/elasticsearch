@@ -272,9 +272,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                     )
                 ) {
                     Map<String, Object> source = parser.map();
-                    // In Jackson 2.21+, parser.map() may leave the parser past END_OBJECT
-                    // Only check for extra tokens if we're still positioned in the stream
-                    if (parser.currentToken() != null && parser.nextToken() != null) {
+                    if (parser.nextToken() != null) {
                         throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
                     }
                     Object expandWildcards = null;
@@ -362,9 +360,7 @@ public class MultiSearchRequest extends LegacyActionRequest implements Composite
                 )
             ) {
                 consumer.accept(searchRequest, parser);
-                // In Jackson 2.21+, after parsing, the parser may be past END_OBJECT
-                // Only check for extra tokens if we're still positioned in the stream
-                if (parser.currentToken() != null && parser.nextToken() != null) {
+                if (parser.nextToken() != null) {
                     throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
                 }
             }

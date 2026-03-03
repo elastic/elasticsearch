@@ -322,6 +322,11 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             return scope;
         }
 
+        @Override
+        public boolean automaticReassignmentOnShutdown() {
+            return false;
+        }
+
         public static void setNonClusterStateCondition(boolean nonClusterStateCondition) {
             TestPersistentTasksExecutor.nonClusterStateCondition = nonClusterStateCondition;
         }

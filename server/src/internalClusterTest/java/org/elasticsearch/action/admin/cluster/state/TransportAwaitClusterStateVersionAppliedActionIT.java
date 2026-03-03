@@ -194,7 +194,7 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
         assertEquals(0, response.getNodes().size());
     }
 
-    public void testCancellation() {
+    public void testCancellation() throws Exception {
         var currentState = internalCluster().getInstance(ClusterService.class).state();
 
         var future = client().execute(
@@ -221,6 +221,10 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
         client().execute(TransportCancelTasksAction.TYPE, cancelRequest);
 
         assertThrows(TaskCancelledException.class, () -> future.actionGet(SAFE_AWAIT_TIMEOUT));
+
+        for (var clusterService : internalCluster().getInstances(ClusterService.class)) {
+            assertBusy(() -> assertEquals(0, clusterService.getClusterApplierService().getTimeoutClusterStateListenersSize()));
+        }
     }
 
     @Override

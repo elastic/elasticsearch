@@ -327,6 +327,11 @@ public class CrossProjectIndexResolutionValidator {
         ResolvedIndexExpression.LocalExpressions matchingExpression = findMatchingExpression(resolvedExpressionsInProject, resource);
         if (matchingExpression == null) {
             // assume that this is the result of sending an exclusion to the remote
+            assert localExpressions.expressions()
+                .stream()
+                .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.startsWith(projectAlias + ":-")))
+                : Strings.format("Could not find matching project exclusion for missing remote expression %s", remoteExpression);
+
             return checkResolutionFailure(
                 new ResolvedIndexExpression.LocalExpressions(Set.of(), SUCCESS, null),
                 remoteExpression,

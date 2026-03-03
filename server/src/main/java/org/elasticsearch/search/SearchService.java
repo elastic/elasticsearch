@@ -368,11 +368,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.rankFeatureShardPhase = rankFeatureShardPhase;
         this.fetchPhase = fetchPhase;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
-        this.multiBucketConsumerService = new MultiBucketConsumerService(
-            clusterService,
-            settings,
-            circuitBreaker
-        );
+        this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.tracer = tracer;
 

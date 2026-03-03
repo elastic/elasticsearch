@@ -21,7 +21,9 @@ import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
@@ -68,6 +70,26 @@ public class IndexInputUtilsTests extends ESTestCase {
                 assertFalse(in instanceof MemorySegmentAccessInput);
                 assertFalse(in instanceof DirectAccessInput);
                 verifyWithSlice(in, data);
+            }
+        }
+    }
+
+    public void testPlainInputFallbackProducesNativeSegmentOnJava21() throws Exception {
+        byte[] data = randomByteArrayOfLength(256);
+        try (Directory dir = new NIOFSDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                assertFalse(in instanceof MemorySegmentAccessInput);
+                assertFalse(in instanceof DirectAccessInput);
+                IndexInputUtils.withSlice(in, data.length, byte[]::new, segment -> {
+                    if (Runtime.version().feature() < 22) {
+                        assertTrue("segment should be native-backed on Java 21", segment.heapBase().isEmpty());
+                    }
+                    byte[] buf = new byte[(int) segment.byteSize()];
+                    MemorySegment.ofArray(buf).copyFrom(segment);
+                    assertArrayEquals(data, buf);
+                    return null;
+                });
             }
         }
     }
@@ -167,9 +189,12 @@ public class IndexInputUtilsTests extends ESTestCase {
 
         @Override
         public boolean withByteBufferSlice(long offset, long length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-            ByteBuffer bb = ByteBuffer.wrap(data, (int) offset, (int) length).asReadOnlyBuffer();
-            action.accept(bb);
-            return true;
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment segment = arena.allocate(length);
+                MemorySegment.copy(data, (int) offset, segment, ValueLayout.JAVA_BYTE, 0, (int) length);
+                action.accept(segment.asByteBuffer().asReadOnlyBuffer());
+                return true;
+            }
         }
 
         @Override

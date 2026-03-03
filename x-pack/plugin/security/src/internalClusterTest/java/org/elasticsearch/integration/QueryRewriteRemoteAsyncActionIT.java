@@ -41,7 +41,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteRemoteAsyncAction;
@@ -373,7 +373,7 @@ public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersTestCa
         }
     }
 
-    private static final class TestQueryBuilder extends AbstractQueryBuilder<TestQueryBuilder> {
+    private static final class TestQueryBuilder extends LeafQueryBuilder<TestQueryBuilder> {
         private static final String NAME = "test";
 
         private final String origin;

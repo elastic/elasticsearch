@@ -341,20 +341,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
     }
 
-    public void testIndexSettingOverridesDefaultInferenceId() throws Exception {
-        // When index.semantic_text.default_inference_id is set, it takes precedence over the cluster-level default (EIS ELSER).
-        final String fieldName = "field";
-        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
-
-        var settings = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), DEFAULT_FALLBACK_ELSER_INFERENCE_ID)
-            .build();
-        MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping);
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_FALLBACK_ELSER_INFERENCE_ID, DEFAULT_FALLBACK_ELSER_INFERENCE_ID);
-    }
-
     public void testIndexSettingWithCustomInferenceId() throws Exception {
         // When index.semantic_text.default_inference_id is set to a custom value, semantic_text fields without
         // an explicit inference_id use that custom endpoint.
@@ -382,7 +368,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         var settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), DEFAULT_FALLBACK_ELSER_INFERENCE_ID)
+            .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), "my-custom-endpoint")
             .build();
         MapperService mapperService = createMapperService(IndexVersion.current(), settings, fieldMapping);
         assertInferenceEndpoints(mapperService, fieldName, explicitEndpoint, explicitEndpoint);

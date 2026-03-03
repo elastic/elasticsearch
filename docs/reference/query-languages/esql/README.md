@@ -5,15 +5,23 @@
 
 This README covers how the ES|QL docs are structured, what's hand-written vs. auto-generated, and how to add or update commands and functions correctly.
 
-Jump to:
-
+**Adding a new command or function:**
 - [Add a new command](#add-a-new-command)
 - [Add a new function](#add-a-new-function)
 - [Add version metadata](#add-version-metadata)
 - [Publish your docs](#publish-your-docs)
-- [Understand the file structure](#understand-the-file-structure)
+
+**Promoting an existing command or function to GA:**
+- [Promote a feature to GA](#promote-a-feature-to-ga)
+- [Update list files](#update-list-files)
+
+**Reference:**
+- [Regenerate content](#regenerate-content)
 - [Understand how generated content works](#understand-how-generated-content-works)
 - [PromQL docs](#generate-promql-definitions)
+
+**Learn about the docs system**
+- [Elastic docs resources](#elastic-docs-resources)
 
 ## Add a new command
 
@@ -28,7 +36,7 @@ To add a new processing command called `<my_command>`:
 2. Add the command to [`_snippets/lists/processing-commands.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/lists/processing-commands.md)
    - Link to the new standalone page path
    - Use [`_snippets/lists/source-commands.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/lists/source-commands.md) instead if it's a source command
-   - Add [version tags](#keep-list-files-in-sync-with-version-metadata)
+   - Add [version tags](#update-list-files)
 3. Create the standalone wrapper page `commands/<my-command>.md`
    - Add frontmatter with `navigation_title`
    - Add an H1 heading with an anchor
@@ -121,14 +129,15 @@ To add a new function called `<my_func>` to the `<group>` group (e.g. `string-fu
    - If the function name doesn't start with a known prefix (`mv_`, `st_`, `to_`, `date_`, `is_`),
      add it to the switch statement in `DocsV3Support.functionGroupFor()`.
      This maps function names to groups for cross-reference link generation.
-     Without it, the test in the next step will fail with `Docs Generation Error: Unknown function group`.
+      > [!WARNING]
+      > Without this, the test in the next step will fail with `Docs Generation Error: Unknown function group`.
 2. Create a test class extending `AbstractFunctionTestCase`
 3. Run the test to generate all snippets
    - `./gradlew :x-pack:plugin:esql:test -Dtests.class='<MyFunc>Tests'`
    - This generates files in [`_snippets/functions/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/functions) (layout, description, parameters, types, examples) and [`images/functions/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/images/functions)
 4. Add the function to `_snippets/lists/<group>.md`
    - Link to the individual page path: `functions-operators/<group>/<my_func>.md`
-   - Add [version tags](#keep-list-files-in-sync-with-version-metadata)
+   - Add [version tags](#update-list-files)
 5. Create the standalone wrapper page `functions-operators/<group>/<my_func>.md`
    - Add frontmatter with `navigation_title`
    - Add an H1 heading with an anchor
@@ -218,58 +227,18 @@ For example, the second item in this list is in technical preview as of version 
 > - Before `9.3.0` is released, the live documentation will display "Planned for a future release" instead of the specific version number.
 >  - This will be updated automatically when the version is released.
 
-## Publish your docs
+### Update list files
 
-[`docs/reference/query-languages/toc.yml`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/toc.yml) is the source of truth for what gets published. A page that exists on disk but isn't listed there won't appear in the navigation or be published.
+List entries in [`_snippets/lists/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/lists) are always maintained by hand — they are never auto-generated. Each entry can carry inline `{applies_to}` tags.
 
-### Hide a page before it's ready
+> [!IMPORTANT]
+> `stack` tags are cumulative — never remove a `stack: preview` tag when adding a `stack: ga` tag. The `serverless: preview` tag is different: drop it when the feature becomes GA.
 
-To merge docs before a feature is publicly available, use `hidden` instead of `file` in `toc.yml`:
-
-```yaml
-- hidden: commands/my-command.md
-```
-
-Also comment out the corresponding entry in [`_snippets/lists/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/lists) with a `%` prefix:
-
-```markdown
-% * [My Command](../commands/my-command.md)
-```
-
-The page stays accessible via direct URL but won't appear in navigation or search. You don't need to change any `.md` content files. See [#142859](https://github.com/elastic/elasticsearch/pull/142859/changes) for an example.
-
-When you're ready to publish, flip both:
-
-```diff
-# toc.yml
-- - hidden: commands/my-command.md
-+ - file: commands/my-command.md
-
-# _snippets/lists/
-- % * [My Command](../commands/my-command.md)
-+ * [My Command](../commands/my-command.md)
-```
-
-> **TIP**: If the feature isn't yet available on stack, use `applies_to` version metadata rather than hiding the page. See [Add version metadata](#add-version-metadata).
-
-### Keep list files in sync with version metadata
-
-Each entry in [`_snippets/lists/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/lists) can carry inline `{applies_to}` tags. When a command or function changes lifecycle (e.g. preview to GA), update its list entry manually. These are never auto-generated.
-
-For **functions and operators**, the `applies_to` metadata in the `.md` snippets is regenerated from Java annotations when you run tests, but the list file entry is not.
-
-For **commands**, everything must be updated by hand, cross-checking against the `applies_to` front matter in [`_snippets/commands/layout/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/commands/layout).
-
-#### Follow these rules
-
-- **Tags are cumulative.** Never remove the preview tag when adding a GA tag:
-  ```markdown
-  * [`MY_FUNC`](path/to/my-func.md) {applies_to}`stack: preview 9.0` {applies_to}`stack: ga 9.2`
-  ```
-- **Omit `serverless: ga`.** GA is the default on serverless, so that tag adds no information.
-- **Keep `serverless: preview`** until the feature is GA. Then drop it and add the cumulative `stack: ga X.Y` tag.
-- **Use `9.x` format**, not `9.x.0`. Strip the patch version.
-- **No tag needed** for commands and functions that have been GA since before 9.0.
+A few formatting rules:
+- Use `9.x` format, not `9.x.0` — strip the patch version
+- Omit `serverless: ga` — GA is the default on serverless
+- Drop `serverless: preview` only when the feature is GA, then add `stack: ga X.Y`
+- No tag needed for anything that was GA before 9.0
 
 #### Promote a feature to GA
 
@@ -308,91 +277,63 @@ For **commands**, everything must be updated by hand, cross-checking against the
    + * [`MY_COMMAND`](/reference/.../my-command.md) {applies_to}`stack: preview 9.1` {applies_to}`stack: ga 9.3`
    ```
 
-## Understand the file structure
+## Publish your docs
 
-The root `esql` directory and the following subdirectories contain static content:
-* [`commands/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/commands) - standalone page per command, each including a layout snippet from [`_snippets/commands/layout/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/commands/layout)
-* [`functions-operators/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/functions-operators) - group index pages and a standalone page per function, each including a layout snippet from [`_snippets/functions/layout/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/functions/layout)
+[`docs/reference/query-languages/toc.yml`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/toc.yml) is the source of truth for what gets published. A page that exists on disk but isn't listed there won't appear in the navigation or be published.
 
-Generated content is created by running the ESQL tests in the [`x-pack/plugin/esql`](https://github.com/elastic/elasticsearch/tree/main/x-pack/plugin/esql) module.
-It will be written into three subdirectories of the `esql` directory:
+### Hide a page before it's ready
 
-### Regenerate function and operator snippets
+To merge docs before a feature is publicly available, use `hidden` instead of `file` in `toc.yml`:
 
-In [`_snippets`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets) there are files that can be included within other files using the
-[File Inclusion](https://elastic.github.io/docs-builder/syntax/file_inclusion/)
-feature of the Elastic Docs V3 system.
-Most, but not all, files in this directory are generated.
-In particular the directories [`_snippets/functions/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/functions) and [`_snippets/operators/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/operators)
-contain subdirectories that are mostly generated:
+```yaml
+- hidden: commands/my-command.md
+```
 
-* `description` - description of each function scraped from `@FunctionInfo#description`
-* `examples` - examples of each function scraped from `@FunctionInfo#examples`
-* `parameters` - description of each function's parameters scraped from `@Param`
-* `signature` - railroad diagram of the syntax to invoke each function
-* `types` - a table of each combination of support type for each parameter. These are generated from tests.
-* `layout` - a fully generated layout for each function (syntax diagram, parameters, description, types, examples).
-  Layout files do not contain a heading: the heading lives on the function's standalone wrapper page.
+Also comment out the corresponding entry in [`_snippets/lists/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/lists) with a `%` prefix:
 
-Most functions can use the generated layout.
-If you need something more custom you can make a file in this
-directory that `include`s any parts of the files above.
+```markdown
+% * [My Command](../commands/my-command.md)
+```
 
-To regenerate the files for a function run its tests using gradle.
-For example to generate docs for the `CASE` function:
+> [!NOTE]
+> The page stays accessible via direct URL but won't appear in navigation or search. You don't need to change any `.md` content files. See [#142859](https://github.com/elastic/elasticsearch/pull/142859/changes) for an example.
+
+When you're ready to publish, flip both:
+
+```diff
+# toc.yml
+- - hidden: commands/my-command.md
++ - file: commands/my-command.md
+
+# _snippets/lists/
+- % * [My Command](../commands/my-command.md)
++ * [My Command](../commands/my-command.md)
+```
+
+> [!TIP]
+> If the feature isn't yet available on stack, use `applies_to` version metadata rather than hiding the page. See [Add version metadata](#add-version-metadata).
+
+## Regenerate content
+
+All generated content is produced by running ESQL tests. The section below covers what to run and when.
+
+### Functions and operators
+
+Run a single function's tests to regenerate its snippets (layout, description, parameters, types, examples, syntax diagrams, and Kibana definitions):
+
 ```
 ./gradlew :x-pack:plugin:esql:test -Dtests.class='CaseTests'
 ```
 
-To regenerate the files for all functions run all of ESQL's tests using gradle:
+To regenerate everything for all functions and operators:
+
 ```
 ./gradlew :x-pack:plugin:esql:test
 ```
 
-#### Update lists
+### Settings
 
-The [`_snippets/lists`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/lists) directory contains re-usable content for lists of commands, functions or operators.
-Whenever adding a command, function or operator, you usually need to add it to one of these lists.
-The lists should also match natural groupings of the commands, functions or operators.
-For example, when adding an aggregation function, add to [`aggregation-functions.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/lists/aggregation-functions.md).
-
-#### Edit command snippets
-
-The [`_snippets/commands`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/commands) directory contains the content for the ES|QL commands.
-There are two subdirectories, one static and one generated:
-* [`layout`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/commands/layout) - contains the static content for the ES|QL commands.
-  The files in this directory are the main content for the documentation for the commands.
-  They are not generated, and so this is the primary place to edit the content, or add new commands.
-* [`examples`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/commands/examples) - contains the generated content for the ES|QL commands.
-  The files in this directory are generated from the test `CommandDocsTests` in the `x-pack/plugin/esql` module.
-  The structure of the subdirectories mimics the csv-spec files and test tags used in the tests.
-
-Including generated examples in the command documentation is done by using the include directive.
-
-#### Regenerate settings documentation
-
-Query settings (see [SET](commands/set.md) command) are documented in the [`_snippets/commands/settings`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/commands/settings) directory.
-The `toc.md` file contains the list of all settings.
-The `setting_name.md` files contain the description of each setting.
-
-To regenerate the settings documentation, run the `QuerySettingsTests` test in the `x-pack/plugin/esql` module.
-
-Documentation is generated only for settings that have `snapshot=false` (See `QuerySettings` class).
-
-### Regenerate syntax diagrams
-
-The [`images`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/images) directory contains `functions` and `operators` subdirectories with
-the `*.svg` files used to describe the syntax of each function or operator.
-These are all generated by the same tests that generate the functions and operators docs above.
-
-### Update Kibana definitions
-
-The [`kibana`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/kibana) directory contains [`definition`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/kibana/definition) and [`docs`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/kibana/docs) subdirectories that are generated:
-
-* `kibana/definition` - function definitions for kibana's ESQL editor
-* `kibana/docs` - the inline docs for kibana
-
-These are also generated as part of the unit tests described above.
+Query settings (see [SET](commands/set.md)) are documented in [`_snippets/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. Only settings with `snapshot=false` are included.
 
 ## Understand how generated content works
 
@@ -431,3 +372,9 @@ To generate the PromQL definition files, run:
 ./gradlew :x-pack:plugin:esql:test --tests "PromqlKibanaDefinitionGeneratorTests"
 ```
 The result will be in `x-pack/plugin/esql/build/testrun/test/temp/promql/kibana/definitions/`.
+
+## Elastic docs resources
+
+- [How to contribute to Elastic docs](https://www.elastic.co/docs/contribute-docs)
+- [Elastic markdown syntax reference](https://www.elastic.co/docs/contribute-docs/syntax-quick-reference)
+- [Docs tools](https://www.elastic.co/docs/contribute-docs/tools)

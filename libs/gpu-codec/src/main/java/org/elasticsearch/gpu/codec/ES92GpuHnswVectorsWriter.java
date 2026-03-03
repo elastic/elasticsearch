@@ -79,7 +79,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     private static final long MAX_NUM_VECTORS_FOR_NN_DESCENT = 5_000_000L;
 
     private final CuVSResourceManager cuVSResourceManager;
-    private final GPUSupport gpuSupport;
+    private final long totalDeviceMemory;
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorIndex;
     private final int M;
@@ -92,13 +92,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     ES92GpuHnswVectorsWriter(
         CuVSResourceManager cuVSResourceManager,
-        GPUSupport gpuSupport,
+        long totalDeviceMemory,
         SegmentWriteState state,
         int M,
         int beamWidth,
         FlatVectorsWriter flatVectorWriter
     ) throws IOException {
-        this.gpuSupport = gpuSupport;
+        this.totalDeviceMemory = totalDeviceMemory;
         assert cuVSResourceManager != null : "CuVSResources must not be null";
         this.cuVSResourceManager = cuVSResourceManager;
         this.M = M;
@@ -391,7 +391,6 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             useIvfPQ = true;
         } else {
             // Check if we should use IVF_PQ due to insufficient GPU memory for NN_DESCENT
-            long totalDeviceMemory = gpuSupport.getTotalGpuMemory();
             if (totalDeviceMemory > 0) {
                 long requiredMemoryForNnDescent = CuVSResourceManager.estimateNNDescentMemory(numVectors, dims, dataType);
                 if (requiredMemoryForNnDescent > totalDeviceMemory) {

@@ -1,0 +1,11 @@
+---
+"Test GPU vector indexing xpack info":
+  - requires:
+      cluster_features: ["vectors.indexing.gpu_monitoring"]
+      reason: "GPU monitoring feature required"
+
+  - do:
+      xpack.info: {}
+  - is_true: features.gpu_vector_indexing
+  - exists: features.gpu_vector_indexing.available
+  - is_false: features.gpu_vector_indexing.enabled

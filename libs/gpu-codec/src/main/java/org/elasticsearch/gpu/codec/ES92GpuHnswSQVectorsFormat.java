@@ -17,7 +17,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.gpu.CuVSGPUSupport;
-import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 
 import java.io.IOException;
@@ -41,16 +40,20 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
     /** The format for storing, reading, merging vectors on disk */
     private final FlatVectorsFormat flatVectorsFormat;
     private final Supplier<CuVSResourceManager> cuVSResourceManagerSupplier;
-    private final GPUSupport gpuSupport;
+    private final long totalDeviceMemory;
 
     public ES92GpuHnswSQVectorsFormat() {
-        this(new CuVSGPUSupport(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, null, 7, false);
+        this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, null, 7, false);
     }
 
-    public ES92GpuHnswSQVectorsFormat(GPUSupport gpuSupport, int maxConn, int beamWidth, Float confidenceInterval, int bits, boolean compress) {
+    public ES92GpuHnswSQVectorsFormat(long totalDeviceMemory, int maxConn, int beamWidth, Float confidenceInterval, int bits, boolean compress) {
+        this(CuVSResourceManager::pooling, totalDeviceMemory, maxConn, beamWidth, confidenceInterval, bits, compress);
+    }
+
+    ES92GpuHnswSQVectorsFormat(Supplier<CuVSResourceManager> cuVSResourceManagerSupplier, long totalDeviceMemory, int maxConn, int beamWidth, Float confidenceInterval, int bits, boolean compress) {
         super(NAME);
-        this.gpuSupport = gpuSupport;
-        this.cuVSResourceManagerSupplier = CuVSResourceManager::pooling;
+        this.totalDeviceMemory = totalDeviceMemory;
+        this.cuVSResourceManagerSupplier = cuVSResourceManagerSupplier;
         if (maxConn <= 0 || maxConn > MAXIMUM_MAX_CONN) {
             throw new IllegalArgumentException(
                 "maxConn must be positive and less than or equal to " + MAXIMUM_MAX_CONN + "; maxConn=" + maxConn
@@ -70,7 +73,7 @@ public class ES92GpuHnswSQVectorsFormat extends KnnVectorsFormat {
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new ES92GpuHnswVectorsWriter(
             cuVSResourceManagerSupplier.get(),
-            gpuSupport,
+            totalDeviceMemory,
             state,
             maxConn,
             beamWidth,

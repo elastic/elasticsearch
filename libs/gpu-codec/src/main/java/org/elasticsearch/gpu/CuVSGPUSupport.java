@@ -26,6 +26,9 @@ public class CuVSGPUSupport implements GPUSupport {
     // Set the minimum at 7.5GB: 8GB GPUs (which are our targeted minimum) report less than that via the API
     private static final long MIN_DEVICE_MEMORY_IN_BYTES = 8053063680L;
 
+    private static final GPUSupport INSTANCE = new CuVSGPUSupport();
+
+    private CuVSGPUSupport() {}
 
     private record GpuInfo(long totalMemory, String name) {
 
@@ -34,6 +37,10 @@ public class CuVSGPUSupport implements GPUSupport {
         GpuInfo {
             checkNonNegative(totalMemory, "totalMemory");
         }
+    }
+
+    public static GPUSupport instance() {
+        return INSTANCE;
     }
 
     static long checkNonNegative(long value, String name) {

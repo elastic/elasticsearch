@@ -41,7 +41,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
 
     protected static boolean isGpuIndexingFeatureAllowed = true;
 
-    private static final GPUSupport gpuSupport = new CuVSGPUSupport();
+    private static final GPUSupport gpuSupport = CuVSGPUSupport.instance();
 
     public static class TestGPUPlugin extends GPUPlugin {
         public TestGPUPlugin(Settings settings) {

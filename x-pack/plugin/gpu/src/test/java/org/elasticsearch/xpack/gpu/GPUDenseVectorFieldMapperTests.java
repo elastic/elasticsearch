@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests {
 
-    static final GPUSupport gpuSupport = new CuVSGPUSupport();
+    static final GPUSupport gpuSupport = CuVSGPUSupport.instance();
 
     @BeforeClass
     public static void setup() {

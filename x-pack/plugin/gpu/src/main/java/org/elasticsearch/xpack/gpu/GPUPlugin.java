@@ -24,6 +24,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
@@ -74,7 +75,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     private final GPUSupport gpuSupport;
 
     public GPUPlugin(Settings settings) {
-        this(settings, new CuVSGPUSupport());
+        this(settings, CuVSGPUSupport.instance());
     }
 
     GPUPlugin(Settings settings, GPUSupport gpuSupport) {
@@ -84,7 +85,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        return List.of(gpuSupport);
+        return List.of(new PluginComponentBinding<>(GPUSupport.class, gpuSupport));
     }
 
     @Override
@@ -190,7 +191,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
             int m = hnswIndexOptions.m();
             int gpuM = 2 + m * 2 / 3;
             int gpuEfConstruction = m + m * efConstruction / 256;
-            return new ES92GpuHnswVectorsFormat(gpuM, gpuEfConstruction);
+            return new ES92GpuHnswVectorsFormat(gpuSupport.getTotalGpuMemory(), gpuM, gpuEfConstruction);
         } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
             if (similarity == DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT) {
                 throw new IllegalArgumentException(
@@ -208,7 +209,14 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
             int m = int8HnswIndexOptions.m();
             int gpuM = 2 + m * 2 / 3;
             int gpuEfConstruction = m + m * efConstruction / 256;
-            return new ES92GpuHnswSQVectorsFormat(gpuSupport, gpuM, gpuEfConstruction, int8HnswIndexOptions.confidenceInterval(), 7, false);
+            return new ES92GpuHnswSQVectorsFormat(
+                gpuSupport.getTotalGpuMemory(),
+                gpuM,
+                gpuEfConstruction,
+                int8HnswIndexOptions.confidenceInterval(),
+                7,
+                false
+            );
         } else {
             throw new IllegalArgumentException(
                 "GPU vector indexing is not supported on this vector type: [" + indexOptions.getType() + "]"

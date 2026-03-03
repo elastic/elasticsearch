@@ -462,6 +462,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.MvJoinKeyOnTheLookupIndex}
   issue: https://github.com/elastic/elasticsearch/issues/143442
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:lookup-join.LookupJoinWithCoalesceFilterOnRight}
+  issue: https://github.com/elastic/elasticsearch/issues/143443
 
 # Examples:
 #

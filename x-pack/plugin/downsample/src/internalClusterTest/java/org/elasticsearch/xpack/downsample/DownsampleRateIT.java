@@ -156,7 +156,12 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         // Check rate
         var baselineRate = (double) baselineRow.next();
         var contenderRate = (double) contenderRow.next();
-        assertEquals(contenderRate, baselineRate, 0.003);
+        assertEquals(baselineRate, contenderRate, 0.003);
+        // Skip tsid
+        var baselineTs = (String) baselineRow.next();
+        var contenderTs = (String) contenderRow.next();
+        // TODO Needs fixing: the downsampled _timeseries field includes the _doc_count as well, so it doesn't match
+        // assertThat(contenderTs, equalTo(baselineTs));
         // Check timestamp
         var baselineBucket = baselineRow.next();
         var contenderBucket = contenderRow.next();
@@ -165,15 +170,21 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
 
     private void assertResultColumns(EsqlQueryResponse response) {
         var columns = response.columns();
-        assertThat(columns, hasSize(2));
+        assertThat(columns, hasSize(3));
         assertThat(
             response.columns(),
-            equalTo(List.of(new ColumnInfoImpl("max_rate", "double", null), new ColumnInfoImpl("time_bucket", "date", null)))
+            equalTo(
+                List.of(
+                    new ColumnInfoImpl("rate", "double", null),
+                    new ColumnInfoImpl("_timeseries", "keyword", null),
+                    new ColumnInfoImpl("time_bucket", "date", null)
+                )
+            )
         );
     }
 
     private EsqlQueryResponse queryRate(String indexName) {
-        String command = "TS " + indexName + " | STATS max_rate=MAX(RATE(counter)) BY time_bucket = TBUCKET(1 hour) | SORT time_bucket";
+        String command = "TS " + indexName + " | STATS rate=RATE(counter) BY time_bucket = TBUCKET(1 hour) | SORT time_bucket";
         return client().execute(EsqlQueryAction.INSTANCE, new EsqlQueryRequest().query(command)).actionGet(30, TimeUnit.SECONDS);
     }
 

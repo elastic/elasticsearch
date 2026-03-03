@@ -245,7 +245,7 @@ public class ForceMergeStepTests extends ESTestCase {
         assertThat(capturedFailure.get(), is(notNullValue()));
         assertThat(capturedFailure.get(), instanceOf(ElasticsearchException.class));
         assertThat(capturedFailure.get().getMessage(), containsString(indexName));
-        assertThat(capturedFailure.get().getMessage(), containsString("DLM failed while force merging"));
+        assertThat(capturedFailure.get().getMessage(), containsString("shards were unavailable"));
     }
 
     private ProjectState createProjectState() {

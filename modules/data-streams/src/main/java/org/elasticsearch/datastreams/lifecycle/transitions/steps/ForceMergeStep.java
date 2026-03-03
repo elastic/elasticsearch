@@ -197,12 +197,12 @@ public class ForceMergeStep implements DlmStep {
                             : Arrays.stream(failures).map(DefaultShardOperationFailedException::toString).collect(Collectors.joining(","))
                     );
                     l.onFailure(new ElasticsearchException(message));
-                } else if (forceMergeResponse.getTotalShards() != forceMergeResponse.getSuccessfulShards()) {
+                } else if (forceMergeResponse.getUnavailableShards() > 0) {
                     String message = Strings.format(
-                        "DLM failed while force merging index [%s]: only %d out of %d shards succeeded",
+                        "DLM could not complete force merge for index [%s] because [%d] shards were unavailable."
+                            + "This will be retried in the next cycle.",
                         targetIndex,
-                        forceMergeResponse.getSuccessfulShards(),
-                        forceMergeResponse.getTotalShards()
+                        forceMergeResponse.getUnavailableShards()
                     );
                     l.onFailure(new ElasticsearchException(message));
                 } else {

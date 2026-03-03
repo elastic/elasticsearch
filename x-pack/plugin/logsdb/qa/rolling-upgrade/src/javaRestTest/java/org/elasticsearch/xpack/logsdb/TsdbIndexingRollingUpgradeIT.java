@@ -43,10 +43,9 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
             """;
 
     public void testIndexing() throws Exception {
-        // We have three test cases here:
-        // true -> explicitly set index.mapping.synthetic_id=true
-        // false -> explicitly set to false
-        // null -> don't set (in case of mixed cluster with old nodes not supporting synthetic id)
+        // If cluster has support for synthetic id, randomly set index.mapping.synthetic_id to true/false
+        // If cluster doesn't have support, don't set index.mapping.synthetic_id at all (null),
+        // indicated by oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID)==false
         Boolean useSyntheticId = oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID) ? randomBoolean() : null;
 
         String dataStreamName = "k9s";

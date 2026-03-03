@@ -44,6 +44,7 @@ dependencies {
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:parent-join')
   clusterModules project(":modules:rest-root")
+  clusterModules project(':modules:reindex-management')
 }
 
 restResources {

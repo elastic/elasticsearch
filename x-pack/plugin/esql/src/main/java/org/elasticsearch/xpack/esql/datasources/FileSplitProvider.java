@@ -38,6 +38,18 @@ import java.util.function.BiFunction;
  */
 public class FileSplitProvider implements SplitProvider {
 
+    static final long DEFAULT_TARGET_SPLIT_SIZE = -1;
+
+    private final long targetSplitSizeBytes;
+
+    public FileSplitProvider() {
+        this(DEFAULT_TARGET_SPLIT_SIZE);
+    }
+
+    public FileSplitProvider(long targetSplitSizeBytes) {
+        this.targetSplitSizeBytes = targetSplitSizeBytes;
+    }
+
     @Override
     public List<ExternalSplit> discoverSplits(SplitDiscoveryContext context) {
         FileSet fileSet = context.fileSet();
@@ -76,10 +88,30 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
 
-            splits.add(new FileSplit("file", filePath, 0, entry.length(), format, config, partitionValues));
+            long fileLength = entry.length();
+            if (targetSplitSizeBytes > 0 && fileLength > targetSplitSizeBytes && isSplittableFormat(format)) {
+                long offset = 0;
+                while (offset < fileLength) {
+                    long chunkLength = Math.min(targetSplitSizeBytes, fileLength - offset);
+                    splits.add(new FileSplit("file", filePath, offset, chunkLength, format, config, partitionValues));
+                    offset += chunkLength;
+                }
+            } else {
+                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues));
+            }
         }
 
         return List.copyOf(splits);
+    }
+
+    static boolean isSplittableFormat(String format) {
+        if (format == null) {
+            return false;
+        }
+        return switch (format) {
+            case ".csv", ".tsv", ".ndjson", ".jsonl", ".txt" -> true;
+            default -> false;
+        };
     }
 
     static boolean matchesPartitionFilters(Map<String, Object> partitionValues, List<Expression> filters) {
@@ -111,12 +143,13 @@ public class FileSplitProvider implements SplitProvider {
                 Object partitionValue = partitionValues.get(columnName);
                 Boolean found = false;
                 for (Expression listItem : in.list()) {
-                    if (listItem instanceof Literal lit == false) {
+                    if (listItem instanceof Literal lit) {
+                        if (compareEquals(partitionValue, lit.value())) {
+                            found = true;
+                            break;
+                        }
+                    } else {
                         yield null;
-                    }
-                    if (compareEquals(partitionValue, ((Literal) listItem).value())) {
-                        found = true;
-                        break;
                     }
                 }
                 yield found;

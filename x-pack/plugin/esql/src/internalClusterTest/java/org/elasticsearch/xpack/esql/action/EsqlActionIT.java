@@ -119,15 +119,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        // TODO: Allow relocation once we have retry in ESQL (see #103081)
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put("cluster.routing.rebalance.enable", "none")
-            .build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(super.nodePlugins().stream(), Stream.of(DataStreamsPlugin.class, MapperExtrasPlugin.class)).toList();
     }

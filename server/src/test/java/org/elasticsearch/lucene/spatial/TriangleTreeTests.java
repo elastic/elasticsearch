@@ -54,7 +54,7 @@ public class TriangleTreeTests extends ESTestCase {
         int treeLength = input.readVInt();
         int treeStart = input.getPosition();
         input.skipBytes(treeLength);
-        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input);
+        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes);
 
         input.setPosition(treeStart);
         TriangleCounterVisitor visitor = new TriangleCounterVisitor();
@@ -105,7 +105,7 @@ public class TriangleTreeTests extends ESTestCase {
         Extent.readFromCompressed(input, extent);
         int treeLength = input.readVInt();
         input.skipBytes(treeLength);
-        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input);
+        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes);
         assertThat(vertexTable.size(), equalTo(4));
 
         // Should have at least 2 triangles

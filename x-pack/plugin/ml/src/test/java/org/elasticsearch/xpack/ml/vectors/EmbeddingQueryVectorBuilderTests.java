@@ -45,7 +45,7 @@ public class EmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilder
         EmbeddingAction.Request embeddingRequest = (EmbeddingAction.Request) request;
 
         assertEquals(builder.getInferenceId(), embeddingRequest.getInferenceEntityId());
-        assertEquals(TaskType.EMBEDDING, embeddingRequest.getTaskType());
+        assertEquals(TaskType.ANY, embeddingRequest.getTaskType());
         assertThat(embeddingRequest.getEmbeddingRequest().inputs(), hasSize(1));
         assertThat(embeddingRequest.getEmbeddingRequest().inputs().getFirst().inferenceStrings(), hasSize(1));
 

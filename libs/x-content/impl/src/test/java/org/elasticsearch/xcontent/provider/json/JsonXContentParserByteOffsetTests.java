@@ -9,7 +9,9 @@
 
 package org.elasticsearch.xcontent.provider.json;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -275,6 +277,312 @@ public class JsonXContentParserByteOffsetTests extends ESTestCase {
                     current.byteOffset() >= 0
                 );
             }
+        }
+    }
+
+    // ===== Streaming JSON navigation + byte-offset slicing =====
+    // These tests validate end-to-end scenarios: navigate to a value by key or path using standard
+    // streaming token walking, then extract it via byte-offset slicing instead of copyCurrentStructure().
+
+    /**
+     * Navigate to an object field by key, skipping non-matching fields, then byte-slice the value.
+     */
+    public void testExtractObjectByKeyByteSlice() throws IOException {
+        byte[] json = "{\"skip\":1,\"target\":{\"nested\":true},\"after\":2}".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            parser.nextToken(); // START_OBJECT (root)
+
+            // Walk fields to find "target"
+            Token token;
+            while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                if (token == Token.FIELD_NAME) {
+                    String fieldName = parser.currentName();
+                    parser.nextToken(); // advance to value
+                    if (fieldName.equals("target")) {
+                        // Found it — byte-slice the object value
+                        assertEquals(Token.START_OBJECT, parser.currentToken());
+                        long startOffset = parser.getTokenLocation().byteOffset();
+                        parser.skipChildren();
+                        long endOffset = parser.getCurrentLocation().byteOffset();
+                        String sliced = new String(Arrays.copyOfRange(json, (int) startOffset, (int) endOffset), StandardCharsets.UTF_8);
+                        assertEquals("{\"nested\":true}", sliced);
+                        return;
+                    } else {
+                        parser.skipChildren();
+                    }
+                }
+            }
+            fail("field 'target' not found");
+        }
+    }
+
+    /**
+     * Navigate to an array field by key, then byte-slice the entire array.
+     */
+    public void testExtractArrayByKeyByteSlice() throws IOException {
+        byte[] json = "{\"x\":\"skip\",\"items\":[1,{\"a\":2},3]}".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            parser.nextToken(); // START_OBJECT (root)
+
+            Token token;
+            while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                if (token == Token.FIELD_NAME) {
+                    String fieldName = parser.currentName();
+                    parser.nextToken();
+                    if (fieldName.equals("items")) {
+                        assertEquals(Token.START_ARRAY, parser.currentToken());
+                        long startOffset = parser.getTokenLocation().byteOffset();
+                        parser.skipChildren();
+                        long endOffset = parser.getCurrentLocation().byteOffset();
+                        String sliced = new String(Arrays.copyOfRange(json, (int) startOffset, (int) endOffset), StandardCharsets.UTF_8);
+                        assertEquals("[1,{\"a\":2},3]", sliced);
+                        return;
+                    } else {
+                        parser.skipChildren();
+                    }
+                }
+            }
+            fail("field 'items' not found");
+        }
+    }
+
+    /**
+     * Navigate a nested object path (a → b → c), skipping non-matching fields at each level, then byte-slice.
+     */
+    public void testExtractNestedPathByteSlice() throws IOException {
+        byte[] json = "{\"a\":{\"x\":0,\"b\":{\"c\":{\"deep\":42}}}}".getBytes(StandardCharsets.UTF_8);
+        String[] path = { "a", "b", "c" };
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            parser.nextToken(); // START_OBJECT (root)
+
+            // Navigate path segments: at each level, walk fields to find the matching key
+            for (String segment : path) {
+                assertEquals(Token.START_OBJECT, parser.currentToken());
+                boolean found = false;
+                Token token;
+                while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                    if (token == Token.FIELD_NAME) {
+                        String fieldName = parser.currentName();
+                        parser.nextToken();
+                        if (fieldName.equals(segment)) {
+                            found = true;
+                            break;
+                        } else {
+                            parser.skipChildren();
+                        }
+                    }
+                }
+                assertTrue("segment '" + segment + "' not found", found);
+            }
+
+            // At the target: extract via byte slice
+            assertEquals(Token.START_OBJECT, parser.currentToken());
+            long startOffset = parser.getTokenLocation().byteOffset();
+            parser.skipChildren();
+            long endOffset = parser.getCurrentLocation().byteOffset();
+            String sliced = new String(Arrays.copyOfRange(json, (int) startOffset, (int) endOffset), StandardCharsets.UTF_8);
+            assertEquals("{\"deep\":42}", sliced);
+        }
+    }
+
+    /**
+     * Walk an array to a specific index, skipping preceding elements, then byte-slice the target element.
+     */
+    public void testExtractArrayIndexByteSlice() throws IOException {
+        byte[] json = "{\"arr\":[\"skip\",{\"target\":true},[3,4]]}".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            parser.nextToken(); // START_OBJECT
+            parser.nextToken(); // FIELD_NAME "arr"
+            parser.nextToken(); // START_ARRAY
+
+            // Walk array to index 1
+            int targetIndex = 1;
+            int currentIndex = 0;
+            while (parser.nextToken() != Token.END_ARRAY) {
+                if (currentIndex == targetIndex) {
+                    assertEquals(Token.START_OBJECT, parser.currentToken());
+                    long startOffset = parser.getTokenLocation().byteOffset();
+                    parser.skipChildren();
+                    long endOffset = parser.getCurrentLocation().byteOffset();
+                    String sliced = new String(Arrays.copyOfRange(json, (int) startOffset, (int) endOffset), StandardCharsets.UTF_8);
+                    assertEquals("{\"target\":true}", sliced);
+                    return;
+                }
+                parser.skipChildren();
+                currentIndex++;
+            }
+            fail("index " + targetIndex + " not found");
+        }
+    }
+
+    /**
+     * Navigate to scalar values by key and extract them using parser.text() / parser.booleanValue().
+     * Numbers, booleans, and nulls can also be byte-sliced; strings cannot because Jackson's
+     * getCurrentLocation() for strings points past the opening quote, not the closing quote.
+     * This is fine — only objects and arrays benefit from byte slicing in practice.
+     */
+    public void testExtractScalarsByKey() throws IOException {
+        byte[] json = "{\"s\":\"hello\",\"n\":42,\"b\":true,\"z\":null}".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            parser.nextToken(); // START_OBJECT
+
+            Token token;
+            while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                if (token == Token.FIELD_NAME) {
+                    String fieldName = parser.currentName();
+                    parser.nextToken();
+
+                    // Scalars: use parser.text() / parser.booleanValue()
+                    switch (fieldName) {
+                        case "s" -> {
+                            assertEquals(Token.VALUE_STRING, parser.currentToken());
+                            assertEquals("hello", parser.text());
+                        }
+                        case "n" -> {
+                            assertEquals(Token.VALUE_NUMBER, parser.currentToken());
+                            assertEquals("42", parser.text());
+                            // Numbers can also be byte-sliced
+                            long start = parser.getTokenLocation().byteOffset();
+                            long end = parser.getCurrentLocation().byteOffset();
+                            assertEquals("42", new String(Arrays.copyOfRange(json, (int) start, (int) end), StandardCharsets.UTF_8));
+                        }
+                        case "b" -> {
+                            assertEquals(Token.VALUE_BOOLEAN, parser.currentToken());
+                            assertTrue(parser.booleanValue());
+                            // Booleans can also be byte-sliced
+                            long start = parser.getTokenLocation().byteOffset();
+                            long end = parser.getCurrentLocation().byteOffset();
+                            assertEquals("true", new String(Arrays.copyOfRange(json, (int) start, (int) end), StandardCharsets.UTF_8));
+                        }
+                        case "z" -> {
+                            assertEquals(Token.VALUE_NULL, parser.currentToken());
+                            // Nulls can also be byte-sliced
+                            long start = parser.getTokenLocation().byteOffset();
+                            long end = parser.getCurrentLocation().byteOffset();
+                            assertEquals("null", new String(Arrays.copyOfRange(json, (int) start, (int) end), StandardCharsets.UTF_8));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Proves byte-offset slicing produces identical output to copyCurrentStructure().
+     * Both approaches are run on the same input and their results compared.
+     */
+    public void testByteSliceMatchesCopyCurrentStructure() throws IOException {
+        byte[] json = "{\"data\":{\"users\":[{\"name\":\"Alice\",\"age\":30},{\"name\":\"Bob\"}],\"count\":2}}".getBytes(
+            StandardCharsets.UTF_8
+        );
+
+        // First pass: extract via copyCurrentStructure
+        String fromCopy;
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            parser.nextToken(); // START_OBJECT
+            parser.nextToken(); // FIELD_NAME "data"
+            parser.nextToken(); // START_OBJECT (the value)
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                builder.copyCurrentStructure(parser);
+                fromCopy = BytesReference.bytes(builder).utf8ToString();
+            }
+        }
+
+        // Second pass: extract via byte-offset slicing
+        String fromSlice;
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            parser.nextToken(); // START_OBJECT
+            parser.nextToken(); // FIELD_NAME "data"
+            parser.nextToken(); // START_OBJECT (the value)
+            long startOffset = parser.getTokenLocation().byteOffset();
+            parser.skipChildren();
+            long endOffset = parser.getCurrentLocation().byteOffset();
+            fromSlice = new String(Arrays.copyOfRange(json, (int) startOffset, (int) endOffset), StandardCharsets.UTF_8);
+        }
+
+        assertEquals(fromCopy, fromSlice);
+    }
+
+    /**
+     * Combined navigation: object key → array index → object key, then byte-slice.
+     * Validates that mixed object/array navigation produces correct byte ranges.
+     */
+    public void testExtractNestedPathWithArrayIndex() throws IOException {
+        byte[] json = "{\"a\":[0,1,{\"k\":{\"found\":true}}]}".getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            parser.nextToken(); // START_OBJECT (root)
+
+            // Step 1: find field "a"
+            while (parser.nextToken() != Token.END_OBJECT) {
+                if (parser.currentToken() == Token.FIELD_NAME && parser.currentName().equals("a")) {
+                    parser.nextToken(); // START_ARRAY
+                    break;
+                }
+                parser.nextToken();
+                parser.skipChildren();
+            }
+            assertEquals(Token.START_ARRAY, parser.currentToken());
+
+            // Step 2: walk array to index 2
+            int currentIndex = 0;
+            while (parser.nextToken() != Token.END_ARRAY) {
+                if (currentIndex == 2) {
+                    break;
+                }
+                parser.skipChildren();
+                currentIndex++;
+            }
+            assertEquals(Token.START_OBJECT, parser.currentToken());
+
+            // Step 3: find field "k"
+            while (parser.nextToken() != Token.END_OBJECT) {
+                if (parser.currentToken() == Token.FIELD_NAME && parser.currentName().equals("k")) {
+                    parser.nextToken(); // the value
+                    break;
+                }
+                parser.nextToken();
+                parser.skipChildren();
+            }
+            assertEquals(Token.START_OBJECT, parser.currentToken());
+
+            // Extract via byte slice
+            long startOffset = parser.getTokenLocation().byteOffset();
+            parser.skipChildren();
+            long endOffset = parser.getCurrentLocation().byteOffset();
+            String sliced = new String(Arrays.copyOfRange(json, (int) startOffset, (int) endOffset), StandardCharsets.UTF_8);
+            assertEquals("{\"found\":true}", sliced);
+        }
+    }
+
+    /**
+     * Navigate and byte-slice from pretty-printed JSON.
+     * Byte offsets account for whitespace; the sliced result includes it verbatim.
+     */
+    public void testExtractFromPrettyPrintedJson() throws IOException {
+        String pretty = "{\n  \"info\": {\n    \"version\": 1,\n    \"name\": \"test\"\n  }\n}";
+        byte[] json = pretty.getBytes(StandardCharsets.UTF_8);
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+            parser.nextToken(); // START_OBJECT
+
+            // Find field "info"
+            while (parser.nextToken() != Token.END_OBJECT) {
+                if (parser.currentToken() == Token.FIELD_NAME && parser.currentName().equals("info")) {
+                    parser.nextToken();
+                    break;
+                }
+                parser.nextToken();
+                parser.skipChildren();
+            }
+            assertEquals(Token.START_OBJECT, parser.currentToken());
+
+            long startOffset = parser.getTokenLocation().byteOffset();
+            parser.skipChildren();
+            long endOffset = parser.getCurrentLocation().byteOffset();
+            String sliced = new String(Arrays.copyOfRange(json, (int) startOffset, (int) endOffset), StandardCharsets.UTF_8);
+
+            // The slice preserves original whitespace — still valid JSON, just formatted
+            // differently than what copyCurrentStructure() would produce
+            assertEquals("{\n    \"version\": 1,\n    \"name\": \"test\"\n  }", sliced);
         }
     }
 

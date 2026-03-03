@@ -9,22 +9,30 @@ package org.elasticsearch.xpack.esql.querylog;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.activity.ActivityLogProducer;
+import org.elasticsearch.common.logging.activity.QueryLogging;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 
 import java.util.Optional;
 
 public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
 
-    public static final String LOGGER_NAME = "esql.activitylog";
+    public static final String PROFILE_PREFIX = ES_FIELDS_PREFIX + "esql.profile.";
 
     @Override
     public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
-        return Optional.of(msg.field(ES_FIELDS_PREFIX + "query", context.getQuery()));
-    }
-
-    @Override
-    public String loggerName() {
-        return LOGGER_NAME;
+        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery()).field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());
+        context.getQueryProfile().ifPresent(profile -> {
+            for (TimeSpanMarker timeSpanMarker : profile.timeSpanMarkers()) {
+                TimeValue timeTook = timeSpanMarker.timeTook();
+                if (timeTook != null) {
+                    String namePrefix = PROFILE_PREFIX + timeSpanMarker.name();
+                    msg.field(namePrefix + ".took", timeTook.nanos());
+                }
+            }
+        });
+        return Optional.of(msg);
     }
 }

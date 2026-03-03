@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143114
+summary: Add split discovery and distribution for external sources
+type: enhancement

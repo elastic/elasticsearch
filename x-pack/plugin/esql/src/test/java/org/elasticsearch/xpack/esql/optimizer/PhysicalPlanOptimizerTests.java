@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -148,6 +149,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -9211,6 +9213,31 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         assertThat(metricsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
         assertThat(metricsInfoExec.output(), equalTo(dataPlan.output()));
+    }
+
+    public void testReductionPlanForTsInfoReturnsIntermediateReduction() {
+        EsRelation esRelation = new EsRelation(
+            Source.EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of()
+        );
+        TsInfo tsInfo = new TsInfo(Source.EMPTY, esRelation);
+
+        FragmentExec fragment = new FragmentExec(tsInfo);
+        ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
+
+        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
+        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
+        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
+        var tsInfoExec = as(reducedPlan.plan(), TsInfoExec.class);
+        assertThat(tsInfoExec.mode(), equalTo(TsInfoExec.Mode.INTERMEDIATE));
+
+        assertThat(tsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
+        assertThat(tsInfoExec.output(), equalTo(dataPlan.output()));
     }
 
     @SuppressWarnings("SameParameterValue")

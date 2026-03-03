@@ -1508,6 +1508,54 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
         }
     }
 
+    public void testSingleExclusionExpressionWithStrictAllowNoIndices() {
+        // Exclusion by itself
+        var expression = randomBoolean() ? "-logs" : "-logs*";
+        final var resolvedExclusion = randomFrom(
+            new ResolvedIndexExpression(expression, ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:" + expression)),
+            new ResolvedIndexExpression(expression, ResolvedIndexExpression.LocalExpressions.NONE, Set.of("P1:" + expression))
+        );
+        final var local = new ResolvedIndexExpressions(List.of(resolvedExclusion));
+        var remote = Map.of("P1", new ResolvedIndexExpressions(List.of()));
+
+        var ex = CrossProjectIndexResolutionValidator.validate(
+            getStrictAllowNoIndices(),
+            useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+            local,
+            remote
+        );
+        assertNotNull(ex);
+        assertThat(ex.getMessage(), equalTo("no such index [" + expression + "]"));
+    }
+
+    public void testMultipleResolvingToNoIndicesWithStrictAllowNoIndices() {
+        // given an index expression "shared-index-1,-shared-index-1,shared-index-2,-shared-index-2", it resolves as the below
+        var local = new ResolvedIndexExpressions(
+            List.of(
+                new ResolvedIndexExpression(
+                    "-shared-index-1",
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
+                    Set.of("P1:-shared-index-1")
+                ),
+                new ResolvedIndexExpression(
+                    "-shared-index-2",
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), ResolvedIndexExpression.LocalIndexResolutionResult.NONE, null),
+                    Set.of("P1:-shared-index-2")
+                )
+            )
+        );
+        var remote = Map.of("P1", new ResolvedIndexExpressions(List.of()));
+
+        var ex = CrossProjectIndexResolutionValidator.validate(
+            getStrictAllowNoIndices(),
+            useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
+            local,
+            remote
+        );
+        assertNotNull(ex);
+        assertThat(ex.getMessage(), equalTo("no such index [-shared-index-1,-shared-index-2]"));
+    }
+
     private IndicesOptions getStrictAllowNoIndices() {
         return getIndicesOptions(true, false);
     }

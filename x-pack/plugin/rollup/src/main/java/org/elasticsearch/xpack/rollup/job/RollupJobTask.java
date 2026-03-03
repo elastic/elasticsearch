@@ -67,6 +67,11 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         }
 
         @Override
+        public boolean automaticReassignmentOnShutdown() {
+            return false;
+        }
+
+        @Override
         protected void nodeOperation(AllocatedPersistentTask task, @Nullable RollupJob params, PersistentTaskState state) {
             RollupJobTask rollupJobTask = (RollupJobTask) task;
             SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(

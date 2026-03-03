@@ -252,6 +252,11 @@ public class AuthorizationTaskExecutor extends PersistentTasksExecutor<Authoriza
     }
 
     @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
+    @Override
     protected void nodeOperation(AllocatedPersistentTask task, AuthorizationTaskParams params, PersistentTaskState state) {
         var authPoller = (AuthorizationPoller) task;
         currentTask.set(authPoller);

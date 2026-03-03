@@ -524,6 +524,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
+        public boolean automaticReassignmentOnShutdown() {
+            return false;
+        }
+
+        @Override
         protected void nodeOperation(
             final AllocatedPersistentTask allocatedPersistentTask,
             final StartDatafeedAction.DatafeedParams params,

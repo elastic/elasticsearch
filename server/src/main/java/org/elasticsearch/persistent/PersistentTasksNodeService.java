@@ -248,6 +248,11 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         }
 
         @Override
+        public boolean automaticReassignmentOnShutdown() {
+            return false;
+        }
+
+        @Override
         protected void nodeOperation(AllocatedPersistentTask task, Params params, PersistentTaskState state) {}
     }
 

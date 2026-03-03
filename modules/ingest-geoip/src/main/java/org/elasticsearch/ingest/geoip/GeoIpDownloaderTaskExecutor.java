@@ -170,6 +170,11 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     }
 
     @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
+    }
+
+    @Override
     protected void nodeOperation(AllocatedPersistentTask task, GeoIpTaskParams params, PersistentTaskState state) {
         GeoIpDownloader downloader = (GeoIpDownloader) task;
         GeoIpTaskState geoIpTaskState = (state == null) ? GeoIpTaskState.EMPTY : (GeoIpTaskState) state;

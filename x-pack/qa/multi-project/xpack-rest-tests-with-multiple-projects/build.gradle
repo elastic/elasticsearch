@@ -80,6 +80,7 @@ tasks.named("yamlRestTest").configure {
     '^ml/preview_datafeed/*',
     '^ml/reset_job/*',
     '^ml/revert_model_snapshot/*',
+    '^ml/search_knn_embedding_query_vector_builder/*',
     '^ml/search_knn_text_embedding_query_vector_builder/*',
     '^ml/set_upgrade_mode/*',
     '^ml/sparse_vector_search/*',

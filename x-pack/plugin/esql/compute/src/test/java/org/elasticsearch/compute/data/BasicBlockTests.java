@@ -61,8 +61,9 @@ import static org.mockito.Mockito.when;
 
 public class BasicBlockTests extends ESTestCase {
     final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+    final BlockFactory blockFactory = BlockFactory.builder(
+        new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker))
+    ).build();
 
     @Before
     @After
@@ -1864,7 +1865,7 @@ public class BasicBlockTests extends ESTestCase {
     public static Block assertDeepCopy(Block block) {
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-into", ByteSizeValue.ofGb(1));
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-        BlockFactory into = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        BlockFactory into = BlockFactory.builder(bigArrays).build();
         try (Block deepCopy = block.deepCopy(into)) {
             assertThat(deepCopy, equalTo(block));
 

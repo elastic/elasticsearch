@@ -10,13 +10,13 @@ package org.elasticsearch.compute.operator.topn;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -90,11 +90,10 @@ public class TopNOomRaceTests extends ESTestCase {
         logger.info("limit={} approxSizePerFilledRow={} topCount={}", limit, approxSizePerFilledRow, topCount);
 
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit);
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         List<DriverContext> contexts = new ArrayList<>();
         List<Driver> drivers = new ArrayList<>();
         for (int d = 0; d < driverCount; d++) {
-            MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+            MockBlockFactory blockFactory = new MockBlockFactory(BlockFactory.builder(bigArrays));
             DriverContext driverContext = new DriverContext(bigArrays, blockFactory, null);
             contexts.add(driverContext);
 
@@ -121,7 +120,7 @@ public class TopNOomRaceTests extends ESTestCase {
             };
             TopNOperator topn = new TopNOperator(
                 blockFactory,
-                breaker,
+                blockFactory.breaker(),
                 topCount,
                 Collections.nCopies(repeats, ElementType.INT),
                 Collections.nCopies(repeats, TopNEncoder.DEFAULT_SORTABLE),

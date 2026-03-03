@@ -577,7 +577,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             for (Index index : indicesEligibleForAction) {
                 long findStepStartTime = nowSupplier.getAsLong();
-                DlmStep stepToExecute = findFirstIncompleteStep(projectState, dataStream, action, index);
+                int stepToExecuteIndex = findFirstIncompleteStepIndex(projectState, dataStream, action, index);
                 if (logger.isTraceEnabled()) {
                     long findStepDuration = nowSupplier.getAsLong() - findStepStartTime;
                     logger.trace(
@@ -589,7 +589,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     );
                 }
 
-                if (stepToExecute != null) {
+                if (stepToExecuteIndex >= 0) {
+                    DlmStep stepToExecute = action.steps().get(stepToExecuteIndex);
                     try {
                         logger.trace(
                             "Executing step [{}] for action [{}] on datastream [{}] index [{}]",
@@ -599,7 +600,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             index.getName()
                         );
                         long stepStartTime = nowSupplier.getAsLong();
-                        DlmStepContext dlmStepContext = actionContext.stepContextFor(index);
+                        Index indexForExecution = resolveIndexOutputFromPreviousStep(stepToExecuteIndex, index, action, projectState);
+                        DlmStepContext dlmStepContext = actionContext.stepContextFor(indexForExecution);
                         stepToExecute.execute(dlmStepContext);
                         if (logger.isTraceEnabled()) {
                             long stepDuration = nowSupplier.getAsLong() - stepStartTime;
@@ -642,20 +644,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         return indicesProcessed;
     }
 
-    private DlmStep findFirstIncompleteStep(ProjectState projectState, DataStream dataStream, DlmAction action, Index index) {
-        DlmStep stepToExecute = null;
-        for (DlmStep step : action.steps().reversed()) {
+    private int findFirstIncompleteStepIndex(ProjectState projectState, DataStream dataStream, DlmAction action, Index index) {
+        assert action.steps().size() >= 1 : "an action must have at least one step";
+        int stepToExecute = -1;
+        for (int i = action.steps().size() - 1; i >= 0; i--) {
+            DlmStep step = action.steps().get(i);
             try {
                 long checkStartTime = nowSupplier.getAsLong();
-                if (step.stepCompleted(index, projectState) == false) {
-                    stepToExecute = step;
+                Index indexInUse = resolveIndexOutputFromPreviousStep(i, index, action, projectState);
+                if (step.stepCompleted(indexInUse, projectState) == false) {
+                    stepToExecute = i;
                     if (logger.isTraceEnabled()) {
                         logger.trace(
                             "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete, checked in [{}]",
                             step.stepName(),
                             action.name(),
                             dataStream.getName(),
-                            index.getName(),
+                            indexInUse.getName(),
                             formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
                         );
                     }
@@ -666,7 +671,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             step.stepName(),
                             action.name(),
                             dataStream.getName(),
-                            index.getName(),
+                            indexInUse.getName(),
                             formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
                         );
                     }
@@ -687,6 +692,32 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
         }
         return stepToExecute;
+    }
+
+    // visible for testing
+    Index resolveIndexOutputFromPreviousStep(int stepToExecuteIndex, Index index, DlmAction action, ProjectState projectState) {
+        if (stepToExecuteIndex < 1) {
+            return index;
+        }
+
+        DlmStep previousStep = action.steps().get(stepToExecuteIndex - 1);
+        List<String> possibleIndexNames = previousStep.possibleOutputIndexNamePatterns(index.getName());
+
+        return possibleIndexNames.stream()
+            .filter(projectState.metadata()::hasIndex)
+            .findFirst()
+            .map(possibleName -> projectState.metadata().index(possibleName).getIndex())
+            .orElseGet(() -> {
+                assert false
+                    : "Unable to resolve index name for executing step ["
+                        + action.steps().get(stepToExecuteIndex).stepName()
+                        + "] for action ["
+                        + action.name()
+                        + "] with index ["
+                        + index.getName()
+                        + "]";
+                return index;
+            });
     }
 
     // visible for testing

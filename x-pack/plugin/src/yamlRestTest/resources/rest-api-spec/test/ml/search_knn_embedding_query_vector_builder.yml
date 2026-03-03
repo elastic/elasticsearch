@@ -182,3 +182,66 @@ setup:
   - match: { error.caused_by.caused_by.type: "illegal_argument_exception" }
   - match: { error.caused_by.caused_by.reason: "Required [value]" }
 
+---
+"invalid type":
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  type: invalid
+                  value: "test query"
+
+  - match: { error.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.caused_by.reason: "Unrecognized type [invalid], must be one of [text, image]" }
+
+---
+"invalid format":
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  type: text
+                  format: invalid
+                  value: "test query"
+
+  - match: { error.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.caused_by.caused_by.reason: "Unrecognized format [invalid], must be one of [text, base64]" }
+
+  # Check using a format that is valid, but not supported by the type
+  - do:
+      catch: bad_request
+      search:
+        index: test-embedding-index
+        body:
+          query:
+            knn:
+              field: embedding
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  type: text
+                  format: base64
+                  value: "test query"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Data type [text] does not support data format [base64], supported formats are [text]" }

@@ -14,10 +14,29 @@ package org.elasticsearch.xcontent;
  * in some XContent e.g. JSON. Locations are typically used to communicate the
  * position of a parsing error to end users and consequently have line and
  * column numbers starting from 1.
+ *
+ * <p>The optional {@code byteOffset} field holds the absolute byte position
+ * within the source stream ({@code -1} when not available). Byte offsets are
+ * used for programmatic byte-range slicing and are not included in the
+ * human-readable {@link #toString()} output.
  */
-public record XContentLocation(int lineNumber, int columnNumber) {
+public record XContentLocation(int lineNumber, int columnNumber, long byteOffset) {
 
-    public static final XContentLocation UNKNOWN = new XContentLocation(-1, -1);
+    public static final XContentLocation UNKNOWN = new XContentLocation(-1, -1, -1L);
+
+    /**
+     * Sentinel for parsers that have no underlying stream (e.g. {@code MapXContentParser}).
+     * Line and column are zero (outside the valid 1-based range), byte offset is {@code -1}.
+     */
+    public static final XContentLocation UNDEFINED = new XContentLocation(0, 0, -1L);
+
+    /**
+     * Backward-compatible constructor that sets {@code byteOffset} to {@code -1}
+     * (not available).
+     */
+    public XContentLocation(int lineNumber, int columnNumber) {
+        this(lineNumber, columnNumber, -1L);
+    }
 
     @Override
     public String toString() {

@@ -131,6 +131,21 @@ public class MapXContentParserTests extends ESTestCase {
         }
     }
 
+    public void testLocationReturnsUndefined() throws IOException {
+        try (
+            MapXContentParser parser = new MapXContentParser(
+                xContentRegistry(),
+                LoggingDeprecationHandler.INSTANCE,
+                Map.of("key", "value"),
+                randomFrom(XContentType.values())
+            )
+        ) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentLocation.UNDEFINED, parser.getTokenLocation());
+            assertEquals(XContentLocation.UNDEFINED, parser.getCurrentLocation());
+        }
+    }
+
     private void compareTokens(CheckedConsumer<XContentBuilder, IOException> consumer) throws IOException {
         for (XContentType xContentType : EnumSet.allOf(XContentType.class)) {
             logger.info("--> testing with xcontent type: {}", xContentType);

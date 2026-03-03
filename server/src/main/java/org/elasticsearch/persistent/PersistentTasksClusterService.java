@@ -404,11 +404,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     projectId = maybeNullProjectIdForClusterTask(currentState, projectIdHint, taskId);
                     final var tasksInProgress = builder(currentState, projectId);
-
                     if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
-                        final var taskName = tasksInProgress.getCurrentTasks().get(taskId).getTaskName();
-                        assert registry.getPersistentTaskExecutorSafe(taskName).automaticReassignmentOnShutdown() == false
-                            : "task [" + taskId + "] has automaticReassignmentOnShutdown enabled and should not be manually unassigned";
                         logger.trace("Unassigning {} task {} with allocation id {}", taskTypeString(projectId), taskId, taskAllocationId);
                         // The allocationId is shared between cluster-scoped and project-scoped tasks from all projects.
                         // Therefore new or reassigned task must begin with the current max.

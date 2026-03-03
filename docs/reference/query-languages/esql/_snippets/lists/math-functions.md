@@ -8,7 +8,7 @@
 * [`ATANH`](../../functions-operators/math-functions/atanh.md)
 * [`CBRT`](../../functions-operators/math-functions/cbrt.md)
 * [`CEIL`](../../functions-operators/math-functions/ceil.md)
-* [`COPY_SIGN`](../../functions-operators/math-functions/copy_sign.md)
+* [`COPY_SIGN`](../../functions-operators/math-functions/copy_sign.md) {applies_to}`stack: ga 9.1`
 * [`COS`](../../functions-operators/math-functions/cos.md)
 * [`COSH`](../../functions-operators/math-functions/cosh.md)
 * [`E`](../../functions-operators/math-functions/e.md)
@@ -20,8 +20,8 @@
 * [`PI`](../../functions-operators/math-functions/pi.md)
 * [`POW`](../../functions-operators/math-functions/pow.md)
 * [`ROUND`](../../functions-operators/math-functions/round.md)
-* [`ROUND_TO`](../../functions-operators/math-functions/round_to.md)
-* [`SCALB`](../../functions-operators/math-functions/scalb.md)
+* [`ROUND_TO`](../../functions-operators/math-functions/round_to.md) {applies_to}`stack: preview 9.1` {applies_to}`serverless: preview`
+* [`SCALB`](../../functions-operators/math-functions/scalb.md) {applies_to}`stack: ga 9.1`
 * [`SIGNUM`](../../functions-operators/math-functions/signum.md)
 * [`SIN`](../../functions-operators/math-functions/sin.md)
 * [`SINH`](../../functions-operators/math-functions/sinh.md)

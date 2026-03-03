@@ -17,15 +17,24 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.def;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
@@ -225,6 +234,120 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
     public static class DummyFunction2 extends DummyFunction {
         public DummyFunction2(Source source) {
             super(source);
+        }
+    }
+
+    public void testRegisteredFunctionHaveTests() {
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry().snapshotRegistry();
+        Set<String> errors = new TreeSet<>();
+        for (FunctionDefinition def : registry.listFunctions()) {
+            checkFunctionTestExists(errors, def, "Tests", AbstractFunctionTestCase.class);
+            checkFunctionTestExists(errors, def, "ErrorTests", ErrorsForCasesWithoutExamplesTestCase.class);
+            boolean isSerializable = false == OnlySurrogateExpression.class.isAssignableFrom(def.clazz())
+                && false == FoldablesConvertFunction.class.isAssignableFrom(def.clazz())
+                && false == InferenceFunction.class.isAssignableFrom(def.clazz());
+            if (isSerializable) {
+                checkFunctionTestExists(errors, def, "SerializationTests", AbstractExpressionSerializationTests.class);
+            }
+        }
+        assertMap(
+            "function test errors",
+            List.copyOf(errors),
+            /*
+             * We should add these missing tests when we can. It's *fine* to add to this list
+             * while working on something, but released stuff should not have an entry here.
+             */
+            matchesList().item("org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTimeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTimeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTimeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTimeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.DerivErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.FirstErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTimeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.IdeltaErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.IncreaseErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.IrateErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.LastErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTimeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviationErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.MedianErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTimeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTimeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.RateErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroidErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtentErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.StdDevErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTimeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SumErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTimeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTimeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvgErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhraseErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatchErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.grouping.BucketErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.grouping.TBucketErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.ClampErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.ClampTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMaxErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMinErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.GreatestErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.conditional.LeastErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDoubleErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRangeErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRangeTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVectorErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohexErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersionErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.date.NowErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AcoshErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AsinhErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AtanhErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.EErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.PiErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.ScalbErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.SinhErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.TauErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSortErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnionErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.nulls.CoalesceErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPointsErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ChunkErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ContainsErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippetsErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarityErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.vector.DotProductErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.vector.HammingErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.vector.KnnErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.vector.L1NormErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.vector.L2NormErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeErrorTests is missing")
+        );
+    }
+
+    private static void checkFunctionTestExists(
+        Collection<String> errors,
+        FunctionDefinition def,
+        String suffix,
+        Class<? extends ESTestCase> requiredSuperclass
+    ) {
+        Class<?> functionClass = def.clazz();
+        String testClassName = functionClass.getName() + suffix;
+        try {
+            Class<?> testClass = Class.forName(testClassName);
+            if (requiredSuperclass.isAssignableFrom(testClass) == false) {
+                errors.add(testClassName + " doesn't extend " + requiredSuperclass.getSimpleName());
+            }
+        } catch (ClassNotFoundException e) {
+            errors.add(testClassName + " is missing");
         }
     }
 

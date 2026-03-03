@@ -141,6 +141,58 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Maximum number of keyword sort fields allowed when pushing TopN to Lucene.
+     * Sorting on many keyword fields in Lucene can be expensive. When exceeded,
+     * the sort falls back to the compute engine.
+     */
+    public static final Setting<Integer> MAX_KEYWORD_SORT_FIELDS = Setting.intSetting(
+        "esql.max_keyword_sort_fields",
+        10,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Multiplier applied to {@code lastKnownSourceSize} to pre-reserve memory on the circuit breaker
+     * before loading {@code _source}. The source loading path creates large untracked allocations:
+     * scratch, SourceFilter.filterBytes() and JSON parsing creates, heap dump has shown about 8x
+     * of the actual source size in untracked memory at peak. 10x is an overestimation to prevent crashes.
+     */
+    public static final Setting<Double> SOURCE_RESERVATION_FACTOR = Setting.doubleSetting(
+        "esql.source_reservation_factor",
+        10.0,
+        0.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * When a {@code BytesRefArrayVector}'s backing values exceed this size, the RAM estimate is
+     * multiplied by {@link #BYTES_REF_RAM_OVERESTIMATE_FACTOR} to account for untracked overhead
+     * in large byte arrays. The untracked overhead may come from loading large text fields from
+     * _source.
+     */
+    public static final Setting<ByteSizeValue> BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = Setting.byteSizeSetting(
+        "esql.bytes_ref_ram_overestimate_threshold",
+        ByteSizeValue.ofMb(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Multiplier applied to the RAM estimate of a {@code BytesRefArrayVector} whose backing values
+     * exceed {@link #BYTES_REF_RAM_OVERESTIMATE_THRESHOLD}.
+     */
+    public static final Setting<Double> BYTES_REF_RAM_OVERESTIMATE_FACTOR = Setting.doubleSetting(
+        "esql.bytes_ref_ram_overestimate_factor",
+        2.5,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -152,7 +204,11 @@ public class PlannerSettings {
             PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
             REUSE_COLUMN_LOADERS_THRESHOLD,
             BLOCK_LOADER_SIZE_ORDINALS,
-            BLOCK_LOADER_SIZE_SCRIPT
+            BLOCK_LOADER_SIZE_SCRIPT,
+            MAX_KEYWORD_SORT_FIELDS,
+            SOURCE_RESERVATION_FACTOR,
+            BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
+            BYTES_REF_RAM_OVERESTIMATE_FACTOR
         );
     }
 
@@ -182,6 +238,16 @@ public class PlannerSettings {
             );
             clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_ORDINALS, v -> settings.updateAndGet(s -> s.blockLoaderSizeOrdinals(v)));
             clusterSettings.initializeAndWatch(BLOCK_LOADER_SIZE_SCRIPT, v -> settings.updateAndGet(s -> s.blockLoaderSizeOrdinals(v)));
+            clusterSettings.initializeAndWatch(MAX_KEYWORD_SORT_FIELDS, v -> settings.updateAndGet(s -> s.maxKeywordSortFields(v)));
+            clusterSettings.initializeAndWatch(SOURCE_RESERVATION_FACTOR, v -> settings.updateAndGet(s -> s.sourceReservationFactor(v)));
+            clusterSettings.initializeAndWatch(
+                BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.bytesRefRamOverestimateThreshold(v))
+            );
+            clusterSettings.initializeAndWatch(
+                BYTES_REF_RAM_OVERESTIMATE_FACTOR,
+                v -> settings.updateAndGet(s -> s.bytesRefRamOverestimateFactor(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -198,6 +264,10 @@ public class PlannerSettings {
     private final int reuseColumnLoadersThreshold;
     private final ByteSizeValue blockLoaderSizeOrdinals;
     private final ByteSizeValue blockLoaderSizeScript;
+    private final int maxKeywordSortFields;
+    private final double sourceReservationFactor;
+    private final ByteSizeValue bytesRefRamOverestimateThreshold;
+    private final double bytesRefRamOverestimateFactor;
 
     /**
      * Defaults.
@@ -211,7 +281,11 @@ public class PlannerSettings {
         PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getDefault(Settings.EMPTY),
         REUSE_COLUMN_LOADERS_THRESHOLD.getDefault(Settings.EMPTY),
         BLOCK_LOADER_SIZE_ORDINALS.getDefault(Settings.EMPTY),
-        BLOCK_LOADER_SIZE_SCRIPT.getDefault(Settings.EMPTY)
+        BLOCK_LOADER_SIZE_SCRIPT.getDefault(Settings.EMPTY),
+        MAX_KEYWORD_SORT_FIELDS.getDefault(Settings.EMPTY),
+        SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
+        BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
+        BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -226,7 +300,11 @@ public class PlannerSettings {
         double partialEmitUniquenessThreshold,
         int reuseColumnLoadersThreshold,
         ByteSizeValue blockLoaderSizeOrdinals,
-        ByteSizeValue blockLoaderSizeScript
+        ByteSizeValue blockLoaderSizeScript,
+        int maxKeywordSortFields,
+        double sourceReservationFactor,
+        ByteSizeValue bytesRefRamOverestimateThreshold,
+        double bytesRefRamOverestimateFactor
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
@@ -237,6 +315,10 @@ public class PlannerSettings {
         this.reuseColumnLoadersThreshold = reuseColumnLoadersThreshold;
         this.blockLoaderSizeOrdinals = blockLoaderSizeOrdinals;
         this.blockLoaderSizeScript = blockLoaderSizeScript;
+        this.maxKeywordSortFields = maxKeywordSortFields;
+        this.sourceReservationFactor = sourceReservationFactor;
+        this.bytesRefRamOverestimateThreshold = bytesRefRamOverestimateThreshold;
+        this.bytesRefRamOverestimateFactor = bytesRefRamOverestimateFactor;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -249,7 +331,11 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
         );
     }
 
@@ -267,7 +353,11 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
         );
     }
 
@@ -285,7 +375,11 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
         );
     }
 
@@ -317,7 +411,11 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
         );
     }
 
@@ -335,7 +433,11 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
         );
     }
 
@@ -353,7 +455,11 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
         );
     }
 
@@ -371,7 +477,11 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
         );
     }
 
@@ -396,7 +506,11 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
         );
     }
 
@@ -417,7 +531,11 @@ public class PlannerSettings {
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
-            blockLoaderSizeScript
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
         );
     }
 
@@ -426,5 +544,93 @@ public class PlannerSettings {
      */
     public ByteSizeValue blockLoaderSizeScript() {
         return blockLoaderSizeScript;
+    }
+
+    public PlannerSettings maxKeywordSortFields(int maxKeywordSortFields) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
+        );
+    }
+
+    public int maxKeywordSortFields() {
+        return maxKeywordSortFields;
+    }
+
+    public PlannerSettings sourceReservationFactor(double sourceReservationFactor) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
+        );
+    }
+
+    public double sourceReservationFactor() {
+        return sourceReservationFactor;
+    }
+
+    public PlannerSettings bytesRefRamOverestimateThreshold(ByteSizeValue bytesRefRamOverestimateThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
+        );
+    }
+
+    public ByteSizeValue bytesRefRamOverestimateThreshold() {
+        return bytesRefRamOverestimateThreshold;
+    }
+
+    public PlannerSettings bytesRefRamOverestimateFactor(double bytesRefRamOverestimateFactor) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor
+        );
+    }
+
+    public double bytesRefRamOverestimateFactor() {
+        return bytesRefRamOverestimateFactor;
     }
 }

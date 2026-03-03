@@ -2,4 +2,4 @@ area: Search
 issues: []
 pr: 143193
 summary: Semantic text default inference id setting
-type: feature
+type: enhancement

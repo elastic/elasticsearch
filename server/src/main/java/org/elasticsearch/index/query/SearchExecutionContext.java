@@ -23,6 +23,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -71,6 +72,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
@@ -108,6 +110,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     private final Integer requestSize;
     private final MapperMetrics mapperMetrics;
+    @Nullable
+    private final CircuitBreaker circuitBreaker;
+    private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
 
     private Long rangeTimestampFrom;
 
@@ -209,11 +214,22 @@ public class SearchExecutionContext extends QueryRewriteContext {
             valuesSourceRegistry,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
             requestSize,
-            mapperMetrics
+            mapperMetrics,
+            null
         );
     }
 
+    /**
+     * Copy constructor that preserves the circuit breaker from the source context.
+     */
     public SearchExecutionContext(SearchExecutionContext source) {
+        this(source, source.circuitBreaker);
+    }
+
+    /**
+     * Copy constructor that overrides the circuit breaker.
+     */
+    public SearchExecutionContext(SearchExecutionContext source, @Nullable CircuitBreaker circuitBreaker) {
         this(
             source.shardId,
             source.shardRequestIndex,
@@ -236,7 +252,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.getValuesSourceRegistry(),
             source.runtimeMappings,
             source.requestSize,
-            source.mapperMetrics
+            source.mapperMetrics,
+            circuitBreaker
         );
     }
 
@@ -262,7 +279,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, MappedFieldType> runtimeMappings,
         Integer requestSize,
-        MapperMetrics mapperMetrics
+        MapperMetrics mapperMetrics,
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         super(
             parserConfig,
@@ -295,6 +313,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.searcher = searcher;
         this.requestSize = requestSize;
         this.mapperMetrics = mapperMetrics;
+        this.circuitBreaker = circuitBreaker;
     }
 
     private void reset() {
@@ -761,6 +780,40 @@ public class SearchExecutionContext extends QueryRewriteContext {
             this.rangeTimestampFrom = rangeTimestampFrom;
         } else {
             this.rangeTimestampFrom = Math.min(rangeTimestampFrom, this.rangeTimestampFrom);
+        }
+    }
+
+    /**
+     * Adds memory usage to the circuit breaker for query construction.
+     * <p>
+     * This method tracks memory used during query construction and enforces circuit breaker limits
+     * to prevent excessive memory usage. The tracked memory can later be released using
+     * {@link #releaseQueryConstructionMemory()}.
+     *
+     * @param bytes the number of bytes to add to the circuit breaker
+     * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
+     */
+    public void addCircuitBreakerMemory(long bytes, String label) {
+        if (circuitBreaker != null) {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+            queryConstructionMemoryUsed.addAndGet(bytes);
+        }
+    }
+
+    /**
+     * Get total query construction memory used.
+     */
+    public long getQueryConstructionMemoryUsed() {
+        return queryConstructionMemoryUsed.get();
+    }
+
+    /**
+     * Release all accumulated query construction memory back to the circuit breaker.
+     */
+    public void releaseQueryConstructionMemory() {
+        long memoryToRelease = queryConstructionMemoryUsed.getAndSet(0);
+        if (memoryToRelease > 0 && circuitBreaker != null) {
+            circuitBreaker.addWithoutBreaking(-memoryToRelease);
         }
     }
 }

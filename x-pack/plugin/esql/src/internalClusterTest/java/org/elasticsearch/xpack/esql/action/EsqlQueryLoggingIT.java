@@ -25,6 +25,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
@@ -83,9 +84,9 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             var message = getMessageData(appender.getLastEventAndReset());
             assertMessageSuccess(message, "esql", query);
-            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
-            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), greaterThanOrEqualTo(0));
-            assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
+            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
+            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "skipped")), greaterThanOrEqualTo(0));
+            assertThat(message.get(QUERY_FIELD_SHARDS + "failed"), equalTo("0"));
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
         }
     }
@@ -133,8 +134,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         assertNotNull(event);
         var message = getMessageData(event);
         assertMessageSuccess(message, "esql", "FROM esql_partial_test | LIMIT 100");
-        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
-        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), equalTo(0));
-        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.failed")), greaterThanOrEqualTo(1));
+        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
+        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "skipped")), equalTo(0));
+        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
     }
 }

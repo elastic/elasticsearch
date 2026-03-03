@@ -67,6 +67,7 @@ import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_IS_S
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS;
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS_GTE;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_QUERY;
@@ -150,9 +151,9 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertMessageSuccess(message, "search", "fox");
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("1"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(""));
-            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
-            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), greaterThanOrEqualTo(0));
-            assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
+            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
+            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "skipped")), greaterThanOrEqualTo(0));
+            assertThat(message.get(QUERY_FIELD_SHARDS + "failed"), equalTo("0"));
             assertNull(message.get(ES_FIELDS_PREFIX + "timed_out"));
         }
 
@@ -164,9 +165,9 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertMessageSuccess(message, "search", "quick");
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("3"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
-            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
-            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), greaterThanOrEqualTo(0));
-            assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
+            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
+            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "skipped")), greaterThanOrEqualTo(0));
+            assertThat(message.get(QUERY_FIELD_SHARDS + "failed"), equalTo("0"));
             assertNull(message.get(ES_FIELDS_PREFIX + "timed_out"));
         }
         // Total hits
@@ -209,9 +210,9 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         Map<String, String> message = getMessageData(event);
         assertMessageSuccess(message, "search", "size");
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
-        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThan(0));
-        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), equalTo(0));
-        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.failed")), greaterThan(0));
+        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThan(0));
+        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "skipped")), equalTo(0));
+        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThan(0));
     }
 
     public void testFailureLog() {

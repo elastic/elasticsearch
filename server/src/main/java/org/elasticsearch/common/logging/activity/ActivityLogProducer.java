@@ -15,6 +15,8 @@ import org.elasticsearch.index.ActionLoggingFields;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
+
 /**
  * Generic log producer class.
  * Each log producer receives a context and decides whether to log, and at which level. Then it extracts logging information
@@ -63,13 +65,13 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
         }
         context.shardInfo().ifPresent(shardInfo -> {
             if (shardInfo.successfulShards() != null) {
-                fields.field(ES_FIELDS_PREFIX + "shards.successful", shardInfo.successfulShards());
+                fields.field(QUERY_FIELD_SHARDS + "successful", shardInfo.successfulShards());
             }
             if (shardInfo.skippedShards() != null) {
-                fields.field(ES_FIELDS_PREFIX + "shards.skipped", shardInfo.skippedShards());
+                fields.field(QUERY_FIELD_SHARDS + "skipped", shardInfo.skippedShards());
             }
             if (shardInfo.failedShards() != null) {
-                fields.field(ES_FIELDS_PREFIX + "shards.failed", shardInfo.failedShards());
+                fields.field(QUERY_FIELD_SHARDS + "failed", shardInfo.failedShards());
             }
         });
         return fields;

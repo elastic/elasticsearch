@@ -19,4 +19,5 @@ public interface QueryLogging {
     String QUERY_FIELD_QUERY = ES_QUERY_FIELDS_PREFIX + "query";
     String QUERY_FIELD_RESULT_COUNT = ES_QUERY_FIELDS_PREFIX + "result_count";
     String QUERY_FIELD_INDICES = ES_QUERY_FIELDS_PREFIX + "indices";
+    String QUERY_FIELD_SHARDS = ES_QUERY_FIELDS_PREFIX + "shards.";
 }

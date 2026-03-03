@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
@@ -87,7 +88,7 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(success ? "1" : "0"));
         // EQL only logs shards.failed
-        assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
+        assertThat(message.get(QUERY_FIELD_SHARDS + "failed"), equalTo("0"));
     }
 
     public void testEqlFailureLogging() throws Exception {
@@ -129,7 +130,7 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         var message = getMessageData(event);
         assertMessageSuccess(message, "eql", "my_event where i >= 0");
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("1"));
+        assertThat(message.get(QUERY_FIELD_SHARDS + "failed"), equalTo("1"));
     }
 
     private void prepareIndex() throws Exception {

@@ -137,7 +137,7 @@ public class Mapper {
 
         if (unary instanceof Limit limit) {
             mappedChild = addExchangeForFragment(limit, mappedChild);
-            return new LimitExec(limit.source(), mappedChild, limit.limit(), null);
+            return new LimitExec(limit.source(), mappedChild, limit.limit(), limit.groupings(), null);
         }
 
         if (unary instanceof TopN topN) {

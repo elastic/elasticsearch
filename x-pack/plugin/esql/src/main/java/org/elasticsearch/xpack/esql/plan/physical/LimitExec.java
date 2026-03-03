@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.plan.logical.Limit.ESQL_LIMIT_BY;
+
 public class LimitExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
@@ -33,11 +35,17 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
 
     private final Expression limit;
     private final Integer estimatedRowSize;
+    private List<Expression> groupings;
 
-    public LimitExec(Source source, PhysicalPlan child, Expression limit, Integer estimatedRowSize) {
+    public LimitExec(Source source, PhysicalPlan child, Expression limit, List<Expression> groupings, Integer estimatedRowSize) {
         super(source, child);
         this.limit = limit;
+        this.groupings = groupings;
         this.estimatedRowSize = estimatedRowSize;
+    }
+
+    public LimitExec(Source source, PhysicalPlan child, Expression limit, Integer estimatedRowSize) {
+        this(source, child, limit, List.of(), estimatedRowSize);
     }
 
     private LimitExec(StreamInput in) throws IOException {
@@ -45,8 +53,13 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(Expression.class),
+            List.of(),
             in.getTransportVersion().supports(ESQL_LIMIT_ROW_SIZE) ? in.readOptionalVInt() : null
         );
+
+        if (in.getTransportVersion().supports(ESQL_LIMIT_BY)) {
+            this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
+        }
     }
 
     @Override
@@ -57,6 +70,12 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
         if (out.getTransportVersion().supports(ESQL_LIMIT_ROW_SIZE)) {
             out.writeOptionalVInt(estimatedRowSize);
         }
+
+        if (out.getTransportVersion().supports(ESQL_LIMIT_BY)) {
+            out.writeNamedWriteableCollection(groupings());
+        } else if (groupings.isEmpty() == false) {
+            throw new IllegalArgumentException("LIMIT BY is not supported by all nodes in the cluster");
+        }
     }
 
     @Override
@@ -66,16 +85,20 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<? extends LimitExec> info() {
-        return NodeInfo.create(this, LimitExec::new, child(), limit, estimatedRowSize);
+        return NodeInfo.create(this, LimitExec::new, child(), limit, groupings, estimatedRowSize);
     }
 
     @Override
     public LimitExec replaceChild(PhysicalPlan newChild) {
-        return new LimitExec(source(), newChild, limit, estimatedRowSize);
+        return new LimitExec(source(), newChild, limit, groupings, estimatedRowSize);
     }
 
     public Expression limit() {
         return limit;
+    }
+
+    public List<Expression> groupings() {
+        return groupings;
     }
 
     public Integer estimatedRowSize() {
@@ -90,12 +113,12 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
         state.add(needsSortedDocIds, output);
         int size = state.consumeAllFields(true);
         size = Math.max(size, 1);
-        return Objects.equals(this.estimatedRowSize, size) ? this : new LimitExec(source(), child(), limit, size);
+        return Objects.equals(this.estimatedRowSize, size) ? this : new LimitExec(source(), child(), limit, groupings, size);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(limit, estimatedRowSize, child());
+        return Objects.hash(limit, groupings, estimatedRowSize, child());
     }
 
     @Override
@@ -110,6 +133,7 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
 
         LimitExec other = (LimitExec) obj;
         return Objects.equals(limit, other.limit)
+            && Objects.equals(groupings, other.groupings)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(child(), other.child());
 

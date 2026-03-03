@@ -331,7 +331,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * @return the names of the aliases used in the grouping expressions of any Aggregate found in the plan.
      */
     private static Set<String> aliasNamesInAggregateGroupings(LogicalPlan plan) {
-        Set<String> aliasNames = new LinkedHashSet<>();
+        Set<String> aliasNames = new HashSet<>();
         plan.forEachUp(Aggregate.class, agg -> {
             for (var grouping : agg.groupings()) {
                 if (grouping instanceof Alias alias) {

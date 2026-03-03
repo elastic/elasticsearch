@@ -168,6 +168,11 @@ static inline int32_t sqri7u_inner(const int8_t* a, const int8_t* b, const int32
     return mm256_reduce_epi32<_mm_add_epi32>(acc1);
 }
 
+static inline int32_t sqri7u_scalar(int8_t a, int8_t b) {
+    int32_t d = a - b;
+    return d * d;
+}
+
 EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
@@ -182,61 +187,8 @@ EXPORT int32_t vec_sqri7u(const int8_t* a, const int8_t* b, const int32_t dims) 
     return res;
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void sqri7u_inner_bulk(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
-    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
-    int c = 0;
-
-    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
-
-    // Process a batch of 2 vectors at a time, after instructing the CPU to
-    // prefetch the next batch.
-    for (; c + 3 < count; c += 2) {
-        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
-        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
-
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
-
-        int32_t res0 = 0;
-        int32_t res1 = 0;
-        int i = 0;
-        if (dims > STRIDE_BYTES_LEN) {
-            i = blk;
-            res0 = sqri7u_inner(a0, b, i);
-            res1 = sqri7u_inner(a1, b, i);
-        }
-        for (; i < dims; i++) {
-            int32_t dist0 = a0[i] - b[i];
-            int32_t dist1 = a1[i] - b[i];
-            res0 += dist0 * dist0;
-            res1 += dist1 * dist1;
-        }
-        results[c + 0] = (f32_t)res0;
-        results[c + 1] = (f32_t)res1;
-        a0 = next_a0;
-        a1 = next_a1;
-    }
-
-    // Tail-handling: remaining vectors
-    for (; c < count; c++) {
-        const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_sqri7u(a0, b, dims);
-    }
-}
-
 EXPORT void vec_sqri7u_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqri7u_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+    call_bulk<identity_mapper, sqri7u_inner, sqri7u_scalar, vec_sqri7u>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqri7u_bulk_offsets(
@@ -247,7 +199,7 @@ EXPORT void vec_sqri7u_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    sqri7u_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    call_bulk<array_mapper, sqri7u_inner, sqri7u_scalar, vec_sqri7u>(a, b, dims, pitch, offsets, count, results);
 }
 
 // --- byte vectors
@@ -385,60 +337,8 @@ EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
     return (f32_t)res;
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void doti8_inner_bulk(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
-    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
-    int c = 0;
-
-    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
-
-    // Process a batch of 2 vectors at a time, after instructing the CPU to
-    // prefetch the next batch.
-    for (; c + 3 < count; c += 2) {
-        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
-        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
-
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
-
-        int32_t res0 = 0;
-        int32_t res1 = 0;
-        int i = 0;
-        if (dims > STRIDE_BYTES_LEN) {
-            i = blk;
-            res0 = doti8_inner(a0, b, i);
-            res1 = doti8_inner(a1, b, i);
-        }
-        for (; i < dims; i++) {
-            const int8_t bb = b[i];
-            res0 += a0[i] * bb;
-            res1 += a1[i] * bb;
-        }
-        results[c + 0] = (f32_t)res0;
-        results[c + 1] = (f32_t)res1;
-        a0 = next_a0;
-        a1 = next_a1;
-    }
-
-    // Tail-handling: remaining vectors
-    for (; c<count; c++) {
-        const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = vec_doti8(a0, b, dims);
-    }
-}
-
 EXPORT void vec_doti8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    doti8_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+    call_bulk<identity_mapper, doti8_inner, doti7u_scalar, vec_doti8>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_doti8_bulk_offsets(
@@ -449,7 +349,7 @@ EXPORT void vec_doti8_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    doti8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    call_bulk<array_mapper, doti8_inner, doti7u_scalar, vec_doti8>(a, b, dims, pitch, offsets, count, results);
 }
 
 static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -490,61 +390,8 @@ EXPORT f32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
     return (f32_t)res;
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void sqri8_inner_bulk(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
-    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
-    int c = 0;
-
-    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
-
-    // Process a batch of 2 vectors at a time, after instructing the CPU to
-    // prefetch the next batch.
-    for (; c + 3 < count; c += 2) {
-        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
-        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
-
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
-
-        int32_t res0 = 0;
-        int32_t res1 = 0;
-        int i = 0;
-        if (dims > STRIDE_BYTES_LEN) {
-            i = blk;
-            res0 = sqri8_inner(a0, b, i);
-            res1 = sqri8_inner(a1, b, i);
-        }
-        for (; i < dims; i++) {
-            int32_t dist0 = a0[i] - b[i];
-            int32_t dist1 = a1[i] - b[i];
-            res0 += dist0 * dist0;
-            res1 += dist1 * dist1;
-        }
-        results[c + 0] = (f32_t)res0;
-        results[c + 1] = (f32_t)res1;
-        a0 = next_a0;
-        a1 = next_a1;
-    }
-
-    // Tail-handling: remaining vectors
-    for (; c<count; c++) {
-        const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = vec_sqri8(a0, b, dims);
-    }
-}
-
 EXPORT void vec_sqri8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    sqri8_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+    call_bulk<identity_mapper, sqri8_inner, sqri7u_scalar, vec_sqri8>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_sqri8_bulk_offsets(
@@ -555,7 +402,7 @@ EXPORT void vec_sqri8_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    sqri8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    call_bulk<array_mapper, sqri8_inner, sqri7u_scalar, vec_sqri8>(a, b, dims, pitch, offsets, count, results);
 }
 
 // --- single precision floats

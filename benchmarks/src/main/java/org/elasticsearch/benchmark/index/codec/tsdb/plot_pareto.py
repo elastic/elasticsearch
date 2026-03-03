@@ -122,10 +122,15 @@ def pareto_front(points):
 def shorten_label(label):
     """Shorten pipeline names for display."""
     short = label
-    short = short.replace("_stage-offset-gcd-bitpack", "\n+off+gcd")
-    short = short.replace("_stage-gcd-bitpack", "\n+gcd")
     short = short.replace("ES819-pipeline-reference", "ES819-pipe")
     short = short.replace("ES819-baseline", "ES819")
+    short = short.replace("integer-pipeline", "int-pipe")
+    short = short.replace("alp-double-lossless", "alp")
+    short = short.replace("alp-double-", "alp-")
+    short = short.replace("fpc-lossless", "fpc")
+    short = short.replace("gorilla-lossless", "gorilla")
+    short = short.replace("chimp-lossless", "chimp")
+    short = short.replace("chimp128-", "c128-")
     return short
 
 

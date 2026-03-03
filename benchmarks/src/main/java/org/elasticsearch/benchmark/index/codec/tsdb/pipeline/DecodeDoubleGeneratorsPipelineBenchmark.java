@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-// NOTE: Pipeline decoding benchmark using NumericDataGenerators double data sources.
 @Fork(value = 1)
 @Warmup(iterations = 3)
 @Measurement(iterations = 5)
@@ -85,22 +84,20 @@ public class DecodeDoubleGeneratorsPipelineBenchmark {
 
     @Param(
         {
-            "full",
-            "alp_double",
-            "alp_rd_double",
-            "gorilla",
-            "rle-only",
-            "xor-bitpack",
-            "offset-simplebitpack",
-            "delta-simplebitpack",
-            "delta-offset-gcd-simplebitpack",
-            "delta-bitpack",
-            "rle-bitpack",
             "delta-offset-gcd-bitpack",
-            "alp_double_stage-offset-gcd-bitpack",
-            "alp_double_stage-gcd-bitpack",
-            "alp_rd_double_stage-offset-gcd-bitpack",
-            "alp_rd_double_stage-gcd-bitpack" }
+            "integer-pipeline",
+            "alp-double-lossless",
+            "alp-double-1e4",
+            "alp-double-1e2",
+            "fpc-lossless",
+            "fpc-1e4",
+            "fpc-1e2",
+            "gorilla-lossless",
+            "gorilla-1e4",
+            "gorilla-1e2",
+            "chimp-lossless",
+            "chimp-1e4",
+            "chimp128-1e2" }
     )
     private String pipeline;
 

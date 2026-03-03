@@ -36,55 +36,22 @@ public final class OptimalPipelines {
         Map.entry("nonSorted", OptimalPipelines::nonSorted)
     );
 
+    // NOTE: These 14 pipelines mirror the PipelineSelector decision tree (13 selector paths + 1 ES819-pipeline-reference).
     private static final Map<String, IntFunction<PipelineConfig>> DOUBLE_SHORTLIST = Map.ofEntries(
-        // ALP payload stages (monolithic encode/decode)
-        Map.entry("alp_double", bs -> PipelineConfig.forDoubles(bs).alpDouble()),
-        Map.entry("alp_rd_double", bs -> PipelineConfig.forDoubles(bs).alpRdDouble()),
-        // ALP transform + bitpack pipelines
-        Map.entry("alp_double_stage-offset-gcd-bitpack", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage().offset().gcd().bitPack()),
-        Map.entry(
-            "alp_rd_double_stage-offset-gcd-bitpack",
-            bs -> PipelineConfig.forDoubles(bs).alpRdDoubleStage().offset().gcd().bitPack()
-        ),
-        // Quantize pipelines
-        Map.entry(
-            "quantize-1e6-delta-offset-gcd-bitpack",
-            bs -> PipelineConfig.forDoubles(bs).quantizeDouble(1e-6).delta().offset().gcd().bitPack()
-        ),
-        Map.entry(
-            "alp_double_stage-1e6-offset-gcd-bitpack",
-            bs -> PipelineConfig.forDoubles(bs).alpDoubleStage(1e-6).offset().gcd().bitPack()
-        ),
-        // Baselines
-        Map.entry("gorilla", bs -> PipelineConfig.forDoubles(bs).gorilla()),
-        Map.entry("xor-bitpack", bs -> PipelineConfig.forDoubles(bs).xor().bitPack()),
-        Map.entry("offset-gcd-bitpack", bs -> PipelineConfig.forDoubles(bs).offset().gcd().bitPack()),
-        Map.entry("zstd", bs -> PipelineConfig.forDoubles(bs).zstd()),
-        // Integer-path (raw long bits)
         Map.entry("delta-offset-gcd-bitpack", bs -> PipelineConfig.forDoubles(bs).delta().offset().gcd().bitPack()),
-        Map.entry("delta-offset-gcd-zstd", bs -> PipelineConfig.forDoubles(bs).delta().offset().gcd().zstd()),
-        // ALP + zstd
-        Map.entry("alp_double_stage-offset-gcd-zstd", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage().offset().gcd().zstd()),
-        Map.entry("alp_double_stage-1e6-zstd", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage(1e-6).zstd()),
-        // FPC pipelines
-        Map.entry("fpc-offset-gcd-bitpack", bs -> PipelineConfig.forDoubles(bs).fpcStage().offset().gcd().bitPack()),
-        Map.entry("fpc-bitpack", bs -> PipelineConfig.forDoubles(bs).fpcStage().bitPack()),
-        Map.entry("fpc-zstd", bs -> PipelineConfig.forDoubles(bs).fpcStage().zstd()),
-        Map.entry("fpc-offset-gcd-zstd", bs -> PipelineConfig.forDoubles(bs).fpcStage().offset().gcd().zstd()),
-        Map.entry(
-            "quantize-1e6-fpc-offset-gcd-bitpack",
-            bs -> PipelineConfig.forDoubles(bs).quantizeDouble(1e-6).fpcStage().offset().gcd().bitPack()
-        ),
-        // LZ4 pipelines
-        Map.entry("lz4", bs -> PipelineConfig.forDoubles(bs).lz4()),
-        Map.entry("lz4-hc", bs -> PipelineConfig.forDoubles(bs).lz4HighCompression()),
-        Map.entry("xor-lz4", bs -> PipelineConfig.forDoubles(bs).xor().lz4()),
-        Map.entry("delta-offset-gcd-lz4", bs -> PipelineConfig.forDoubles(bs).delta().offset().gcd().lz4()),
-        Map.entry("alp_double_stage-offset-gcd-lz4", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage().offset().gcd().lz4()),
-        Map.entry("fpc-lz4", bs -> PipelineConfig.forDoubles(bs).fpcStage().lz4()),
-        Map.entry("fpc-offset-gcd-lz4", bs -> PipelineConfig.forDoubles(bs).fpcStage().offset().gcd().lz4()),
-        // Chimp128 payload pipelines
-        Map.entry("chimp128-double", bs -> PipelineConfig.forDoubles(bs).chimp128())
+        Map.entry("integer-pipeline", bs -> PipelineConfig.forDoubles(bs).delta().delta().offset().gcd().patchedPFor().bitPack()),
+        Map.entry("alp-double-lossless", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage().delta().offset().gcd().patchedPFor().bitPack()),
+        Map.entry("alp-double-1e4", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage(1e-4).delta().offset().gcd().patchedPFor().bitPack()),
+        Map.entry("alp-double-1e2", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage(1e-2).delta().offset().gcd().patchedPFor().bitPack()),
+        Map.entry("fpc-lossless", bs -> PipelineConfig.forDoubles(bs).fpcStage().delta().offset().gcd().patchedPFor().bitPack()),
+        Map.entry("fpc-1e4", bs -> PipelineConfig.forDoubles(bs).fpcStage(1e-4).delta().offset().gcd().patchedPFor().bitPack()),
+        Map.entry("fpc-1e2", bs -> PipelineConfig.forDoubles(bs).fpcStage(1e-2).delta().offset().gcd().patchedPFor().bitPack()),
+        Map.entry("gorilla-lossless", bs -> PipelineConfig.forDoubles(bs).gorilla()),
+        Map.entry("gorilla-1e4", bs -> PipelineConfig.forDoubles(bs).gorilla(1e-4)),
+        Map.entry("gorilla-1e2", bs -> PipelineConfig.forDoubles(bs).gorilla(1e-2)),
+        Map.entry("chimp-lossless", bs -> PipelineConfig.forDoubles(bs).chimp()),
+        Map.entry("chimp-1e4", bs -> PipelineConfig.forDoubles(bs).chimp(1e-4)),
+        Map.entry("chimp128-1e2", bs -> PipelineConfig.forDoubles(bs).chimp128(1e-2))
     );
 
     private static final Map<String, IntFunction<PipelineConfig>> ALL;

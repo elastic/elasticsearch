@@ -1329,6 +1329,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         byte[] compressedBuf;
         byte[] decompressBuf;
+        byte[] prefixDecompBuf;
+
+        // Cached prefix: avoid re-decompressing when consecutive terms share a prefix ID.
+        long cachedPrefixId = -1;
+        int cachedFullPrefixLen;
 
         TermsDict(TermsDictEntry entry, IndexInput data, boolean merging) throws IOException {
             this.entry = entry;
@@ -1364,6 +1369,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
             compressedBuf = new byte[256];
             decompressBuf = new byte[entry.maxTermLength + 7];
+            prefixDecompBuf = new byte[entry.maxTermLength + 7];
         }
 
         private void decompressTerm(long targetOrd) throws IOException {
@@ -1382,18 +1388,24 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             int trim = (int) ((combined >>> pidBits) & 0xFF);
 
             int termLen = 0;
-            long prefixStart = prefixOffsets.get(prefixId);
-            long prefixEnd = prefixOffsets.get(prefixId + 1);
-            int prefixCompLen = (int) (prefixEnd - prefixStart);
-
-            if (prefixCompLen > 0) {
-                if (compressedBuf.length < prefixCompLen) {
-                    compressedBuf = new byte[ArrayUtil.oversize(prefixCompLen, 1)];
+            if (prefixId != cachedPrefixId) {
+                long prefixStart = prefixOffsets.get(prefixId);
+                long prefixEnd = prefixOffsets.get(prefixId + 1);
+                int prefixCompLen = (int) (prefixEnd - prefixStart);
+                if (prefixCompLen > 0) {
+                    if (compressedBuf.length < prefixCompLen) {
+                        compressedBuf = new byte[ArrayUtil.oversize(prefixCompLen, 1)];
+                    }
+                    prefixData.readBytes(prefixStart, compressedBuf, 0, prefixCompLen);
+                    cachedFullPrefixLen = FSST.decompress(compressedBuf, 0, prefixCompLen, fsstDecoder, prefixDecompBuf);
+                } else {
+                    cachedFullPrefixLen = 0;
                 }
-                prefixData.readBytes(prefixStart, compressedBuf, 0, prefixCompLen);
-                int fullPrefixLen = FSST.decompress(compressedBuf, 0, prefixCompLen, fsstDecoder, decompressBuf);
-                termLen = fullPrefixLen - trim;
-                System.arraycopy(decompressBuf, 0, term.bytes, 0, termLen);
+                cachedPrefixId = prefixId;
+            }
+            if (cachedFullPrefixLen > 0) {
+                termLen = cachedFullPrefixLen - trim;
+                System.arraycopy(prefixDecompBuf, 0, term.bytes, 0, termLen);
             }
 
             long suffixStart = suffixOffsets.get(targetOrd);

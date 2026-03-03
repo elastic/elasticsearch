@@ -6,13 +6,13 @@ stack: preview
 The `MV_EXPAND` processing command expands multivalued columns into one row per
 value, duplicating other columns.
 
-**Syntax**
+## Syntax
 
 ```esql
 MV_EXPAND column
 ```
 
-**Parameters**
+## Parameters
 
 `column`
 :   The multivalued column to expand.
@@ -23,7 +23,7 @@ preceding `SORT`s. To guarantee a certain ordering, place a `SORT` after any
 `MV_EXPAND`s.
 ::::
 
-**Example**
+## Example
 
 :::{include} ../examples/mv_expand.csv-spec/simple.md
 :::

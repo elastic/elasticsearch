@@ -18,33 +18,61 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.internal.IndexInputUtils;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductD4Q4;
+import static org.elasticsearch.simdvec.internal.Similarities.dotProductD4Q4Bulk;
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQVectorsScorer.MemorySegmentScorer {
 
-    MSInt4SymmetricESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
-        super(in, dimensions, dataLength, bulkSize, memorySegment);
+    MSInt4SymmetricESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+        super(in, dimensions, dataLength, bulkSize);
     }
 
     @Override
     public long quantizeScore(byte[] q) throws IOException {
         assert q.length == length;
         // 128 / 8 == 16
-        if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                return quantizeScoreSymmetric256(q);
-            } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
-                return quantizeScoreSymmetric128(q);
+        if (length >= 16) {
+            if (NATIVE_SUPPORTED) {
+                return nativeQuantizeScore(q);
+            } else if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
+                if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+                    return quantizeScoreSymmetric256(q);
+                } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
+                    return quantizeScoreSymmetric128(q);
+                }
             }
         }
         return Long.MIN_VALUE;
+    }
+
+    private long nativeQuantizeScore(byte[] q) throws IOException {
+        return IndexInputUtils.withSlice(in, length, this::getScratch, segment -> nativeQuantizeScoreImpl(q, segment, length));
+    }
+
+    private static long nativeQuantizeScoreImpl(byte[] q, MemorySegment datasetMemorySegment, int length) {
+        final long qScore;
+        if (SUPPORTS_HEAP_SEGMENTS) {
+            var queryMemorySegment = MemorySegment.ofArray(q);
+            qScore = dotProductD4Q4(datasetMemorySegment, queryMemorySegment, length);
+        } else {
+            try (var arena = Arena.ofConfined()) {
+                var queryMemorySegment = arena.allocate(q.length, 32);
+                MemorySegment.copy(q, 0, queryMemorySegment, ValueLayout.JAVA_BYTE, 0, q.length);
+                qScore = dotProductD4Q4(datasetMemorySegment, queryMemorySegment, length);
+            }
+        }
+        return qScore;
     }
 
     private long quantizeScoreSymmetric128(byte[] q) throws IOException {
@@ -64,25 +92,28 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
     }
 
     private long quantizeScore256(byte[] q) throws IOException {
+        int size = length / 4;
+        return IndexInputUtils.withSlice(in, size, this::getScratch, segment -> quantizeScore256Impl(q, segment, size));
+    }
+
+    private static long quantizeScore256Impl(byte[] q, MemorySegment memorySegment, int size) {
         long subRet0 = 0;
         long subRet1 = 0;
         long subRet2 = 0;
         long subRet3 = 0;
         int i = 0;
-        long offset = in.getFilePointer();
-        int size = length / 4;
         if (size >= ByteVector.SPECIES_256.vectorByteSize() * 2) {
             int limit = ByteVector.SPECIES_256.loopBound(size);
             var sum0 = LongVector.zero(LONG_SPECIES_256);
             var sum1 = LongVector.zero(LONG_SPECIES_256);
             var sum2 = LongVector.zero(LONG_SPECIES_256);
             var sum3 = LongVector.zero(LONG_SPECIES_256);
-            for (; i < limit; i += ByteVector.SPECIES_256.length(), offset += LONG_SPECIES_256.vectorByteSize()) {
+            for (; i < limit; i += ByteVector.SPECIES_256.length()) {
                 var vq0 = ByteVector.fromArray(BYTE_SPECIES_256, q, i).reinterpretAsLongs();
                 var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + size).reinterpretAsLongs();
                 var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + size * 2).reinterpretAsLongs();
                 var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + size * 3).reinterpretAsLongs();
-                var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+                var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, i, ByteOrder.LITTLE_ENDIAN);
                 sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
@@ -100,12 +131,12 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
             var sum2 = LongVector.zero(LONG_SPECIES_128);
             var sum3 = LongVector.zero(LONG_SPECIES_128);
             int limit = ByteVector.SPECIES_128.loopBound(size);
-            for (; i < limit; i += ByteVector.SPECIES_128.length(), offset += LONG_SPECIES_128.vectorByteSize()) {
+            for (; i < limit; i += ByteVector.SPECIES_128.length()) {
                 var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsLongs();
                 var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + size).reinterpretAsLongs();
                 var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + size * 2).reinterpretAsLongs();
                 var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + size * 3).reinterpretAsLongs();
-                var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+                var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, i, ByteOrder.LITTLE_ENDIAN);
                 sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
@@ -117,23 +148,22 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
             subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         }
         // process scalar tail
-        in.seek(offset);
         for (final int upperBound = size & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-            final long value = in.readLong();
+            final long value = memorySegment.get(LAYOUT_LE_LONG, i);
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
             subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + size) & value);
             subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * size) & value);
             subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * size) & value);
         }
         for (final int upperBound = size & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            final int value = in.readInt();
+            final int value = memorySegment.get(LAYOUT_LE_INT, i);
             subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
             subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + size) & value);
             subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * size) & value);
             subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * size) & value);
         }
         for (; i < size; i++) {
-            int dValue = in.readByte() & 0xFF;
+            int dValue = memorySegment.get(ValueLayout.JAVA_BYTE, i) & 0xFF;
             subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
             subRet1 += Integer.bitCount((q[i + size] & dValue) & 0xFF);
             subRet2 += Integer.bitCount((q[i + 2 * size] & dValue) & 0xFF);
@@ -143,21 +173,24 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
+        int size = length / 4;
+        return IndexInputUtils.withSlice(in, size, this::getScratch, segment -> quantizeScore128Impl(q, segment, size));
+    }
+
+    private static long quantizeScore128Impl(byte[] q, MemorySegment memorySegment, int size) {
         long subRet0 = 0;
         long subRet1 = 0;
         long subRet2 = 0;
         long subRet3 = 0;
         int i = 0;
-        long offset = in.getFilePointer();
 
         var sum0 = IntVector.zero(INT_SPECIES_128);
         var sum1 = IntVector.zero(INT_SPECIES_128);
         var sum2 = IntVector.zero(INT_SPECIES_128);
         var sum3 = IntVector.zero(INT_SPECIES_128);
-        int size = length / 4;
         int limit = ByteVector.SPECIES_128.loopBound(size);
-        for (; i < limit; i += ByteVector.SPECIES_128.length(), offset += INT_SPECIES_128.vectorByteSize()) {
-            var vd = IntVector.fromMemorySegment(INT_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+        for (; i < limit; i += ByteVector.SPECIES_128.length()) {
+            var vd = IntVector.fromMemorySegment(INT_SPECIES_128, memorySegment, i, ByteOrder.LITTLE_ENDIAN);
             var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsInts();
             var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + size).reinterpretAsInts();
             var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + size * 2).reinterpretAsInts();
@@ -172,23 +205,22 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         subRet2 += sum2.reduceLanes(VectorOperators.ADD);
         subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         // process scalar tail
-        in.seek(offset);
         for (final int upperBound = size & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-            final long value = in.readLong();
+            final long value = memorySegment.get(LAYOUT_LE_LONG, i);
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
             subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + size) & value);
             subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * size) & value);
             subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * size) & value);
         }
         for (final int upperBound = size & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            final int value = in.readInt();
+            final int value = memorySegment.get(LAYOUT_LE_INT, i);
             subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
             subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + size) & value);
             subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * size) & value);
             subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * size) & value);
         }
         for (; i < size; i++) {
-            int dValue = in.readByte() & 0xFF;
+            int dValue = memorySegment.get(ValueLayout.JAVA_BYTE, i) & 0xFF;
             subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
             subRet1 += Integer.bitCount((q[i + size] & dValue) & 0xFF);
             subRet2 += Integer.bitCount((q[i + 2 * size] & dValue) & 0xFF);
@@ -201,16 +233,42 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
     public boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
         assert q.length == length;
         // 128 / 8 == 16
-        if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                quantizeScore256Bulk(q, count, scores);
+        if (length >= 16) {
+            if (NATIVE_SUPPORTED) {
+                if (SUPPORTS_HEAP_SEGMENTS) {
+                    var queryMemorySegment = MemorySegment.ofArray(q);
+                    var scoresSegment = MemorySegment.ofArray(scores);
+                    nativeQuantizeScoreBulk(queryMemorySegment, count, scoresSegment);
+                } else {
+                    try (var arena = Arena.ofConfined()) {
+                        var queryMemorySegment = arena.allocate(q.length, 32);
+                        var scoresSegment = arena.allocate((long) scores.length * Float.BYTES, 32);
+                        MemorySegment.copy(q, 0, queryMemorySegment, ValueLayout.JAVA_BYTE, 0, q.length);
+                        nativeQuantizeScoreBulk(queryMemorySegment, count, scoresSegment);
+                        MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, scores.length);
+                    }
+                }
                 return true;
-            } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
-                quantizeScore128Bulk(q, count, scores);
-                return true;
+            }
+            if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
+                if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+                    quantizeScore256Bulk(q, count, scores);
+                    return true;
+                } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
+                    quantizeScore128Bulk(q, count, scores);
+                    return true;
+                }
             }
         }
         return false;
+    }
+
+    private void nativeQuantizeScoreBulk(MemorySegment queryMemorySegment, int count, MemorySegment scoresSegment) throws IOException {
+        var datasetLengthInBytes = (long) length * count;
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, this::getScratch, datasetSegment -> {
+            dotProductD4Q4Bulk(datasetSegment, queryMemorySegment, length, count, scoresSegment);
+            return null;
+        });
     }
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
@@ -239,38 +297,105 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
     ) throws IOException {
         assert q.length == length;
         // 128 / 8 == 16
-        if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                return score256Bulk(
-                    q,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    similarityFunction,
-                    centroidDp,
-                    scores,
-                    bulkSize
-                );
-            } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
-                return score128Bulk(
-                    q,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    similarityFunction,
-                    centroidDp,
-                    scores,
-                    bulkSize
-                );
+        if (length >= 16) {
+            if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
+                if (NATIVE_SUPPORTED) {
+                    if (SUPPORTS_HEAP_SEGMENTS) {
+                        var querySegment = MemorySegment.ofArray(q);
+                        var scoresSegment = MemorySegment.ofArray(scores);
+                        nativeQuantizeScoreBulk(querySegment, bulkSize, scoresSegment);
+                        return nativeApplyCorrectionsBulk(
+                            queryLowerInterval,
+                            queryUpperInterval,
+                            queryComponentSum,
+                            queryAdditionalCorrection,
+                            similarityFunction,
+                            centroidDp,
+                            scoresSegment,
+                            bulkSize
+                        );
+                    } else {
+                        try (var arena = Arena.ofConfined()) {
+                            var querySegment = arena.allocate(q.length, 32);
+                            var scoresSegment = arena.allocate((long) scores.length * Float.BYTES, 32);
+                            MemorySegment.copy(q, 0, querySegment, ValueLayout.JAVA_BYTE, 0, q.length);
+                            nativeQuantizeScoreBulk(querySegment, bulkSize, scoresSegment);
+                            var maxScore = nativeApplyCorrectionsBulk(
+                                queryLowerInterval,
+                                queryUpperInterval,
+                                queryComponentSum,
+                                queryAdditionalCorrection,
+                                similarityFunction,
+                                centroidDp,
+                                scoresSegment,
+                                bulkSize
+                            );
+                            MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, scores.length);
+                            return maxScore;
+                        }
+                    }
+                } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+                    quantizeScore256Bulk(q, bulkSize, scores);
+                    return applyCorrections256Bulk(
+                        queryLowerInterval,
+                        queryUpperInterval,
+                        queryComponentSum,
+                        queryAdditionalCorrection,
+                        similarityFunction,
+                        centroidDp,
+                        scores,
+                        bulkSize
+                    );
+                } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
+                    quantizeScore128Bulk(q, bulkSize, scores);
+                    return applyCorrections128Bulk(
+                        queryLowerInterval,
+                        queryUpperInterval,
+                        queryComponentSum,
+                        queryAdditionalCorrection,
+                        similarityFunction,
+                        centroidDp,
+                        scores,
+                        bulkSize
+                    );
+                }
             }
         }
         return Float.NEGATIVE_INFINITY;
     }
 
-    private float score128Bulk(
-        byte[] q,
+    private float nativeApplyCorrectionsBulk(
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        MemorySegment scoresSegment,
+        int bulkSize
+    ) throws IOException {
+        return IndexInputUtils.withSlice(
+            in,
+            16L * bulkSize,
+            this::getScratch,
+            memorySegment -> ScoreCorrections.nativeApplyCorrectionsBulk(
+                similarityFunction,
+                memorySegment,
+                bulkSize,
+                dimensions,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                FOUR_BIT_SCALE,
+                FOUR_BIT_SCALE,
+                centroidDp,
+                scoresSegment
+            )
+        );
+    }
+
+    private float applyCorrections128Bulk(
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -280,37 +405,62 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         float[] scores,
         int bulkSize
     ) throws IOException {
-        quantizeScore128Bulk(q, bulkSize, scores);
+        return IndexInputUtils.withSlice(
+            in,
+            16L * bulkSize,
+            this::getScratch,
+            memorySegment -> applyCorrections128BulkImpl(
+                memorySegment,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                bulkSize,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum
+            )
+        );
+    }
+
+    private float applyCorrections128BulkImpl(
+        MemorySegment memorySegment,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores,
+        int bulkSize,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum
+    ) {
         int limit = FLOAT_SPECIES_128.loopBound(bulkSize);
         int i = 0;
-        long offset = in.getFilePointer();
         float ay = queryLowerInterval;
         float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
         float y1 = queryComponentSum;
         float maxScore = Float.NEGATIVE_INFINITY;
         for (; i < limit; i += FLOAT_SPECIES_128.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, memorySegment, offset + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_128, memorySegment, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
-                offset + 4L * bulkSize + i * Float.BYTES,
+                4L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax).mul(FOUR_BIT_SCALE);
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES_128,
                 memorySegment,
-                offset + 8L * bulkSize + i * Integer.BYTES,
+                8L * bulkSize + i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_128,
                 memorySegment,
-                offset + 12L * bulkSize + i * Float.BYTES,
+                12L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_128, scores, i);
-            // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly *
-            // qcDist;
             var res1 = ax.mul(ay).mul(dimensions);
             var res2 = lx.mul(ay).mul(targetComponentSums);
             var res3 = ax.mul(ly).mul(y1);
@@ -344,6 +494,7 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         if (limit < bulkSize) {
             // missing vectors to score
             maxScore = applyCorrectionsIndividually(
+                memorySegment,
                 queryAdditionalCorrection,
                 similarityFunction,
                 centroidDp,
@@ -351,19 +502,17 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
                 scores,
                 bulkSize,
                 limit,
-                offset,
+                0,
                 ay,
                 ly,
                 y1,
                 maxScore
             );
         }
-        in.seek(offset + 16L * bulkSize);
         return maxScore;
     }
 
-    private float score256Bulk(
-        byte[] q,
+    private float applyCorrections256Bulk(
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -373,32 +522,59 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         float[] scores,
         int bulkSize
     ) throws IOException {
-        quantizeScore256Bulk(q, bulkSize, scores);
+        return IndexInputUtils.withSlice(
+            in,
+            16L * bulkSize,
+            this::getScratch,
+            memorySegment -> applyCorrections256BulkImpl(
+                memorySegment,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                bulkSize,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum
+            )
+        );
+    }
+
+    private float applyCorrections256BulkImpl(
+        MemorySegment memorySegment,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores,
+        int bulkSize,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum
+    ) {
         int limit = FLOAT_SPECIES_256.loopBound(bulkSize);
         int i = 0;
-        long offset = in.getFilePointer();
         float ay = queryLowerInterval;
         float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
         float y1 = queryComponentSum;
         float maxScore = Float.NEGATIVE_INFINITY;
         for (; i < limit; i += FLOAT_SPECIES_256.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, memorySegment, offset + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_256, memorySegment, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
             var lx = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,
-                offset + 4L * bulkSize + i * Float.BYTES,
+                4L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).sub(ax).mul(FOUR_BIT_SCALE);
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES_256,
                 memorySegment,
-                offset + 8L * bulkSize + i * Integer.BYTES,
+                8L * bulkSize + i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES_256,
                 memorySegment,
-                offset + 12L * bulkSize + i * Float.BYTES,
+                12L * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
             var qcDist = FloatVector.fromArray(FLOAT_SPECIES_256, scores, i);
@@ -437,6 +613,7 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         if (limit < bulkSize) {
             // missing vectors to score
             maxScore = applyCorrectionsIndividually(
+                memorySegment,
                 queryAdditionalCorrection,
                 similarityFunction,
                 centroidDp,
@@ -444,14 +621,14 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
                 scores,
                 bulkSize,
                 limit,
-                offset,
+                0,
                 ay,
                 ly,
                 y1,
                 maxScore
             );
         }
-        in.seek(offset + 16L * bulkSize);
         return maxScore;
     }
+
 }

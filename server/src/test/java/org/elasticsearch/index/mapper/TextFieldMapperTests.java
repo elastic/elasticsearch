@@ -52,8 +52,10 @@ import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -2333,12 +2335,16 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testNormsDisabledWhenIndexModeIsTsdb() throws IOException {
         // given
+        final boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         Instant currentTime = Instant.now();
         Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
         indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), currentTime.minus(1, ChronoUnit.HOURS).toEpochMilli())
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), currentTime.plus(1, ChronoUnit.HOURS).toEpochMilli())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension");
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            indexSettingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
+        }
         Settings indexSettings = indexSettingsBuilder.build();
 
         XContentBuilder mapping = mapping(b -> {
@@ -2351,10 +2357,10 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
         });
 
-        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+        var source = source(null, b -> {
             b.field("@timestamp", Instant.now());
             b.field("potato", "a potato flew around my room");
-        }, null);
+        }, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
 
         // when
         DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
@@ -2449,6 +2455,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             }
         }
         for (int ignoreAbove : List.of(5, 20, 128, 256, 512, 1000, Integer.MAX_VALUE)) {
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
             final int ignoreAboveFinal = ignoreAbove;
             var mapping = mapping(b -> {
                 b.startObject("name");
@@ -2487,39 +2494,45 @@ public class TextFieldMapperTests extends MapperTestCase {
                     if (textValues.stream().anyMatch(exceedIgnoreAbove)) {
                         assertNull(blockLoader.columnAtATimeReader(ctx));
                         assertFalse(blockLoader.rowStrideStoredFieldSpec().noRequirements());
-                        var rowReader = blockLoader.rowStrideReader(ctx);
-                        StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
-                        SourceLoader.Leaf leafSourceLoader = null;
-                        if (storedFieldsSpec.requiresSource()) {
-                            var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-                            leafSourceLoader = sourceLoader.leaf(ctx.reader(), null);
-                            storedFieldsSpec = storedFieldsSpec.merge(
-                                new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
-                            );
-                        }
-                        var storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                            StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                            leafSourceLoader
-                        );
-                        try (var builder = blockLoader.builder(TestBlock.factory(), numDocs)) {
-                            for (int doc = 0; doc < textValues.size(); doc++) {
-                                Object values = textValues.get(doc);
-                                storedFields.advanceTo(doc);
-                                rowReader.read(doc, storedFields, builder);
-                                final boolean fallback = exceedIgnoreAbove.test(values);
-                                assertThat(
-                                    "doc=" + doc + " values=" + values + " ignore_above=" + ignoreAbove,
-                                    storedFields.loaded(),
-                                    equalTo(fallback)
+                        try (var rowReader = blockLoader.rowStrideReader(breaker, ctx)) {
+                            StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
+                            SourceLoader.Leaf leafSourceLoader = null;
+                            if (storedFieldsSpec.requiresSource()) {
+                                var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+                                leafSourceLoader = sourceLoader.leaf(ctx.reader(), null);
+                                storedFieldsSpec = storedFieldsSpec.merge(
+                                    new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
                                 );
                             }
-                            testBlock = (TestBlock) builder.build();
+                            var storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                                leafSourceLoader
+                            );
+                            try (var builder = blockLoader.builder(TestBlock.factory(), numDocs)) {
+                                for (int doc = 0; doc < textValues.size(); doc++) {
+                                    Object values = textValues.get(doc);
+                                    storedFields.advanceTo(doc);
+                                    rowReader.read(doc, storedFields, builder);
+                                    final boolean fallback = exceedIgnoreAbove.test(values);
+                                    assertThat(
+                                        "doc=" + doc + " values=" + values + " ignore_above=" + ignoreAbove,
+                                        storedFields.loaded(),
+                                        equalTo(fallback)
+                                    );
+                                }
+                                testBlock = (TestBlock) builder.build();
+                            }
                         }
                     } else {
-                        var columnReader = blockLoader.columnAtATimeReader(ctx);
-                        assertNotNull(columnReader);
-                        testBlock = (TestBlock) columnReader.get()
-                            .read(TestBlock.factory(), TestBlock.docs(IntStream.range(0, numDocs).toArray()), 0, randomBoolean());
+                        try (var columnReader = blockLoader.columnAtATimeReader(ctx).apply(breaker)) {
+                            assertNotNull(columnReader);
+                            testBlock = (TestBlock) columnReader.read(
+                                TestBlock.factory(),
+                                TestBlock.docs(IntStream.range(0, numDocs).toArray()),
+                                0,
+                                randomBoolean()
+                            );
+                        }
                     }
                     for (int i = 0; i < textValues.size(); i++) {
                         Object expected = textValues.get(i);
@@ -2536,6 +2549,7 @@ public class TextFieldMapperTests extends MapperTestCase {
                     }
                 }
             }
+            assertThat(breaker.getUsed(), equalTo(0L));
         }
     }
 

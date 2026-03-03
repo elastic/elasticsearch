@@ -82,6 +82,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -114,6 +115,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
+import org.elasticsearch.indices.IndicesServiceTests;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -125,7 +127,6 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.StatusInfo;
@@ -837,8 +838,7 @@ public class SnapshotResiliencyTestHelper {
                                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                                 }
-                            },
-                            mock(SamplingService.class)
+                            }
                         ),
                         client,
                         actionFilters,
@@ -853,8 +853,7 @@ public class SnapshotResiliencyTestHelper {
                             public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                                 return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                             }
-                        },
-                        mock(SamplingService.class)
+                        }
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
@@ -941,7 +940,9 @@ public class SnapshotResiliencyTestHelper {
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
-                        usageService
+                        usageService,
+                        new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
+                        ActivityLogWriterProvider.NOOP
                     )
                 );
                 actions.put(
@@ -1279,7 +1280,7 @@ public class SnapshotResiliencyTestHelper {
                 deterministicTaskQueue.scheduleNow(runnable);
             }
 
-            private void scheduleSoon(Runnable runnable) {
+            protected void scheduleSoon(Runnable runnable) {
                 deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L), runnable);
             }
         }

@@ -14,9 +14,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.datageneration.Mapping;
-import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.matchers.source.FlattenedFieldMatcher;
-import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,18 +25,20 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
+public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
 
     public FlattenedFieldRootBlockLoaderTests(Params params) {
-        super("flattened", List.of(new ASCIIStringsHandler()), params);
+        super("flattened", params);
     }
 
     @Override
-    protected BlockLoaderTestRunner.ResultMatcher getResultMatcher(Settings.Builder settings, Mapping mapping, String fullFieldName) {
-        return (expected, actual) -> {
+    protected BlockLoaderTestRunner configureRunner(BlockLoaderTestRunner runner, Settings.Builder settings, Mapping mapping) {
+        return runner.matcher((expected, actual) -> {
             try {
                 var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
                 var matcher = new FlattenedFieldMatcher(mappingXContent, settings, mappingXContent, settings);
@@ -45,14 +46,14 @@ public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
                 List<Object> expectedList = parseExpected(expected);
                 List<Object> actualList = parseActual(actual);
 
-                var fieldMapping = mapping.lookup().get(fullFieldName);
+                var fieldMapping = mapping.lookup().get(runner.fieldName());
 
                 var result = matcher.match(actualList, expectedList, fieldMapping, fieldMapping);
                 assertTrue(result.getMessage(), result.isMatch());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        };
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -96,12 +97,34 @@ public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        return value;
+        var nullValue = (String) fieldMapping.get("null_value");
+        return nullValue == null ? value : applyFlattenedNullValue(value, nullValue);
+    }
+
+    /**
+     * Mirrors flattened source normalization by materializing mapped {@code null_value}
+     * for null leaves in the expected source tree before comparison.
+     */
+    private static Object applyFlattenedNullValue(Object value, String nullValue) {
+        return switch (value) {
+            case null -> nullValue;
+            case Map<?, ?> map -> map.entrySet()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        e -> (String) e.getKey(),
+                        e -> applyFlattenedNullValue(e.getValue(), nullValue),
+                        (a, b) -> b,
+                        LinkedHashMap::new
+                    )
+                );
+            case List<?> list -> list.stream().map(v -> applyFlattenedNullValue(v, nullValue)).toList();
+            default -> value;
+        };
     }
 
     @Override
-    public void testBlockLoaderOfMultiField() {
-        assumeTrue("flattened fields do not support multi fields", false);
+    protected boolean supportsMultiField() {
+        return false;
     }
-
 }

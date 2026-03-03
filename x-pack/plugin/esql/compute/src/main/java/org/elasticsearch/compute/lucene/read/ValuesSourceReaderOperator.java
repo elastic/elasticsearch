@@ -9,7 +9,8 @@ package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocBlock;
@@ -17,7 +18,7 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.logging.LogManager;
@@ -59,7 +61,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         List<FieldInfo> fields,
         IndexedByShardId<ShardContext> shardContexts,
         boolean reuseColumnLoaders,
-        int docChannel
+        int docChannel,
+        double sourceReservationFactor
     ) implements OperatorFactory {
         public Factory
 
@@ -77,7 +80,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                 fields,
                 shardContexts,
                 reuseColumnLoaders,
-                docChannel
+                docChannel,
+                sourceReservationFactor
             );
         }
 
@@ -167,11 +171,37 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private final boolean reuseColumnLoaders;
     private final int docChannel;
 
+    /**
+     * Multiplier applied to {@link #lastKnownSourceSize} to pre-reserve memory on the circuit
+     * breaker before loading {@code _source}. A factor of 3.0 covers the large untracked
+     * allocations from source parsing such as the scratch buffer, SourceFilter.filterBytes() and
+     * JSON parsing overhead. This is a heuristic and can be adjusted based on observed
+     * memory usage patterns.
+     */
+    final double sourceReservationFactor;
+
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
 
     private int lastShard = -1;
     private int lastSegment = -1;
+
+    /**
+     * The maximum raw byte size of _source observed so far. This persists across pages so
+     * the pre-reservation for source parsing overhead can protect even the first (and only)
+     * document in a page. On a 512MB JVM, jumboBytes is ~512KB, so each 5MB text field
+     * creates a 1-doc page. Without persisting this, every page starts with 0 reservation.
+     */
+    long lastKnownSourceSize;
+
+    /**
+     * Persistent reservation on the circuit breaker for the expected overhead of _source
+     * parsing. Held while this operator is active and loading large documents. When multiple
+     * operators load large _source concurrently, their persistent reservations accumulate
+     * on the shared circuit breaker, causing it to trip before the aggregate untracked
+     * temporaries from concurrent loads can overwhelm the heap.
+     */
+    private long sourceLoadingReservation;
 
     /**
      * Creates a new extractor
@@ -184,7 +214,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         List<FieldInfo> fields,
         IndexedByShardId<? extends ShardContext> shardContexts,
         boolean reuseColumnLoaders,
-        int docChannel
+        int docChannel,
+        double sourceReservationFactor
     ) {
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
@@ -198,15 +229,48 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         this.shardContexts = shardContexts;
         this.reuseColumnLoaders = reuseColumnLoaders;
         this.docChannel = docChannel;
+        this.sourceReservationFactor = sourceReservationFactor;
     }
 
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
+        acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
         return appendBlockArrays(
             page,
             docVector.singleSegment() ? new ValuesFromSingleReader(this, docVector) : new ValuesFromManyReader(this, docVector)
         );
+    }
+
+    /**
+     * Acquires or increases the persistent source loading reservation on the circuit breaker.
+     * Called at the start of each page and after each row load that updates
+     * {@link #lastKnownSourceSize}. If the breaker trips, the exception propagates and
+     * prevents further loading, limiting concurrent large _source operations.
+     */
+    void acquireSourceLoadingReservation() {
+        long needed = (long) (lastKnownSourceSize * sourceReservationFactor);
+        long additional = needed - sourceLoadingReservation;
+        if (additional > 0) {
+            driverContext.blockFactory().adjustBreaker(additional);
+            sourceLoadingReservation = needed;
+            if (log.isDebugEnabled()) {
+                log.debug("reserve {}/{} bytes on circuit breaker for source loading", additional, sourceLoadingReservation);
+            }
+        }
+    }
+
+    /**
+     * Updates the source loading reservation if the source bytes from the current document
+     * exceed what we've seen before, then releases the parsed source to free memory.
+     */
+    void trackSourceBytesAndRelease(BlockLoaderStoredFieldsFromLeafLoader storedFields) {
+        long sourceBytes = storedFields.lastSourceBytesSize();
+        if (sourceBytes > lastKnownSourceSize) {
+            lastKnownSourceSize = sourceBytes;
+            acquireSourceLoadingReservation();
+        }
+        storedFields.releaseParsedSource();
     }
 
     void positionFieldWork(int shard, int segment, int firstDoc) {
@@ -266,14 +330,23 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     @Override
     public void close() {
-        Releasables.close(super::close, converterEvaluators);
+        if (sourceLoadingReservation > 0) {
+            driverContext.blockFactory().adjustBreaker(-sourceLoadingReservation);
+            sourceLoadingReservation = 0;
+            if (log.isDebugEnabled()) {
+                log.debug("release {} bytes from circuit breaker after source loading", sourceLoadingReservation);
+            }
+        }
+        Releasables.close(super::close, converterEvaluators, Releasables.wrap(fields));
     }
 
-    protected class FieldWork {
+    protected class FieldWork implements Releasable {
         final FieldInfo info;
         private final int fieldIdx;
 
         BlockLoader loader;
+        // TODO rework this bit of mutable state into something harder to forget
+        // Seriously, I've tripped over this twice.
         @Nullable
         ConverterEvaluator converter;
         @Nullable
@@ -288,16 +361,18 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         void sameSegment(int firstDoc) {
             if (columnAtATime != null && columnAtATime.canReuse(firstDoc) == false) {
+                // TODO count the number of times we can't reuse?
+                columnAtATime.close();
                 columnAtATime = null;
             }
             if (rowStride != null && rowStride.canReuse(firstDoc) == false) {
+                rowStride.close();
                 rowStride = null;
             }
         }
 
         void sameShardNewSegment() {
-            columnAtATime = null;
-            rowStride = null;
+            closeReaders();
         }
 
         void newShard(int shard) {
@@ -305,22 +380,25 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             loader = l.loader;
             converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
             log.debug("moved to shard {} {} {}", shard, loader, converter);
-            columnAtATime = null;
-            rowStride = null;
+            sameShardNewSegment();
         }
 
         BlockLoader.ColumnAtATimeReader columnAtATime(LeafReaderContext ctx) throws IOException {
             if (columnAtATime == null) {
-                IOSupplier<BlockLoader.ColumnAtATimeReader> supplier = loader.columnAtATimeReader(ctx);
-                if (supplier == null) {
+                IOFunction<CircuitBreaker, BlockLoader.ColumnAtATimeReader> fn = loader.columnAtATimeReader(ctx);
+                if (fn == null) {
                     trackReader("column_at_a_time", null);
                     return null;
                 }
                 if (reuseColumnLoaders) {
-                    columnAtATime = supplier.get();
+                    columnAtATime = fn.apply(driverContext.breaker());
                     trackReader("column_at_a_time", columnAtATime);
                 } else {
-                    columnAtATime = new ColumnAtATimeReaderWithoutReuse(supplier, r -> trackReader("column_at_a_time", r));
+                    columnAtATime = new ColumnAtATimeReaderWithoutReuse(
+                        driverContext.breaker(),
+                        fn,
+                        r -> trackReader("column_at_a_time", r)
+                    );
                 }
             }
             return columnAtATime;
@@ -328,7 +406,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         BlockLoader.RowStrideReader rowStride(LeafReaderContext ctx) throws IOException {
             if (rowStride == null) {
-                rowStride = loader.rowStrideReader(ctx);
+                rowStride = loader.rowStrideReader(driverContext.breaker(), ctx);
                 trackReader("row_stride", this.rowStride);
             }
             return rowStride;
@@ -336,6 +414,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         private void trackReader(String type, BlockLoader.Reader reader) {
             readersBuilt.merge(info.name + ":" + type + ":" + reader, 1, (prev, one) -> prev + one);
+        }
+
+        @Override
+        public void close() {
+            closeReaders();
+        }
+
+        private void closeReaders() {
+            Releasables.close(columnAtATime, rowStride);
+            columnAtATime = null;
+            rowStride = null;
         }
     }
 

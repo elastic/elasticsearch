@@ -10,13 +10,13 @@ package org.elasticsearch.compute.operator.topn;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -24,15 +24,12 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Rule;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -74,8 +71,6 @@ public class TopNOomRaceTests extends ESTestCase {
         return parameters;
     }
 
-    @Rule(order = Integer.MIN_VALUE)
-    public static final AnyFailedWatcher watcher = new AnyFailedWatcher();
     private final int repeats;
 
     public TopNOomRaceTests(int repeats) {
@@ -83,22 +78,22 @@ public class TopNOomRaceTests extends ESTestCase {
     }
 
     public void testRace() {
-        assumeFalse("previous test failed", watcher.anyFailed);
         int driverCount = 6;
         double usedByEachThread = .3;
-        ByteSizeValue limit = ByteSizeValue.ofBytes(Runtime.getRuntime().freeMemory());
+        ByteSizeValue limit = ByteSizeValue.ofBytes(Runtime.getRuntime().totalMemory() - ByteSizeValue.ofMb(30).getBytes());
         int approxObjectRefsPerFilledRow = 5;
-        int approxSizePerFilledRow = RamUsageEstimator.NUM_BYTES_OBJECT_REF * approxObjectRefsPerFilledRow + repeats * Integer.BYTES;
+        // One byte for the null/non-null marker
+        int approxSizePerFilledRow = RamUsageEstimator.NUM_BYTES_OBJECT_REF * approxObjectRefsPerFilledRow + repeats * (1 + Integer.BYTES);
         int topCount = (int) ((double) limit.getBytes() / approxSizePerFilledRow * usedByEachThread) - 1;
         int maxInput = topCount * 3;
         assertThat(topCount, greaterThan(0));
+        logger.info("limit={} approxSizePerFilledRow={} topCount={}", limit, approxSizePerFilledRow, topCount);
 
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit);
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         List<DriverContext> contexts = new ArrayList<>();
         List<Driver> drivers = new ArrayList<>();
         for (int d = 0; d < driverCount; d++) {
-            MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+            MockBlockFactory blockFactory = new MockBlockFactory(BlockFactory.builder(bigArrays));
             DriverContext driverContext = new DriverContext(bigArrays, blockFactory, null);
             contexts.add(driverContext);
 
@@ -125,13 +120,15 @@ public class TopNOomRaceTests extends ESTestCase {
             };
             TopNOperator topn = new TopNOperator(
                 blockFactory,
-                breaker,
+                blockFactory.breaker(),
                 topCount,
                 Collections.nCopies(repeats, ElementType.INT),
                 Collections.nCopies(repeats, TopNEncoder.DEFAULT_SORTABLE),
                 List.of(new TopNOperator.SortOrder(0, false, false)),
                 Integer.MAX_VALUE,
-                InputOrdering.NOT_SORTED
+                Long.MAX_VALUE,
+                InputOrdering.NOT_SORTED,
+                null
             );
             drivers.add(TestDriverFactory.create(driverContext, source, List.of(topn), new PageConsumerOperator(page -> {
                 assertThat(page.getPositionCount(), equalTo(topCount));
@@ -144,12 +141,8 @@ public class TopNOomRaceTests extends ESTestCase {
         }
     }
 
-    public static class AnyFailedWatcher extends TestWatcher {
-        private boolean anyFailed = false;
-
-        @Override
-        protected void failed(Throwable e, Description description) {
-            anyFailed = true;
-        }
+    @Override
+    protected boolean shouldFailureSkipRemainingTests() {
+        return true;
     }
 }

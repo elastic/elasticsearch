@@ -8,12 +8,16 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,9 +34,11 @@ public class PreAnalyzer {
         List<Enrich> enriches,
         List<IndexPattern> lookupIndices,
         boolean useAggregateMetricDoubleWhenNotSupported,
-        boolean useDenseVectorWhenNotSupported
+        boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
+        List<String> icebergPaths
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false);
+        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false, false, List.of());
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -62,6 +68,18 @@ public class PreAnalyzer {
 
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
+
+        // Collect external source paths from UnresolvedExternalRelation nodes
+        List<String> icebergPaths = new ArrayList<>();
+        plan.forEachUp(UnresolvedExternalRelation.class, p -> {
+            // Extract string path from the tablePath expression
+            // For now, we only support literal string paths (parameters will be resolved later)
+            if (p.tablePath() instanceof Literal literal && literal.value() != null) {
+                // Use BytesRefs.toString() which handles both BytesRef and String
+                String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
+                icebergPaths.add(path);
+            }
+        });
 
         /*
          * Enable aggregate_metric_double and dense_vector when we see certain functions
@@ -98,6 +116,10 @@ public class PreAnalyzer {
             }
         }));
 
+        Holder<Boolean> hasTimeSeriesAggregation = new Holder<>(false);
+        plan.forEachUp(TimeSeriesAggregate.class, p -> hasTimeSeriesAggregation.set(true));
+        plan.forEachUp(PromqlCommand.class, p -> hasTimeSeriesAggregation.set(true));
+
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
@@ -106,7 +128,9 @@ public class PreAnalyzer {
             unresolvedEnriches,
             lookupIndices,
             useAggregateMetricDoubleWhenNotSupported.get(),
-            useDenseVectorWhenNotSupported.get()
+            useDenseVectorWhenNotSupported.get(),
+            hasTimeSeriesAggregation.get(),
+            icebergPaths
         );
     }
 }

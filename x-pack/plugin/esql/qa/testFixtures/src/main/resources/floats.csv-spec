@@ -311,6 +311,48 @@ a:double | acos:double
       12 | null
 ;
 
+acosh
+required_capability: acosh_function
+// tag::acosh[]
+ROW a=1.8
+| EVAL acosh=ACOSH(a)
+// end::acosh[]
+;
+
+// tag::acosh-result[]
+a:double | acosh:double
+     1.8 | 1.1929107309930491
+// end::acosh-result[]
+;
+
+asinh
+required_capability: asinh_function
+// tag::asinh[]
+ROW a=1.8
+| EVAL asinh=ASINH(a)
+// end::asinh[]
+;
+
+// tag::asinh-result[]
+a:double | asinh:double
+     1.8 | 1.3504407402749725
+// end::asinh-result[]
+;
+
+atanh
+required_capability: atanh_function
+// tag::atanh[]
+ROW a=0.5
+| EVAL atanh=ATANH(a)
+// end::atanh[]
+;
+
+// tag::atanh-result[]
+a:double | atanh:double
+     0.5 | 0.5493061443340548
+// end::atanh-result[]
+;
+
 sin
 // tag::sin[]
 ROW a=1.8

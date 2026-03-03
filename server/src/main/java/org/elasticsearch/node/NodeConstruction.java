@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OnlinePrewarmingServiceProvider;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
+import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -51,6 +52,7 @@ import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -73,6 +75,8 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.DynamicContextDataProvider;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.Log4jWriter;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -147,7 +151,6 @@ import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.injection.guice.Key;
 import org.elasticsearch.injection.guice.Module;
@@ -713,6 +716,8 @@ class NodeConstruction {
 
         modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
+        TemplateDecoratorProvider.initOnce(pluginsService.loadServiceProviders(TemplateDecoratorProvider.class));
+
         RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
             RootObjectMapperNamespaceValidator.class,
             () -> new DefaultRootObjectMapperNamespaceValidator()
@@ -739,10 +744,6 @@ class NodeConstruction {
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
-        SamplingService samplingService = SamplingService.create(scriptService, clusterService, settings);
-        modules.bindToInstance(SamplingService.class, samplingService);
-        clusterService.addListener(samplingService);
-
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         final IngestService ingestService = new IngestService(
             clusterService,
@@ -755,8 +756,7 @@ class NodeConstruction {
             IngestService.createGrokThreadWatchdog(environment, threadPool),
             failureStoreMetrics,
             projectResolver,
-            featureService,
-            samplingService
+            featureService
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -880,7 +880,7 @@ class NodeConstruction {
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
 
-        List<? extends ActionLoggingFieldsProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(
+        List<? extends ActionLoggingFieldsProvider> loggingFieldsProviders = pluginsService.loadServiceProviders(
             ActionLoggingFieldsProvider.class
         );
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
@@ -888,7 +888,7 @@ class NodeConstruction {
         ActionLoggingFieldsProvider loggingFieldsProvider = new ActionLoggingFieldsProvider() {
             public ActionLoggingFields create(ActionLoggingFieldsContext context) {
                 final List<ActionLoggingFields> fields = new ArrayList<>();
-                for (var provider : slowLogFieldProviders) {
+                for (var provider : loggingFieldsProviders) {
                     fields.add(provider.create(context));
                 }
                 return new ActionLoggingFields(context) {
@@ -1278,6 +1278,12 @@ class NodeConstruction {
             onlinePrewarmingService
         );
 
+        final SearchTaskWatchdog searchTaskWatchdog = new SearchTaskWatchdog(
+            settingsModule.getClusterSettings(),
+            transportService.getTaskManager(),
+            threadPool
+        );
+
         final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
 
         modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
@@ -1331,6 +1337,11 @@ class NodeConstruction {
         );
         dataStreamAutoShardingService.init();
 
+        ActivityLogWriterProvider logWriterProvider = pluginsService.loadSingletonServiceProvider(
+            ActivityLogWriterProvider.class,
+            () -> Log4jWriter.PROVIDER
+        );
+
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);
             b.bind(BigArrays.class).toInstance(bigArrays);
@@ -1345,6 +1356,7 @@ class NodeConstruction {
             b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
             b.bind(MetadataIndexTemplateService.class).toInstance(metadataIndexTemplateService);
             b.bind(SearchService.class).toInstance(searchService);
+            b.bind(SearchTaskWatchdog.class).toInstance(searchTaskWatchdog);
             b.bind(SearchResponseMetrics.class).toInstance(searchResponseMetrics);
             b.bind(SearchTransportService.class).toInstance(searchTransportService);
             b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
@@ -1373,6 +1385,8 @@ class NodeConstruction {
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
+            b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
+            b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
         });
 
         if (ReadinessService.enabled(environment)) {

@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
@@ -434,6 +436,9 @@ public class EsqlCapabilities {
 
         /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
         ST_EXTENT_AGG_DOCVALUES,
+
+        /** Fix to bug with spatial aggregations not properly supporting the WHERE clause. Fixes #142329. */
+        SPATIAL_AGGS_FILTERING,
 
         /**
          * Fix determination of CRS types in spatial functions when folding.
@@ -1018,6 +1023,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_DEFAULT_METRIC,
 
         /**
+         * Support avg as a possible default metric for aggregate_metric_double
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG_AS_DEFAULT_METRIC,
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -1183,13 +1193,16 @@ public class EsqlCapabilities {
         /**
          * Support for views in cluster state (and REST API).
          */
-        VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+        VIEWS_IN_CLUSTER_STATE(EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
 
         /**
          * Basic Views with no branching (do not need subqueries or FORK).
          */
         VIEWS_WITH_NO_BRANCHING(VIEWS_IN_CLUSTER_STATE.isEnabled()),
-
+        /**
+         * Views crud actions as index actions
+         */
+        VIEWS_CRUD_AS_INDEX_ACTIONS(VIEWS_WITH_NO_BRANCHING.isEnabled()),
         /**
          * Views with branching (requires subqueries/FORK).
          */
@@ -1304,7 +1317,7 @@ public class EsqlCapabilities {
         LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
 
         /**
-         * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
+         * {@link LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
          * provides support for KQL in a STATS ... BY command that uses a KQL query for filter, for example.
          */
         LUCENE_QUERY_EVALUATOR_QUERY_REWRITE,
@@ -1486,9 +1499,14 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
-         * Decay function for custom scoring
+         * Decay function for custom scoring.
          */
         DECAY_FUNCTION,
+
+        /**
+         * Fix conversions for parameters for {@code DECAY}.
+         */
+        DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
          * Support correct counting of skipped shards.
@@ -1881,13 +1899,28 @@ public class EsqlCapabilities {
         /**
          * Bundle flag for PromQL math functions.
          */
-        PROMQL_MATH_V0(),
+        PROMQL_MATH_V0,
+
+        /**
+         * Support for the ACOSH function.
+         */
+        ACOSH_FUNCTION,
+
+        /**
+         * Support for the ASINH function.
+         */
+        ASINH_FUNCTION,
+
+        /**
+         * Support for the ATANH function.
+         */
+        ATANH_FUNCTION,
 
         /**
          * Initial support for simple binary comparisons in PromQL.
          * Only top-level comparisons are supported where the right-hand side is a scalar.
          */
-        PROMQL_BINARY_COMPARISON_V0(),
+        PROMQL_BINARY_COMPARISON_V0,
 
         /**
          * Support for PromQL time() function.
@@ -1895,10 +1928,37 @@ public class EsqlCapabilities {
         PROMQL_TIME,
 
         /**
+         * Support for deriving PromQL time buckets from [start, end, buckets] when [step] is omitted.
+         */
+        PROMQL_BUCKETS_PARAMETER,
+
+        /**
          * Queries for unmapped fields return no data instead of an error.
          * Also filters out nulls from results.
          */
         PROMQL_UNMAPPED_FIELDS_FILTER_NULLS,
+
+        /**
+         * Support for nested across-series aggregates in PromQL.
+         * E.g., avg(sum by (cluster) (rate(foo[5m])))
+         */
+        PROMQL_NESTED_AGGREGATES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Support post-processing STATS commands after PROMQL source commands.
+         */
+        PROMQL_POST_PROCESSING_STATS,
+
+        /**
+         * PromQL scalar() function support.
+         */
+        PROMQL_SCALAR,
+
+        /**
+         * Support implicit conversion from an instant selector to a range selector for range-vector functions.
+         * For example, `rate(metric)` is interpreted as `rate(metric[step])`.
+         */
+        PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1928,6 +1988,11 @@ public class EsqlCapabilities {
          * parameters like the other functions.
          */
         TOP_SNIPPETS_FUNCTION_STRING_CONFIG,
+
+        /**
+         * Does {@code TOP_SNIPPETS} process all field values?
+         */
+        TOP_SNIPPETS_MV,
 
         /**
          * Fix for multi-value constant propagation after GROUP BY.
@@ -1968,7 +2033,7 @@ public class EsqlCapabilities {
         /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
          */
-        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
+        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION,
 
         /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an
@@ -2004,6 +2069,11 @@ public class EsqlCapabilities {
         DENSE_VECTOR_ARITHMETIC,
 
         /**
+         * Support for arithmetic operations (+, -, *, /) between dense_vector and scalar values
+         */
+        DENSE_VECTOR_SCALAR_ARITHMETIC,
+
+        /**
          * Dense_vector aggregation functions
          */
         DENSE_VECTOR_AGG_FUNCTIONS,
@@ -2026,6 +2096,13 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/139887
          */
         FIX_INLINE_STATS_GROUP_BY_NULL(INLINE_STATS.enabled),
+
+        /**
+         * Fix null comparison type check in binary comparisons.
+         * Null should be compatible with any type in binary comparisons.
+         * https://github.com/elastic/elasticsearch/issues/140460
+         */
+        FIX_NULL_COMPARISON_TYPE_CHECK,
 
         /**
          * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
@@ -2079,9 +2156,85 @@ public class EsqlCapabilities {
         TDIGEST_TIME_SERIES_METRIC,
 
         /**
+         * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
+         */
+        TDIGEST_MEDIAN,
+
+        /**
          * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
          */
         TS_COMMAND_GROUP_ON_ALIASES,
+
+        /**
+         * Implicit SORT @timestamp DESC for TS queries without STATS or explicit SORT.
+         */
+        TS_IMPLICIT_TIMESTAMP_SORT,
+
+        /**
+         * Fixes https://github.com/elastic/elasticsearch/issues/139359
+         */
+        INLINE_STATS_DROP_GROUPINGS_FIX(INLINE_STATS.enabled),
+
+        /**
+         * Temporary capability until the MMR operator is merged to pass the BWC CI tests
+         * Without this, the CSV tests for MMR will try and run (if just using the `mmr` capability)
+         * however, without the MMRExec to operator code in place, will fail on the snapshot
+         * TODO - remove this once the MMR operator is merged
+         */
+        MMR_V2(Build.current().isSnapshot()),
+
+        /**
+         * Supports the {@code URI_PARTS}) command.
+         */
+        URI_PARTS_COMMAND,
+
+        /**
+         * Support for the METRICS_INFO command.
+         */
+        METRICS_INFO_COMMAND,
+
+        /**
+         * Produce a {@code warning} and {@code null} when you run
+         * {@code ABS} on {@code Long.MIN_VALUE}.
+         */
+        FN_ABS_MIN_WARNING,
+
+        /**
+         * Supports the REGISTERED_DOMAIN command.
+         */
+        REGISTERED_DOMAIN_COMMAND,
+
+        /**
+         * The {@code GROK}, {@code DISSECT}, {@code URI_PARTS}, and {@code REGISTERED_DOMAIN}
+         * commands accept {@code null} typed parameters and produce {@code null} results.
+         */
+        STR_COMMANDS_ACCEPT_NULL,
+
+        /**
+         * Support for the EXTERNAL command (datasource access).
+         */
+        EXTERNAL_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * https://github.com/elastic/elasticsearch/issues/142219
+         */
+        INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
+
+        /**
+         * Support for function {@code JSON_EXTRACT}.
+         */
+        FN_JSON_EXTRACT,
+
+        /**
+         * Fix for an ArrayIndexOutOfBoundsException in the aggregation framework when the same field is passed twice.
+         * https://github.com/elastic/elasticsearch/issues/142180
+         */
+        FIX_AGGREGATION_FRAMEWORK_CHANNELS,
+
+        /**
+         * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
+         */
+        TS_INFO_COMMAND,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

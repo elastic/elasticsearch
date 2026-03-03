@@ -11,8 +11,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -68,6 +70,20 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
+    private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else {
+                for (String warning : warnings) {
+                    if ("Parameter [default_metric] is deprecated and will be removed in a future version".equals(warning) == false) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        })
+        .build();
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -1395,20 +1411,26 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 "default_metric": "max"
               }
             }
-            """);
-        ESRestTestCase.createIndex("metrics-long", settings, """
-            "properties": {
-              "@timestamp": { "type": "date" },
-              "metric.name": {
-                "type": "keyword",
-                "time_series_dimension": true
-              },
-              "metric.value": {
-                "type": "long",
-                "time_series_metric": "gauge"
-              }
-            }
-            """);
+            """, null, DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
+        try {
+            ESRestTestCase.createIndex("metrics-long", settings, """
+                "properties": {
+                  "@timestamp": { "type": "date" },
+                  "metric.name": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  },
+                  "metric.value": {
+                    "type": "long",
+                    "time_series_metric": "gauge"
+                  }
+                }
+                """);
+        } catch (WarningFailureException warningException) {
+            Map<String, Object> indexMapping = ESRestTestCase.getIndexMapping("metrics-long");
+            logger.error("Received warning when creating index [metrics-long] with mapping [{}]", indexMapping);
+            throw warningException;
+        }
         ESRestTestCase.createIndex("metrics-long_dimension", settings, """
             "properties": {
               "@timestamp": { "type": "date" },
@@ -1475,13 +1497,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             List.of(unsupportedColumnInfo("metric.value", "double", "keyword")),
             List.of(matchesList().item(null), matchesList().item(null))
         );
-
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            () -> runEsql("TS metrics-long,metrics-long_dimension | KEEP metric.value")
-        );
-        String err = EntityUtils.toString(e.getResponse().getEntity());
-        assertThat(err, containsString("Time Series Metadata conflict.  Cannot merge [DIMENSION] with [METRIC]."));
     }
 
     protected Matcher<Integer> pidMatcher() {

@@ -34,7 +34,6 @@ public class PushdownGoldenTests extends GoldenTestCase {
         runUnmappedTests(query);
     }
 
-
     public void testSortPushdownNoUnmapped() {
         String query = """
             FROM sample_data

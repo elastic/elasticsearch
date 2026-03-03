@@ -1,7 +1,9 @@
 # ES|QL documentation
 
-> [!INFO] 
+> [!NOTEO] 
 > This directory contains the source files for the [ES|QL documentation](https://www.elastic.co/docs/reference/query-languages/esql).
+
+This README covers how the ES|QL docs are structured, what's hand-written vs. auto-generated, and how to add or update commands and functions correctly.
 
 Jump to:
 

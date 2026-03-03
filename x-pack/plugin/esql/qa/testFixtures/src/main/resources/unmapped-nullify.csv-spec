@@ -523,6 +523,8 @@ x:integer      |does_not_exist:null |y:keyword | language_name:keyword
 ;
 
 tsImplicitTimestampSortBasicWithMissing
+required_capability: ts_command_v0
+required_capability: ts_implicit_timestamp_sort
 required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
@@ -538,6 +540,7 @@ TS k8s | WHERE cluster == "qa" | KEEP @timestamp, cluster, pod, does_not_exist |
 ;
 
 tsWithAggsAndMissing
+required_capability: ts_command_v0
 required_capability: optional_fields_nullify_skip_group_aliases
 
 SET unmapped_fields="nullify"\;
@@ -551,6 +554,7 @@ null           | staging
 ;
 
 tsWithAggsByMissing
+required_capability: ts_command_v0
 required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;

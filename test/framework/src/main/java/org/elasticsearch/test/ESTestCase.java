@@ -1190,6 +1190,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextLong();
     }
 
+    /** A random long from 0..max (inclusive). */
+    public static long randomLong(long max) {
+        return RandomNumbers.randomLongBetween(random(), 0L, max);
+    }
+
     public static LongStream randomLongs() {
         return random().longs();
     }

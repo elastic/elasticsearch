@@ -223,6 +223,7 @@ public class TransportAwaitClusterStateVersionAppliedActionIT extends ESIntegTes
         assertThrows(TaskCancelledException.class, () -> future.actionGet(SAFE_AWAIT_TIMEOUT));
 
         for (var clusterService : internalCluster().getInstances(ClusterService.class)) {
+            // assertBusy because we complete the response listener just before unsubscribing
             assertBusy(() -> assertEquals(0, clusterService.getClusterApplierService().getTimeoutClusterStateListenersSize()));
         }
     }

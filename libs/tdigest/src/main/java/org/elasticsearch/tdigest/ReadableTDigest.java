@@ -36,25 +36,6 @@ public interface ReadableTDigest {
     long size();
 
     /**
-     * Returns the fraction of all points added which are &le; x. Points
-     * that are exactly equal get half credit (i.e. we use the mid-point
-     * rule)
-     *
-     * @param x The cutoff for the cdf.
-     * @return The fraction of all data which is less or equal to x.
-     */
-    double cdf(double x);
-
-    /**
-     * Returns an estimate of a cutoff such that a specified fraction of the data
-     * added to this TDigest would be less than or equal to the cutoff.
-     *
-     * @param q The desired fraction
-     * @return The smallest value x such that cdf(x) &ge; q
-     */
-    double quantile(double q);
-
-    /**
      * A {@link Collection} that lets you go through the centroids in ascending order by mean.  Centroids
      * returned will not be re-used, but may or may not share storage with this TDigest.
      *

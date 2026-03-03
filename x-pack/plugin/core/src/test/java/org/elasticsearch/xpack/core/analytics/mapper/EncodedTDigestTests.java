@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.analytics.mapper;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.tdigest.Centroid;
-import org.elasticsearch.tdigest.ReadableTDigest;
 import org.elasticsearch.tdigest.TDigest;
 import org.elasticsearch.test.ESTestCase;
 
@@ -24,6 +23,20 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notANumber;
 
 public class EncodedTDigestTests extends ESTestCase {
+
+    private double quantile(EncodedTDigest tdigest, double quantile) {
+        try (TDigest temporary = TDigest.createMergingDigest(arrays(), 1000.0)) {
+            temporary.add(tdigest);
+            return temporary.quantile(quantile);
+        }
+    }
+
+    private double cdf(EncodedTDigest tdigest, double x) {
+        try (TDigest temporary = TDigest.createMergingDigest(arrays(), 1000.0)) {
+            temporary.add(tdigest);
+            return temporary.cdf(x);
+        }
+    }
 
     public void testEncodingPreservesTDigestProperties() {
         try (TDigest digest = randomDigest()) {
@@ -68,9 +81,9 @@ public class EncodedTDigestTests extends ESTestCase {
         assertThat(encoded.encodedDigest().length, equalTo(0));
         assertThat(encoded.getMin(), is(notANumber()));
         assertThat(encoded.getMax(), is(notANumber()));
-        assertThat(encoded.cdf(0.0), is(notANumber()));
-        assertThat(encoded.quantile(0.0), is(notANumber()));
-        assertThat(encoded.quantile(1.0), is(notANumber()));
+        assertThat(cdf(encoded, 0.0), is(notANumber()));
+        assertThat(quantile(encoded, 0.0), is(notANumber()));
+        assertThat(quantile(encoded, 1.0), is(notANumber()));
         EncodedTDigest.CentroidIterator iterator = encoded.centroidIterator();
         assertThat(iterator.hasNext(), is(false));
         assertThat(iterator.next(), is(false));
@@ -87,8 +100,8 @@ public class EncodedTDigestTests extends ESTestCase {
 
     private TDigest randomDigest() {
         double compression = randomDoubleBetween(20.0, 500.0, true);
-        try (TDigest digest = TDigest.createAvlTreeDigest(arrays(), compression)) {
-            int values = randomIntBetween(1, 300);
+        try (TDigest digest = TDigest.createMergingDigest(arrays(), compression)) {
+            int values = randomIntBetween(1, 3000);
             for (int i = 0; i < values; i++) {
                 double value = random().nextGaussian() * 200 + randomDoubleBetween(-100, 100, true);
                 long weight = randomIntBetween(1, 4);
@@ -97,7 +110,7 @@ public class EncodedTDigestTests extends ESTestCase {
             digest.compress();
 
             // Create a digest from centroids only to ensure no hidden state affects results.
-            TDigest result = TDigest.createAvlTreeDigest(arrays(), compression);
+            TDigest result = TDigest.createMergingDigest(arrays(), compression);
             for (Centroid centroid : digest.centroids()) {
                 result.add(centroid.mean(), centroid.count());
             }
@@ -109,7 +122,7 @@ public class EncodedTDigestTests extends ESTestCase {
         return new MemoryTrackingTDigestArrays(newLimitedBreaker(ByteSizeValue.ofMb(100)));
     }
 
-    private void assertTDigestsMatch(ReadableTDigest expected, EncodedTDigest encoded) {
+    private void assertTDigestsMatch(TDigest expected, EncodedTDigest encoded) {
         assertCentroidsEqual(expected.centroids(), encoded.centroids());
         assertThat(encoded.size(), equalTo(expected.size()));
         assertThat(encoded.getMin(), equalTo(expected.getMin()));
@@ -128,7 +141,7 @@ public class EncodedTDigestTests extends ESTestCase {
             }
         }
         for (double probe : cdfProbes) {
-            assertThat(encoded.cdf(probe), equalTo(expected.cdf(probe)));
+            assertThat(cdf(encoded, probe), equalTo(expected.cdf(probe)));
         }
 
         List<Double> quantileProbes = new ArrayList<>();
@@ -139,7 +152,7 @@ public class EncodedTDigestTests extends ESTestCase {
             quantileProbes.add(randomDoubleBetween(0.0, 1.0, true));
         }
         for (double q : quantileProbes) {
-            assertThat(encoded.quantile(q), equalTo(expected.quantile(q)));
+            assertThat(quantile(encoded, q), equalTo(expected.quantile(q)));
         }
     }
 

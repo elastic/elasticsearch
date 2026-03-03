@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.core.analytics.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.tdigest.AbstractCentroidBackedTDigest;
 import org.elasticsearch.tdigest.Centroid;
+import org.elasticsearch.tdigest.ReadableTDigest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,7 +28,7 @@ import java.util.List;
  *     <li>centroid mean as IEEE754 double (8 bytes, big-endian)</li>
  * </ul>
  */
-public final class EncodedTDigest extends AbstractCentroidBackedTDigest {
+public final class EncodedTDigest implements ReadableTDigest {
 
     private final BytesRef encodedDigest = new BytesRef();
     private long cachedSize = -1L;
@@ -43,7 +43,7 @@ public final class EncodedTDigest extends AbstractCentroidBackedTDigest {
 
     /**
      * Replaces the underlying encoded digest bytes.
-     * All decoding happens lazily when methods like {@link #size()} or {@link #cdf(double)} are called.
+     * All decoding happens lazily when methods like {@link #size()} are called.
      * The provided {@code encodedDigest} is copied shallowly, so the caller is responsible for ensuring
      * that the bytes remain unchanged for the lifetime of this instance.
      *
@@ -212,6 +212,22 @@ public final class EncodedTDigest extends AbstractCentroidBackedTDigest {
         cachedSize = size;
         cachedMax = max;
         cachedCentroidCount = centroidCount;
+    }
+
+    /**
+     * Iterator over centroids in increasing mean order.
+     */
+    public interface CentroidIterator {
+        boolean next();
+
+        long currentCount();
+
+        double currentMean();
+
+        /**
+         * Returns {@code true} iff a call to {@link #next()} would return {@code false}.
+         */
+        boolean hasNext();
     }
 
     private static final class EncodedCentroidIterator implements CentroidIterator {

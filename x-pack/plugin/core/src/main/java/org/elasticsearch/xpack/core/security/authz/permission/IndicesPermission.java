@@ -639,6 +639,9 @@ public final class IndicesPermission {
         final Map<String, DocumentLevelPermissions> roleQueriesByIndex = Maps.newMapWithExpectedSize(totalResourceCount);
         final Set<String> grantedResources = Sets.newHashSetWithExpectedSize(totalResourceCount);
 
+        final DocumentLevelPermissionsInterner documentLevelPermissionsInterner = new DocumentLevelPermissionsInterner();
+        final SetInterner<FieldPermissions> fieldPermissionsSetInterner = new SetInterner<>();
+
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
         for (Map.Entry<String, IndexResource> resourceEntry : requestedResources.entrySet()) {
@@ -665,26 +668,37 @@ public final class IndicesPermission {
                                     // Most indices rely on the default (empty) field permissions object, so we optimize for that case
                                     // Using an immutable single item set is significantly faster because it avoids any of the hashing
                                     // and backing set creation.
-                                    return Set.of(group.getFieldPermissions());
-                                } else if (existingSet.size() == 1) {
+                                    return fieldPermissionsSetInterner.getOrCreate(Set.of(group.getFieldPermissions()));
+                                } else {
                                     FieldPermissions fp = group.getFieldPermissions();
                                     if (existingSet.contains(fp)) {
                                         return existingSet;
                                     }
-                                    // This index doesn't have a single field permissions object, replace the singleton with a real Set
+                                    // we have to create a new set because the existing set is shared (interned) and we don't want to modify
+                                    // it. We use a HashSet here because we expect that in most cases there will be very few permissions per
+                                    // index, so the cost of copying is small and the O(1) cost of adding is worth it compared to the O(n)
+                                    // cost of checking for duplicates in a list. Note that hashes in FieldPermissions are cached too.
                                     final Set<FieldPermissions> hashSet = new HashSet<>(existingSet);
                                     hashSet.add(fp);
-                                    return hashSet;
-                                } else {
-                                    existingSet.add(group.getFieldPermissions());
-                                    return existingSet;
+                                    return fieldPermissionsSetInterner.getOrCreate(hashSet);
                                 }
                             });
 
                             DocumentLevelPermissions docPermissions;
                             if (group.hasQuery()) {
-                                docPermissions = roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
-                                docPermissions.addAll(group.getQuery());
+                                DocumentLevelPermissions existingDocPermissions = roleQueriesByIndex.getOrDefault(
+                                    index,
+                                    DocumentLevelPermissions.EMPTY
+                                );
+                                docPermissions = DocumentLevelPermissions.merge(
+                                    existingDocPermissions,
+                                    group.getQuery(),
+                                    documentLevelPermissionsInterner
+                                );
+                                if (existingDocPermissions != docPermissions) {
+                                    // only update the map if the permissions have actually changed
+                                    roleQueriesByIndex.put(index, docPermissions);
+                                }
                             } else {
                                 // if more than one permission matches for a concrete index here and if
                                 // a single permission doesn't have a role query then DLS will not be
@@ -718,24 +732,33 @@ public final class IndicesPermission {
         }
 
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedResources.size());
+        Map<Tuple<DocumentLevelPermissions, Set<FieldPermissions>>, IndicesAccessControl.IndexAccessControl> indexAccessControlCache =
+            new HashMap<>();
         for (String index : grantedResources) {
             final DocumentLevelPermissions permissions = roleQueriesByIndex.get(index);
-            final DocumentPermissions documentPermissions;
-            if (permissions != null && permissions.isAllowAll() == false) {
-                documentPermissions = DocumentPermissions.filteredBy(permissions.queries);
-            } else {
-                documentPermissions = DocumentPermissions.allowAll();
-            }
-            final FieldPermissions fieldPermissions;
             final Set<FieldPermissions> indexFieldPermissions = fieldPermissionsByIndex.get(index);
-            if (indexFieldPermissions != null && indexFieldPermissions.isEmpty() == false) {
-                fieldPermissions = indexFieldPermissions.size() == 1
-                    ? indexFieldPermissions.iterator().next()
-                    : fieldPermissionsCache.union(indexFieldPermissions);
-            } else {
-                fieldPermissions = FieldPermissions.DEFAULT;
-            }
-            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(fieldPermissions, documentPermissions));
+            IndicesAccessControl.IndexAccessControl indexAccessControl = indexAccessControlCache.computeIfAbsent(
+                Tuple.tuple(permissions, indexFieldPermissions),
+                documentAndFieldPermissions -> {
+                    final DocumentPermissions documentPermissions;
+                    if (documentAndFieldPermissions.v1() != null && documentAndFieldPermissions.v1().isAllowAll() == false) {
+                        documentPermissions = DocumentPermissions.filteredBy(documentAndFieldPermissions.v1().queries);
+                    } else {
+                        documentPermissions = DocumentPermissions.allowAll();
+                    }
+                    final FieldPermissions fieldPermissions;
+                    if (documentAndFieldPermissions.v2() != null && documentAndFieldPermissions.v2().isEmpty() == false) {
+                        fieldPermissions = documentAndFieldPermissions.v2().size() == 1
+                            ? documentAndFieldPermissions.v2().iterator().next()
+                            : fieldPermissionsCache.union(documentAndFieldPermissions.v2());
+                    } else {
+                        fieldPermissions = FieldPermissions.DEFAULT;
+                    }
+                    return new IndicesAccessControl.IndexAccessControl(fieldPermissions, documentPermissions);
+                }
+            );
+
+            indexPermissions.put(index, indexAccessControl);
         }
         return unmodifiableMap(indexPermissions);
     }
@@ -1060,25 +1083,69 @@ public final class IndicesPermission {
 
     private static class DocumentLevelPermissions {
 
-        public static final DocumentLevelPermissions ALLOW_ALL = new DocumentLevelPermissions();
-        static {
-            ALLOW_ALL.allowAll = true;
+        static final DocumentLevelPermissions ALLOW_ALL = new DocumentLevelPermissions(true);
+        static final DocumentLevelPermissions EMPTY = new DocumentLevelPermissions(false);
+
+        private final Set<BytesReference> queries;
+        private final boolean allowAll;
+
+        private DocumentLevelPermissions(boolean allowAll) {
+            queries = null;
+            this.allowAll = allowAll;
         }
 
-        private Set<BytesReference> queries = null;
-        private boolean allowAll = false;
+        DocumentLevelPermissions(Set<BytesReference> p) {
+            this.queries = p;
+            this.allowAll = false;
+        }
 
-        private void addAll(Set<BytesReference> query) {
-            if (allowAll == false) {
-                if (queries == null) {
-                    queries = Sets.newHashSetWithExpectedSize(query.size());
+        boolean isAllowAll() {
+            return allowAll;
+        }
+
+        static DocumentLevelPermissions merge(
+            DocumentLevelPermissions permissions,
+            Set<BytesReference> newQueries,
+            DocumentLevelPermissionsInterner cache
+        ) {
+            if (permissions.allowAll) {
+                return ALLOW_ALL;
+            } else {
+                var existingSize = permissions.queries == null ? 0 : permissions.queries.size();
+                var expectedSize = existingSize + newQueries.size();
+                Set<BytesReference> mergedQueries = Sets.newHashSetWithExpectedSize(expectedSize);
+                if (permissions.queries != null) {
+                    mergedQueries.addAll(permissions.queries);
                 }
-                queries.addAll(query);
+                mergedQueries.addAll(newQueries);
+                return cache.getOrCreate(mergedQueries, false);
             }
         }
+    }
 
-        private boolean isAllowAll() {
-            return allowAll;
+    private static class DocumentLevelPermissionsInterner {
+        private final Map<Set<BytesReference>, DocumentLevelPermissions> interned = new HashMap<>();
+
+        DocumentLevelPermissions getOrCreate(Set<BytesReference> permissions, boolean allowAll) {
+            if (allowAll) {
+                return DocumentLevelPermissions.ALLOW_ALL;
+            } else {
+                return interned.computeIfAbsent(permissions, p -> new DocumentLevelPermissions(Set.copyOf(p)));
+            }
+        }
+    }
+
+    private static class SetInterner<T> {
+        private final Map<Set<T>, Set<T>> interned = new HashMap<>();
+
+        /**
+         * @param set a set which must not be modified after being passed here
+         */
+        Set<T> getOrCreate(Set<T> set) {
+            // we don't make a copy of the underlying set to avoid the overhead.
+            // Unlike the DocumentLevelPermissionsInterner, the sets passed to his method are created only within IndicesPermission class
+            // where we can assume it will not be modified after being passed to this method
+            return interned.computeIfAbsent(set, Function.identity());
         }
     }
 }

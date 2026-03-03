@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
@@ -67,16 +69,21 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferSize);
         driverContext.addAsyncAction();
 
+        int rowLimit = baseRequest.rowLimit();
         if (sliceQueue != null) {
             executor.execute(() -> {
                 try {
+                    int rowsRemaining = rowLimit;
                     ExternalSplit split;
                     while ((split = sliceQueue.nextSplit()) != null) {
-                        if (buffer.noMoreInputs()) {
+                        if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
                             break;
                         }
                         try (ResultCursor cursor = connector.execute(request, split)) {
-                            ExternalSourceDrainUtils.drainPages(cursor, buffer);
+                            int consumed = ExternalSourceDrainUtils.drainPagesWithBudget(cursor, buffer);
+                            if (rowLimit != FormatReader.NO_LIMIT) {
+                                rowsRemaining -= consumed;
+                            }
                         }
                     }
                     buffer.finish(false);
@@ -93,7 +100,15 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         } else {
             executor.execute(() -> {
                 try (ResultCursor cursor = connector.execute(request, Split.SINGLE)) {
-                    ExternalSourceDrainUtils.drainPages(cursor, buffer);
+                    int rowsRemaining = rowLimit;
+                    while (cursor.hasNext()) {
+                        if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
+                            break;
+                        }
+                        Page page = cursor.next();
+                        rowsRemaining -= page.getPositionCount();
+                        buffer.addPage(page);
+                    }
                     buffer.finish(false);
                 } catch (Exception e) {
                     buffer.onFailure(e);

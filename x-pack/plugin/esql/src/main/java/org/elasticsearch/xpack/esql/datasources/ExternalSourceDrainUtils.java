@@ -38,4 +38,24 @@ public final class ExternalSourceDrainUtils {
             buffer.addPage(page);
         }
     }
+
+    public static int drainPagesWithBudget(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer) {
+        int totalRows = 0;
+        while (pages.hasNext() && buffer.noMoreInputs() == false) {
+            var spaceListener = buffer.waitForSpace();
+            if (spaceListener.isDone() == false) {
+                PlainActionFuture<Void> future = new PlainActionFuture<>();
+                spaceListener.addListener(future);
+                future.actionGet(DRAIN_TIMEOUT);
+            }
+            if (buffer.noMoreInputs()) {
+                break;
+            }
+            Page page = pages.next();
+            totalRows += page.getPositionCount();
+            page.allowPassingToDifferentDriver();
+            buffer.addPage(page);
+        }
+        return totalRows;
+    }
 }

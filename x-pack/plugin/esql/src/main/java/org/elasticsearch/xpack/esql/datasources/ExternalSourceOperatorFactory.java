@@ -46,6 +46,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
     private final StoragePath path;
     private final List<Attribute> attributes;
     private final int batchSize;
+    private final int rowLimit;
     private final ExternalSliceQueue sliceQueue;
 
     public ExternalSourceOperatorFactory(
@@ -54,6 +55,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         StoragePath path,
         List<Attribute> attributes,
         int batchSize,
+        int rowLimit,
         @Nullable ExternalSliceQueue sliceQueue
     ) {
         if (storageProvider == null) {
@@ -77,6 +79,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         this.path = path;
         this.attributes = attributes;
         this.batchSize = batchSize;
+        this.rowLimit = rowLimit;
         this.sliceQueue = sliceQueue;
     }
 
@@ -87,7 +90,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         List<Attribute> attributes,
         int batchSize
     ) {
-        this(storageProvider, formatReader, path, attributes, batchSize, null);
+        this(storageProvider, formatReader, path, attributes, batchSize, FormatReader.NO_LIMIT, null);
     }
 
     @Override
@@ -98,12 +101,12 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         }
 
         if (sliceQueue != null) {
-            return new SliceQueueSourceOperator(storageProvider, formatReader, projectedColumns, batchSize, sliceQueue);
+            return new SliceQueueSourceOperator(storageProvider, formatReader, projectedColumns, batchSize, rowLimit, sliceQueue);
         }
 
         StorageObject storageObject = storageProvider.newObject(path);
         try {
-            CloseableIterator<Page> pages = formatReader.read(storageObject, projectedColumns, batchSize);
+            CloseableIterator<Page> pages = formatReader.read(storageObject, projectedColumns, batchSize, rowLimit);
             return new ExternalSourceOperator(pages, driverContext);
         } catch (Exception e) {
             throw new RuntimeException("Failed to create external source operator for: " + path, e);
@@ -193,6 +196,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final FormatReader formatReader;
         private final List<String> projectedColumns;
         private final int batchSize;
+        private final int rowLimit;
         private final ExternalSliceQueue sliceQueue;
         private final ArrayDeque<ExternalSplit> pendingChildren = new ArrayDeque<>();
         private CloseableIterator<Page> currentPages;
@@ -203,12 +207,14 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             FormatReader formatReader,
             List<String> projectedColumns,
             int batchSize,
+            int rowLimit,
             ExternalSliceQueue sliceQueue
         ) {
             this.storageProvider = storageProvider;
             this.formatReader = formatReader;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
+            this.rowLimit = rowLimit;
             this.sliceQueue = sliceQueue;
         }
 
@@ -259,7 +265,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 if (fileSplit.offset() > 0) {
                     obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
                 }
-                return formatReader.read(obj, projectedColumns, batchSize);
+                return formatReader.read(obj, projectedColumns, batchSize, rowLimit);
             }
             throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
         }

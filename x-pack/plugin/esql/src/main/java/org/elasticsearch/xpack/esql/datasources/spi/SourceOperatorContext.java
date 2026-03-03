@@ -45,6 +45,7 @@ public record SourceOperatorContext(
     List<Attribute> attributes,
     int batchSize,
     int maxBufferSize,
+    int rowLimit,
     Executor executor,
     Map<String, Object> config,
     Map<String, Object> sourceMetadata,
@@ -94,6 +95,7 @@ public record SourceOperatorContext(
             attributes,
             batchSize,
             maxBufferSize,
+            FormatReader.NO_LIMIT,
             executor,
             config,
             sourceMetadata,
@@ -125,6 +127,7 @@ public record SourceOperatorContext(
             attributes,
             batchSize,
             maxBufferSize,
+            FormatReader.NO_LIMIT,
             executor,
             config,
             sourceMetadata,
@@ -155,6 +158,7 @@ public record SourceOperatorContext(
             attributes,
             batchSize,
             maxBufferSize,
+            FormatReader.NO_LIMIT,
             executor,
             config,
             sourceMetadata,
@@ -183,6 +187,7 @@ public record SourceOperatorContext(
             attributes,
             batchSize,
             maxBufferSize,
+            FormatReader.NO_LIMIT,
             executor,
             config,
             Map.of(),
@@ -205,6 +210,7 @@ public record SourceOperatorContext(
         private List<Attribute> attributes;
         private int batchSize = 1000;
         private int maxBufferSize = 10;
+        private int rowLimit = FormatReader.NO_LIMIT;
         private Executor executor;
         private Map<String, Object> config;
         private Map<String, Object> sourceMetadata;
@@ -241,6 +247,11 @@ public record SourceOperatorContext(
 
         public Builder maxBufferSize(int maxBufferSize) {
             this.maxBufferSize = maxBufferSize;
+            return this;
+        }
+
+        public Builder rowLimit(int rowLimit) {
+            this.rowLimit = rowLimit;
             return this;
         }
 
@@ -292,6 +303,7 @@ public record SourceOperatorContext(
                 attributes,
                 batchSize,
                 maxBufferSize,
+                rowLimit,
                 executor,
                 config,
                 sourceMetadata,

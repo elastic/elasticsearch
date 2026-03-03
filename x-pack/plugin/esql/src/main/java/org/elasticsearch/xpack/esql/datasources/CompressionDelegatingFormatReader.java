@@ -45,6 +45,12 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     }
 
     @Override
+    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
+        throws IOException {
+        return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, rowLimit);
+    }
+
+    @Override
     public String formatName() {
         return inner.formatName();
     }

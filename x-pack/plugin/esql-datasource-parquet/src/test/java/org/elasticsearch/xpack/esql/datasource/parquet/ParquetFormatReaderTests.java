@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -41,6 +42,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 public class ParquetFormatReaderTests extends ESTestCase {
@@ -268,7 +270,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .named("test_schema");
 
         byte[] parquetData = createParquetFile(schema, factory -> {
-            List<Group> groups = new java.util.ArrayList<>();
+            List<Group> groups = new ArrayList<>();
             for (int i = 1; i <= 25; i++) {
                 Group group = factory.newGroup();
                 group.add("id", (long) i);
@@ -384,6 +386,105 @@ public class ParquetFormatReaderTests extends ESTestCase {
             // Float is converted to double
             assertEquals(98.6, ((DoubleBlock) page.getBlock(0)).getDouble(0), 0.1);
             assertEquals(37.0, ((DoubleBlock) page.getBlock(0)).getDouble(1), 0.1);
+        }
+    }
+
+    public void testReadWithRowLimit() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("value")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 1; i <= 100; i++) {
+                Group group = factory.newGroup();
+                group.add("id", (long) i);
+                group.add("value", i * 10);
+                groups.add(group);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // Read with a row limit of 10 — Parquet reader respects the budget natively
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 50, 10)) {
+            int totalRows = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+            }
+            assertEquals(10, totalRows);
+        }
+    }
+
+    public void testReadWithRowLimitNoLimit() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 1; i <= 25; i++) {
+                Group group = factory.newGroup();
+                group.add("id", (long) i);
+                groups.add(group);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // NO_LIMIT should read all rows
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10, FormatReader.NO_LIMIT)) {
+            int totalRows = 0;
+            while (iterator.hasNext()) {
+                totalRows += iterator.next().getPositionCount();
+            }
+            assertEquals(25, totalRows);
+        }
+    }
+
+    public void testReadWithColumnProjectionAndLimit() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 1; i <= 50; i++) {
+                Group group = factory.newGroup();
+                group.add("id", (long) i);
+                group.add("name", "name_" + i);
+                group.add("score", i * 1.5);
+                groups.add(group);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        // Project only "name" column with limit of 5
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("name"), 10, 5)) {
+            int totalRows = 0;
+            int totalBlocks = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                totalRows += page.getPositionCount();
+                totalBlocks = page.getBlockCount();
+            }
+            assertEquals(1, totalBlocks); // Only 1 projected column
+            assertEquals(5, totalRows);
         }
     }
 

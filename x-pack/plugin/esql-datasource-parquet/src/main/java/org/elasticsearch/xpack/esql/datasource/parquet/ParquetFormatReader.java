@@ -7,15 +7,19 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.convert.GroupRecordConverter;
 import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.io.ColumnIOFactory;
+import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.MessageColumnIO;
 import org.apache.parquet.io.RecordReader;
+import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -71,13 +75,13 @@ public class ParquetFormatReader implements FormatReader {
 
     private List<Attribute> readSchema(StorageObject object) throws IOException {
         // Adapt StorageObject to Parquet InputFile
-        org.apache.parquet.io.InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
 
         // Build ParquetReadOptions with SKIP_ROW_GROUPS to only read schema metadata
         ParquetReadOptions options = ParquetReadOptions.builder().withMetadataFilter(ParquetMetadataConverter.SKIP_ROW_GROUPS).build();
 
         try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options)) {
-            org.apache.parquet.hadoop.metadata.FileMetaData fileMetaData = reader.getFileMetaData();
+            FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
 
             // Convert Parquet schema directly to ESQL Attributes
@@ -88,7 +92,7 @@ public class ParquetFormatReader implements FormatReader {
     @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
         // Adapt StorageObject to Parquet InputFile
-        org.apache.parquet.io.InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
 
         // Build ParquetReadOptions for data reading
         ParquetReadOptions options = ParquetReadOptions.builder().build();
@@ -97,7 +101,7 @@ public class ParquetFormatReader implements FormatReader {
         ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);
 
         // Get the schema
-        org.apache.parquet.hadoop.metadata.FileMetaData fileMetaData = reader.getFileMetaData();
+        FileMetaData fileMetaData = reader.getFileMetaData();
         MessageType parquetSchema = fileMetaData.getSchema();
         List<Attribute> attributes = convertParquetSchemaToAttributes(parquetSchema);
 
@@ -118,7 +122,41 @@ public class ParquetFormatReader implements FormatReader {
             }
         }
 
-        return new ParquetPageIterator(reader, parquetSchema, projectedAttributes, batchSize, blockFactory);
+        // Build a projected Parquet schema so ColumnIOFactory only reads requested columns
+        MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
+
+        return new ParquetPageIterator(reader, projectedSchema, projectedAttributes, batchSize, blockFactory, NO_LIMIT);
+    }
+
+    @Override
+    public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
+        throws IOException {
+        InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        ParquetReadOptions options = ParquetReadOptions.builder().build();
+        ParquetFileReader reader = ParquetFileReader.open(parquetInputFile, options);
+
+        FileMetaData fileMetaData = reader.getFileMetaData();
+        MessageType parquetSchema = fileMetaData.getSchema();
+        List<Attribute> attributes = convertParquetSchemaToAttributes(parquetSchema);
+
+        List<Attribute> projectedAttributes;
+        if (projectedColumns == null || projectedColumns.isEmpty()) {
+            projectedAttributes = attributes;
+        } else {
+            projectedAttributes = new ArrayList<>();
+            Map<String, Attribute> attributeMap = new HashMap<>();
+            for (Attribute attr : attributes) {
+                attributeMap.put(attr.name(), attr);
+            }
+            for (String columnName : projectedColumns) {
+                Attribute attr = attributeMap.get(columnName);
+                attr = attr == null ? new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL) : attr;
+                projectedAttributes.add(attr);
+            }
+        }
+
+        MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
+        return new ParquetPageIterator(reader, projectedSchema, projectedAttributes, batchSize, blockFactory, rowLimit);
     }
 
     @Override
@@ -134,6 +172,20 @@ public class ParquetFormatReader implements FormatReader {
     @Override
     public void close() throws IOException {
         // No resources to close at the reader level
+    }
+
+    private static MessageType buildProjectedSchema(MessageType fullSchema, List<Attribute> projectedAttributes) {
+        List<Type> projectedFields = new ArrayList<>();
+        for (Attribute attr : projectedAttributes) {
+            if (fullSchema.containsField(attr.name())) {
+                projectedFields.add(fullSchema.getType(attr.name()));
+            }
+        }
+        // Parquet requires at least one field; fall back to full schema when none match
+        if (projectedFields.isEmpty()) {
+            return fullSchema;
+        }
+        return new MessageType(fullSchema.getName(), projectedFields);
     }
 
     private List<Attribute> convertParquetSchemaToAttributes(MessageType schema) {
@@ -177,6 +229,7 @@ public class ParquetFormatReader implements FormatReader {
         private final int batchSize;
         private final MessageColumnIO columnIO;
         private final BlockFactory blockFactory;
+        private int rowBudget;
 
         private PageReadStore currentRowGroup;
         private RecordReader<Group> recordReader;
@@ -188,7 +241,8 @@ public class ParquetFormatReader implements FormatReader {
             MessageType parquetSchema,
             List<Attribute> attributes,
             int batchSize,
-            BlockFactory blockFactory
+            BlockFactory blockFactory,
+            int rowLimit
         ) {
             this.reader = reader;
             this.parquetSchema = parquetSchema;
@@ -196,6 +250,7 @@ public class ParquetFormatReader implements FormatReader {
             this.batchSize = batchSize;
             this.columnIO = new ColumnIOFactory().getColumnIO(parquetSchema);
             this.blockFactory = blockFactory;
+            this.rowBudget = rowLimit;
         }
 
         @Override
@@ -203,11 +258,13 @@ public class ParquetFormatReader implements FormatReader {
             if (exhausted) {
                 return false;
             }
-            // Check if we have rows in current group or can read more groups
+            if (rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0) {
+                exhausted = true;
+                return false;
+            }
             if (rowsRemainingInGroup > 0) {
                 return true;
             }
-            // Try to read next row group
             try {
                 currentRowGroup = reader.readNextRowGroup();
                 if (currentRowGroup == null) {
@@ -229,9 +286,12 @@ public class ParquetFormatReader implements FormatReader {
             }
 
             try {
-                // Read records up to batch size
-                List<Group> batch = new ArrayList<>(batchSize);
-                int rowsToRead = (int) Math.min(batchSize, rowsRemainingInGroup);
+                int effectiveBatch = batchSize;
+                if (rowBudget != FormatReader.NO_LIMIT) {
+                    effectiveBatch = Math.min(effectiveBatch, rowBudget);
+                }
+                List<Group> batch = new ArrayList<>(effectiveBatch);
+                int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
 
                 for (int i = 0; i < rowsToRead; i++) {
                     Group group = recordReader.read();
@@ -245,7 +305,9 @@ public class ParquetFormatReader implements FormatReader {
                     throw new NoSuchElementException("No more records");
                 }
 
-                // Convert batch to ESQL Page
+                if (rowBudget != FormatReader.NO_LIMIT) {
+                    rowBudget -= batch.size();
+                }
                 return convertToPage(batch);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to create Page batch", e);
@@ -288,7 +350,7 @@ public class ParquetFormatReader implements FormatReader {
         }
 
         private int findFieldIndex(Group group, String fieldName) {
-            org.apache.parquet.schema.GroupType groupType = group.getType();
+            GroupType groupType = group.getType();
             int fieldCount = groupType.getFieldCount();
             for (int i = 0; i < fieldCount; i++) {
                 Type fieldType = groupType.getType(i);
@@ -346,8 +408,8 @@ public class ParquetFormatReader implements FormatReader {
                         builder.appendNull();
                     } else {
                         // Handle both float and double
-                        org.apache.parquet.schema.GroupType groupType = group.getType();
-                        org.apache.parquet.schema.Type fieldType = groupType.getType(fieldIndex);
+                        GroupType groupType = group.getType();
+                        Type fieldType = groupType.getType(fieldIndex);
                         PrimitiveType primitiveType = fieldType.asPrimitiveType();
                         PrimitiveType.PrimitiveTypeName typeName = primitiveType.getPrimitiveTypeName();
                         if (typeName == PrimitiveType.PrimitiveTypeName.FLOAT) {
@@ -369,7 +431,7 @@ public class ParquetFormatReader implements FormatReader {
                     } else {
                         String value = group.getString(fieldName, 0);
                         byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-                        builder.appendBytesRef(new org.apache.lucene.util.BytesRef(bytes));
+                        builder.appendBytesRef(new BytesRef(bytes));
                     }
                 }
                 return builder.build();

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 
@@ -61,6 +62,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
     private final Map<String, Object> config;
     private final Map<String, Object> sourceMetadata;
     private final Object pushedFilter; // Opaque filter - NOT serialized (coordinator only)
+    private final int pushedLimit; // NOT serialized (coordinator only)
     private final Integer estimatedRowSize;
     private final FileSet fileSet; // NOT serialized - coordinator only
     private final List<ExternalSplit> splits;
@@ -76,7 +78,19 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         Integer estimatedRowSize,
         FileSet fileSet
     ) {
-        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize, fileSet, List.of());
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            FormatReader.NO_LIMIT,
+            estimatedRowSize,
+            fileSet,
+            List.of()
+        );
     }
 
     public ExternalSourceExec(
@@ -87,6 +101,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         Map<String, Object> config,
         Map<String, Object> sourceMetadata,
         Object pushedFilter,
+        int pushedLimit,
         Integer estimatedRowSize,
         FileSet fileSet,
         List<ExternalSplit> splits
@@ -107,6 +122,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         this.config = config != null ? Map.copyOf(config) : Map.of();
         this.sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
         this.pushedFilter = pushedFilter;
+        this.pushedLimit = pushedLimit;
         this.estimatedRowSize = estimatedRowSize;
         this.fileSet = fileSet;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
@@ -122,7 +138,19 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         Object pushedFilter,
         Integer estimatedRowSize
     ) {
-        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize, null, List.of());
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            FormatReader.NO_LIMIT,
+            estimatedRowSize,
+            null,
+            List.of()
+        );
     }
 
     public ExternalSourceExec(
@@ -134,7 +162,19 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         Map<String, Object> sourceMetadata,
         Integer estimatedRowSize
     ) {
-        this(source, sourcePath, sourceType, attributes, config, sourceMetadata, null, estimatedRowSize, null, List.of());
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            null,
+            FormatReader.NO_LIMIT,
+            estimatedRowSize,
+            null,
+            List.of()
+        );
     }
 
     private static ExternalSourceExec readFrom(StreamInput in) throws IOException {
@@ -159,6 +199,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             config,
             sourceMetadata,
             null,
+            FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
             splits
@@ -209,6 +250,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
         return pushedFilter;
     }
 
+    public int pushedLimit() {
+        return pushedLimit;
+    }
+
     public Integer estimatedRowSize() {
         return estimatedRowSize;
     }
@@ -230,6 +275,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             config,
             sourceMetadata,
             pushedFilter,
+            pushedLimit,
             estimatedRowSize,
             fileSet,
             newSplits
@@ -245,6 +291,23 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             config,
             sourceMetadata,
             newFilter,
+            pushedLimit,
+            estimatedRowSize,
+            fileSet,
+            splits
+        );
+    }
+
+    public ExternalSourceExec withPushedLimit(int newLimit) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            newLimit,
             estimatedRowSize,
             fileSet,
             splits
@@ -267,6 +330,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             config,
             sourceMetadata,
             pushedFilter,
+            pushedLimit,
             newEstimatedRowSize,
             fileSet,
             splits
@@ -284,6 +348,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             config,
             sourceMetadata,
             pushedFilter,
+            pushedLimit,
             estimatedRowSize,
             fileSet,
             splits
@@ -292,7 +357,18 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, sourceType, attributes, config, sourceMetadata, pushedFilter, estimatedRowSize, fileSet, splits);
+        return Objects.hash(
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedLimit,
+            estimatedRowSize,
+            fileSet,
+            splits
+        );
     }
 
     @Override
@@ -312,6 +388,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
             && Objects.equals(config, other.config)
             && Objects.equals(sourceMetadata, other.sourceMetadata)
             && Objects.equals(pushedFilter, other.pushedFilter)
+            && pushedLimit == other.pushedLimit
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(fileSet, other.fileSet)
             && Objects.equals(splits, other.splits);
@@ -320,7 +397,17 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Ex
     @Override
     public String nodeString(NodeStringFormat format) {
         String filterStr = pushedFilter != null ? "[filter=" + pushedFilter + "]" : "";
+        String limitStr = pushedLimit != FormatReader.NO_LIMIT ? "[limit=" + pushedLimit + "]" : "";
         String splitsStr = splits.isEmpty() == false ? "[splits=" + splits.size() + "]" : "";
-        return nodeName() + "[" + sourcePath + "][" + sourceType + "]" + filterStr + splitsStr + NodeUtils.toString(attributes, format);
+        return nodeName()
+            + "["
+            + sourcePath
+            + "]["
+            + sourceType
+            + "]"
+            + filterStr
+            + limitStr
+            + splitsStr
+            + NodeUtils.toString(attributes, format);
     }
 }

@@ -1570,6 +1570,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         }
 
         // Run a force merge so only the open PITs are retaining the previous commits
+        var blobsRetainedByPITs = shardCommitsContainer.listBlobs(operationPurpose).keySet();
         forceMerge(true);
 
         // run searches and check number of docs
@@ -1691,16 +1692,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 );
             }
         }
+
         try {
-            assertBusy(
-                () -> assertTrue(
-                    shardCommitsContainer.listBlobs(operationPurpose).keySet().containsAll(retainedBlobsBeforeUnpromotableShardMoved)
-                )
-            );
+            assertBusy(() -> assertTrue(shardCommitsContainer.listBlobs(operationPurpose).keySet().containsAll(blobsRetainedByPITs)));
         } catch (AssertionError e) {
             logger.info(
-                "Blobs before unpromotable shard moved = {}, blobs after search node relocation = {}",
-                retainedBlobsBeforeUnpromotableShardMoved,
+                "Expected surviving blobs = {}, blobs after search node relocation = {}",
+                blobsRetainedByPITs,
                 shardCommitsContainer.listBlobs(operationPurpose).keySet()
             );
             throw e;

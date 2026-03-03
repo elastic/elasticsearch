@@ -215,7 +215,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 // when we detect a reset
                 if (currentCounterValue > previousValue) {
                     // We check if we need to persist the previous value too
-                    // If timestamp -1 means that the previous value is already persisted by a previous bucket, nothing to extra to persist
+                    // If timestamp -1 means that the previous value is already persisted by a previous bucket, nothing extra to persist
                     if (lastTimestamp > 0) {
                         // If we have a previous value in this bucket, we need to see if the last persisted value is enough to capture the
                         // reset or not.
@@ -267,7 +267,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Here we update {@link CounterResetDataPoints} which contains the reset counter values for all the counter,
+         * Update {@link CounterResetDataPoints} which contains all reset counter values,
          * with the latest reset points of this counter field.
          * @param counterResetDataPoints the extra reset data values for every counter for this bucket
          */

@@ -152,10 +152,6 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
         // The evaluator quantizes coordinates for indexed fields, but fold() handles literals
         // where quantization doesn't apply. Recompute without quantization for the fold test.
         var data = testCase.getData();
-        if (testCase.getExpectedTypeError() != null || data.size() < 2) {
-            super.testFold();
-            return;
-        }
         Object geomData = data.get(0).data();
         Object tolData = data.get(1).data();
         if (geomData instanceof BytesRef wkb && tolData instanceof Number tol) {

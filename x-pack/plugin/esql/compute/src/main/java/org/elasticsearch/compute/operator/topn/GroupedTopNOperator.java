@@ -267,17 +267,16 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     @Override
     public Status status() {
-        // TODO: Make a custom GroupedTopNOperatorStatus that reports group count
-        return new TopNOperatorStatus(
+        return new GroupedTopNOperatorStatus(
             receiveNanos,
             emitNanos,
             inputQueue != null ? inputQueue.size() : 0,
+            keysHash != null ? keysHash.size() : 0,
             ramBytesUsed(),
             pagesReceived,
             pagesEmitted,
             rowsReceived,
-            rowsEmitted,
-            null
+            rowsEmitted
         );
     }
 

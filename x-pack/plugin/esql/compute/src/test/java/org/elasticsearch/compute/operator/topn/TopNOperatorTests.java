@@ -103,6 +103,7 @@ import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -2803,6 +2804,34 @@ public class TopNOperatorTests extends OperatorTestCase {
             assertMap(actualReducedValues, matchesList(expectedReducedValues));
         } finally {
             Releasables.close(minCompetitive);
+        }
+    }
+
+    public void testStatus() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = simple(SimpleOptions.DEFAULT).get(driverContext())) {
+            Operator.Status status = op.status();
+            assertThat(status, instanceOf(TopNOperatorStatus.class));
+            TopNOperatorStatus topNStatus = (TopNOperatorStatus) status;
+            assertThat(topNStatus.occupiedRows(), equalTo(0));
+            assertThat(topNStatus.ramBytesUsed(), greaterThan(0L));
+            assertThat(topNStatus.pagesReceived(), equalTo(0));
+            assertThat(topNStatus.pagesEmitted(), equalTo(0));
+            assertThat(topNStatus.rowsReceived(), equalTo(0L));
+            assertThat(topNStatus.rowsEmitted(), equalTo(0L));
+
+            Page p = new Page(blockFactory.newConstantLongBlockWith(1, 10));
+            op.addInput(p);
+            status = op.status();
+            topNStatus = (TopNOperatorStatus) status;
+            assertThat(topNStatus.receiveNanos(), greaterThan(0L));
+            assertThat(topNStatus.emitNanos(), equalTo(0L));
+            assertThat(topNStatus.occupiedRows(), equalTo(4));
+            assertThat(topNStatus.ramBytesUsed(), greaterThan(0L));
+            assertThat(topNStatus.pagesReceived(), equalTo(1));
+            assertThat(topNStatus.pagesEmitted(), equalTo(0));
+            assertThat(topNStatus.rowsReceived(), equalTo(10L));
+            assertThat(topNStatus.rowsEmitted(), equalTo(0L));
         }
     }
 

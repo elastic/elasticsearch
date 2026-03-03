@@ -51,6 +51,8 @@ import static org.elasticsearch.compute.operator.topn.TopNEncoder.DEFAULT_UNSORT
 import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.elasticsearch.compute.test.BlockTestUtils.readInto;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class GroupedTopNOperatorTests extends TopNOperatorTests {
@@ -81,6 +83,40 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
     @Override
     protected List<List<Object>> expectedTopRowOriented(List<List<Object>> rowOriented, List<SortOrder> sortOrders, int topCount) {
         return computeTopN(rowOriented, IntStream.of(groupKeys()).boxed().toList(), sortOrders, topCount);
+    }
+
+    @Override
+    public void testStatus() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = simple(SimpleOptions.DEFAULT).get(driverContext())) {
+            Operator.Status status = op.status();
+            assertThat(status, instanceOf(GroupedTopNOperatorStatus.class));
+            GroupedTopNOperatorStatus groupedStatus = (GroupedTopNOperatorStatus) status;
+            assertThat(groupedStatus.occupiedRows(), equalTo(0));
+            assertThat(groupedStatus.groupCount(), equalTo(0L));
+            assertThat(groupedStatus.ramBytesUsed(), greaterThan(0L));
+            assertThat(groupedStatus.pagesReceived(), equalTo(0));
+            assertThat(groupedStatus.pagesEmitted(), equalTo(0));
+            assertThat(groupedStatus.rowsReceived(), equalTo(0L));
+            assertThat(groupedStatus.rowsEmitted(), equalTo(0L));
+
+            Page p = new Page(
+                blockFactory.newConstantLongBlockWith(1, 10),
+                blockFactory.newLongArrayVector(new long[] { 1L, 1L, 1L, 1L, 1L, 2L, 2L, 2L, 2L, 2L }, 10).asBlock()
+            );
+            op.addInput(p);
+            status = op.status();
+            groupedStatus = (GroupedTopNOperatorStatus) status;
+            assertThat(groupedStatus.receiveNanos(), greaterThan(0L));
+            assertThat(groupedStatus.emitNanos(), equalTo(0L));
+            assertThat(groupedStatus.occupiedRows(), equalTo(8));
+            assertThat(groupedStatus.groupCount(), equalTo(2L));
+            assertThat(groupedStatus.ramBytesUsed(), greaterThan(0L));
+            assertThat(groupedStatus.pagesReceived(), equalTo(1));
+            assertThat(groupedStatus.pagesEmitted(), equalTo(0));
+            assertThat(groupedStatus.rowsReceived(), equalTo(10L));
+            assertThat(groupedStatus.rowsEmitted(), equalTo(0L));
+        }
     }
 
     public void testBasicTopN() {

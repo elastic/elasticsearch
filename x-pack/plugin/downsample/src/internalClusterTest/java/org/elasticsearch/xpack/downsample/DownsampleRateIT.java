@@ -160,7 +160,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         // Skip tsid
         var baselineTs = (String) baselineRow.next();
         var contenderTs = (String) contenderRow.next();
-        // TODO Needs fixing: the downsampled _timeseries field includes the _doc_count as well, so it doesn't match
+        // TODO Uncomment when https://github.com/elastic/elasticsearch/issues/143464 is fixed
         // assertThat(contenderTs, equalTo(baselineTs));
         // Check timestamp
         var baselineBucket = baselineRow.next();

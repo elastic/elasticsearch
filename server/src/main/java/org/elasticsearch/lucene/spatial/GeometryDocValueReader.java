@@ -30,7 +30,7 @@ import java.util.List;
  * <p><b>V2 format</b> (DimensionalShapeType high bit set):
  * <pre>
  * centroid-x(4) | centroid-y(4) | DimensionalShapeType(1, 0x80 set) | sumWeight(VLong) | extent |
- * treeLength(VInt) | tree(vertex ordinals) | connectivityLength(VInt) | connectivity | vertexTable
+ * treeLength(VInt) | tree(vertex ordinals) | connectivityLength(4) | connectivity | vertexTable
  * </pre>
  *
  * <p>The format is detected automatically on first access after {@link #reset(BytesRef)}.
@@ -146,12 +146,12 @@ public class GeometryDocValueReader {
             if (v2Format == false) {
                 throw new UnsupportedOperationException("Vertex table is not available in legacy doc-value format");
             }
-            // V2 layout after tree: connectivityLength(VInt) | connectivity | vertexTable
+            // V2 layout after tree: connectivityLength(4 bytes) | connectivity | vertexTable
             input.setPosition(treeOffset + treeLength);
-            int connectivityLength = input.readVInt();
+            int connectivityLength = input.readInt();
             connectivityOffset = input.getPosition();
             input.setPosition(connectivityOffset + connectivityLength);
-            vertexTable = VertexLookupTable.readFrom(input);
+            vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes);
         }
     }
 

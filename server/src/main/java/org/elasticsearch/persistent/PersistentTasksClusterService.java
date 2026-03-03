@@ -54,9 +54,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.persistent.PersistentTasks.getAllTasks;
 import static org.elasticsearch.persistent.PersistentTasks.taskTypeString;
-import static org.elasticsearch.persistent.PersistentTasksExecutorRegistry.taskIsAutomaticallyReassignedOnShutdown;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.assertAllocationIdsConsistencyForOnePersistentTasks;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getNonZeroAllocationIds;
+import static org.elasticsearch.persistent.PersistentTasksExecutorRegistry.taskIsAutomaticallyReassignedOnShutdown;
 
 /**
  * Component that runs only on the master node and is responsible for assigning running tasks to nodes
@@ -668,7 +668,12 @@ public final class PersistentTasksClusterService implements ClusterStateListener
      * @param assignment the current task assignment to evaluate
      * @param nodes      the current set of nodes in the cluster
      * @return {@code true} if the task is unassigned or its assigned node is missing
+     * @deprecated Prefer {@link PersistentTasksExecutor#automaticReassignmentOnShutdown()} returning {@code true}
+     *             over manual reassignment handling. Executors that opt in to automatic reassignment should use
+     *             {@link #needsReassignment} for cluster-service-level reassignment decisions, which additionally
+     *             accounts for nodes marked for shutdown.
      */
+    @Deprecated
     public static boolean isUnassignedOrMisassigned(final Assignment assignment, final DiscoveryNodes nodes) {
         return (assignment.isAssigned() == false || nodes.nodeExists(assignment.getExecutorNode()) == false);
     }

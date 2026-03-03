@@ -63,7 +63,7 @@ EXPORT int32_t vec_doti7u(const int8_t* a, const int8_t* b, const int32_t dims) 
     return res;
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*)>
+template <int64_t(*mapper)(int32_t, const int32_t*), int batches = 2>
 static inline void doti7u_inner_bulk(
     const int8_t* a,
     const int8_t* b,
@@ -77,39 +77,41 @@ static inline void doti7u_inner_bulk(
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
 
-    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
+    const int8_t* ptrs[batches];
+    init_offsets<0, batches, int8_t, mapper>(ptrs, a, pitch, offsets, count);
 
-    // Process a batch of 2 vectors at a time, after instructing the CPU to
-    // prefetch the next batch.
+    // Process a batch of `batches` vectors at a time, after instructing the
+    // CPU to prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy. For this "older" generation of x64 processors
     // (supporting AVX2, but not AVX-512), benchmarks show that a batch of 2
     // is ideal -- more, and it starts to hurt performances due to bandwidth
-    for (; c + 3 < count; c += 2) {
-        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
-        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
+    for (; c + 2 * batches - 1 < count; c += batches) {
+        const int8_t* next[batches];
+        apply_indexed<batches>([&](auto I) {
+            next[I] = a + mapper(c + batches + I, offsets) * pitch;
+            prefetch(next[I], lines_to_fetch);
+        });
 
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
-
-        int32_t res0 = 0;
-        int32_t res1 = 0;
+        int32_t res[batches] = {};
         int i = 0;
         if (dims > STRIDE_BYTES_LEN) {
             i = blk;
-            res0 = doti7u_inner(a0, b, i);
-            res1 = doti7u_inner(a1, b, i);
+            apply_indexed<batches>([&](auto I) {
+                res[I] = doti7u_inner(ptrs[I], b, i);
+            });
         }
         for (; i < dims; i++) {
             const int8_t bb = b[i];
-            res0 += a0[i] * bb;
-            res1 += a1[i] * bb;
+            apply_indexed<batches>([&](auto I) {
+                res[I] += ptrs[I][i] * bb;
+            });
         }
-        results[c + 0] = (f32_t)res0;
-        results[c + 1] = (f32_t)res1;
-        a0 = next_a0;
-        a1 = next_a1;
+
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = (f32_t)res[I];
+            ptrs[I] = next[I];
+        });
     }
 
     // Tail-handling: remaining vectors

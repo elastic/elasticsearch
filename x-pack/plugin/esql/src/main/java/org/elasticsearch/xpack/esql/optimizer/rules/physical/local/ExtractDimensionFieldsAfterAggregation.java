@@ -79,7 +79,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
             return oldAgg;
         }
         TsdimWithout tsdimWithout = oldAgg.tsdimWithout();
-        Set<String> excludedDimensions = tsdimWithout != null ? tsdimWithout.excludedFieldNames() : Set.of();
+        Set<String> excludedDimensions = tsdimWithout != null ? tsdimWithout.withoutLabels() : Set.of();
         List<NamedExpression> newAggregates = new ArrayList<>();
         List<Attribute> dimensionFields = new ArrayList<>();
         List<Alias> aliases = new ArrayList<>();

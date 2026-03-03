@@ -83,9 +83,9 @@ public class TsdimWithout extends GroupingFunction.NonEvaluatableGroupingFunctio
     }
 
     /**
-     * Returns the set of field names to exclude from the time-series grouping.
+     * Returns the set of `without` labels.
      */
-    public Set<String> excludedFieldNames() {
+    public Set<String> withoutLabels() {
         Set<String> excluded = new HashSet<>();
         for (Expression field : children()) {
             if (field instanceof FieldAttribute fa) {

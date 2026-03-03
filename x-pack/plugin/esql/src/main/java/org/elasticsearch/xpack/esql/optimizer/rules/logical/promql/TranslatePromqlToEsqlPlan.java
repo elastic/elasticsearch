@@ -78,6 +78,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
@@ -141,7 +142,11 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * Holds ESQL plan built so far, an expression representing the node value,
      * and an optional selector filter that has not yet been consumed by an aggregate.
      */
-    private record TranslationResult(LogicalPlan plan, Expression expression, Expression selectorFilter) {
+    private record TranslationResult(LogicalPlan plan, Expression expression, Expression selectorFilter, boolean hasAggregation) {
+        TranslationResult(LogicalPlan plan, Expression expression, Expression selectorFilter) {
+            this(plan, expression, selectorFilter, containsAggregation(plan));
+        }
+
         TranslationResult(LogicalPlan plan, Expression expression) {
             this(plan, expression, null);
         }
@@ -153,6 +158,35 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private record TranslationContext(PromqlCommand promqlCommand, LogicalOptimizerContext optimizerContext, Alias stepBucketAlias) {
         Attribute stepAttr() {
             return stepBucketAlias.toAttribute();
+        }
+    }
+
+    private static final class AggregateContext {
+        final List<Expression> groupings = new ArrayList<>();
+        final List<NamedExpression> aggregates = new ArrayList<>();
+
+        AggregateContext() {}
+
+        static AggregateContext from(Aggregate agg) {
+            var cols = new AggregateContext();
+            if (agg != null) {
+                cols.groupings.addAll(agg.groupings());
+                cols.aggregates.addAll(agg.aggregates());
+            }
+            return cols;
+        }
+
+        void addGrouping(NamedExpression attr) {
+            groupings.add(attr);
+            aggregates.add(attr);
+        }
+
+        void addAggregate(NamedExpression agg) {
+            aggregates.add(agg);
+        }
+
+        int groupingCount() {
+            return groupings.size();
         }
     }
 
@@ -168,25 +202,29 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
         TranslationResult result = translateNode(promqlCommand.promqlPlan(), basePlan, ctx);
 
-        var plan = result.plan();
-        var valueExpr = result.expression();
-        var filter = result.selectorFilter();
+        return postProcesses(ctx, result);
+    }
 
-        if (filter != null) {
-            plan = applyLabelFilter(plan, filter, promqlCommand);
+    private LogicalPlan postProcesses(TranslationContext ctx, TranslationResult result) {
+        PromqlCommand promqlCommand = ctx.promqlCommand();
+        LogicalPlan plan = result.plan();
+        Expression valueExpr = result.expression();
+
+        if (result.selectorFilter() != null) {
+            plan = applyLabelFilter(plan, result.selectorFilter(), promqlCommand);
         }
 
         // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
         // TODO: If we ever support metric references without last_over_time, we could
         // skip TimeSeriesAggregate and use plain Aggregate instead (see #141501 discussion).
-        if (containsAggregation(plan) == false) {
+        if (result.hasAggregation() == false) {
             plan = createInnerAggregate(ctx, plan, promqlCommand.promqlPlan().output(), valueExpr, false, null);
             valueExpr = plan.output().getFirst().toAttribute();
         }
 
         if (promqlCommand.promqlPlan() instanceof VectorBinaryComparison binaryComparison && binaryComparison.filterMode()) {
             // for comparison with filtering mode, return left operand and apply filter later
-            plan = addComparisonFilter(plan, binaryComparison, context);
+            plan = addComparisonFilter(plan, binaryComparison, ctx.optimizerContext());
         }
 
         plan = convertValueToDouble(promqlCommand, plan, valueExpr);
@@ -223,7 +261,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         TranslationResult childResult = translateNode(agg.child(), currentPlan, ctx);
         Expression aggExpr = buildAggregateExpression(agg, childResult.expression(), ctx);
         boolean isWithout = agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT;
-        if (containsAggregation(childResult.plan())) {
+        if (childResult.hasAggregation()) {
             // Child already has an aggregate: create outer Aggregate
             LogicalPlan aggregatePlan = createOuterAggregate(ctx, childResult.plan(), agg, aggExpr);
             Expression outputRef = getValueOutput(aggregatePlan);
@@ -260,7 +298,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         // Child aggregated: grouping by step
         // E.g. scalar(sum by (cluster) (metric)))
         Expression scalarExpr = new Scalar(scalarFunc.source(), childResult.expression());
-        if (containsAggregation(childResult.plan())) {
+        if (childResult.hasAggregation()) {
             // plain Aggregate grouped by step only, collapsing all series into one value per step.
             Attribute stepAttr = ctx.stepAttr();
             Alias aggAlias = new Alias(scalarExpr.source(), ctx.promqlCommand().valueColumnName(), scalarExpr);
@@ -328,13 +366,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         // \_ TimeSeriesAggregate[sum_result = sum(x), groupBy=[step, cluster]]
         //
         // This handles both cases when aggregate is TimeSeriesAggregate or more generic Aggregate.
-        if (containsAggregation(childResult.plan())) {
-            Alias evalAlias = new Alias(function.source(), ctx.promqlCommand().valueColumnName(), function);
-            LogicalPlan evalPlan = new Eval(ctx.promqlCommand().source(), childResult.plan(), List.of(evalAlias));
-            return new TranslationResult(evalPlan, evalAlias.toAttribute(), childResult.selectorFilter());
-        }
-
-        return new TranslationResult(childResult.plan(), function, childResult.selectorFilter());
+        return applyExpression(childResult.plan(), function, childResult.selectorFilter(), ctx);
     }
 
     private static boolean isImplicitRangePlaceholder(Expression range) {
@@ -399,8 +431,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             .asFunction()
             .create(binaryOp.source(), leftExpr, rightExpr, ctx.optimizerContext().configuration());
 
-        boolean leftAgg = containsAggregation(leftResult.plan());
-        boolean rightAgg = containsAggregation(rightResult.plan());
+        boolean leftAgg = leftResult.hasAggregation();
+        boolean rightAgg = rightResult.hasAggregation();
 
         // If both sides have Aggregate, use a new joint Aggregate plan;
         // otherwise, use the plan from the side that has Aggregate.
@@ -421,13 +453,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             pendingFilter = combineAndNullable(Arrays.asList(leftResult.selectorFilter(), rightResult.selectorFilter()));
         }
 
-        if (containsAggregation(resultPlan)) {
-            Alias evalAlias = new Alias(binaryExpr.source(), ctx.promqlCommand().valueColumnName(), binaryExpr);
-            LogicalPlan evalPlan = new Eval(ctx.promqlCommand().source(), resultPlan, List.of(evalAlias));
-            return new TranslationResult(evalPlan, evalAlias.toAttribute(), pendingFilter);
-        }
-
-        return new TranslationResult(resultPlan, binaryExpr, pendingFilter);
+        return applyExpression(resultPlan, binaryExpr, pendingFilter, ctx);
     }
 
     /**
@@ -435,9 +461,20 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      */
     private static LogicalPlan foldBinaryOperatorAggregate(TranslationResult left, TranslationResult right) {
         var names = new TemporaryNameGenerator.Monotonic();
-        var rightAgg = right.plan().collect(Aggregate.class).getFirst();
+        var rightAggregates = right.plan().collect(Aggregate.class);
+        if (rightAggregates.isEmpty()) {
+            throw new QlIllegalArgumentException("Expected plan with aggregate, got [{}]", right.plan());
+        }
+        var rightAgg = rightAggregates.getFirst();
 
+        // Rewrite only the first (top) aggregate in the left plan; leave inner aggregate layers untouched.
+        final boolean[] replaced = new boolean[1];
         var result = left.plan().transformDown(Aggregate.class, leftAgg -> {
+            if (replaced[0]) {
+                return leftAgg;
+            }
+            replaced[0] = true;
+
             // Different groupings require vector matching semantics (on/ignoring/group_left/group_right)
             // which is tracked in TODO: https://github.com/elastic/elasticsearch/issues/142596
             // Compare by name rather than identity to handle _timeseries attributes with different NameIds
@@ -479,7 +516,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         return result;
     }
 
-    private static HashSet<String> groupingNames(List<Expression> groupings) {
+    private static Set<String> groupingNames(List<Expression> groupings) {
         var names = new HashSet<String>();
         for (Expression g : groupings) {
             if (g instanceof NamedExpression ne) {
@@ -504,7 +541,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         if (leftWithout == null || rightWithout == null) {
             return false;
         }
-        return leftWithout.excludedFieldNames().equals(rightWithout.excludedFieldNames());
+        return leftWithout.withoutLabels().equals(rightWithout.withoutLabels());
     }
 
     /**
@@ -524,6 +561,19 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         }
 
         return new TranslationResult(currentPlan, expr, matcherCondition);
+    }
+
+    /**
+     * Applies an expression on top of a plan. If the plan already contains an aggregate,
+     * materializes the expression as an Eval node; otherwise composes it for later folding.
+     */
+    private TranslationResult applyExpression(LogicalPlan plan, Expression expr, Expression selectorFilter, TranslationContext ctx) {
+        if (containsAggregation(plan)) {
+            Alias evalAlias = new Alias(expr.source(), ctx.promqlCommand().valueColumnName(), expr);
+            LogicalPlan evalPlan = new Eval(ctx.promqlCommand().source(), plan, List.of(evalAlias));
+            return new TranslationResult(evalPlan, evalAlias.toAttribute(), selectorFilter);
+        }
+        return new TranslationResult(plan, expr, selectorFilter);
     }
 
     /**
@@ -585,7 +635,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             }
         }
 
-        // Groupings: step + label groupings
+        // Groupings: `step` and `label`
         groupings.add(ctx.stepBucketAlias());
         groupings.addAll(labelGroupings);
 
@@ -624,8 +674,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         PromqlCommand promqlCommand = ctx.promqlCommand();
         Attribute stepAttr = ctx.stepAttr();
 
-        // Find the inner that has "_timeseries" dim (if any).
-        final var dimensionValuesAgg = childPlan.collect(TimeSeriesAggregate.class)
+        // Find the inner TSA created by a `without` clause, if present.
+        TimeSeriesAggregate withoutAggregate = childPlan.collect(TimeSeriesAggregate.class)
             .stream()
             .filter(tsa -> tsa.tsdimWithout() != null)
             .filter(
@@ -633,27 +683,23 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
                     .stream()
                     .anyMatch(g -> g instanceof NamedExpression ne && MetadataAttribute.TIMESERIES.equals(ne.name()))
             )
-            .findFirst();
+            .findFirst()
+            .orElse(null);
 
-        Set<String> excludedByWithout = dimensionValuesAgg.map(TimeSeriesAggregate::tsdimWithout)
-            .map(TsdimWithout::excludedFieldNames)
-            .orElseGet(Set::of);
+        var withoutLabels = Set.<String>of();
+        if (withoutAggregate != null) {
+            withoutLabels = unmodifiableSet(withoutAggregate.tsdimWithout().withoutLabels());
+        }
 
-        Alias aggAlias = new Alias(aggExpr.source(), promqlCommand.valueColumnName(), aggExpr);
+        AggregateContext inner = AggregateContext.from(withoutAggregate);
+
+        int originalInnerGroupingCount = inner.groupingCount();
+
+        AggregateContext outer = new AggregateContext();
+        outer.addAggregate(new Alias(aggExpr.source(), promqlCommand.valueColumnName(), aggExpr));
+        outer.addGrouping(stepAttr);
+
         List<Alias> evalStepGroupings = new ArrayList<>();
-        List<Attribute> resolvedGroupings = new ArrayList<>();
-        List<NamedExpression> outputAggs = new ArrayList<>();
-        outputAggs.add(aggAlias);
-        resolvedGroupings.add(stepAttr);
-        outputAggs.add(stepAttr);
-
-        // Start from the existing inner groupings/aggs if we have a TSA; otherwise start empty and never use them.
-        List<Expression> innerGroupings = dimensionValuesAgg.map(tsa -> new ArrayList<>(tsa.groupings())).orElseGet(ArrayList::new);
-
-        List<NamedExpression> innerAggs = dimensionValuesAgg.map(tsa -> new ArrayList<NamedExpression>(tsa.aggregates()))
-            .orElseGet(ArrayList::new);
-
-        int originalInnerGroupingCount = dimensionValuesAgg.map(tsa -> tsa.groupings().size()).orElse(0);
 
         for (var grouping : agg.output()) {
             // Skip synthetic groupings
@@ -662,19 +708,13 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             }
 
             if (childPlan.output().contains(grouping)) {
-                // PASS_THROUGH
-                resolvedGroupings.add(grouping);
-                outputAggs.add(grouping);
+                outer.addGrouping(grouping);
                 continue;
             }
 
-            boolean canExtractFromPacked = dimensionValuesAgg.isPresent() && excludedByWithout.contains(grouping.name()) == false;
-            if (canExtractFromPacked) {
-                // EXTRACT_FROM_PACKED
-                innerGroupings.add(grouping);
-                innerAggs.add(grouping);
-                resolvedGroupings.add(grouping);
-                outputAggs.add(grouping);
+            if (withoutAggregate != null && withoutLabels.contains(grouping.name()) == false) {
+                inner.addGrouping(grouping);
+                outer.addGrouping(grouping);
                 continue;
             }
 
@@ -686,28 +726,22 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
                 grouping.id()
             );
             evalStepGroupings.add(nullAlias);
-            Attribute nullAttr = nullAlias.toAttribute();
-            resolvedGroupings.add(nullAttr);
-            outputAggs.add(nullAttr);
+            outer.addGrouping(nullAlias.toAttribute());
         }
 
         LogicalPlan plan = childPlan;
-
-        // Rewrite the inner agg only if we actually extended it.
-        if (dimensionValuesAgg.isPresent() && innerGroupings.size() > originalInnerGroupingCount) {
-            var target = dimensionValuesAgg.get();
-            var newGroupings = List.copyOf(innerGroupings);
-            var newAggs = List.copyOf(innerAggs);
-
+        if (withoutAggregate != null && inner.groupingCount() > originalInnerGroupingCount) {
+            var newGroupings = List.copyOf(inner.groupings);
+            var newAggregates = List.copyOf(inner.aggregates);
             plan = plan.transformDown(TimeSeriesAggregate.class, tsa -> {
-                if (tsa != target) {
+                if (tsa != withoutAggregate) {
                     return tsa;
                 }
                 return new TimeSeriesAggregate(
                     tsa.source(),
                     tsa.child(),
                     newGroupings,
-                    newAggs,
+                    newAggregates,
                     tsa.timeBucket(),
                     tsa.timestamp(),
                     tsa.tsdimWithout()
@@ -719,7 +753,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             plan = new Eval(promqlCommand.source(), plan, evalStepGroupings);
         }
 
-        return new Aggregate(promqlCommand.source(), plan, List.copyOf(resolvedGroupings), outputAggs);
+        return new Aggregate(promqlCommand.source(), plan, List.copyOf(outer.groupings), outer.aggregates);
     }
 
     /**

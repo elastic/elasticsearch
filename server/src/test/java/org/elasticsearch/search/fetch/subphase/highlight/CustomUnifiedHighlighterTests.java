@@ -96,4 +96,61 @@ public class CustomUnifiedHighlighterTests extends HighlighterTestCase {
         assertHighlights(highlights, "field", "this is <em>some</em> text");
     }
 
+    /**
+     * 验证 match_phrase_prefix 查询 + sentence boundary scanner + highlight 不会抛出 IllegalStateException。
+     * 这是对 BoundedBreakIteratorScanner 未实现 first() 等标准方法导致高亮报错问题的回归测试。
+     */
+    public void testMatchPhrasePrefixWithSentenceBoundaryScanner() throws IOException {
+
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "field" : { "type" : "text" }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "field" : "The quick brown fox jumps over the lazy dog. Another sentence with prefix matching." }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchPhrasePrefixQuery("field", "prefix mat"))
+            .highlighter(
+                new HighlightBuilder().field("field")
+                    .boundaryScannerType(HighlightBuilder.BoundaryScannerType.SENTENCE)
+                    .highlighterType("unified")
+            );
+
+        // 不应抛出 IllegalStateException
+        Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
+        assertNotNull(highlights);
+        assertFalse(highlights.isEmpty());
+    }
+
+    /**
+     * 验证 match_phrase_prefix 查询 + sentence boundary scanner + 多值字段 highlight 不会抛出 IllegalStateException。
+     * 多值字段会触发 SplittingBreakIterator 的跨片段边界逻辑。
+     */
+    public void testMatchPhrasePrefixWithSentenceBoundaryScannerMultiValue() throws IOException {
+
+        MapperService mapperService = createMapperService("""
+            { "_doc" : { "properties" : {
+                "field" : { "type" : "text" }
+            }}}
+            """);
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            { "field" : ["First value with some text here.", "Second value with prefix matching content."] }
+            """));
+
+        SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.matchPhrasePrefixQuery("field", "prefix mat"))
+            .highlighter(
+                new HighlightBuilder().field("field")
+                    .boundaryScannerType(HighlightBuilder.BoundaryScannerType.SENTENCE)
+                    .highlighterType("unified")
+            );
+
+        // 不应抛出 IllegalStateException
+        Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
+        assertNotNull(highlights);
+    }
+
 }

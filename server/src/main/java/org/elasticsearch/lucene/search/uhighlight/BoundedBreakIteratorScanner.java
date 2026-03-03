@@ -162,26 +162,31 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
 
     @Override
     public int first() {
-        throw new IllegalStateException("first() should not be called in this context");
+        reset();
+        return mainBreak.first();
     }
 
     @Override
     public int next() {
-        throw new IllegalStateException("next() should not be called in this context");
+        reset();
+        return mainBreak.next();
     }
 
     @Override
     public int last() {
-        throw new IllegalStateException("last() should not be called in this context");
+        reset();
+        return mainBreak.last();
     }
 
     @Override
     public int next(int n) {
-        throw new IllegalStateException("next(n) should not be called in this context");
+        reset();
+        return mainBreak.next(n);
     }
 
     @Override
     public int previous() {
-        throw new IllegalStateException("previous() should not be called in this context");
+        reset();
+        return mainBreak.previous();
     }
 }

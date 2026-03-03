@@ -12,13 +12,12 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.test.MockBlockFactory;
@@ -89,14 +88,8 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
 
     public static class EsqlTestPluginWithMockBlockFactory extends EsqlPlugin {
         @Override
-        protected BlockFactoryProvider blockFactoryProvider(
-            CircuitBreaker breaker,
-            BigArrays bigArrays,
-            ByteSizeValue maxPrimitiveArraySize,
-            long bytesRefRamOverestimateThreshold,
-            double bytesRefRamOverestimateFactor
-        ) {
-            return new BlockFactoryProvider(new MockBlockFactory(breaker, bigArrays, maxPrimitiveArraySize));
+        protected BlockFactoryProvider blockFactoryProvider(BlockFactoryBuilder builder) {
+            return new BlockFactoryProvider(new MockBlockFactory(builder));
         }
     }
 

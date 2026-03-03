@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -713,8 +712,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
      */
     private void runWithLimit(Operator.OperatorFactory factory, List<Page> input, ByteSizeValue limit) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+        MockBlockFactory blockFactory = new MockBlockFactory(BlockFactory.builder(bigArrays));
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory, LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS);
         List<Page> localInput = CannedSourceOperator.deepCopyOf(blockFactory, input);
         boolean driverStarted = false;
@@ -727,7 +725,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                 Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(localInput.iterator(), p -> p::releaseBlocks)));
             }
             blockFactory.ensureAllBlocksAreReleased();
-            assertThat(breaker.getUsed(), equalTo(0L));
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
     }
 

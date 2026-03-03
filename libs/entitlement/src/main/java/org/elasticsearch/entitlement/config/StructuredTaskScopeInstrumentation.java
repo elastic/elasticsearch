@@ -23,8 +23,10 @@ public class StructuredTaskScopeInstrumentation implements InstrumentationConfig
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
 
         builder.on(StructuredTaskScope.class, rule -> {
-            rule.protectedCtor().enforce(Policies::manageThreads).elseThrowNotEntitled();
-            rule.protectedCtor(String.class, ThreadFactory.class).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingStatic(StructuredTaskScope::new).enforce(Policies::manageThreads).elseThrowNotEntitled();
+            rule.callingStatic(StructuredTaskScope::new, String.class, ThreadFactory.class)
+                .enforce(Policies::manageThreads)
+                .elseThrowNotEntitled();
         });
     }
 }

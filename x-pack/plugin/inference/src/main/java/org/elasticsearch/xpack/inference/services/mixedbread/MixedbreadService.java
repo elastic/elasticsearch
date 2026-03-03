@@ -55,7 +55,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsup
  * Mixedbread inference service for reranking tasks.
  * This service uses the Mixedbread REST API to perform document reranking.
  */
-public class MixedbreadService extends SenderService implements RerankingInferenceService {
+public class MixedbreadService extends SenderService<MixedbreadModel> implements RerankingInferenceService {
     public static final String NAME = "mixedbread";
     public static final String SERVICE_NAME = "Mixedbread";
 
@@ -101,7 +101,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     }
 
     public MixedbreadService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -140,25 +140,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         }
     }
 
-    private MixedbreadModel parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings
-    ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            ConfigurationParseContext.PERSISTENT
-        );
-    }
-
     /**
      * Creates an {@link MixedbreadModel} based on the provided parameters.
      *
@@ -193,20 +174,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     }
 
     @Override
-    public MixedbreadModel parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        return parsePersistedConfigWithSecrets(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, null, secretSettingsMap);
-    }
-
-    @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
             MODEL_CREATORS,
@@ -215,14 +182,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
             config.getService(),
             ConfigurationParseContext.PERSISTENT
         ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
-    public MixedbreadModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        return parsePersistedConfigWithSecrets(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, null, null);
     }
 
     @Override

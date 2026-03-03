@@ -32,10 +32,10 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         return new DateRangeDocValuesReader(dv);
     }
@@ -84,20 +84,6 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
                     }
                 }
                 return builder.build();
-            }
-        }
-
-        @Override
-        public void read(int doc, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-            var blockBuilder = (BlockLoader.LongRangeBuilder) builder;
-            this.docId = doc;
-            if (false == docValues.docValues().advanceExact(doc)) {
-                blockBuilder.appendNull();
-            } else {
-                var range = BinaryRangeUtil.decodeLongRanges(docValues.docValues().binaryValue());
-                assert range.size() == 1 : "stored fields should only have a single range";
-                blockBuilder.from().appendLong((long) range.getFirst().getFrom());
-                blockBuilder.to().appendLong((long) range.getFirst().getTo());
             }
         }
 

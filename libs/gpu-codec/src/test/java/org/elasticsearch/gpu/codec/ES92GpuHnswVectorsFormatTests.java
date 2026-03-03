@@ -37,7 +37,9 @@ public class ES92GpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase 
     public static void beforeClass() {
         var gpuSupport = CuVSGPUSupport.instance();
         assumeTrue("cuvs not supported", gpuSupport.isSupported());
-        codec = TestUtil.alwaysKnnVectorsFormat(new ES92GpuHnswVectorsFormat(CuVSResourceManager::pooling, gpuSupport.getTotalGpuMemory(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH));
+        codec = TestUtil.alwaysKnnVectorsFormat(
+            new ES92GpuHnswVectorsFormat(CuVSResourceManager::pooling, gpuSupport.getTotalGpuMemory(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH)
+        );
     }
 
     @Override

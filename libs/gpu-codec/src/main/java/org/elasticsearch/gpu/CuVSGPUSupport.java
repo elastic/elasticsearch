@@ -11,6 +11,7 @@ package org.elasticsearch.gpu;
 
 import com.nvidia.cuvs.GPUInfoProvider;
 import com.nvidia.cuvs.spi.CuVSProvider;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -120,7 +121,6 @@ public class CuVSGPUSupport implements GPUSupport {
             return GpuInfo.UNSUPPORTED;
         }
     }
-
 
     @Override
     public boolean isSupported() {

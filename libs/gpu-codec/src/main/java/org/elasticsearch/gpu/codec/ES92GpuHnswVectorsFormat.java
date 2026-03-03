@@ -20,7 +20,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.gpu.CuVSGPUSupport;
-import org.elasticsearch.gpu.GPUSupport;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -65,7 +64,12 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
         this(CuVSResourceManager::pooling, totalDeviceMemory, maxConn, beamWidth);
     }
 
-    ES92GpuHnswVectorsFormat(Supplier<CuVSResourceManager> cuVSResourceManagerSupplier, long totalDeviceMemory, int maxConn, int beamWidth) {
+    ES92GpuHnswVectorsFormat(
+        Supplier<CuVSResourceManager> cuVSResourceManagerSupplier,
+        long totalDeviceMemory,
+        int maxConn,
+        int beamWidth
+    ) {
         super(NAME);
         this.cuVSResourceManagerSupplier = cuVSResourceManagerSupplier;
         this.totalDeviceMemory = totalDeviceMemory;

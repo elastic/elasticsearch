@@ -555,7 +555,7 @@ null           | staging
 
 tsWithAggsByMissing
 required_capability: ts_command_v0
-required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_nullify_skip_group_aliases
 
 SET unmapped_fields="nullify"\;
 TS "k8s" | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster = does_not_exist

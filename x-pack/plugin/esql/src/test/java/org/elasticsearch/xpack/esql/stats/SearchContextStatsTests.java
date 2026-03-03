@@ -20,6 +20,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -208,7 +209,11 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         try {
             for (int i = 0; i < randomIntBetween(5, 10); i++) {
                 final MapperService mapperService = createMapperService(
-                    Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(),
+                    Settings.builder()
+                        .put("index.mode", "time_series")
+                        .put("index.routing_path", "uid")
+                        .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+                        .build(),
                     """
                         { "doc": { "properties": {
                             "@timestamp": { "type": "date" },
@@ -216,6 +221,50 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                         }}}"""
                 );
                 assertTrue(((DateFieldType) mapperService.fieldType("@timestamp")).hasDocValuesSkipper());
+                final Directory dir = newDirectory();
+                final IndexReader reader;
+                try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                    writer.addDocument(List.of(new StringField("uid", "id" + i, Field.Store.NO)));
+                    reader = writer.getReader();
+                }
+                toClose.add(reader);
+                toClose.add(mapperService);
+                toClose.add(dir);
+                contexts.add(createSearchExecutionContext(mapperService, newSearcher(reader)));
+            }
+
+            final SearchStats stats = SearchContextStats.from(contexts);
+            final FieldAttribute.FieldName timestampFieldName = new FieldAttribute.FieldName("@timestamp");
+            assertNull(stats.min(timestampFieldName));
+            assertNull(stats.max(timestampFieldName));
+            final Rounding.Prepared prepared = new Rounding.Builder(TimeValue.timeValueMinutes(30)).timeZone(ZoneId.of("Europe/Rome"))
+                .build()
+                .prepare(0L, 0L);
+            assertNotNull(prepared);
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
+    public void testTimeSeriesWithoutDocValuesSkipperMinMaxDoesNotReturnSentinelValues() throws IOException {
+        final List<SearchExecutionContext> contexts = new ArrayList<>();
+        final List<Closeable> toClose = new ArrayList<>();
+
+        try {
+            for (int i = 0; i < randomIntBetween(5, 10); i++) {
+                final MapperService mapperService = createMapperService(
+                    Settings.builder()
+                        .put("index.mode", "time_series")
+                        .put("index.routing_path", "uid")
+                        .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false)
+                        .build(),
+                    """
+                        { "doc": { "properties": {
+                            "@timestamp": { "type": "date" },
+                            "uid": { "type": "keyword", "time_series_dimension": true }
+                        }}}"""
+                );
+                assertFalse(((DateFieldType) mapperService.fieldType("@timestamp")).hasDocValuesSkipper());
                 final Directory dir = newDirectory();
                 final IndexReader reader;
                 try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {

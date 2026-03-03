@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -101,7 +100,7 @@ public class VectorFixedBuilderTests extends ESTestCase {
 
     public void testCranky() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
-        BlockFactory blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays).build();
         for (int i = 0; i < 100; i++) {
             try {
                 Vector.Builder builder = vectorBuilder(10, blockFactory);

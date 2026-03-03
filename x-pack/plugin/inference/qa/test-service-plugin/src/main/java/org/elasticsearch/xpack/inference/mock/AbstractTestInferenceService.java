@@ -25,6 +25,7 @@ import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.NoopChunker;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunker;
@@ -75,14 +76,13 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
     @Override
     @SuppressWarnings("unchecked")
-    public TestServiceModel parsePersistedConfigWithSecrets(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
+    public TestServiceModel parsePersistedConfig(UnparsedModel unparsedModel) {
+        var config = unparsedModel.settings();
+        var secrets = unparsedModel.secrets();
+        var taskType = unparsedModel.taskType();
+
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
-        var secretSettingsMap = (Map<String, Object>) secrets.remove(ModelSecrets.SECRET_SETTINGS);
+        var secretSettingsMap = secrets == null ? null : (Map<String, Object>) secrets.remove(ModelSecrets.SECRET_SETTINGS);
 
         var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
         var secretSettings = TestSecretSettings.fromMap(secretSettingsMap);
@@ -90,25 +90,12 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         var taskSettingsMap = getTaskSettingsMap(config);
         var taskSettings = getTasksSettingsFromMap(taskSettingsMap);
 
-        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
+        return new TestServiceModel(unparsedModel.inferenceEntityId(), taskType, name(), serviceSettings, taskSettings, secretSettings);
     }
 
     @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return new TestServiceModel(config, secrets);
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
-
-        var serviceSettings = getServiceSettingsFromMap(serviceSettingsMap);
-
-        var taskSettingsMap = getTaskSettingsMap(config);
-        var taskSettings = getTasksSettingsFromMap(taskSettingsMap);
-
-        return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, null);
     }
 
     protected TaskSettings getTasksSettingsFromMap(Map<String, Object> taskSettingsMap) {
@@ -250,6 +237,10 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         static final String NAME = "test_secret_settings";
 
         public static TestSecretSettings fromMap(Map<String, Object> map) {
+            if (map == null) {
+                return null;
+            }
+
             ValidationException validationException = new ValidationException();
 
             String apiKey = (String) map.remove("api_key");

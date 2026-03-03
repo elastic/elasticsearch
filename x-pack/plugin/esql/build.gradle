@@ -66,6 +66,10 @@ dependencies {
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
   testImplementation project(path: xpackModule('esql-datasource-gzip'))
+  testImplementation project(path: xpackModule('esql-datasource-zstd'))
+  testImplementation project(path: xpackModule('esql-datasource-bzip2'))
+  testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  testImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
@@ -541,6 +545,7 @@ def prop(Name, Type, type, TYPE, BYTES, Array) {
     "int"        : type == "int" ? "true" : "",
     "long"       : type == "long" ? "true" : "",
     "double"     : type == "double" ? "true" : "",
+    "float"      : type == "float" ? "true" : "",
     "BytesRef"   : type == "BytesRef" ? "true" : "",
     "boolean"    : type == "boolean" ? "true" : "",
     "nanosMillis": Name == "NanosMillis" ? "true" : "",
@@ -554,6 +559,7 @@ tasks.named('stringTemplates').configure {
   var nanosMillisProperties = prop("NanosMillis", "Long", "long", "LONG", "Long.BYTES", "LongArray")
   var millisNanosProperties = prop("MillisNanos", "Long", "long", "LONG", "Long.BYTES", "LongArray")
   var doubleProperties = prop("Double", "Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
+  var floatProperties = prop("Float", "Float", "float", "FLOAT", "Float.BYTES", "FloatArray")
   var bytesRefProperties = prop("BytesRef", "BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
   var expHistoProperties = prop("ExponentialHistogram", "ExponentialHistogram", "ExponentialHistogram", "EXPONENTIAL_HISTOGRAM", "", "")
@@ -616,6 +622,11 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceDoubleEvaluator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceFloatEvaluator.java"
   }
   template {
     it.properties = bytesRefProperties

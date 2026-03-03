@@ -46,24 +46,20 @@ public class MetricsApmIT extends ESRestTestCase {
         .build();
 
     @Rule
-    public TestRule ruleChain = RuleChain.outerRule(mockApmServer)
-        .around(cluster)
-        .around(
-            (base, description) -> new Statement() {
-                @Override
-                public void evaluate() throws Throwable {
-                    try {
-                        base.evaluate();
-                    } finally {
-                        try {
-                            closeClients();
-                        } catch (IOException e) {
-                            logger.error("failed to close REST clients after test", e);
-                        }
-                    }
+    public TestRule ruleChain = RuleChain.outerRule(mockApmServer).around(cluster).around((base, description) -> new Statement() {
+        @Override
+        public void evaluate() throws Throwable {
+            try {
+                base.evaluate();
+            } finally {
+                try {
+                    closeClients();
+                } catch (IOException e) {
+                    logger.error("failed to close REST clients after test", e);
                 }
             }
-        );
+        }
+    });
 
     @Override
     protected String getTestRestCluster() {

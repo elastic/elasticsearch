@@ -33,7 +33,9 @@ import java.util.Set;
 
 public class VirtualColumnInjectorTests extends ESTestCase {
 
-    private final BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
+    private final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
 
     public void testTwoDataTwoPartitionColumns() {
         List<Attribute> fullOutput = List.of(

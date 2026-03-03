@@ -18,8 +18,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.vectors.EmbeddingQueryVectorBuilder;
 
 import java.util.List;
@@ -62,10 +63,10 @@ public class EmbeddingQueryVectorBuilderFailureTests extends ESTestCase {
             assertThat(
                 exception.getMessage(),
                 equalTo(
-                    "expected a result of type ["
-                        + EmbeddingFloatResults.class.getSimpleName()
+                    "expected inference results to be of type ["
+                        + MlDenseEmbeddingResults.NAME
                         + "], received ["
-                        + sparseResults.getClass().getSimpleName()
+                        + TextExpansionResults.NAME
                         + "]"
                 )
             );

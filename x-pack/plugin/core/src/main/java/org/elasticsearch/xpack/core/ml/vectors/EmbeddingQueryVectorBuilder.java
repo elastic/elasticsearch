@@ -18,6 +18,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
@@ -29,7 +30,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 
 import java.io.IOException;
 import java.util.List;
@@ -131,22 +132,26 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     }
 
     private static void handleEmbeddingResponse(ActionListener<float[]> listener, InferenceAction.Response response) {
-        if (response.getResults() instanceof EmbeddingFloatResults results) {
-            if (results.embeddings().isEmpty()) {
-                listener.onFailure(new IllegalStateException("embedding inference response contains no results"));
-                return;
-            }
-            listener.onResponse(results.embeddings().getFirst().values());
+        List<? extends InferenceResults> inferenceResults = response.getResults().transformToCoordinationFormat();
+        if (inferenceResults.isEmpty()) {
+            listener.onFailure(new IllegalStateException("embedding inference response contains no results"));
+        } else if (inferenceResults.size() > 1) {
+            listener.onFailure(new IllegalStateException("embedding inference response contains " + inferenceResults.size() + " results"));
         } else {
-            listener.onFailure(
-                new IllegalStateException(
-                    "expected a result of type ["
-                        + EmbeddingFloatResults.class.getSimpleName()
-                        + "], received ["
-                        + response.getResults().getClass().getSimpleName()
-                        + "]"
-                )
-            );
+            InferenceResults inferenceResult = inferenceResults.getFirst();
+            if (inferenceResult instanceof MlDenseEmbeddingResults mlDenseEmbeddingResults) {
+                listener.onResponse(mlDenseEmbeddingResults.getInferenceAsFloat());
+            } else {
+                listener.onFailure(
+                    new IllegalStateException(
+                        "expected inference results to be of type ["
+                            + MlDenseEmbeddingResults.NAME
+                            + "], received ["
+                            + inferenceResult.getWriteableName()
+                            + "]"
+                    )
+                );
+            }
         }
     }
 

@@ -194,7 +194,7 @@ static inline void cosi8_inner_bulk(
     // Tail-handling: remaining vectors
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = (f32_t)vec_cosi8(a0, b, dims);
+        results[c] = vec_cosi8(a0, b, dims);
     }
 }
 

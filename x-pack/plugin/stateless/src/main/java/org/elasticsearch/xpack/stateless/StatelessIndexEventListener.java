@@ -499,7 +499,11 @@ class StatelessIndexEventListener implements IndexEventListener {
             } else {
                 final Engine engineOrNull = indexShard.getEngineOrNull();
                 if (engineOrNull instanceof SearchEngine searchEngine) {
-                    assert indexShard.state() == IndexShardState.RECOVERING
+                    /*
+                     * The shard can be closed underneath us, so we assert that we're either
+                     * recovering or closed at this point
+                     */
+                    assert indexShard.state() == IndexShardState.RECOVERING || indexShard.state() == IndexShardState.CLOSED
                         : "expected index in recovering shard state but is: " + indexShard.state();
                     assert indexShard.routingEntry().state() == ShardRoutingState.INITIALIZING
                         : "expected initializing shard routing state but is: " + indexShard.state();

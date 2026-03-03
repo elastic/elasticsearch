@@ -57,13 +57,13 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
     }
 
     public GetReindexResponse(StreamInput in) throws IOException {
-        originalTask = in.readOptionalWriteable(TaskResult::new);
+        originalTask = Objects.requireNonNull(in.readOptionalWriteable(TaskResult::new), "original task is required");
         relocatedTask = in.readOptionalWriteable(TaskResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(originalTask);
+        out.writeWriteable(originalTask);
         out.writeOptionalWriteable(relocatedTask);
     }
 

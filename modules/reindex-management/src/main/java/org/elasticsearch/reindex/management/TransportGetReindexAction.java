@@ -122,9 +122,8 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
         }
 
         final TaskInfo finalTaskInfo = finalTaskResult.getTask();
-        final TaskId finalTaskId = new TaskId(finalTaskInfo.node(), finalTaskInfo.id());
         // If waiting for an uncompleted task, we reissue the get request to wait for the reindex task to complete
-        final GetTaskRequest finalWaitGetRequest = new GetTaskRequest().setTaskId(finalTaskId)
+        final GetTaskRequest finalWaitGetRequest = new GetTaskRequest().setTaskId(finalTaskInfo.taskId())
             .setWaitForCompletion(true)
             .setTimeout(originalRequest.getTimeout());
 

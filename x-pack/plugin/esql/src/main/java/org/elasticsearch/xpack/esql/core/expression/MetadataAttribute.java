@@ -38,7 +38,7 @@ public class MetadataAttribute extends TypedAttribute {
         MetadataAttribute::readFrom
     );
 
-    private static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = Map.ofEntries(
+    public static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = Map.ofEntries(
         Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)),
         Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
         // actually _id is searchable, but fielddata access on it is disallowed by default

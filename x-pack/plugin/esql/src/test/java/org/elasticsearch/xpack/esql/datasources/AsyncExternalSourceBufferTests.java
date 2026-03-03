@@ -24,10 +24,9 @@ import org.elasticsearch.test.ESTestCase;
  */
 public class AsyncExternalSourceBufferTests extends ESTestCase {
 
-    private static final BlockFactory BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("test"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     /**
      * Creates a test page with a single integer block.

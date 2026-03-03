@@ -1,4 +1,4 @@
 - [`FROM`](/reference/query-languages/esql/commands/from.md)
 - [`ROW`](/reference/query-languages/esql/commands/row.md)
 - [`SHOW`](/reference/query-languages/esql/commands/show.md)
-- [`TS`](/reference/query-languages/esql/commands/ts.md)
+- [`TS`](/reference/query-languages/esql/commands/ts.md) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`

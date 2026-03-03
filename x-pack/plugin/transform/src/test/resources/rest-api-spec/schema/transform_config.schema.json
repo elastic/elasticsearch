@@ -176,6 +176,14 @@
           "title": "Pipeline",
           "type": "string",
           "pattern": "^.*$"
+        },
+        "action": {
+          "$id": "#root/dest/action",
+          "title": "Action",
+          "type": "string",
+          "enum": ["index", "create"],
+          "default": "index",
+          "description": "The write operation to use when indexing documents. Use \"create\" to write to data streams (destination must already exist)."
         }
       }
     },

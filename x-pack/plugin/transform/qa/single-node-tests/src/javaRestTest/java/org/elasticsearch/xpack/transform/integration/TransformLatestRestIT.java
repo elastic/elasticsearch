@@ -15,6 +15,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -368,5 +369,57 @@ public class TransformLatestRestIT extends TransformRestTestCase {
             XContentMapValues.extractValue("aggregations.max_timestamp.value_as_string", searchResponse),
             is(equalTo(expectedMaxTimestamp))
         );
+    }
+
+    /**
+     * Verifies that a latest transform can write to a data stream when dest.action is "create".
+     */
+    public void testLatestTransformWithDataStreamDestAndActionCreate() throws Exception {
+        String transformId = "latest-data-stream-action-create";
+        String destDataStream = transformId + "_ds";
+        String dataStreamIndexTemplate = transformId + "_template";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, destDataStream);
+
+        String config = Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s",
+                "action": "create"
+              },
+              "latest": {
+                "unique_key": [ "user_id" ],
+                "sort": "@timestamp"
+              }
+            }""", REVIEWS_INDEX_NAME, destDataStream);
+
+        Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + dataStreamIndexTemplate);
+        createIndexTemplateRequest.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "index_patterns": [ "%s*" ],
+              "data_stream": {}
+            }
+            """, destDataStream));
+        client().performRequest(createIndexTemplateRequest);
+
+        Request createDataStreamRequest = new Request("PUT", "_data_stream/" + destDataStream);
+        client().performRequest(createDataStreamRequest);
+
+        startAndWaitForTransform(transformId, destDataStream, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(destDataStream));
+
+        Map<String, Object> indexStats = getAsMap(destDataStream + "/_stats");
+        assertThat(XContentMapValues.extractValue("_all.total.docs.count", indexStats), is(equalTo(27)));
     }
 }

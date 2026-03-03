@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 
@@ -39,10 +40,36 @@ public class DocumentConversionUtils {
         String destinationIndex,
         String destinationPipeline
     ) {
-        if (docId == null) {
+        return convertDocumentToIndexRequest(docId, document, destinationIndex, destinationPipeline, DocWriteRequest.OpType.INDEX);
+    }
+
+    /**
+     * Convert a raw string, object map to a valid index request
+     * @param docId The document ID (required when opType is INDEX; ignored when opType is CREATE so Elasticsearch auto-generates the ID)
+     * @param document The document contents
+     * @param destinationIndex The index where the document is to be indexed
+     * @param destinationPipeline Optional destination pipeline
+     * @param opType The operation type (INDEX or CREATE). Use CREATE for data stream destinations.
+     * @return A valid {@link IndexRequest}
+     */
+    public static IndexRequest convertDocumentToIndexRequest(
+        String docId,
+        Map<String, Object> document,
+        String destinationIndex,
+        String destinationPipeline,
+        DocWriteRequest.OpType opType
+    ) {
+        if (opType != DocWriteRequest.OpType.CREATE && docId == null) {
             throw new RuntimeException("Expected a document id but got null.");
         }
-        return new IndexRequest(destinationIndex).id(docId).source(document).setPipeline(destinationPipeline);
+        IndexRequest request = new IndexRequest(destinationIndex).source(document).setPipeline(destinationPipeline);
+        if (opType == DocWriteRequest.OpType.CREATE) {
+            request.opType(DocWriteRequest.OpType.CREATE);
+            // Do not set id so Elasticsearch auto-generates it (standard for data streams)
+        } else {
+            request.id(docId);
+        }
+        return request;
     }
 
     /**

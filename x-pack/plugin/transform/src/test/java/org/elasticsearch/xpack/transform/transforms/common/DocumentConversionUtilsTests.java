@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms.common;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -80,6 +81,34 @@ public class DocumentConversionUtilsTests extends ESTestCase {
         assertThat(indexRequest.id(), is(equalTo(ID)));
         assertThat(indexRequest.getPipeline(), is(nullValue()));
         assertThat(indexRequest.sourceAsMap(), is(equalTo(DOCUMENT_WITHOUT_ID)));
+    }
+
+    public void testConvertDocumentToIndexRequest_WithCreateOpType() {
+        IndexRequest indexRequest = DocumentConversionUtils.convertDocumentToIndexRequest(
+            ID,
+            DOCUMENT,
+            INDEX,
+            PIPELINE,
+            DocWriteRequest.OpType.CREATE
+        );
+        assertThat(indexRequest.index(), is(equalTo(INDEX)));
+        // No id set for CREATE so Elasticsearch auto-generates it (e.g. for data streams)
+        assertThat(indexRequest.id(), is(nullValue()));
+        assertThat(indexRequest.getPipeline(), is(equalTo(PIPELINE)));
+        assertThat(indexRequest.sourceAsMap(), is(equalTo(DOCUMENT_WITHOUT_ID)));
+        assertThat(indexRequest.opType(), is(equalTo(DocWriteRequest.OpType.CREATE)));
+    }
+
+    public void testConvertDocumentToIndexRequest_WithCreateOpType_AllowsNullDocId() {
+        IndexRequest indexRequest = DocumentConversionUtils.convertDocumentToIndexRequest(
+            null,
+            DOCUMENT,
+            INDEX,
+            PIPELINE,
+            DocWriteRequest.OpType.CREATE
+        );
+        assertThat(indexRequest.opType(), is(equalTo(DocWriteRequest.OpType.CREATE)));
+        assertThat(indexRequest.id(), is(nullValue()));
     }
 
     public void testRemoveInternalFields() {

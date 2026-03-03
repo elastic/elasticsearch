@@ -29,7 +29,8 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
         return new DestConfig(
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomList(5, DestAliasTests::randomDestAlias),
-            randomBoolean() ? null : randomAlphaOfLength(10)
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomFrom(DestConfig.ACTION_INDEX, DestConfig.ACTION_CREATE)
         );
     }
 
@@ -72,6 +73,15 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
             ValidationException validationException = dest.validate(null);
             assertThat(validationException, is(notNullValue()));
             assertThat(validationException.getMessage(), containsString("dest.index must not be empty"));
+        }
+    }
+
+    public void testFailOnInvalidAction() throws IOException {
+        String json = "{ \"index\": \"my-dest\", \"action\": \"invalid_action\" }";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> DestConfig.fromXContent(parser, randomBoolean()));
+            assertThat(e.getMessage(), containsString("dest.action must be one of"));
+            assertThat(e.getMessage(), containsString("invalid_action"));
         }
     }
 }

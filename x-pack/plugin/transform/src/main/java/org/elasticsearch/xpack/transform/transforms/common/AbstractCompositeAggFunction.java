@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -174,6 +175,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
         SearchResponse searchResponse,
         String destinationIndex,
         String destinationPipeline,
+        DocWriteRequest.OpType destinationOpType,
         Map<String, String> fieldTypeMap,
         TransformIndexerStats stats,
         TransformProgress progress
@@ -197,7 +199,8 @@ public abstract class AbstractCompositeAggFunction implements Function {
                 docId,
                 documentTransformationFunction(doc),
                 destinationIndex,
-                destinationPipeline
+                destinationPipeline,
+                destinationOpType
             );
         });
 

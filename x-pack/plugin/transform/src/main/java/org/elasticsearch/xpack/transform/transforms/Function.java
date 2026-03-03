@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
@@ -236,6 +237,7 @@ public interface Function {
      * @param searchResponse the search response
      * @param destinationIndex the destination index
      * @param destinationPipeline the destination pipeline
+     * @param destinationOpType the operation type for indexing (INDEX or CREATE). Use CREATE for data stream destinations.
      * @param fieldMappings field mappings for the destination
      * @param stats a stats object to record/collect stats
      * @param progress a progress object to record/collect progress information
@@ -245,6 +247,7 @@ public interface Function {
         SearchResponse searchResponse,
         String destinationIndex,
         String destinationPipeline,
+        DocWriteRequest.OpType destinationOpType,
         Map<String, String> fieldMappings,
         TransformIndexerStats stats,
         TransformProgress progress

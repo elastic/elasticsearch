@@ -442,6 +442,66 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         );
     }
 
+    public void testDataStreamAsDestWithActionCreate() throws Exception {
+        String transformId = "transform-data-stream-action-create";
+        String sourceIndex = REVIEWS_INDEX_NAME;
+        String dataStreamIndexTemplate = transformId + "_template";
+        String destDataStream = transformId + "_ds";
+
+        // Create transform with dest.action "create" so we use create op type (required for data streams)
+        final Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
+        createTransformRequest.setJsonEntity(Strings.format("""
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s",
+                "action": "create"
+              },
+              "frequency": "1m",
+              "pivot": {
+                "group_by": {
+                  "user_id": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "stars_sum": {
+                    "sum": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", sourceIndex, destDataStream));
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        // Create index template for data stream
+        Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + dataStreamIndexTemplate);
+        createIndexTemplateRequest.setJsonEntity(String.format(Locale.ROOT, """
+            {
+              "index_patterns": [ "%s*" ],
+              "data_stream": {}
+            }
+            """, destDataStream));
+        client().performRequest(createIndexTemplateRequest);
+
+        // Create data stream (destination must exist when using action "create")
+        Request createDataStreamRequest = new Request("PUT", "_data_stream/" + destDataStream);
+        client().performRequest(createDataStreamRequest);
+
+        // Start transform and wait for completion; should succeed with action "create"
+        startAndWaitForTransform(transformId, destDataStream);
+
+        // Verify documents were written to the data stream
+        Map<String, Object> indexStats = getAsMap(destDataStream + "/_stats");
+        assertThat(XContentMapValues.extractValue("_all.total.docs.count", indexStats), is(equalTo(27)));
+    }
+
     private void verifyDestIndexHitsCount(String sourceIndex, String transformId, int maxPageSearchSize, long expectedDestIndexCount)
         throws Exception {
         String transformIndex = transformId;

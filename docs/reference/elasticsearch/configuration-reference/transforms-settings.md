@@ -35,3 +35,11 @@ You do not need to configure any settings to use {{transforms}}. It is enabled b
 `xpack.transform.num_transform_failure_retries`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) The number of times that a {{transform}} retries when it experiences a non-fatal error. Once the number of retries is exhausted, the {{transform}} task is marked as `failed`. The default value is `10` with a valid minimum of `0` and maximum of `100`. If a {{transform}} is already running, it has to be restarted to use the changed setting. The `num_failure_retries` setting can also be specified on an individual {{transform}} level. Specifying this setting for each {{transform}} individually is recommended.
 
+
+## Transform destination configuration [transform-dest-config]
+
+When creating or updating a transform (Put transform API), the `dest` object supports an optional **`action`** field:
+
+- **`index`** (default): Use the index operation when writing documents. Use for regular indices.
+- **`create`**: Use the create operation when writing documents. Required when the destination is a data stream, because data streams do not support the index operation. When using `create`, the destination index or data stream must already exist before starting the transform.
+

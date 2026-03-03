@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
@@ -140,6 +141,12 @@ public final class TransformIndex {
         }, listener::onFailure);
 
         if (dest.length == 0) {
+            // When action is "create", the destination is typically a data stream or user-created index.
+            // Do not call CreateIndexRequest (data stream names match templates that forbid index creation).
+            if (DestConfig.ACTION_CREATE.equals(config.getDestination().getAction())) {
+                createDestinationIndexListener.onResponse(false);
+                return;
+            }
             TransformDestIndexSettings generatedDestIndexSettings = createTransformDestIndexSettings(
                 destIndexSettings,
                 TransformEffectiveSettings.isDeduceMappingsDisabled(config.getSettings()) ? emptyMap() : destIndexMappings,

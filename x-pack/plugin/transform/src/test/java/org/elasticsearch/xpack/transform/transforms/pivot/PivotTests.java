@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -254,6 +255,7 @@ public class PivotTests extends ESTestCase {
                 SearchResponse searchResponse,
                 String destinationIndex,
                 String destinationPipeline,
+                DocWriteRequest.OpType destinationOpType,
                 Map<String, String> fieldTypeMap,
                 TransformIndexerStats stats,
                 TransformProgress progress
@@ -263,6 +265,7 @@ public class PivotTests extends ESTestCase {
                         searchResponse,
                         destinationIndex,
                         destinationPipeline,
+                        destinationOpType,
                         fieldTypeMap,
                         stats,
                         progress
@@ -274,30 +277,45 @@ public class PivotTests extends ESTestCase {
         };
 
         InternalAggregations aggs = null;
-        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+        assertThat(
+            pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, DocWriteRequest.OpType.INDEX, null, null, null),
+            is(nullValue())
+        );
 
         aggs = InternalAggregations.from(List.of());
-        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+        assertThat(
+            pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, DocWriteRequest.OpType.INDEX, null, null, null),
+            is(nullValue())
+        );
 
         InternalComposite compositeAgg = mock(InternalComposite.class);
         when(compositeAgg.getName()).thenReturn("_transform");
         when(compositeAgg.getBuckets()).thenReturn(List.of());
         when(compositeAgg.afterKey()).thenReturn(null);
         aggs = InternalAggregations.from(List.of(compositeAgg));
-        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+        assertThat(
+            pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, DocWriteRequest.OpType.INDEX, null, null, null),
+            is(nullValue())
+        );
 
         when(compositeAgg.getBuckets()).thenReturn(List.of());
         when(compositeAgg.afterKey()).thenReturn(Map.of("key", "value"));
         aggs = InternalAggregations.from(List.of(compositeAgg));
         // Empty bucket list is *not* a stop condition for composite agg processing.
-        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(notNullValue()));
+        assertThat(
+            pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, DocWriteRequest.OpType.INDEX, null, null, null),
+            is(notNullValue())
+        );
 
         InternalComposite.InternalBucket bucket = mock(InternalComposite.InternalBucket.class);
         List<InternalComposite.InternalBucket> buckets = List.of(bucket);
         doReturn(buckets).when(compositeAgg).getBuckets();
         when(compositeAgg.afterKey()).thenReturn(null);
         aggs = InternalAggregations.from(List.of(compositeAgg));
-        assertThat(pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, null, null, null), is(nullValue()));
+        assertThat(
+            pivot.processSearchResponse(searchResponseFromAggs(aggs), null, null, DocWriteRequest.OpType.INDEX, null, null, null),
+            is(nullValue())
+        );
     }
 
     public void testPreviewForEmptyAggregation() throws Exception {

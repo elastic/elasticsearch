@@ -16,7 +16,10 @@ import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -31,6 +34,7 @@ import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.junit.Assert;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -45,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Map.entry;
@@ -58,6 +63,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -196,6 +202,37 @@ public class TransformIndexTests extends ESTestCase {
         );
 
         assertTrue("Timed out waiting for test to finish", latch.await(10, TimeUnit.SECONDS));
+    }
+
+    public void testCreateDestinationIndex_SkipsCreateWhenActionCreateAndDestMissing() throws InterruptedException {
+        IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
+        when(
+            indexNameExpressionResolver.concreteIndexNames(any(ClusterState.class), any(IndicesOptions.class), eq("data-stream-dest"))
+        ).thenReturn(new String[0]);
+        TransformAuditor auditor = mock(TransformAuditor.class);
+        ClusterState clusterState = mock(ClusterState.class);
+
+        TransformConfig configWithActionCreate = new TransformConfig.Builder().setId(TRANSFORM_ID)
+            .setSource(new SourceConfig("source-index"))
+            .setDest(new DestConfig("data-stream-dest", null, null, DestConfig.ACTION_CREATE))
+            .build();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean listenerCalledWith = new AtomicBoolean(true);
+        TransformIndex.createDestinationIndex(
+            client,
+            auditor,
+            indexNameExpressionResolver,
+            clusterState,
+            configWithActionCreate,
+            Settings.EMPTY,
+            emptyMap(),
+            new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(created -> listenerCalledWith.set(created)), latch)
+        );
+
+        assertTrue("Timed out waiting for test to finish", latch.await(10, TimeUnit.SECONDS));
+        assertFalse("Listener should be called with false (destination was not created)", listenerCalledWith.get());
+        verify(client, never()).execute(eq(TransportCreateIndexAction.TYPE), any(), any());
     }
 
     public void testSetUpDestinationAliases_NullAliases() {

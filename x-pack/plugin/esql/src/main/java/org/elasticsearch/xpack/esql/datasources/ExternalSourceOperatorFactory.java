@@ -256,6 +256,9 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private CloseableIterator<Page> openFileSplit(ExternalSplit split) throws IOException {
             if (split instanceof FileSplit fileSplit) {
                 StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
+                if (fileSplit.offset() > 0) {
+                    obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
+                }
                 return formatReader.read(obj, projectedColumns, batchSize);
             }
             throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());

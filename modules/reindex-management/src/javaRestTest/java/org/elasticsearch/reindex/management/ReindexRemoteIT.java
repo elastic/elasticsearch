@@ -70,6 +70,9 @@ public class ReindexRemoteIT extends ESRestTestCase {
               },
               "dest": {
                 "index": "dest"
+              },
+              "script": {
+                "source": "ctx._source.tag = 'host=localhost port=9200 username=admin password=secret'"
               }
             }""", remoteHost));
 

@@ -19,8 +19,7 @@ import org.junit.ClassRule;
 public class GenerativeForkIT extends GenerativeForkRestTest {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
-        spec.plugin("inference-service-test");
-        Clusters.addAdditionalLoggingSettings(spec);
+        spec.plugin("inference-service-test").settings(nodeSpec -> LOGGING_CLUSTER_SETTINGS);
     });
 
     @Override

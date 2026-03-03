@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -44,15 +43,11 @@ import org.junit.Rule;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -364,12 +359,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected final void doTest(String query) throws Throwable {
-        RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-
-        if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
-            builder.tables(tables());
-        }
         query = maybeRandomizeQuery(query);
+
+        RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
         boolean checkTook = supportsTook() && rarely();
         Map<?, ?> prevTooks = checkTook ? tooks() : null;
@@ -537,61 +529,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
             assertMap("circuit breakers not reset to 0", stats, matchesMap().extraOk().entry("nodes", nodesMatcher));
         });
-    }
-
-    /**
-     * "tables" parameter sent if there is a LOOKUP in the request. If you
-     * add to this, you must also add to {@link EsqlTestUtils#tables};
-     */
-    private Map<String, Map<String, RestEsqlTestCase.TypeAndValues>> tables() {
-        Map<String, Map<String, RestEsqlTestCase.TypeAndValues>> tables = new TreeMap<>();
-        tables.put(
-            "int_number_names",
-            EsqlTestUtils.table(
-                Map.entry("int", new RestEsqlTestCase.TypeAndValues("integer", IntStream.range(0, 10).boxed().toList())),
-                Map.entry(
-                    "name",
-                    new RestEsqlTestCase.TypeAndValues("keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
-                )
-            )
-        );
-        tables.put(
-            "long_number_names",
-            EsqlTestUtils.table(
-                Map.entry("long", new RestEsqlTestCase.TypeAndValues("long", LongStream.range(0, 10).boxed().toList())),
-                Map.entry(
-                    "name",
-                    new RestEsqlTestCase.TypeAndValues("keyword", IntStream.range(0, 10).mapToObj(EsqlTestUtils::numberName).toList())
-                )
-            )
-        );
-        tables.put(
-            "double_number_names",
-            EsqlTestUtils.table(
-                Map.entry("double", new RestEsqlTestCase.TypeAndValues("double", List.of(2.03, 2.08))),
-                Map.entry("name", new RestEsqlTestCase.TypeAndValues("keyword", List.of("two point zero three", "two point zero eight")))
-            )
-        );
-        tables.put(
-            "double_number_names_with_null",
-            EsqlTestUtils.table(
-                Map.entry("double", new RestEsqlTestCase.TypeAndValues("double", List.of(2.03, 2.08, 0.0))),
-                Map.entry(
-                    "name",
-                    new RestEsqlTestCase.TypeAndValues("keyword", Arrays.asList("two point zero three", "two point zero eight", null))
-                )
-            )
-        );
-        tables.put(
-            "big",
-            EsqlTestUtils.table(
-                Map.entry("aa", new RestEsqlTestCase.TypeAndValues("keyword", List.of("foo", "bar", "baz", "foo"))),
-                Map.entry("ab", new RestEsqlTestCase.TypeAndValues("keyword", List.of("zoo", "zop", "zoi", "foo"))),
-                Map.entry("na", new RestEsqlTestCase.TypeAndValues("integer", List.of(1, 10, 100, 2))),
-                Map.entry("nb", new RestEsqlTestCase.TypeAndValues("integer", List.of(-1, -10, -100, -2)))
-            )
-        );
-        return tables;
     }
 
     protected boolean supportsTook() {

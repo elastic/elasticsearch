@@ -109,6 +109,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     assertEquals(in.getFilePointer(), slice.getFilePointer());
                 }
                 assertEquals((long) length * numVectors, slice.getFilePointer());
+                assertEquals((long) length * numVectors, in.getFilePointer());
             }
         }
     }

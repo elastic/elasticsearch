@@ -6,29 +6,22 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker, ExecutesOn {
-    public static final TransportVersion ESQL_LIMIT_BY = TransportVersion.fromName("esql_limit_by");
-
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Limit", Limit::new);
 
     private final Expression limit;
-
-    private List<Expression> groupings;
     /**
      * Important for optimizations. This should be {@code false} in most cases, which allows this instance to be duplicated past a child
      * plan node that increases the number of rows, like for LOOKUP JOIN and MV_EXPAND.
@@ -50,24 +43,11 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
         this(source, limit, child, false, false);
     }
 
-    /**
-     * Create a new instance with groupings, which are the expressions used in LIMIT BY. This sets {@link Limit#duplicated}
-     * and {@link Limit#local} to {@code false}.
-     */
-    public Limit(Source source, Expression limit, LogicalPlan child, List<Expression> groupings) {
-        this(source, limit, child, groupings, false, false);
-    }
-
-    public Limit(Source source, Expression limit, LogicalPlan child, List<Expression> groupings, boolean duplicated, boolean local) {
+    public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated, boolean local) {
         super(source, child);
         this.limit = limit;
         this.duplicated = duplicated;
         this.local = local;
-        this.groupings = groupings;
-    }
-
-    public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated, boolean local) {
-        this(source, limit, child, List.of(), duplicated, local);
     }
 
     /**
@@ -78,14 +58,9 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(LogicalPlan.class),
-            List.of(),
             false,
             false
         );
-
-        if (in.getTransportVersion().supports(ESQL_LIMIT_BY)) {
-            this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
-        }
     }
 
     /**
@@ -98,12 +73,6 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(limit());
         out.writeNamedWriteable(child());
-
-        if (out.getTransportVersion().supports(ESQL_LIMIT_BY)) {
-            out.writeNamedWriteableCollection(groupings());
-        } else if (groupings.isEmpty() == false) {
-            throw new IllegalArgumentException("LIMIT BY is not supported by all nodes in the cluster");
-        }
     }
 
     @Override
@@ -113,24 +82,20 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
 
     @Override
     protected NodeInfo<Limit> info() {
-        return NodeInfo.create(this, Limit::new, limit, child(), groupings, duplicated, local);
+        return NodeInfo.create(this, Limit::new, limit, child(), duplicated, local);
     }
 
     @Override
     public Limit replaceChild(LogicalPlan newChild) {
-        return new Limit(source(), limit, newChild, groupings, duplicated, local);
+        return new Limit(source(), limit, newChild, duplicated, local);
     }
 
     public Expression limit() {
         return limit;
     }
 
-    public List<Expression> groupings() {
-        return groupings;
-    }
-
     public Limit withLimit(Expression limit) {
-        return new Limit(source(), limit, child(), groupings, duplicated, local);
+        return new Limit(source(), limit, child(), duplicated, local);
     }
 
     public boolean duplicated() {
@@ -142,21 +107,21 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     }
 
     public Limit withDuplicated(boolean duplicated) {
-        return new Limit(source(), limit, child(), groupings, duplicated, local);
+        return new Limit(source(), limit, child(), duplicated, local);
     }
 
     public Limit withLocal(boolean newLocal) {
-        return new Limit(source(), limit, child(), groupings, duplicated, newLocal);
+        return new Limit(source(), limit, child(), duplicated, newLocal);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return limit.resolved() && Resolvables.resolved(groupings);
+        return limit.resolved();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(limit, child(), duplicated, local, groupings);
+        return Objects.hash(limit, child(), duplicated, local);
     }
 
     @Override
@@ -173,8 +138,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
         return Objects.equals(limit, other.limit)
             && Objects.equals(child(), other.child())
             && (duplicated == other.duplicated)
-            && (local == other.local)
-            && Objects.equals(groupings, other.groupings);
+            && (local == other.local);
     }
 
     @Override

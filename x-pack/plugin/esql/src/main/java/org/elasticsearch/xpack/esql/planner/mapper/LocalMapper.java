@@ -88,7 +88,7 @@ public class LocalMapper {
         }
 
         if (unary instanceof Limit limit) {
-            return new LimitExec(limit.source(), mappedChild, limit.limit(), limit.groupings(), null);
+            return new LimitExec(limit.source(), mappedChild, limit.limit(), null);
         }
 
         if (unary instanceof TopN topN) {

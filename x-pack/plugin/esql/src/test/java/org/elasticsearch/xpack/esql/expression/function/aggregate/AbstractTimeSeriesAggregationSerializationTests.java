@@ -17,8 +17,8 @@ import java.io.IOException;
  * Helper for making serialization tests for time series aggregations that take
  * {@code field}, {@code filter}, and {@code window}.
  */
-public abstract class AbstractTimeSeriesAggregationSerializationTests<T extends TimeSeriesAggregateFunction>
-    extends AbstractExpressionSerializationTests<T> {
+public abstract class AbstractTimeSeriesAggregationSerializationTests<T extends TimeSeriesAggregateFunction> extends
+    AbstractExpressionSerializationTests<T> {
 
     protected abstract T create(Source source, Expression field, Expression filter, Expression window);
 

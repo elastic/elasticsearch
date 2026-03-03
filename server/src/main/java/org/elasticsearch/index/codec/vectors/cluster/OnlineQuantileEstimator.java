@@ -108,8 +108,7 @@ public class OnlineQuantileEstimator {
         }
     }
 
-
-        /** Return the q-quantile estimate. */
+    /** Return the q-quantile estimate. */
     public float getEstimate() {
         return estimate * ((max - min) * precision) + min;
     }

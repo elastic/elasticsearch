@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -247,6 +248,7 @@ public class ComputeService {
             case "", "adaptive" -> new AdaptiveStrategy();
             case "coordinator_only" -> CoordinatorOnlyStrategy.INSTANCE;
             case "round_robin" -> new RoundRobinStrategy();
+            case "weighted_round_robin" -> new WeightedRoundRobinStrategy();
             default -> {
                 LOGGER.warn("unknown external_distribution pragma value [{}]; falling back to adaptive", value);
                 yield new AdaptiveStrategy();
@@ -1079,10 +1081,11 @@ public class ComputeService {
         // FragmentExec.output() doesn't take into account intermediate attributes of aggs, and time series aggs
         // have some peculiarities due to implicit dimensions. We should clean this up and add a proper check here.
         return fragment instanceof Aggregate
-            // MetricsInfo does not serialize its output attributes (they are generated automatically and do not depend on the input).
-            // After de-serializing the data node plan, the output attributes have different NameIds than the ExchangeSink of the
-            // data node plan.
-            || fragment instanceof MetricsInfo;
+            // MetricsInfo/TsInfo do not serialize their output attributes (they are generated automatically and do not depend on the
+            // input). After de-serializing the data node plan, the output attributes have different NameIds than the ExchangeSink of
+            // the data node plan.
+            || fragment instanceof MetricsInfo
+            || fragment instanceof TsInfo;
     }
 
     String newChildSession(String session) {

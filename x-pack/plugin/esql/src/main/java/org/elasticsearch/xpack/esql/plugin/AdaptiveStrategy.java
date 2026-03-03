@@ -60,6 +60,16 @@ public final class AdaptiveStrategy implements ExternalDistributionStrategy {
         boolean manySplits = splits.size() > nodes.size();
 
         if (hasAggregation || manySplits) {
+            boolean allHaveSize = true;
+            for (ExternalSplit split : splits) {
+                if (split.estimatedSizeInBytes() <= 0) {
+                    allHaveSize = false;
+                    break;
+                }
+            }
+            if (allHaveSize) {
+                return WeightedRoundRobinStrategy.assignByWeight(splits, nodes);
+            }
             return RoundRobinStrategy.assignRoundRobin(splits, nodes);
         }
 

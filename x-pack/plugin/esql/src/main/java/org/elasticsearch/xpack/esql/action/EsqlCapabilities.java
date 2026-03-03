@@ -1605,6 +1605,11 @@ public class EsqlCapabilities {
         TO_DENSE_VECTOR_FUNCTION,
 
         /**
+         * COALESCE function support for dense_vector type.
+         */
+        COALESCE_DENSE_VECTOR,
+
+        /**
          * Multivalued query parameters
          */
         QUERY_PARAMS_MULTI_VALUES(),
@@ -2230,6 +2235,11 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/142180
          */
         FIX_AGGREGATION_FRAMEWORK_CHANNELS,
+
+        /**
+         * Support for the TS_INFO command — per-time-series granularity variant of METRICS_INFO.
+         */
+        TS_INFO_COMMAND,
 
         /**
          * Fix for KQL/QSTR functions failing when used with unmapped fields in NULLIFY mode.

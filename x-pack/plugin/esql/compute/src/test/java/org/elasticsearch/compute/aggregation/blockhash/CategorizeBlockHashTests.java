@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -449,8 +448,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         BlockHash.GroupSpec groupSpec = new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorizeDef);
 
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
+        DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
 
         LocalSourceOperator.BlockSupplier input1 = () -> {
             try (

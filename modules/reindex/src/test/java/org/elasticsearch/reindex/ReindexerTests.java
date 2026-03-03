@@ -319,10 +319,7 @@ public class ReindexerTests extends ESTestCase {
         return reindexerWithRelocation(mock(ClusterService.class), transportService);
     }
 
-    private static Reindexer reindexerWithRelocation(
-        ClusterService clusterService,
-        TransportService transportService
-    ) {
+    private static Reindexer reindexerWithRelocation(ClusterService clusterService, TransportService transportService) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
         return new Reindexer(

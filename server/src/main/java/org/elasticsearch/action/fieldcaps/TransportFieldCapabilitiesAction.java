@@ -265,6 +265,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     request.indicesOptions(),
                     request.getProjectRouting(),
                     request.getResolvedIndexExpressions(),
+                    Map.of(),
                     Map.of()
                 );
                 if (ex != null) {
@@ -366,7 +367,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         request.indicesOptions(),
                         request.getProjectRouting(),
                         resolvedLocally,
-                        resolvedRemotely
+                        resolvedRemotely,
+                        Map.of()
                     );
                     if (ex != null) {
                         listener.onFailure(ex);

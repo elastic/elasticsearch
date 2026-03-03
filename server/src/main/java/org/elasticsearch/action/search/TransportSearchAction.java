@@ -1228,7 +1228,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             rewritten.indicesOptions(),
             rewritten.getProjectRouting(),
             rewritten.getResolvedIndexExpressions(),
-            resolvedExpressions
+            resolvedExpressions,
+            Map.of()
         );
 
         if (ex != null) {
@@ -1374,7 +1375,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             originalIdxOpts,
                             projectRouting,
                             originResolvedIdxExpressions,
-                            resolvedIndexExpressions
+                            resolvedIndexExpressions,
+                            Map.of()
                         );
                         if (validationEx != null) {
                             throw validationEx;

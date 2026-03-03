@@ -83,7 +83,8 @@ public class CrossProjectIndexResolutionValidator {
         IndicesOptions indicesOptions,
         @Nullable String projectRouting,
         ResolvedIndexExpressions localResolvedExpressions,
-        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
+        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
+        Map<String, Exception> remoteExceptions
     ) {
         if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
             logger.debug("Skipping index existence check in lenient mode");
@@ -143,6 +144,7 @@ public class CrossProjectIndexResolutionValidator {
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         localResolvedExpressions,
                         remoteResolvedExpressions,
+                        remoteExceptions,
                         projectAlias,
                         resource,
                         remoteExpression,
@@ -186,6 +188,7 @@ public class CrossProjectIndexResolutionValidator {
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         localResolvedExpressions,
                         remoteResolvedExpressions,
+                        remoteExceptions,
                         projectAlias,
                         resource,
                         remoteExpression,
@@ -302,6 +305,7 @@ public class CrossProjectIndexResolutionValidator {
     private static ElasticsearchException checkSingleRemoteExpression(
         ResolvedIndexExpressions localExpressions,
         Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
+        Map<String, Exception> remoteExceptions,
         String projectAlias,
         String resource,
         String remoteExpression,
@@ -321,7 +325,12 @@ public class CrossProjectIndexResolutionValidator {
          * is identical to the one where we could not find an index anywhere.
          */
         if (resolvedExpressionsInProject == null) {
-            return new IndexNotFoundException(remoteExpression);
+            // if we're missing results from the remote because of a connection error, report it; else assume we have an exclusion
+            if (remoteExceptions.containsKey(projectAlias)) {
+                return new IndexNotFoundException(remoteExpression);
+            } else {
+                return null;
+            }
         }
 
         ResolvedIndexExpression.LocalExpressions matchingExpression = findMatchingExpression(resolvedExpressionsInProject, resource);

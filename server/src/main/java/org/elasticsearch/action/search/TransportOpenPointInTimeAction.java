@@ -168,6 +168,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 originalIndicesOptions,
                 request.getProjectRouting(),
                 localResolvedIndexExpressions,
+                Map.of(),
                 Map.of()
             );
             if (ex != null) {
@@ -194,7 +195,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     originalIndicesOptions,
                     request.getProjectRouting(),
                     localResolvedIndexExpressions,
-                    resolvedRemoteExpressions
+                    resolvedRemoteExpressions,
+                    Map.of()
                 );
                 if (ex != null) {
                     listener.onFailure(ex);

@@ -63,6 +63,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -632,6 +633,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 final int remoteRequests = remoteClusterIndices.size();
                 final CountDown completionCounter = new CountDown(remoteRequests);
                 final SortedMap<String, Response> remoteResponses = Collections.synchronizedSortedMap(new TreeMap<>());
+                final var remoteExceptions = Collections.synchronizedMap(new HashMap<String, Exception>());
                 final Runnable terminalHandler = () -> {
                     if (completionCounter.countDown()) {
                         if (resolveCrossProject) {
@@ -639,7 +641,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                                 originalIndicesOptions,
                                 request.getProjectRouting(),
                                 localResolvedIndexExpressions,
-                                getResolvedExpressionsByRemote(remoteResponses)
+                                getResolvedExpressionsByRemote(remoteResponses),
+                                remoteExceptions
                             );
                             if (ex != null) {
                                 listener.onFailure(ex);
@@ -666,6 +669,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         terminalHandler.run();
                     }, failure -> {
                         logger.info("failed to resolve indices on remote cluster [" + clusterAlias + "]", failure);
+                        remoteExceptions.put(clusterAlias, failure);
                         terminalHandler.run();
                     }));
                 }
@@ -677,6 +681,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         originalIndicesOptions,
                         request.getProjectRouting(),
                         localResolvedIndexExpressions,
+                        Map.of(),
                         Map.of()
                     );
                     if (ex != null) {

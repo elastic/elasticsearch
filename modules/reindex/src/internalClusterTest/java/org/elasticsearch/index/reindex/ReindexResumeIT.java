@@ -24,12 +24,16 @@ import org.elasticsearch.index.reindex.ResumeInfo.SliceStatus;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.ReindexWithPointInTimeSearchTestFeatureSpecification;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
+import org.junit.runners.model.Statement;
 
 import java.net.InetSocketAddress;
 import java.util.Collection;
@@ -43,8 +47,31 @@ import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.AUTO_S
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class ReindexResumeIT extends ESIntegTestCase {
+
+    /**
+     * Sets {@link ReindexWithPointInTimeSearchTestFeatureSpecification#REINDEX_PIT_SEARCH_FOR_TEST}
+     * so the cluster is built with {@link ReindexPlugin#REINDEX_PIT_SEARCH_FEATURE}
+     * enabled. Uses a {@link TestRule} because with {@code numDataNodes = 1} nodes created in
+     * {@code setupTestCluster()}, placing this code in {@code @Before} would run too late.
+     */
+    @Rule
+    public TestRule setPitFlagForTestRule = (base, description) -> new Statement() {
+        @Override
+        public void evaluate() throws Throwable {
+            if ("testRemoteResumeReindexWithPit".equals(getTestName())) {
+                ReindexWithPointInTimeSearchTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST = true;
+            }
+            try {
+                base.evaluate();
+            } finally {
+                if (description.getMethodName() != null && description.getMethodName().endsWith("WithPit")) {
+                    ReindexWithPointInTimeSearchTestFeatureSpecification.REINDEX_PIT_SEARCH_FOR_TEST = false;
+                }
+            }
+        }
+    };
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -112,6 +139,14 @@ public class ReindexResumeIT extends ESIntegTestCase {
     }
 
     public void testRemoteResumeReindexFromScroll() {
+        remoteResumeReindexInternal();
+    }
+
+    public void testRemoteResumeReindexWithPit() {
+        remoteResumeReindexInternal();
+    }
+
+    private void remoteResumeReindexInternal() {
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         int totalDocs = randomIntBetween(20, 100);

@@ -249,7 +249,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             assert nestedDoc.getField(TimeSeriesRoutingHashFieldMapper.NAME) == null;
 
             if (rootParentDoc != null) {
-                assert nestedDocFields.isEmpty() == false;
+                assert nestedDocFields.size() == 4 : nestedDocFields.size();
                 nestedDoc.addAll(nestedDocFields);
                 continue;
             }

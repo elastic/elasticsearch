@@ -34,7 +34,7 @@ public class StSimplifyErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
             case 0 -> "geo_point, cartesian_point, geo_shape or cartesian_shape";
-            case 1 -> "double";
+            case 1 -> "double, float, long or integer";
             default -> throw new IllegalStateException("Unexpected value: " + p);
         }));
     }

@@ -27,7 +27,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
@@ -97,26 +96,28 @@ public class StSimplifyTests extends AbstractScalarFunctionTestCase {
         DataType spatialType,
         TestCaseSupplier.TypedDataSupplier geometrySupplier
     ) {
-        String testName = spatialType.typeName() + " with tolerance.";
+        for (DataType toleranceType : new DataType[] { DataType.DOUBLE, DataType.FLOAT, DataType.LONG, DataType.INTEGER }) {
+            String testName = spatialType.typeName() + " with tolerance[" + toleranceType.typeName() + "].";
+            suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, toleranceType), () -> {
+                TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
+                BytesRef geometry = (BytesRef) geoTypedData.data();
+                double tolerance = toleranceType.isWholeNumber() ? randomDoubleBetween(0, 100, true) : randomIntBetween(0, 100);
+                TestCaseSupplier.TypedData toleranceData = new TestCaseSupplier.TypedData(tolerance, toleranceType, "tolerance");
+                toleranceData = toleranceData.forceLiteral();
+                String evaluatorName =
+                    "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[geometry=Attribute[channel=0], tolerance="
+                        + tolerance
+                        + "]";
+                var expectedResult = valueOf(geometry, tolerance);
 
-        suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, DOUBLE), () -> {
-            TestCaseSupplier.TypedData geoTypedData = geometrySupplier.get();
-            BytesRef geometry = (BytesRef) geoTypedData.data();
-            double tolerance = randomDoubleBetween(0, 100, true);
-            TestCaseSupplier.TypedData toleranceData = new TestCaseSupplier.TypedData(tolerance, DOUBLE, "tolerance");
-            toleranceData = toleranceData.forceLiteral();
-            String evaluatorName = "StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator[geometry=Attribute[channel=0], tolerance="
-                + tolerance
-                + "]";
-            var expectedResult = valueOf(geometry, tolerance);
-
-            return new TestCaseSupplier.TestCase(
-                List.of(geoTypedData, toleranceData),
-                evaluatorName,
-                spatialType,
-                Matchers.equalTo(expectedResult)
-            );
-        }));
+                return new TestCaseSupplier.TestCase(
+                    List.of(geoTypedData, toleranceData),
+                    evaluatorName,
+                    spatialType,
+                    Matchers.equalTo(expectedResult)
+                );
+            }));
+        }
     }
 
     private static BytesRef valueOf(BytesRef wkb, double tolerance) {

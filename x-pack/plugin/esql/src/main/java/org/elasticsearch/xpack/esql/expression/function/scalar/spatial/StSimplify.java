@@ -44,6 +44,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
@@ -81,7 +84,7 @@ public class StSimplify extends SpatialDocValuesFunction {
         ) Expression geometry,
         @Param(
             name = "tolerance",
-            type = { "double" },
+            type = { "double", "float", "long", "integer" },
             description = "Tolerance for the geometry simplification, in the units of the input SRS"
         ) Expression tolerance
     ) {
@@ -145,7 +148,16 @@ public class StSimplify extends SpatialDocValuesFunction {
         if (spatialResolved.unresolved()) {
             return spatialResolved;
         }
-        return isType(tolerance, t -> t == DOUBLE, sourceText(), SECOND, DOUBLE.typeName());
+        return isType(
+            tolerance,
+            t -> t == DOUBLE || t == FLOAT || t == LONG || t == INTEGER,
+            sourceText(),
+            SECOND,
+            "double",
+            "float",
+            "long",
+            "integer"
+        );
     }
 
     @Override

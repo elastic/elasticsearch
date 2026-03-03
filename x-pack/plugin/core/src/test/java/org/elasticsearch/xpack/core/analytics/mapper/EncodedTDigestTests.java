@@ -146,8 +146,10 @@ public class EncodedTDigestTests extends ESTestCase {
 
         List<Double> quantileProbes = new ArrayList<>();
         quantileProbes.add(0.0);
-        quantileProbes.add(1.0);
+        quantileProbes.add(0.05);
         quantileProbes.add(0.5);
+        quantileProbes.add(0.95);
+        quantileProbes.add(1.0);
         for (int i = 0; i < 100; i++) {
             quantileProbes.add(randomDoubleBetween(0.0, 1.0, true));
         }

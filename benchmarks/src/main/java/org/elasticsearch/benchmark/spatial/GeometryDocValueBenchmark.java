@@ -28,6 +28,7 @@ import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
+import org.elasticsearch.lucene.spatial.VertexLookupTable;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -75,7 +76,7 @@ public class GeometryDocValueBenchmark {
         LogConfigurator.configureESLogging();
     }
 
-    @Param({ "point", "multiPoint", "simpleLine", "complexLine", "simplePoly", "complexPoly" })
+    @Param({ "point", "multiPoint", "simpleLine", "complexLine", "simplePoly", "complexPoly", "largePoly" })
     public String geometryType;
 
     private Geometry geometry;
@@ -114,16 +115,51 @@ public class GeometryDocValueBenchmark {
 
         if (sizeReported == false) {
             sizeReported = true;
-            System.out.println("=== Storage size for " + geometryType + " ===");
-            System.out.println("  Triangles:    " + tessellatedFields.size());
-            System.out.println("  Legacy bytes: " + legacyBytes.length);
-            System.out.println("  V2 bytes:     " + v2Bytes.length);
-            System.out.println(
-                "  Auto bytes:   " + autoBytes.length + " (" + (autoBytes.length == legacyBytes.length ? "legacy" : "V2") + ")"
-            );
-            System.out.println("  WKT chars:    " + wktString.length());
-            System.out.println("  WKB bytes:    " + wkbBytes.length);
+            reportSizes();
         }
+    }
+
+    private void reportSizes() throws IOException {
+        System.out.println("=== Storage size for " + geometryType + " ===");
+        System.out.println("  Triangles:    " + tessellatedFields.size());
+        System.out.println("  Legacy bytes: " + legacyBytes.length);
+        System.out.println("  V2 bytes:     " + v2Bytes.length);
+        System.out.println("  Auto bytes:   " + autoBytes.length + " (" + (autoBytes.length == legacyBytes.length ? "legacy" : "V2") + ")");
+        System.out.println("  WKT chars:    " + wktString.length());
+        System.out.println("  WKB bytes:    " + wkbBytes.length);
+
+        // V2 component-level breakdown
+        if (autoBytes.length != legacyBytes.length) {
+            reportV2Breakdown();
+        }
+    }
+
+    private void reportV2Breakdown() throws IOException {
+        // Count unique vertices by building a vertex table the same way the writer does
+        VertexLookupTable.Builder vtb = VertexLookupTable.builder();
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "benchmark");
+        Geometry norm = indexer.normalize(geometry);
+        List<IndexableField> fields = indexer.getIndexableFields(norm);
+        byte[] scratch = new byte[7 * Integer.BYTES];
+        for (IndexableField field : fields) {
+            BytesRef br = field.binaryValue();
+            System.arraycopy(br.bytes, br.offset, scratch, 0, 7 * Integer.BYTES);
+            org.apache.lucene.document.ShapeField.DecodedTriangle dt = new org.apache.lucene.document.ShapeField.DecodedTriangle();
+            org.apache.lucene.document.ShapeField.decodeTriangle(scratch, dt);
+            vtb.addVertex(dt.aX, dt.aY);
+            vtb.addVertex(dt.bX, dt.bY);
+            vtb.addVertex(dt.cX, dt.cY);
+        }
+        int numVertices = vtb.size();
+
+        org.elasticsearch.common.io.stream.BytesStreamOutput vtTableOut = new org.elasticsearch.common.io.stream.BytesStreamOutput();
+        vtb.writeTo(vtTableOut);
+        int vertexTableSize = (int) vtTableOut.position();
+
+        System.out.println("  --- V2 breakdown ---");
+        System.out.println("  Unique vertices:      " + numVertices);
+        System.out.println("  Vertex table bytes:   " + vertexTableSize);
+        System.out.printf("  V2/Legacy:            %.1f%%%n", (double) v2Bytes.length / legacyBytes.length * 100);
     }
 
     // ---- Doc-value write benchmarks ----
@@ -201,6 +237,7 @@ public class GeometryDocValueBenchmark {
             case "complexLine" -> createComplexLine(500);
             case "simplePoly" -> new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
             case "complexPoly" -> createStarPolygon(500);
+            case "largePoly" -> createCoastlinePolygon(2000);
             default -> throw new IllegalArgumentException("Unknown geometry type: " + type);
         };
     }
@@ -234,6 +271,30 @@ public class GeometryDocValueBenchmark {
         }
         lons[totalVertices] = lons[0];
         lats[totalVertices] = lats[0];
+        return new Polygon(new LinearRing(lons, lats));
+    }
+
+    /**
+     * Simulates a coastline polygon spanning ~20 degrees of longitude and ~15 degrees of latitude,
+     * similar to a medium-sized country boundary in the rally geoshape track.
+     */
+    private static Polygon createCoastlinePolygon(int numPoints) {
+        double centerLon = 2.0;
+        double centerLat = 46.0;
+        double[] lons = new double[numPoints + 1];
+        double[] lats = new double[numPoints + 1];
+
+        for (int i = 0; i < numPoints; i++) {
+            double angle = 2.0 * Math.PI * i / numPoints;
+            double baseRadius = 8.0;
+            double noise = 2.0 * Math.sin(angle * 7) + 1.0 * Math.sin(angle * 13) + 0.5 * Math.sin(angle * 31);
+            double radius = baseRadius + noise;
+            double lonScale = 1.2;
+            lons[i] = centerLon + radius * lonScale * Math.cos(angle);
+            lats[i] = Math.max(-89.9, Math.min(89.9, centerLat + radius * Math.sin(angle)));
+        }
+        lons[numPoints] = lons[0];
+        lats[numPoints] = lats[0];
         return new Polygon(new LinearRing(lons, lats));
     }
 

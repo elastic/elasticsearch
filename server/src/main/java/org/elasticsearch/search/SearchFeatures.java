@@ -51,6 +51,9 @@ public final class SearchFeatures implements FeatureSpecification {
         "search.exponential_histogram_querydsl_percentile_ranks"
     );
     public static final NodeFeature CLOSING_INVALID_PIT_ID = new NodeFeature("closing_invalid_pit_id");
+    public static final NodeFeature EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT = new NodeFeature(
+        "search.exponential_histogram_querydsl_boxplot"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -73,7 +76,8 @@ public final class SearchFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILES,
             EXPONENTIAL_HISTOGRAM_QUERYDSL_PERCENTILE_RANKS,
             CLOSING_INVALID_PIT_ID,
-            FUNCTION_SCORE_NAMED_QUERIES
+            FUNCTION_SCORE_NAMED_QUERIES,
+            EXPONENTIAL_HISTOGRAM_QUERYDSL_BOXPLOT
         );
     }
 }

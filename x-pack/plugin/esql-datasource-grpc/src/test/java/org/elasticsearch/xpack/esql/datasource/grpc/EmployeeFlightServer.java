@@ -29,6 +29,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.elasticsearch.core.Booleans;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -149,7 +150,7 @@ public class EmployeeFlightServer implements Closeable {
                 allFirstNames[i] = fields[firstNameIdx].trim();
                 allLastNames[i] = fields[lastNameIdx].trim();
                 allSalaries[i] = Integer.parseInt(fields[salaryIdx].trim());
-                allStillHired[i] = org.elasticsearch.core.Booleans.parseBoolean(fields[stillHiredIdx].trim());
+                allStillHired[i] = Booleans.parseBoolean(fields[stillHiredIdx].trim());
                 allHeights[i] = Double.parseDouble(fields[heightIdx].trim());
             }
         }

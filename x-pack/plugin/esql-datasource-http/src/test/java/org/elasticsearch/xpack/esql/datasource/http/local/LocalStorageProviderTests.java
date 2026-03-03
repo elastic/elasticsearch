@@ -36,7 +36,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         // Create storage provider and object
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath path = StoragePath.of("file://" + tempFile.toAbsolutePath());
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
         StorageObject object = provider.newObject(path);
 
         // Read the full file
@@ -59,7 +59,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         // Create storage provider and object
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath path = StoragePath.of("file://" + tempFile.toAbsolutePath());
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
         StorageObject object = provider.newObject(path);
 
         // Read a range (bytes 5-9, which should be "56789")
@@ -79,7 +79,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         // Create storage provider and object
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath path = StoragePath.of("file://" + tempFile.toAbsolutePath());
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
         StorageObject object = provider.newObject(path);
 
         // Check metadata
@@ -98,7 +98,7 @@ public class LocalStorageProviderTests extends ESTestCase {
 
         // Create storage provider
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath dirPath = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath dirPath = StoragePath.of(StoragePath.fileUri(tempDir));
 
         // List directory
         List<StorageEntry> entries = new ArrayList<>();
@@ -123,7 +123,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath path = StoragePath.of("file://" + nonExistentFile.toAbsolutePath());
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
         StorageObject object = provider.newObject(path);
 
         assertFalse(object.exists());
@@ -154,7 +154,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         Files.createFile(sub.resolve("c.parquet"));
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath prefix = StoragePath.of(StoragePath.fileUri(tempDir));
 
         List<String> names = collectObjectNames(provider.listObjects(prefix, false));
         assertEquals(List.of("a.parquet", "b.parquet"), sorted(names));
@@ -169,7 +169,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         Files.createFile(deep.resolve("d.parquet"));
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath prefix = StoragePath.of(StoragePath.fileUri(tempDir));
 
         List<String> names = collectObjectNames(provider.listObjects(prefix, true));
         assertEquals(List.of("a.parquet", "c.parquet", "d.parquet"), sorted(names));
@@ -183,7 +183,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         }
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath prefix = StoragePath.of(StoragePath.fileUri(tempDir));
 
         List<StorageEntry> entries = collectAll(provider.listObjects(prefix, true));
         assertEquals(3, entries.size());
@@ -193,7 +193,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         Path tempDir = createTempDir();
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath prefix = StoragePath.of(StoragePath.fileUri(tempDir));
 
         List<StorageEntry> entries = collectAll(provider.listObjects(prefix, true));
         assertEquals(0, entries.size());
@@ -225,7 +225,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         }
 
         LocalStorageProvider provider = new LocalStorageProvider();
-        StoragePath prefix = StoragePath.of("file://" + tempDir.toAbsolutePath());
+        StoragePath prefix = StoragePath.of(StoragePath.fileUri(tempDir));
 
         List<StorageEntry> entries = collectAll(provider.listObjects(prefix, true));
         assertEquals(totalFiles, entries.size());

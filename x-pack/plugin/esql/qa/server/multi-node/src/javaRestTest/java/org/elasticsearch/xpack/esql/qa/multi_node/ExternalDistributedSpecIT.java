@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,8 +47,18 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
 
     private static final List<String> DISTRIBUTION_MODES = List.of("coordinator_only", "round_robin", "adaptive");
 
+    private static ElasticsearchCluster clusterInstance = ExternalDistributedClusters.testCluster(() -> s3Fixture.getAddress());
+
     @ClassRule
-    public static ElasticsearchCluster cluster = ExternalDistributedClusters.testCluster(() -> s3Fixture.getAddress());
+    public static TestRule ruleChain = RuleChain.outerRule((base, description) -> new org.junit.runners.model.Statement() {
+        @Override
+        public void evaluate() throws Throwable {
+            assumeFalse("FIPS mode requires security enabled; this test uses plain HTTP S3 fixtures", inFipsJvm());
+            base.evaluate();
+        }
+    }).around(clusterInstance);
+
+    public static ElasticsearchCluster cluster = clusterInstance;
 
     private final String distributionMode;
 

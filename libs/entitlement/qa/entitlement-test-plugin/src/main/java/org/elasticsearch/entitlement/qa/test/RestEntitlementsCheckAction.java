@@ -11,7 +11,7 @@ package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.logging.LogManager;
@@ -43,9 +43,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
 
     record CheckAction(
-        CheckedConsumer<Environment, Exception> action,
+        CheckedFunction<Environment, String, Exception> action,
         EntitlementTest.ExpectedAccess expectedAccess,
         Class<? extends Exception> expectedExceptionIfDenied,
+        String expectedDefaultIfDenied,
         Integer fromJavaVersion
     ) {}
 
@@ -101,10 +102,15 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             if (Modifier.isPrivate(method.getModifiers())) {
                 throw new AssertionError("Entitlement test method [" + method + "] must not be private");
             }
-            final CheckedConsumer<Environment, Exception> call = createConsumerForMethod(method);
-            CheckedConsumer<Environment, Exception> runnable = env -> {
+            String expectedDefault = testAnnotation.expectedDefaultIfDenied();
+            if (expectedDefault.isEmpty() == false && method.getReturnType() != String.class) {
+                throw new AssertionError("Entitlement test method [" + method + "] must return String when expectedDefaultIfDenied is set");
+            }
+            final CheckedFunction<Environment, Object, Exception> call = createFunctionForMethod(method);
+            CheckedFunction<Environment, String, Exception> action = env -> {
                 try {
-                    call.accept(env);
+                    Object result = call.apply(env);
+                    return result == null ? null : result.toString();
                 } catch (IllegalAccessException e) {
                     throw new AssertionError(e);
                 } catch (InvocationTargetException e) {
@@ -117,9 +123,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             };
             Integer fromJavaVersion = testAnnotation.fromJavaVersion() == -1 ? null : testAnnotation.fromJavaVersion();
             var checkAction = new CheckAction(
-                runnable,
+                action,
                 testAnnotation.expectedAccess(),
                 testAnnotation.expectedExceptionIfDenied(),
+                expectedDefault,
                 fromJavaVersion
             );
             if (filter.test(checkAction)) {
@@ -128,7 +135,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         }
     }
 
-    private static CheckedConsumer<Environment, Exception> createConsumerForMethod(Method method) {
+    private static CheckedFunction<Environment, Object, Exception> createFunctionForMethod(Method method) {
         Class<?>[] parameters = method.getParameterTypes();
         if (parameters.length == 0) {
             return env -> method.invoke(null);
@@ -208,8 +215,14 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             logger.info("Calling check action [{}]", actionName);
             RestResponse response;
             try {
-                checkAction.action().accept(environment);
+                String result = checkAction.action().apply(environment);
                 response = new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName));
+                if (result != null) {
+                    response.addHeader("resultValue", result);
+                }
+                if (checkAction.expectedDefaultIfDenied().isEmpty() == false) {
+                    response.addHeader("expectedDefaultIfDenied", checkAction.expectedDefaultIfDenied());
+                }
             } catch (Exception e) {
                 var statusCode = checkAction.expectedExceptionIfDenied.isInstance(e)
                     ? RestStatus.FORBIDDEN

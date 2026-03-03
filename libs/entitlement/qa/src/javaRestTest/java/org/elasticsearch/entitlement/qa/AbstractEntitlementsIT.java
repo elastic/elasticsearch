@@ -76,8 +76,20 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
             Response result = executeCheck();
             assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
         } else {
-            var exception = expectThrows(ResponseException.class, this::executeCheck);
-            assertThat(exception, statusCodeMatcher(403));
+            try {
+                Response result = executeCheck();
+                // If the call succeeded in a denied context, a default value strategy must be in play.
+                // Verify the returned default matches the expected value.
+                String expectedDefault = result.getHeader("expectedDefaultIfDenied");
+                assertNotNull(
+                    "Action [" + actionName + "] succeeded in denied context but has no expectedDefaultIfDenied",
+                    expectedDefault
+                );
+                String actualValue = result.getHeader("resultValue");
+                assertThat("Action [" + actionName + "] returned unexpected default value", actualValue, equalTo(expectedDefault));
+            } catch (ResponseException exception) {
+                assertThat(exception, statusCodeMatcher(403));
+            }
         }
     }
 

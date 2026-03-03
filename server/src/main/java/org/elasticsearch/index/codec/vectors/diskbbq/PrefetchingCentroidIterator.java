@@ -33,17 +33,6 @@ public final class PrefetchingCentroidIterator implements CentroidIterator {
     private int bufferCount = 0; // Number of elements in buffer
 
     /**
-     * Creates a prefetching iterator with default prefetch depth of 1.
-     *
-     * @param delegate the underlying centroid iterator
-     * @param postingListSlice the index input for posting lists
-     * @throws IOException if prefetching fails during initialization
-     */
-    public PrefetchingCentroidIterator(CentroidIterator delegate, IndexInput postingListSlice) throws IOException {
-        this(delegate, postingListSlice, 1);
-    }
-
-    /**
      * Creates a prefetching iterator with configurable prefetch depth.
      *
      * @param delegate the underlying centroid iterator

@@ -56,15 +56,15 @@ import static org.elasticsearch.simdvec.ESNextOSQVectorsScorer.BULK_SIZE;
  */
 public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements VectorPreconditioner {
 
+    private static final int PREFETCH_DEPTH = 4;
+
     public ESNextDiskBBQVectorsReader(SegmentReadState state, GenericFlatVectorReaders.LoadFlatVectorsReader getFormatReader)
         throws IOException {
         super(state, getFormatReader);
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {
-        // TODO we may want to prefetch more than one postings list, however, we will likely want to place a limit
-        // so we don't bother prefetching many lists we won't end up scoring
-        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice);
+        return new PrefetchingCentroidIterator(centroidIterator, postingListSlice, PREFETCH_DEPTH);
     }
 
     static long directWriterSizeOnDisk(long numValues, int bitsPerValue) {

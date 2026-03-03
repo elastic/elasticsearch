@@ -48,6 +48,9 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId = new ShardSearchContextId(in);
         hits = SearchHits.readFrom(in, true);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
+        if (in.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            setBytesRead(in.readVLong());
+        }
     }
 
     @Override
@@ -56,6 +59,9 @@ public final class FetchSearchResult extends SearchPhaseResult {
         contextId.writeTo(out);
         hits.writeTo(out);
         out.writeOptionalWriteable(profileResult);
+        if (out.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            out.writeVLong(getBytesRead());
+        }
     }
 
     @Override

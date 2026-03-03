@@ -112,6 +112,7 @@ class DfsQueryPhase extends SearchPhase {
                             if (dfsResult.searchTimedOut()) {
                                 response.searchTimedOut(true);
                             }
+                            context.accumulateBytesRead(response.getBytesRead());
                             counter.onResult(response);
                         } catch (Exception e) {
                             context.onPhaseFailure(NAME, "", e);

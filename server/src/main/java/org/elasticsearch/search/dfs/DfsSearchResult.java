@@ -62,6 +62,9 @@ public final class DfsSearchResult extends SearchPhaseResult {
         if (in.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
             searchTimedOut = in.readBoolean();
         }
+        if (in.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            setBytesRead(in.readVLong());
+        }
     }
 
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -143,6 +146,9 @@ public final class DfsSearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(searchProfileDfsPhaseResult);
         if (out.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
             out.writeBoolean(searchTimedOut);
+        }
+        if (out.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            out.writeVLong(getBytesRead());
         }
     }
 

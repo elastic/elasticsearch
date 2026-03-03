@@ -51,6 +51,8 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -79,6 +81,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private final int minimumDocsPerSlice;
 
     private volatile boolean timeExceeded = false;
+
+    private LongSupplier threadBytesRead;
+    private final AtomicLong workerDirectoryBytesRead = new AtomicLong();
 
     /** constructor for non-concurrent search */
     @SuppressWarnings("this-escape")
@@ -146,6 +151,22 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      */
     public boolean hasExecutor() {
         return hasExecutor;
+    }
+
+    /**
+     * Sets a supplier that returns the current thread's cumulative store-level bytes-read count.
+     * Used to capture bytes read by parallel search worker threads whose reads would otherwise
+     * be invisible to the calling thread's directory metrics delta.
+     */
+    public void setThreadBytesRead(LongSupplier threadBytesRead) {
+        this.threadBytesRead = threadBytesRead;
+    }
+
+    /**
+     * Returns the total bytes read by worker threads during parallel collection.
+     */
+    public long getWorkerDirectoryBytesRead() {
+        return workerDirectoryBytesRead.get();
     }
 
     @Override
@@ -372,12 +393,26 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             }
             final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
+            final Thread callingThread = Thread.currentThread();
             for (int i = 0; i < leafSlices.length; ++i) {
                 final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
                 final C collector = collectors.get(i);
                 listTasks.add(() -> {
-                    search(leaves, weight, collector);
-                    return collector;
+                    // TODO: is this check for the own calling thread really needed?
+                    final long before;
+                    if (threadBytesRead != null && Thread.currentThread() != callingThread) {
+                        before = threadBytesRead.getAsLong();
+                    } else {
+                        before = -1;
+                    }
+                    try {
+                        search(leaves, weight, collector);
+                        return collector;
+                    } finally {
+                        if (before >= 0) {
+                            workerDirectoryBytesRead.addAndGet(threadBytesRead.getAsLong() - before);
+                        }
+                    }
                 });
             }
             List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);

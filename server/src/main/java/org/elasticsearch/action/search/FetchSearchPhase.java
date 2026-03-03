@@ -217,6 +217,7 @@ class FetchSearchPhase extends SearchPhase {
             public void innerOnResponse(FetchSearchResult result) {
                 try {
                     progressListener.notifyFetchResult(shardIndex);
+                    context.accumulateBytesRead(result.getBytesRead());
                     counter.onResult(result);
                 } catch (Exception e) {
                     context.onPhaseFailure(NAME, "", e);

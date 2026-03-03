@@ -22,9 +22,11 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -38,7 +40,9 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportService;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
@@ -58,6 +62,8 @@ import java.util.function.BiFunction;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AbstractSearchAsyncActionTests extends ESTestCase {
 
@@ -89,11 +95,18 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             return null;
         };
         OriginalIndices originalIndices = new OriginalIndices(request.indices(), request.indicesOptions());
-        return new AbstractSearchAsyncAction<SearchPhaseResult>(
+
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        TransportService mockTransportService = mock(TransportService.class);
+        when(mockTransportService.getThreadPool()).thenReturn(threadPool);
+        SearchTransportService searchTransportService = new SearchTransportService(mockTransportService, null, null);
+
+        return new AbstractSearchAsyncAction<>(
             "test",
             logger,
             null,
-            null,
+            searchTransportService,
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             nodeIdToConnection,
             Collections.singletonMap("foo", AliasFilter.of(new MatchAllQueryBuilder())),
@@ -110,7 +123,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
-            Mockito.mock(SearchResponseMetrics.class),
+            mock(SearchResponseMetrics.class),
             Map.of(),
             false
         ) {
@@ -409,8 +422,156 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         }
     }
 
-    private ShardSearchContextId randomSearchShardId() {
-        return new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
+    public void testSendSearchResponseSetsBytesReadHeader() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        Mockito.when(transportService.getThreadPool()).thenReturn(threadPool);
+        Mockito.when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, (c, l) -> l);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> {
+            response.incRef();
+            responseRef.set(response);
+        }, e -> fail("unexpected failure: " + e));
+
+        try (var results = new ArraySearchPhaseResults<>(0)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = new AbstractSearchAsyncAction<>(
+                "test",
+                logger,
+                null,
+                searchTransportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
+                (cluster, node) -> null,
+                Map.of(),
+                Map.of(),
+                null,
+                searchRequest,
+                listener,
+                List.of(),
+                new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime),
+                ClusterState.EMPTY_STATE,
+                null,
+                results,
+                1,
+                SearchResponse.Clusters.EMPTY,
+                mock(SearchResponseMetrics.class),
+                Map.of(),
+                false
+            ) {
+                @Override
+                protected SearchPhase getNextPhase() {
+                    return null;
+                }
+
+                @Override
+                protected void executePhaseOnShard(
+                    SearchShardIterator shardIt,
+                    Transport.Connection shard,
+                    SearchActionListener<SearchPhaseResult> listener
+                ) {}
+
+                @Override
+                public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {}
+
+                @Override
+                public OriginalIndices getOriginalIndices(int shardIndex) {
+                    return OriginalIndices.NONE;
+                }
+            };
+
+            long bytesRead = randomLongBetween(1, 1_000_000);
+            action.accumulateBytesRead(bytesRead);
+            action.sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
+
+            List<String> headerValues = threadContext.getResponseHeaders().get(AbstractSearchAsyncAction.BYTES_READ_RESPONSE_HEADER);
+            assertNotNull(headerValues);
+            assertEquals(1, headerValues.size());
+            assertEquals(Long.toString(bytesRead), headerValues.get(0));
+
+            if (responseRef.get() != null) {
+                responseRef.get().decRef();
+            }
+        }
+    }
+
+    public void testSendSearchResponseSetsBytesReadHeaderWhenNoBytesRead() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        TransportService transportService = mock(TransportService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        Mockito.when(transportService.getThreadPool()).thenReturn(threadPool);
+        Mockito.when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, (c, l) -> l);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        AtomicReference<SearchResponse> responseRef = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> {
+            response.incRef();
+            responseRef.set(response);
+        }, e -> fail("unexpected failure: " + e));
+
+        try (var results = new ArraySearchPhaseResults<SearchPhaseResult>(0)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = new AbstractSearchAsyncAction<>(
+                "test",
+                logger,
+                null,
+                searchTransportService,
+                new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
+                (cluster, node) -> null,
+                Map.of(),
+                Map.of(),
+                null,
+                searchRequest,
+                listener,
+                List.of(),
+                new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime),
+                ClusterState.EMPTY_STATE,
+                null,
+                results,
+                1,
+                SearchResponse.Clusters.EMPTY,
+                mock(SearchResponseMetrics.class),
+                Map.of(),
+                false
+            ) {
+                @Override
+                protected SearchPhase getNextPhase() {
+                    return null;
+                }
+
+                @Override
+                protected void executePhaseOnShard(
+                    SearchShardIterator shardIt,
+                    Transport.Connection shard,
+                    SearchActionListener<SearchPhaseResult> listener
+                ) {}
+
+                @Override
+                public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {}
+
+                @Override
+                public OriginalIndices getOriginalIndices(int shardIndex) {
+                    return OriginalIndices.NONE;
+                }
+            };
+
+            action.sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
+
+            List<String> headerValues = threadContext.getResponseHeaders().get(AbstractSearchAsyncAction.BYTES_READ_RESPONSE_HEADER);
+            assertNotNull(headerValues);
+            assertEquals(1, headerValues.size());
+            assertEquals("0", headerValues.get(0));
+
+            if (responseRef.get() != null) {
+                responseRef.get().decRef();
+            }
+        }
     }
 
     private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(

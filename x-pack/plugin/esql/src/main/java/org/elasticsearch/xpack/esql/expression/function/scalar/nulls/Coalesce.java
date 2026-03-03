@@ -49,6 +49,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "cartesian_shape",
             "date_nanos",
             "date",
+            "dense_vector",
             "histogram",
             "geo_point",
             "geo_shape",
@@ -75,6 +76,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "dense_vector",
                 "histogram",
                 "geo_point",
                 "geo_shape",
@@ -99,6 +101,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "cartesian_shape",
                 "date_nanos",
                 "date",
+                "dense_vector",
                 "histogram",
                 "geo_point",
                 "geo_shape",
@@ -218,9 +221,10 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 .toEvaluator(toEvaluator, children());
             case EXPONENTIAL_HISTOGRAM -> CoalesceExponentialHistogramEvaluator.toEvaluator(toEvaluator, children());
             case TDIGEST -> CoalesceTDigestEvaluator.toEvaluator(toEvaluator, children());
+            case DENSE_VECTOR -> CoalesceFloatEvaluator.toEvaluator(toEvaluator, children());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
-                SCALED_FLOAT, AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, DATE_RANGE -> throw new UnsupportedOperationException(
+                SCALED_FLOAT, AGGREGATE_METRIC_DOUBLE, DATE_RANGE -> throw new UnsupportedOperationException(
                     dataType() + " can't be coalesced"
                 );
         };

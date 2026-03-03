@@ -24,7 +24,10 @@ import org.apache.arrow.vector.types.pojo.Schema;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class EmployeeFlightServerTests extends ESTestCase {
 
@@ -104,8 +107,8 @@ public class EmployeeFlightServerTests extends ESTestCase {
                 VarCharVector lastNameVec = (VarCharVector) root.getVector("last_name");
 
                 assertEquals(10001, empNoVec.get(0));
-                assertEquals("Georgi", new String(firstNameVec.get(0), java.nio.charset.StandardCharsets.UTF_8).trim());
-                assertEquals("Facello", new String(lastNameVec.get(0), java.nio.charset.StandardCharsets.UTF_8).trim());
+                assertEquals("Georgi", new String(firstNameVec.get(0), StandardCharsets.UTF_8).trim());
+                assertEquals("Facello", new String(lastNameVec.get(0), StandardCharsets.UTF_8).trim());
             }
         }
     }
@@ -135,7 +138,7 @@ public class EmployeeFlightServerTests extends ESTestCase {
             assertEquals(numEndpoints, endpoints.size());
 
             int totalRows = 0;
-            java.util.Set<Integer> allEmpNos = new java.util.TreeSet<>();
+            Set<Integer> allEmpNos = new TreeSet<>();
             for (FlightEndpoint ep : endpoints) {
                 try (FlightStream stream = client.getStream(ep.getTicket())) {
                     while (stream.next()) {

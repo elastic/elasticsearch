@@ -69,7 +69,8 @@ record TestConfiguration(
     boolean doPrecondition,
     int preconditioningBlockDims,
     int flatVectorThreshold,
-    int secondaryClusterSize
+    int secondaryClusterSize,
+    String directoryType
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -110,6 +111,7 @@ record TestConfiguration(
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
+    static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -174,6 +176,7 @@ record TestConfiguration(
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
+        PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -230,6 +233,11 @@ record TestConfiguration(
                 "search_params",
                 "array[object]",
                 "Explicit per-search settings; each object may include search fields like num_candidates, k, and visit_percentage."
+            ),
+            new ParameterHelp(
+                "directory_type",
+                "string",
+                "Directory type: default (mmap), frozen (searchable snapshot), or custom types registered by external wrappers."
             )
         );
 
@@ -303,6 +311,7 @@ record TestConfiguration(
         private int numMergeWorkers = 1;
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
+        private String directoryType = "default";
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -504,6 +513,11 @@ record TestConfiguration(
             return this;
         }
 
+        public Builder setDirectoryType(String directoryType) {
+            this.directoryType = directoryType.toLowerCase(Locale.ROOT);
+            return this;
+        }
+
         /*
          * Each dataset has a descriptor file, expected to be at gs://<bucket>/<dataset>/<dataset>.json, with contents of:
            {
@@ -512,6 +526,7 @@ record TestConfiguration(
                "<corpus_2>.fvec"
              ],
              "queries": "<queries>.fvec",
+             "vector_encoding": "float32", // optional, default float32
              "dimensions": 512,
              "vector_space": "cosine",
              "num_doc_vectors": 10000000,
@@ -554,6 +569,7 @@ record TestConfiguration(
                 ).getFirst();
             }
 
+            Object vectorEncoding = dsData.get("vector_encoding");
             String vectorSpace = dsData.get("vector_space").toString();
             int numDocVectors = ((Number) dsData.get("num_doc_vectors")).intValue();
             int numQueryVectors = ((Number) dsData.get("num_query_vectors")).intValue();
@@ -569,6 +585,10 @@ record TestConfiguration(
 
             docVectors = data;
             queryVectors = queries;
+            // vector encoding is optional (default float32)
+            if (vectorEncoding != null) {
+                setVectorEncoding(vectorEncoding.toString());
+            }
             setDimensions(-1);  // dataset dimensions is documentation, the tester reads the dimensions from the fvec files
             // vector space might already be set explicitly from the config file
             if (this.vectorSpace == null) {
@@ -721,7 +741,8 @@ record TestConfiguration(
                 doPrecondition,
                 preconditioningBlockDims,
                 flatVectorThreshold,
-                secondaryClusterSize
+                secondaryClusterSize,
+                directoryType
             );
         }
 
@@ -779,6 +800,7 @@ record TestConfiguration(
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
+            builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
             return builder.endObject();
         }
 

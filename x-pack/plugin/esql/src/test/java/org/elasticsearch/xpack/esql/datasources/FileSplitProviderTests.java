@@ -339,6 +339,104 @@ public class FileSplitProviderTests extends ESTestCase {
         assertNull(FileSplitProvider.evaluateFilter(new Literal(SRC, true, DataType.BOOLEAN), Map.of("year", 2024)));
     }
 
+    // -- sub-file splitting --
+
+    public void testLargeCsvFileIsSplitIntoChunks() {
+        long targetSize = 1000;
+        FileSplitProvider splitter = new FileSplitProvider(targetSize);
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/big.csv"), 3500, Instant.EPOCH);
+        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.csv");
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertEquals(4, splits.size());
+        FileSplit s0 = (FileSplit) splits.get(0);
+        assertEquals(0, s0.offset());
+        assertEquals(1000, s0.length());
+        FileSplit s1 = (FileSplit) splits.get(1);
+        assertEquals(1000, s1.offset());
+        assertEquals(1000, s1.length());
+        FileSplit s2 = (FileSplit) splits.get(2);
+        assertEquals(2000, s2.offset());
+        assertEquals(1000, s2.length());
+        FileSplit s3 = (FileSplit) splits.get(3);
+        assertEquals(3000, s3.offset());
+        assertEquals(500, s3.length());
+    }
+
+    public void testSmallFileIsNotSplit() {
+        long targetSize = 1000;
+        FileSplitProvider splitter = new FileSplitProvider(targetSize);
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/small.csv"), 500, Instant.EPOCH);
+        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.csv");
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertEquals(1, splits.size());
+        FileSplit fs = (FileSplit) splits.get(0);
+        assertEquals(0, fs.offset());
+        assertEquals(500, fs.length());
+    }
+
+    public void testParquetFileIsNotSplit() {
+        long targetSize = 100;
+        FileSplitProvider splitter = new FileSplitProvider(targetSize);
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.parquet"), 5000, Instant.EPOCH);
+        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.parquet");
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertEquals(1, splits.size());
+        assertEquals(0, ((FileSplit) splits.get(0)).offset());
+        assertEquals(5000, ((FileSplit) splits.get(0)).length());
+    }
+
+    public void testDefaultProviderDoesNotSplit() {
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/big.csv"), 10_000_000, Instant.EPOCH);
+        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.csv");
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = provider.discoverSplits(ctx);
+
+        assertEquals(1, splits.size());
+        assertEquals(0, ((FileSplit) splits.get(0)).offset());
+    }
+
+    public void testIsSplittableFormat() {
+        assertTrue(FileSplitProvider.isSplittableFormat(".csv"));
+        assertTrue(FileSplitProvider.isSplittableFormat(".tsv"));
+        assertTrue(FileSplitProvider.isSplittableFormat(".ndjson"));
+        assertTrue(FileSplitProvider.isSplittableFormat(".jsonl"));
+        assertTrue(FileSplitProvider.isSplittableFormat(".txt"));
+        assertFalse(FileSplitProvider.isSplittableFormat(".parquet"));
+        assertFalse(FileSplitProvider.isSplittableFormat(".avro"));
+        assertFalse(FileSplitProvider.isSplittableFormat(null));
+    }
+
+    public void testFileSplitSizeMatchesOriginal() {
+        long targetSize = 1000;
+        long fileSize = 2500;
+        FileSplitProvider splitter = new FileSplitProvider(targetSize);
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.ndjson"), fileSize, Instant.EPOCH);
+        FileSet fileSet = new FileSet(List.of(entry), "s3://b/*.ndjson");
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileSet, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        long totalBytes = 0;
+        for (ExternalSplit split : splits) {
+            totalBytes += ((FileSplit) split).length();
+        }
+        assertEquals(fileSize, totalBytes);
+    }
+
     // -- helpers --
 
     private static final Source SRC = Source.EMPTY;

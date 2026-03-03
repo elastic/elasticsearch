@@ -13,12 +13,14 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 
 import java.net.URISyntaxException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettingsTests.getAzureOpenAiRequestTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettingsTests.createRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -26,7 +28,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
 
     public void testOverrideWith_OverridesUser() {
         var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id");
-        var requestTaskSettingsMap = getAzureOpenAiRequestTaskSettingsMap("user_override");
+        var requestTaskSettingsMap = createRequestTaskSettingsMap("user_override");
 
         var overriddenModel = AzureOpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
 
@@ -108,12 +110,14 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
     ) {
         var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
         var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+        var userToUse = user == null ? StatefulValue.<String>undefined() : StatefulValue.of(user);
+
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(userToUse, Headers.UNDEFINED_INSTANCE),
             chunkingSettings,
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
@@ -130,12 +134,14 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
     ) {
         var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
         var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+        var userToUse = user == null ? StatefulValue.<String>undefined() : StatefulValue.of(user);
+
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(userToUse, Headers.UNDEFINED_INSTANCE),
             null,
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
@@ -156,6 +162,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
     ) {
         var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
         var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+        var userToUse = user == null ? StatefulValue.<String>undefined() : StatefulValue.of(user);
 
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
@@ -171,7 +178,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
                 similarity,
                 null
             ),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(userToUse, Headers.UNDEFINED_INSTANCE),
             null,
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );

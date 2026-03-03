@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143515
+summary: Add limit pushdown for external data sources
+type: enhancement

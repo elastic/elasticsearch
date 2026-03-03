@@ -25,7 +25,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(EsqlLogProducer.LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(EsqlLogProducer.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass
@@ -86,7 +86,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
             assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), greaterThanOrEqualTo(0));
             assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
-            assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo(Long.toString(hits)));
+            assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
         }
     }
 

@@ -8,7 +8,7 @@
 - **Cursor/Copilot rules**: None provided in repo; follow this guide plus CONTRIBUTING.md.
 
 ## Build & Run Commands
-- Refer to CONTRIBUTING.md & TESTING.asciidoc for comprehensive build/test instructions.
+- Refer to BUILDING.md, CONTRIBUTING.md & TESTING.asciidoc for comprehensive build/test instructions.
 
 ## Verification & Lint Tasks
 - `./gradlew spotlessJavaCheck` / `spotlessApply` (or `:server:spotlessJavaCheck`): enforce formatter profile in `build-conventions/formatterConfig.xml`.
@@ -23,7 +23,7 @@ The repository is organized into several key directories:
 *   `docs`: Project documentation.
 *   `distribution`: Logic for building distribution packages.
 *   `x-pack`: Additional code modules and plugins under Elastic License.
-*   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic.
+*   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic. Refer to BUILDING.md for details on how these are structured and used.
 
 ## Testing Cheatsheet
 - Standard suite: `./gradlew test` (respects cached results; add `-Dtests.timestamp=$(date +%s)` to bypass caches when reusing seeds).
@@ -38,7 +38,7 @@ The repository is organized into several key directories:
 - Yaml REST tests: `./gradlew ":rest-api-spec:yamlRestTest" --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT.test {yaml=<relative_test_file_path>}"`
 - Use the Elasticsearch testing framework where possible for unit and yaml tests and be consistent in style with other elasticsearch tests.
 - Use real classes over mocks or stubs for unit tests, unless the real class is complex then either a simplified subclass should be created within the test or, as a last resort, a mock or stub can be used. Unit tests must be as close to real-world scenarios as possible.
-- Ensure mocks or stubs are well-documented and clearly indicate why they were necessary. 
+- Ensure mocks or stubs are well-documented and clearly indicate why they were necessary.
 
 ### Test Types
 - Unit Tests: Preferred. Extend `ESTestCase`.
@@ -94,5 +94,20 @@ The repository is organized into several key directories:
 
 ## Backwards compatibility
 - For changes to a `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName("<unique_descriptive_name>")` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`.
+
+### CI failure triage with Buildkite and Gradle Enterprise build scans
+- Prefer Gradle Enterprise build scans (`https://gradle-enterprise.elastic.co/s/<id>`) over raw logs for root-cause analysis when available.
+- If given a Buildkite link, use the Buildkite MCP server first.
+- First call `buildkite-list_annotations` and inspect `context=gradle-build-scans-failed` (failed jobs only). If needed, inspect `context=gradle-build-scans` (all jobs).
+- If annotations are incomplete, call `buildkite-get_build` and map failed job IDs to `meta_data` keys: `build-scan-<job_id>` and `build-scan-id-<job_id>`.
+- Buildkite UI fallback (when MCP is unavailable): Build page -> `Jobs` -> `Failures`, then open/copy the Gradle Enterprise build scan links shown per failed job.
+- If given a Gradle Enterprise build scan link directly, start from that link instead of searching Buildkite logs first.
+- If `dvcli` is available, use it to extract failed tasks, exact failed tests, primary assertion/error, and reproduction details.
+- If `dvcli` is unavailable, do not block: continue with Buildkite MCP logs (`buildkite-search_logs`, `buildkite-tail_logs`, `buildkite-read_logs`), artifacts, and annotations.
+- If either tool is missing, suggest installation to the user for faster future triage:
+  - `dvcli` / `develocity-cli-client`: `https://github.com/breskeby/develocity-cli-client`
+  - Buildkite MCP setup for AI tools: `https://buildkite.com/docs/apis/mcp-server/remote/configuring-ai-tools`
+- For Buildkite URLs that include `#<job_id>`, prioritize that specific job and resolve its corresponding `build-scan-<job_id>` entry.
+- In reports, list exact failed tests first, then failed tasks and related build scan URLs.
 
 Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this AGENTS guide summarizes—but does not replace—those authoritative docs.

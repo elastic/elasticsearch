@@ -28,7 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
@@ -36,11 +37,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertNotNull;
 
 public class EqlLoggingIT extends AbstractEqlIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(EqlLogProducer.LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(EqlLogProducer.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass
@@ -84,8 +84,8 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertThat(response.isPartial(), is(false));
         var message = getMessageData(appender.getLastEventAndReset());
         assertMessageSuccess(message, "eql", query);
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo("test"));
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo(success ? "1" : "0"));
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(success ? "1" : "0"));
         // EQL only logs shards.failed
         assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
     }
@@ -101,8 +101,8 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertThat(appender.events.size(), equalTo(1));
         var message = getMessageData(appender.getLastEventAndReset());
         assertMessageFailure(message, "eql", query, IndexNotFoundException.class, "Unknown index [test]");
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo("test"));
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("0"));
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
     }
 
     /**
@@ -128,7 +128,7 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertNotNull(event);
         var message = getMessageData(event);
         assertMessageSuccess(message, "eql", "my_event where i >= 0");
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo("test"));
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
         assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("1"));
     }
 
@@ -150,6 +150,7 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertAcked(createRequest);
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
+
         for (int i = 0; i < 5; i++) {
             int fieldValue = randomIntBetween(0, 10);
             builders.add(

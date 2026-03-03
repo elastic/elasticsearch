@@ -557,7 +557,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             onScrollResponse(asyncResponse);
             return;
         }
-        if (task.isRelocationRequested() && task.isWorker() && task.getParentTaskId().isSet() == false) {
+        if (task.isRelocationRequested()) {
             final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateTo();
             if (nodeToRelocateTo.isPresent()) {
                 final String scrollId = asyncResponse.response().getScrollId();
@@ -571,17 +571,23 @@ public abstract class AbstractAsyncBulkByScrollAction<
                     remoteVersion
                 );
                 final ResumeInfo resumeInfo = new ResumeInfo(workerResumeInfo, null);
-                // build response with resume info. everything else doesn't matter since the object is discarded and onFailure is called.
+                // This response is a local carrier for resumeInfo — for higher-level code to handle relocation and then discard.
+                // However, status must be accurate for sliced tasks only, the leader state stores this response and derives
+                // its own combined status from it to serialize to .tasks index.
+                // For non-sliced, status is unused (comes from the worker state).
                 final BulkByScrollResponse response = new BulkByScrollResponse(
                     TimeValue.MINUS_ONE,
-                    new BulkByScrollTask.Status(List.of(), null),
+                    task.getStatus(),
                     List.of(),
                     List.of(),
                     false,
                     resumeInfo
                 );
-                listener.onResponse(response);
-                // don't call finishHim as it closes the scroll
+                // Don't call finishHim — it clears the pagination which the relocated task needs.
+                // Do close local resources (e.g. the remote REST client) that won't be reused.
+                paginatedHitSource.cleanupWithoutClosingPagination(
+                    threadPool.getThreadContext().preserveContext(() -> listener.onResponse(response))
+                );
                 return;
             }
             // if the task has no node to relocate to, continue. it might finish before shutdown or a suitable node might join the cluster.

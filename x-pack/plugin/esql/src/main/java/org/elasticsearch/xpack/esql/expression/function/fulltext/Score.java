@@ -59,11 +59,7 @@ public class Score extends Function implements EvaluatorMapper {
             description = "Boolean expression that contains full text function(s) to be scored."
         ) Expression scorableQuery
     ) {
-        this(source, List.of(scorableQuery));
-    }
-
-    protected Score(Source source, List<Expression> children) {
-        super(source, children);
+        super(source, List.of(scorableQuery));
     }
 
     @Override
@@ -73,7 +69,7 @@ public class Score extends Function implements EvaluatorMapper {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Score(source(), newChildren);
+        return new Score(source(), newChildren.getFirst());
     }
 
     @Override
@@ -95,12 +91,26 @@ public class Score extends Function implements EvaluatorMapper {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteableCollection(this.children());
+        out.writeOptionalNamedWriteable(children().getFirst());
     }
 
     private static Expression readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
+        /*
+         * This is not truly optional. But when the SCORE scalar was originally
+         * created we serialized it with this pair:
+         *
+         * in.readOptionalNamedWriteable(Expression.class);
+         * out.writeNamedWriteableCollection(this.children());
+         *
+         * This pair *is* compatible if we send a single element list. Single
+         * element lists are serialized as `0x01 <name> <body>`. That's also
+         * how optional named writeables are serialized.
+         */
         Expression query = in.readOptionalNamedWriteable(Expression.class);
+        if (query == null) {
+            throw new IllegalStateException("query isn't really optional");
+        }
         return new Score(source, query);
     }
 

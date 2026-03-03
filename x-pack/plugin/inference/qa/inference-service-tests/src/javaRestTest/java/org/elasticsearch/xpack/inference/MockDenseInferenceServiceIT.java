@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;

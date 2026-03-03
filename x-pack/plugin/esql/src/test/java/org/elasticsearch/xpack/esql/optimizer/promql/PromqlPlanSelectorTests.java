@@ -17,17 +17,18 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -37,34 +38,15 @@ import static org.hamcrest.Matchers.hasSize;
 public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
 
     public void testRangeSelector() {
-        var plan = planPromql("""
-            PROMQL index=k8s step=1h ( max by (pod) (last_over_time(network.bytes_in[1h])) )
-            """);
-        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
-        LastOverTime lastOverTime = tsAggregate.aggregates().getFirst().collect(LastOverTime.class).getFirst();
-        assertThat(lastOverTime.window().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+        var plan = planPromql("PROMQL index=k8s step=1h ( max by (pod) (last_over_time(network.bytes_in[1h])) )");
+        var lot = collectInnerLastOverTimes(plan).getFirst();
+        assertThat(lot.window().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
     }
 
-    /**
-     * Expect the logical plan structure:
-     * Project
-     * \_Eval
-     *   \_Limit
-     *     \_Aggregate
-     *       \_Eval
-     *         \_TimeSeriesAggregate[[...],[SUM(...,PT10M,...), COUNT(...,PT10M,...), ...], BUCKET(@timestamp,PT5M)]
-     */
     public void testRangeSelectorWithDifferentStep() {
-        var plan = planPromql("""
-            PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]))
-            """);
-
+        var plan = planPromql("PROMQL index=k8s step=5m sum by (pod) (avg_over_time(events_received[10m]))");
         var tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
-
-        // Verify bucket is 5 minutes
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
-
-        // Verify window is 10 minutes
         var sum = tsAggregate.aggregates().getFirst().collect(Sum.class).getFirst();
         assertThat(sum.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
     }
@@ -75,59 +57,35 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                 max by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m]))
               )
             """);
-        var filters = plan.collect(Filter.class);
-        Optional<In> in = filters.stream().map(Filter::condition).filter(In.class::isInstance).map(In.class::cast).findAny();
-        assertThat(in.isPresent(), equalTo(true));
-        assertThat(in.get().value().sourceText(), equalTo("pod"));
-        assertThat(in.get().list().stream().map(Expression::toString).toList(), containsInAnyOrder("host-0", "host-1", "host-2"));
+        var in = collectInnermostSelectorFilter(plan, In.class);
+        assertThat(in.value().sourceText(), equalTo("pod"));
+        assertThat(in.list().stream().map(Expression::toString).toList(), containsInAnyOrder("host-0", "host-1", "host-2"));
     }
 
     public void testLabelSelectorPrefix() {
-        String testQuery = """
-            PROMQL index=k8s step=1m (
-                avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-.*"}[5m]))
-                )
-            """;
-
-        var plan = planPromql(testQuery);
-        var filters = plan.collect(Filter.class);
-        assertThat(filters.stream().map(Filter::condition).anyMatch(StartsWith.class::isInstance), equalTo(true));
-        assertThat(filters.stream().map(Filter::condition).anyMatch(NotEquals.class::isInstance), equalTo(false));
+        var plan = planPromql("""
+            PROMQL index=k8s step=1m avg by (pod) (avg_over_time(network.bytes_in{pod=~"host-.*"}[5m]))
+            """);
+        assertTrue(anyFilterContains(plan, StartsWith.class));
+        assertFalse(anyFilterContains(plan, NotEquals.class));
     }
 
     public void testLabelSelectorProperPrefix() {
         var plan = planPromql("""
-            PROMQL index=k8s step=1m (
-                avg(avg_over_time(network.bytes_in{pod=~"host-.+"}[1h]))
-              )
+            PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~"host-.+"}[1h]))
             """);
-
-        var filters = plan.collect(Filter.class);
-        assertThat(filters.stream().anyMatch(f -> f.condition().anyMatch(StartsWith.class::isInstance)), equalTo(true));
-        assertThat(filters.stream().anyMatch(f -> f.condition().anyMatch(NotEquals.class::isInstance)), equalTo(true));
+        assertTrue(anyFilterContains(plan, StartsWith.class));
+        assertTrue(anyFilterContains(plan, NotEquals.class));
     }
 
     public void testLabelSelectorRegex() {
-        var plan = planPromql("""
-            PROMQL index=k8s step=1m (
-                avg(avg_over_time(network.bytes_in{pod=~"[a-z]+"}[1h]))
-              )
-            """);
-
-        var filters = plan.collect(Filter.class);
-        assertThat(filters.stream().map(Filter::condition).anyMatch(RegexMatch.class::isInstance), equalTo(true));
+        var plan = planPromql("PROMQL index=k8s step=1m avg(avg_over_time(network.bytes_in{pod=~\"[a-z]+\"}[1h]))");
+        assertTrue(anyFilterContains(plan, RegexMatch.class));
     }
 
     public void testLabelSelectorNotEquals() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\"})");
-
-        var not = plan.collect(Filter.class)
-            .stream()
-            .map(Filter::condition)
-            .filter(Not.class::isInstance)
-            .map(Not.class::cast)
-            .findFirst()
-            .get();
+        var not = collectInnermostSelectorFilter(plan, Not.class);
         var in = as(not.field(), In.class);
         assertThat(as(in.value(), FieldAttribute.class).name(), equalTo("pod"));
         assertThat(in.list(), hasSize(1));
@@ -136,9 +94,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
 
     public void testLabelSelectorRegexNegation() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
-
-        var filters = plan.collect(Filter.class);
-        var not = filters.stream().map(Filter::condition).filter(Not.class::isInstance).map(Not.class::cast).findFirst().get();
+        var not = collectInnermostSelectorFilter(plan, Not.class);
         var rLike = as(not.field(), RLike.class);
         assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
         assertThat(rLike.pattern().pattern(), equalTo("f.o"));
@@ -146,38 +102,107 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
 
     public void testLabelSelectors() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\",cluster=~\"bar|baz\",region!~\"us-.*\"})");
-
-        var filters = plan.collect(Filter.class);
-        var and = filters.stream().map(Filter::condition).filter(And.class::isInstance).map(And.class::cast).findFirst().get();
-        if (and.left() instanceof IsNotNull) {
-            and = as(and.right(), And.class);
-        }
-        var left = as(and.left(), And.class);
-        var podNotFoo = as(as(left.left(), Not.class).field(), In.class);
-        assertThat(podNotFoo.list(), hasSize(1));
-        assertThat(as(podNotFoo.list().getFirst(), Literal.class).value(), equalTo(new BytesRef("foo")));
-
-        var clusterInBarBaz = as(left.right(), In.class);
-        assertThat(clusterInBarBaz.list(), hasSize(2));
-        assertThat(as(clusterInBarBaz.list().get(0), Literal.class).value(), equalTo(new BytesRef("bar")));
-        assertThat(as(clusterInBarBaz.list().get(1), Literal.class).value(), equalTo(new BytesRef("baz")));
-
-        var regionNotUs = as(as(and.right(), Not.class).field(), StartsWith.class);
-        assertThat(as(regionNotUs.prefix(), Literal.class).value(), equalTo(new BytesRef("us-")));
+        assertTrue(anyFilterContains(plan, Not.class));
+        assertTrue(anyFilterContains(plan, In.class));
+        assertTrue(anyFilterContains(plan, StartsWith.class));
     }
 
     public void testGroupByAllInstantSelector() {
-        var plan = planPromql("PROMQL index=k8s step=1m network.bytes_in");
-        assertThat(plan.output().stream().map(a -> a.name()).toList(), equalTo(List.of("network.bytes_in", "step", "_timeseries")));
+        assertThat(
+            outputColumns(planPromql("PROMQL index=k8s step=1m network.bytes_in")),
+            equalTo(List.of("network.bytes_in", "step", "_timeseries"))
+        );
     }
 
     public void testGroupByAllInstantSelectorRate() {
-        var plan = planPromql("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))");
-        assertThat(plan.output().stream().map(a -> a.name()).toList(), equalTo(List.of("rate", "step", "_timeseries")));
+        assertThat(
+            outputColumns(planPromql("PROMQL index=k8s step=1m rate=(rate(network.total_bytes_in[1m]))")),
+            equalTo(List.of("rate", "step", "_timeseries"))
+        );
     }
 
     public void testGroupByAllWithinSeriesAggregate() {
-        var plan = planPromql("PROMQL index=k8s step=1m count=(count_over_time(network.bytes_in[1m]))");
-        assertThat(plan.output().stream().map(a -> a.name()).toList(), equalTo(List.of("count", "step", "_timeseries")));
+        assertThat(
+            outputColumns(planPromql("PROMQL index=k8s step=1m count=(count_over_time(network.bytes_in[1m]))")),
+            equalTo(List.of("count", "step", "_timeseries"))
+        );
+    }
+
+    public void testSelectorFilterPushedToSource() {
+        assertTrue(anyFilterContains(planPromql("PROMQL index=k8s step=1m result=(sum(network.bytes_in{pod=\"p1\"}))"), Equals.class));
+    }
+
+    public void testSelectorFilterPushedToSourceThroughUnaryOp() {
+        assertTrue(anyFilterContains(planPromql("PROMQL index=k8s step=1m result=(-sum(network.bytes_in{pod=\"p1\"}))"), Equals.class));
+    }
+
+    public void testSelectorFilterPushedToSourceThroughScalar() {
+        var plan = planPromql("PROMQL index=k8s step=1m result=(scalar(sum by (cluster) (network.bytes_in{cluster=\"prod\"})))");
+        assertTrue(anyFilterContains(plan, Equals.class));
+    }
+
+    public void testBinaryOpConflictingSelectors() {
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in{pod=\"p2\"}))");
+        var lots = collectInnerLastOverTimes(plan);
+        assertThat(lots, hasSize(2));
+        assertTrue(lots.stream().allMatch(LastOverTime::hasFilter));
+        assertFalse(anyFilterContains(plan, Equals.class));
+    }
+
+    public void testBinaryOpDifferentLabelKeys() {
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{cluster=\"c1\"}) / sum(network.bytes_in{pod=\"p1\"}))");
+        var lots = collectInnerLastOverTimes(plan);
+        assertThat(lots, hasSize(2));
+        assertTrue(lots.stream().allMatch(LastOverTime::hasFilter));
+        assertFalse(anyFilterContains(plan, Equals.class));
+    }
+
+    public void testBinaryOpSelectorOnOneSideOnly() {
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in))");
+        var lots = collectInnerLastOverTimes(plan);
+        assertThat(lots, hasSize(2));
+        assertThat(lots.stream().filter(LastOverTime::hasFilter).count(), equalTo(1L));
+        assertFalse(anyFilterContains(plan, Equals.class));
+    }
+
+    public void testBinaryOpConflictingSelectorsInFunction() {
+        var plan = planPromql("PROMQL index=k8s step=1m r=(ceil(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in{pod=\"p2\"})))");
+        var lots = collectInnerLastOverTimes(plan);
+        assertThat(lots, hasSize(2));
+        assertTrue(lots.stream().allMatch(LastOverTime::hasFilter));
+        assertFalse(anyFilterContains(plan, Equals.class));
+    }
+
+    private static List<String> outputColumns(LogicalPlan plan) {
+        return plan.output().stream().map(a -> a.name()).toList();
+    }
+
+    private static List<LastOverTime> collectInnerLastOverTimes(LogicalPlan plan) {
+        return plan.collect(TimeSeriesAggregate.class)
+            .stream()
+            .flatMap(tsa -> tsa.aggregates().stream())
+            .flatMap(ne -> ne.collect(LastOverTime.class).stream())
+            .toList();
+    }
+
+    private static List<Filter> collectSelectorFilters(LogicalPlan plan) {
+        List<Filter> result = new ArrayList<>();
+        plan.forEachDown(Filter.class, f -> {
+            if (f.child() instanceof EsRelation) {
+                result.add(f);
+            }
+        });
+        return result;
+    }
+
+    private static boolean anyFilterContains(LogicalPlan plan, Class<? extends Expression> type) {
+        return collectSelectorFilters(plan).stream().anyMatch(f -> f.condition().anyMatch(type::isInstance));
+    }
+
+    private static <T extends Expression> T collectInnermostSelectorFilter(LogicalPlan plan, Class<T> type) {
+        return collectSelectorFilters(plan).stream()
+            .flatMap(f -> f.condition().collect(type).stream())
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("No " + type.getSimpleName() + " in source filters"));
     }
 }

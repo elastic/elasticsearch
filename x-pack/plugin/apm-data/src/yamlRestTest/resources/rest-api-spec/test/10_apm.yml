@@ -38,14 +38,14 @@ setup:
           data_stream.dataset: apm
           data_stream.namespace: testing
           timestamp:
-            us: 1.0
+            us: 1772469840000000.0
   - do:
       search:
         index: traces-apm-timestampus
         body:
           fields: ["timestamp.us"]
   - length: { hits.hits: 1 }
-  - match: { hits.hits.0.fields.timestamp\.us: [1] }
+  - match: { hits.hits.0.fields.timestamp\.us: [1772469840000000] }
 
 ---
 "Test metrics-apm* template installation":

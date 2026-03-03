@@ -287,6 +287,8 @@ GET /_search
 
 You can repeat this process to get additional pages of results. If using a PIT, you can extend the PIT’s retention period using the `keep_alive` parameter of each search request.
 
+When using slicing with a point-in-time search, the default partitioning uses Lucene document IDs for efficiency. You can explicitly specify `"field": "_id"` in the slice object to partition by the document's `_id` field instead.
+
 When you’re finished, you should delete your PIT.
 
 ```console
@@ -498,53 +500,6 @@ If the number of slices is bigger than the number of shards the slice filter is 
 
 
 The [point-in-time](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time) API supports a more efficient partitioning strategy and does not suffer from this problem. When possible, it’s recommended to use a point-in-time search with slicing instead of a scroll.
-
-The following example shows slicing with a point-in-time search. First open a PIT, then run parallel search requests with the same PIT ID and different slice IDs:
-
-```console
-POST /my-index-000001/_pit?keep_alive=1m
-```
-% TEST[setup:my_index_big]
-
-```console
-GET /_search
-{
-  "pit": {
-    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==",
-    "keep_alive": "1m"
-  },
-  "slice": {
-    "id": 0,
-    "max": 2
-  },
-  "query": {
-    "match": {
-      "message": "foo"
-    }
-  },
-  "sort": [{"_shard_doc": "asc"}]
-}
-GET /_search
-{
-  "pit": {
-    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==",
-    "keep_alive": "1m"
-  },
-  "slice": {
-    "id": 1,
-    "max": 2
-  },
-  "query": {
-    "match": {
-      "message": "foo"
-    }
-  },
-  "sort": [{"_shard_doc": "asc"}]
-}
-```
-% TEST[catch:unavailable]
-
-Each slice uses the same PIT ID and processes its portion of documents independently. Use `search_after` with the last hit's sort values to page through each slice. By default, slicing uses the `_id` field; you can also specify `"field": "_id"` explicitly or use a numeric field with doc_values as shown below.
 
 Another way to avoid this high cost is to use the `doc_values` of another field to do the slicing. The field must have the following properties:
 

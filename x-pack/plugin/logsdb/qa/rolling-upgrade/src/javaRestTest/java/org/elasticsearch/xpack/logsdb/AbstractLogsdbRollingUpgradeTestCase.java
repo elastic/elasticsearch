@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -23,8 +24,12 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -78,6 +83,47 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         logger.info("Upgrading node {} to version {}", n, upgradeVersion);
         getCluster().upgradeNodeToVersion(n, upgradeVersion);
         initClient();
+    }
+
+    @SuppressWarnings("unchecked")
+    protected List<Integer> searchFirstUpgradeOrder() throws IOException {
+        Response response = client().performRequest(new Request("GET", "/_nodes"));
+        assertOK(response);
+        Map<String, Object> responseBody = entityAsMap(response);
+        Map<String, Object> nodes = (Map<String, Object>) responseBody.get("nodes");
+
+        int numNodes = getCluster().getNumNodes();
+        Map<String, Integer> nodeIndexByName = new LinkedHashMap<>();
+        for (int i = 0; i < numNodes; i++) {
+            nodeIndexByName.put(getCluster().getName(i), i);
+        }
+
+        List<Integer> searchFirst = new ArrayList<>();
+        List<Integer> others = new ArrayList<>();
+        for (Object nodeValue : nodes.values()) {
+            Map<String, Object> node = (Map<String, Object>) nodeValue;
+            Integer nodeIndex = nodeIndexByName.get((String) node.get("name"));
+            if (nodeIndex == null) {
+                continue;
+            }
+            List<String> roles = (List<String>) node.get("roles");
+            if (roles.contains("search")) {
+                searchFirst.add(nodeIndex);
+            } else {
+                others.add(nodeIndex);
+            }
+        }
+
+        Set<Integer> seen = new HashSet<>(searchFirst);
+        seen.addAll(others);
+        for (int i = 0; i < numNodes; i++) {
+            if (seen.contains(i) == false) {
+                others.add(i);
+            }
+        }
+
+        searchFirst.addAll(others);
+        return searchFirst;
     }
 
     protected ElasticsearchCluster getCluster() {

@@ -136,10 +136,11 @@ public class TsdbIT extends AbstractLogsdbRollingUpgradeTestCase {
 
         performOldClustertOperations(templateName, dataStreamName);
 
-        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
-        for (int i = 0; i < numNodes; i++) {
-            upgradeNode(i);
-            performMixedClusterOperations(dataStreamName, i == 0);
+        boolean firstMixedCluster = true;
+        for (int nodeIndex : searchFirstUpgradeOrder()) {
+            upgradeNode(nodeIndex);
+            performMixedClusterOperations(dataStreamName, firstMixedCluster);
+            firstMixedCluster = false;
         }
         performUpgradedClusterOperations(dataStreamName);
     }

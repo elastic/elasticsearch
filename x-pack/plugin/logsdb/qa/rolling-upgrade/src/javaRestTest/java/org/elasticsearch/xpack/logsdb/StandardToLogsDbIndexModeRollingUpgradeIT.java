@@ -73,8 +73,8 @@ public class StandardToLogsDbIndexModeRollingUpgradeIT extends AbstractStringTyp
         verifyIndexMode(IndexMode.STANDARD, templates.get(0).dataStreamName());
 
         // during upgrade
-        for (int i = 0; i < getNumNodes(); i++) {
-            upgradeNode(i);
+        for (int nodeIndex : searchFirstUpgradeOrder()) {
+            upgradeNode(nodeIndex);
             for (TemplateConfig config : templates) {
                 indexDocumentsAndVerifyResults(config);
             }

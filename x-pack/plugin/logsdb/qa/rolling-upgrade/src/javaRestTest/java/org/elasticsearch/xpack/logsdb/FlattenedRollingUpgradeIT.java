@@ -263,9 +263,8 @@ public class FlattenedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTestC
         List<FlattenedData> indexedData = new ArrayList<>();
         indexDocumentsAndVerifyResults(spec, settings, indexedData);
 
-        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
-        for (int i = 0; i < numNodes; i++) {
-            upgradeNode(i);
+        for (int nodeIndex : searchFirstUpgradeOrder()) {
+            upgradeNode(nodeIndex);
             indexDocumentsAndVerifyResults(spec, settings, indexedData);
         }
     }

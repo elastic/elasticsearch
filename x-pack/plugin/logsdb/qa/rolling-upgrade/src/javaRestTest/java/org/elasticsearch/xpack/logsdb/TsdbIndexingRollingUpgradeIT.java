@@ -61,9 +61,8 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         search(dataStreamName);
         query(dataStreamName);
 
-        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
-        for (int i = 0; i < numNodes; i++) {
-            upgradeNode(i);
+        for (int nodeIndex : searchFirstUpgradeOrder()) {
+            upgradeNode(nodeIndex);
             startTime = startTime.plusNanos(60 * 30);
             bulkIndex(dataStreamName, 4, 1024, startTime, TsdbIndexingRollingUpgradeIT::docSupplier);
             search(dataStreamName);

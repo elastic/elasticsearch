@@ -936,10 +936,7 @@ public class IndexMetadataTests extends ESTestCase {
 
     public void testSequenceNumbersDisabled() {
         assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.DISABLE_SEQUENCE_NUMBERS,
-            IndexVersion.current()
-        );
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
         var disabled = randomBoolean();
         IndexMetadata metadata = IndexMetadata.builder("test")
             .settings(

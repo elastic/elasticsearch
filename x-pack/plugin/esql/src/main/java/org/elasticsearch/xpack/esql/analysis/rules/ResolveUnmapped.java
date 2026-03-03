@@ -185,17 +185,12 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return project;
     }
 
-    private static LogicalPlan refreshPlan(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
-        var refreshed = refreshUnresolved(plan, unresolved);
-        return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
-    }
-
     /**
      * The UAs that haven't been resolved are marked as unresolvable with a custom message. This needs to be removed for
      * {@link Analyzer.ResolveRefs} to attempt again to wire them to the newly added aliases. That's what this method does.
      */
-    private static LogicalPlan refreshUnresolved(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
-        return plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
+    private static LogicalPlan refreshPlan(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
+        var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
             if (unresolved.contains(ua)) {
                 unresolved.remove(ua);
                 // Besides clearing the message, we need to refresh the nameId to avoid equality with the previous plan.
@@ -204,6 +199,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             }
             return ua;
         });
+        return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
     }
 
     /**

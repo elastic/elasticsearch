@@ -18,7 +18,7 @@ import java.util.Random;
  * values in the stream and choosing a desired precision.
  * Note that the precision only pertains to the quantization and the quantile estimator carries additional error.
  */
-public class FrugalQuantile {
+public class OnlineQuantileEstimator {
     private final float min;
     private final float max;
     private final float q;
@@ -35,7 +35,7 @@ public class FrugalQuantile {
      * @param max the maximum value in the stream (the 1-quantile)
      * @param precision the desired numerical precision in (0, 1)
      */
-    FrugalQuantile(float q, float min, float max, float precision, long seed) {
+    OnlineQuantileEstimator(float q, float min, float max, float precision, long seed) {
         if (q <= 0.0f || q > 1.0f) {
             throw new IllegalArgumentException("q must be between 0.0f and 1.0f");
         }
@@ -56,6 +56,13 @@ public class FrugalQuantile {
      * @param value the new value from the stream
      */
     public void updateEstimate(float value) {
+        // If value is not in the interval, snap it.
+        if (value < min) {
+            value = min;
+        }
+        if (value > max) {
+            value = max;
+        }
         int intValue = Math.round((value - min) / ((max - min) * precision));
         // After quantizing the input, the remaining code follows Algorithm 3 of https://arxiv.org/abs/1407.1121.
 
@@ -91,7 +98,18 @@ public class FrugalQuantile {
         }
     }
 
-    /** Return the q-quantile estimate. */
+    /**
+     * Update the estimate with a batch of values from the stream.
+     * @param values the new values from the stream
+     */
+    public void updateEstimate(float[] values) {
+        for (float value : values) {
+            updateEstimate(value);
+        }
+    }
+
+
+        /** Return the q-quantile estimate. */
     public float getEstimate() {
         return estimate * ((max - min) * precision) + min;
     }

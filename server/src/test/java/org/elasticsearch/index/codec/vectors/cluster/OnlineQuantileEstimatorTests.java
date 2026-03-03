@@ -13,7 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.*;
 
-public class FrugalQuantileTests extends ESTestCase {
+public class OnlineQuantileEstimatorTests extends ESTestCase {
 
     /** Tests the convergence to the true value of the q-quantile estimator using an uniform distribution for q=0.25, 0.5, 0.75. */
     public void testQuantileUniform() {
@@ -21,7 +21,7 @@ public class FrugalQuantileTests extends ESTestCase {
         final int n = 100_000;
 
         for (float q : List.of(0.25f, 0.5f, 0.75f)) {
-            FrugalQuantile fq = new FrugalQuantile(q, 0f, 1f, 0.0001f, 42L);
+            OnlineQuantileEstimator fq = new OnlineQuantileEstimator(q, 0f, 1f, 0.0001f, 42L);
             for (int trial = 0; trial < nTrials; trial++) {
                 for (int i = 0; i < n; i++) {
                     float value = random().nextFloat();
@@ -39,25 +39,18 @@ public class FrugalQuantileTests extends ESTestCase {
         final int nTrials = 100;
         final int n = 100_000;
         final float lambda = 1;
-
-        float[] values = new float[n];
+        float min = 0f;
+        float max = (float) -Math.log(1e-6) / lambda;
 
         for (float q : List.of(0.25f, 0.5f, 0.75f)) {
+            OnlineQuantileEstimator fq = new OnlineQuantileEstimator(q, min, max, 0.00001f, 42L);
             for (int trial = 0; trial < nTrials; trial++) {
-                float min = Float.POSITIVE_INFINITY;
-                float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < n; i++) {
-                    // Uses inverse transform sampling
-                    values[i] = (float) -Math.log(1f - random().nextFloat()) / lambda;
-                    min = Math.min(min, values[i]);
-                    max = Math.max(max, values[i]);
-                }
-
-                FrugalQuantile fq = new FrugalQuantile(q, min, max, 0.00001f, 42L);
-                for (int i = 0; i < n; i++) {
-                    fq.updateEstimate(values[i]);
+                    float value = (float) -Math.log(1f - random().nextFloat()) / lambda;
+                    fq.updateEstimate(value);
                 }
                 double quantileEstimate = fq.getEstimate();
+                fq.reset();
                 // Higher quantiles of an exponential distribution have more error, and the threshold tries to account for it for small
                 // (the current threshold is rather conservative for small q).
                 // The quantiles of the exponential distribution are given by -Math.log(1 - q) / lambda

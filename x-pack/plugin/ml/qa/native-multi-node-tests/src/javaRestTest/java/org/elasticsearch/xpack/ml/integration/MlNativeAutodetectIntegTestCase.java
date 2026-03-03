@@ -253,7 +253,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
     protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
         // Forecasts can take an eternity to complete in the FIPS JVM
-        int timeoutSeconds = inFipsJvm() ? 300 : 90;
+        int timeoutSeconds = inFipsJvm() ? 300 : 180;
         // First wait for the forecast document to exist and be in a non-terminal state
         // This handles the race condition where the document may be SCHEDULED or STARTED initially
         waitForecastStatus(

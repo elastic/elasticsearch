@@ -150,7 +150,8 @@ class Elasticsearch {
             LogConfigurator.configure(nodeEnv, args.quiet() == false);
         } catch (Throwable t) {
             // any exception this early needs to be fully printed and fail startup
-            t.printStackTrace(err);
+            final Logger logger = LogManager.getLogger(Elasticsearch.class);
+            logger.error("Failed to initialize node", t);
             err.flush();
             Bootstrap.exit(1); // mimic JDK exit code on exception
             return null; // unreachable, to satisfy compiler

@@ -359,16 +359,20 @@ class DownsampleShardIndexer {
     }
 
     private class TimeSeriesBucketCollector extends BucketCollector {
+        // Constants to reduce object allocation when we do not need documents for counter resets
         private static final DimensionFieldDownsampler[] EMPTY_DIMENSIONS_FOR_COUNTER_RESETS = new DimensionFieldDownsampler[0];
         private static final NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] EMPTY_AGGREGATE_COUNTERS =
             new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[0];
         private final BulkProcessor2 bulkProcessor;
         private final DownsampleBucketBuilder downsampleBucketBuilder;
         private LeafDownsampleCollector currentLeafCollector;
+        // Downsamplers grouped by the doc value input they expect.
         private final LastValueFieldDownsampler[] formattedDocValuesDownsamplers;
         private final ExponentialHistogramFieldDownsampler[] exponentialHistogramDownsamplers;
         private final TDigestHistogramFieldDownsampler[] tDigestHistogramDownsamplers;
         private final NumericMetricFieldDownsampler[] numericDownsamplers;
+        // Aggregate counter downsampler is dealt with separately than the numeric ones because
+        // they additionally require timestamps.
         private final NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] aggregateCounterDownsamplers;
         private long docsProcessed;
         private long bucketsCreated;
@@ -660,11 +664,14 @@ class DownsampleShardIndexer {
         private long timestamp;
         private int docCount;
         private CounterResetDataPoints counterResetDataPoints;
+        // A list of all the downsamplers so we can reset them before moving on to the next bucket
         private final List<AbstractFieldDownsampler<?>> fieldDownsamplers;
-        private final DownsampleFieldSerializer[] groupedDownsamplers;
+        // An array of the fields serializers, the serializers can correspond to one or more AbstractFieldDownsampler
+        private final DownsampleFieldSerializer[] fieldSerializers;
+        // We track the dimensions and aggregate counter downsamplers separately to serialise the extra counter reset documents
         private final DimensionFieldDownsampler[] dimensionDownsamplers;
         private final NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] aggregateCounterDownsamplers;
-        private final String[] dimensions;
+        private final boolean legacyDimensions;
 
         DownsampleBucketBuilder(
             List<AbstractFieldDownsampler<?>> fieldDownsamplers,
@@ -673,7 +680,7 @@ class DownsampleShardIndexer {
             String[] dimensions
         ) {
             this.fieldDownsamplers = fieldDownsamplers;
-            this.dimensions = dimensions;
+            this.legacyDimensions = dimensions.length == 0;
             this.dimensionDownsamplers = dimensionDownsamplers;
             this.aggregateCounterDownsamplers = aggregateCounterDownsamplers;
             /*
@@ -682,18 +689,13 @@ class DownsampleShardIndexer {
              * name. If grouping yields multiple field downsamplers, we delegate serialization to
              * the AggregateMetricFieldSerializer class.
              */
-            groupedDownsamplers = fieldDownsamplers.stream()
-                .collect(groupingBy(AbstractFieldDownsampler::name))
-                .entrySet()
-                .stream()
-                .map(e -> {
-                    if (e.getValue().size() == 1) {
-                        return e.getValue().get(0);
-                    } else {
-                        return new AggregateMetricDoubleFieldDownsampler.Serializer(e.getKey(), e.getValue());
-                    }
-                })
-                .toArray(DownsampleFieldSerializer[]::new);
+            fieldSerializers = fieldDownsamplers.stream().collect(groupingBy(AbstractFieldDownsampler::name)).entrySet().stream().map(e -> {
+                if (e.getValue().size() == 1) {
+                    return e.getValue().get(0);
+                } else {
+                    return new AggregateMetricDoubleFieldDownsampler.Serializer(e.getKey(), e.getValue());
+                }
+            }).toArray(DownsampleFieldSerializer[]::new);
         }
 
         /**
@@ -751,7 +753,7 @@ class DownsampleShardIndexer {
             builder.field(DocCountFieldMapper.NAME, docCount);
 
             // Serialize fields
-            for (DownsampleFieldSerializer fieldDownsampler : groupedDownsamplers) {
+            for (DownsampleFieldSerializer fieldDownsampler : fieldSerializers) {
                 fieldDownsampler.write(builder);
             }
 
@@ -806,7 +808,7 @@ class DownsampleShardIndexer {
         }
 
         private void extractLegacyDimensionsIfNeeded(XContentBuilder builder) throws IOException {
-            if (dimensions.length == 0) {
+            if (legacyDimensions) {
                 logger.debug("extracting dimensions from legacy tsid");
                 Map<?, ?> dimensions = (Map<?, ?>) DocValueFormat.TIME_SERIES_ID.format(tsid);
                 for (Map.Entry<?, ?> e : dimensions.entrySet()) {

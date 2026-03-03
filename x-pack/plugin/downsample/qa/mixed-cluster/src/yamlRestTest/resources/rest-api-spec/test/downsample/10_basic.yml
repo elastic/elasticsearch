@@ -138,7 +138,7 @@ setup:
   - match:  { hits.hits.0._source.k8s\.pod\.values: [1, 1, 2] }
   - is_false: hits.hits.0._source.k8s\.pod\.running
 
-  # Reset doc
+  # Doc with counter resets
   - is_false: hits.hits.1._source._doc_count
   - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z }
   # Dimensions
@@ -161,7 +161,7 @@ setup:
   - match:  { hits.hits.2._source.k8s\.pod\.scaled-counter: 1000.0 }
   - match:  { hits.hits.2._source.k8s\.pod\.multi-gauge.min: 95 }
 
-  # Reset doc
+  # Doc with counter resets
   - is_false: hits.hits.3._source._doc_count
   - match: { hits.hits.3._source.@timestamp: 2021-04-28T19:51:03.142Z }
   # Dimensions

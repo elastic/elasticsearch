@@ -210,11 +210,11 @@ public class PersistentTasksExecutorNodeShutdownIT extends ESIntegTestCase {
                     updatedTask.getAssignment().getExecutorNode()
                 );
             });
+            waitForTaskToStart(taskName);
         } finally {
             removeShutdownMetadata(originalNodeId);
+            cancelTask(taskName);
         }
-        waitForTaskToStart(taskName);
-        cancelTask(taskName);
     }
 
     /**
@@ -241,8 +241,8 @@ public class PersistentTasksExecutorNodeShutdownIT extends ESIntegTestCase {
             );
         } finally {
             removeShutdownMetadata(originalNodeId);
+            cancelTask(taskName);
         }
-        cancelTask(taskName);
     }
 
     private String startTask(String taskName) throws Exception {
@@ -335,6 +335,9 @@ public class PersistentTasksExecutorNodeShutdownIT extends ESIntegTestCase {
 
     private void cancelTask(String taskName) {
         final var tasks = clusterAdmin().prepareListTasks().setActions(taskName + "[c]").get().getTasks();
+        if (tasks.isEmpty()) {
+            return;
+        }
         assertThat(tasks, hasSize(1));
         clusterAdmin().prepareCancelTasks().setTargetTaskId(tasks.getFirst().taskId()).get();
     }

@@ -148,7 +148,7 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         assertEquals(text.length(), bi.following(offset - 1));
     }
 
-    // ---- first() 方法测试 ----
+    // ---- Tests for first() ----
 
     public void testFirstReturnsZeroAfterSetText() {
         BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
@@ -162,15 +162,15 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         final String text = "This is the first sentence. Here is the second one.";
         bi.setText(text);
 
-        // 先执行一次正常的 preceding/following 调用
+        // Perform a normal preceding/following call first
         int offset = text.indexOf("second");
         int start1 = bi.preceding(offset);
         int end1 = bi.following(offset - 1);
 
-        // 调用 first() 重置状态
+        // Call first() to reset state
         assertEquals(0, bi.first());
 
-        // 重新 setText 并再次 preceding/following，结果应一致
+        // Re-setText and call preceding/following again, results should be consistent
         bi.setText(text);
         int start2 = bi.preceding(offset);
         int end2 = bi.following(offset - 1);
@@ -179,16 +179,16 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         assertEquals(end1, end2);
     }
 
-    // ---- next() 方法测试 ----
+    // ---- Tests for next() ----
 
     public void testNextReturnsSentenceBoundary() {
         BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 1000);
         final String text = "First sentence. Second sentence. Third sentence.";
         bi.setText(text);
 
-        // first() 定位到起始位置
+        // first() positions to the beginning
         assertEquals(0, bi.first());
-        // next() 应该返回下一个句子的 boundary
+        // next() should return the next sentence boundary
         int boundary = bi.next();
         assertThat(boundary, greaterThan(0));
         assertThat(boundary, lessThanOrEqualTo(text.length()));
@@ -198,13 +198,13 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
         final String text = "First sentence. Second sentence. Third sentence.";
 
-        // 获取基线结果
+        // Get baseline results
         bi.setText(text);
         int offset = text.indexOf("Second");
         int start1 = bi.preceding(offset);
         int end1 = bi.following(offset - 1);
 
-        // 调用 next() 后重新 setText，preceding/following 应不受影响
+        // After calling next(), re-setText, preceding/following should not be affected
         bi.setText(text);
         bi.first();
         bi.next();
@@ -217,7 +217,7 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         assertEquals(end1, end2);
     }
 
-    // ---- last() 方法测试 ----
+    // ---- Tests for last() ----
 
     public void testLastReturnsTextEndPosition() {
         BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 1000);
@@ -232,13 +232,13 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
         final String text = "First sentence. Second sentence.";
 
-        // 获取基线结果
+        // Get baseline results
         bi.setText(text);
         int offset = text.indexOf("Second");
         int start1 = bi.preceding(offset);
         int end1 = bi.following(offset - 1);
 
-        // 调用 last() 后重新 setText，preceding/following 应不受影响
+        // After calling last(), re-setText, preceding/following should not be affected
         bi.setText(text);
         bi.last();
 
@@ -250,14 +250,14 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         assertEquals(end1, end2);
     }
 
-    // ---- next(n) 方法测试 ----
+    // ---- Tests for next(n) ----
 
     public void testNextNReturnsBoundary() {
         BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 1000);
         final String text = "First sentence. Second sentence. Third sentence.";
         bi.setText(text);
 
-        // 定位到起始，然后 next(2) 应跳过 2 个 boundary
+        // Position to the start, then next(2) should skip 2 boundaries
         bi.first();
         int boundary = bi.next(2);
         assertThat(boundary, greaterThan(0));
@@ -268,13 +268,13 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
         final String text = "First sentence. Second sentence. Third sentence.";
 
-        // 获取基线结果
+        // Get baseline results
         bi.setText(text);
         int offset = text.indexOf("Third");
         int start1 = bi.preceding(offset);
         int end1 = bi.following(offset - 1);
 
-        // 调用 next(n) 后重新 setText，preceding/following 应不受影响
+        // After calling next(n), re-setText, preceding/following should not be affected
         bi.setText(text);
         bi.first();
         bi.next(2);
@@ -287,14 +287,14 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         assertEquals(end1, end2);
     }
 
-    // ---- previous() 方法测试 ----
+    // ---- Tests for previous() ----
 
     public void testPreviousReturnsBoundary() {
         BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 1000);
         final String text = "First sentence. Second sentence. Third sentence.";
         bi.setText(text);
 
-        // 先定位到末尾，然后 previous() 应返回前一个 boundary
+        // Position to the end first, then previous() should return the preceding boundary
         bi.last();
         int boundary = bi.previous();
         assertThat(boundary, greaterThanOrEqualTo(0));
@@ -305,13 +305,13 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         BreakIterator bi = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
         final String text = "First sentence. Second sentence.";
 
-        // 获取基线结果
+        // Get baseline results
         bi.setText(text);
         int offset = text.indexOf("Second");
         int start1 = bi.preceding(offset);
         int end1 = bi.following(offset - 1);
 
-        // 调用 previous() 后重新 setText，preceding/following 应不受影响
+        // After calling previous(), re-setText, preceding/following should not be affected
         bi.setText(text);
         bi.last();
         bi.previous();
@@ -324,25 +324,25 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         assertEquals(end1, end2);
     }
 
-    // ---- SplittingBreakIterator 包装场景测试 ----
+    // ---- Tests for SplittingBreakIterator wrapping scenario ----
 
     public void testSplittingBreakIteratorWrappingDoesNotThrow() {
-        // 模拟 UnifiedHighlighter 用 SplittingBreakIterator 包装 BoundedBreakIteratorScanner 的场景
+        // Simulate the scenario where UnifiedHighlighter wraps BoundedBreakIteratorScanner with SplittingBreakIterator
         BreakIterator bounded = BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 100);
-        // \u0000 是多值字段分隔符（MULTIVAL_SEP_CHAR）
+        // \u0000 is the multi-value field separator (MULTIVAL_SEP_CHAR)
         SplittingBreakIterator splitting = new SplittingBreakIterator(bounded, '\u0000');
 
-        // 构造包含 \0 分隔符的多值字段文本
+        // Construct multi-value field text containing \0 separator
         final String text = "First value sentence.\u0000Second value sentence. Another one here.";
         splitting.setText(text);
 
-        // following() 应该能正常工作，不抛出 IllegalStateException
-        // 当 offset 跨越分隔符片段边界时，SplittingBreakIterator 内部会调用 delegate.first()
+        // following() should work normally without throwing IllegalStateException
+        // When offset crosses the separator segment boundary, SplittingBreakIterator internally calls delegate.first()
         int boundary = splitting.following(0);
         assertThat(boundary, greaterThanOrEqualTo(0));
         assertThat(boundary, lessThanOrEqualTo(text.length()));
 
-        // 在第二个片段中调用 following，触发跨片段边界的逻辑
+        // Call following in the second segment, triggering cross-segment boundary logic
         int secondValueStart = text.indexOf('\u0000') + 1;
         boundary = splitting.following(secondValueStart);
         assertThat(boundary, greaterThanOrEqualTo(secondValueStart));
@@ -356,14 +356,14 @@ public class BoundedBreakIteratorScannerTests extends ESTestCase {
         final String text = "Hello world.\u0000Foo bar. Baz qux.";
         splitting.setText(text);
 
-        // 在第一个片段中进行 preceding/following
+        // Perform preceding/following in the first segment
         int offset = text.indexOf("world");
         int start = splitting.preceding(offset + 1);
         int end = splitting.following(offset);
         assertThat(start, greaterThanOrEqualTo(0));
         assertThat(end, greaterThan(start));
 
-        // 在第二个片段中进行 preceding/following
+        // Perform preceding/following in the second segment
         int secondOffset = text.indexOf("Baz");
         start = splitting.preceding(secondOffset + 1);
         end = splitting.following(secondOffset);

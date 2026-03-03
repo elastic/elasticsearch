@@ -97,8 +97,9 @@ public class CustomUnifiedHighlighterTests extends HighlighterTestCase {
     }
 
     /**
-     * 验证 match_phrase_prefix 查询 + sentence boundary scanner + highlight 不会抛出 IllegalStateException。
-     * 这是对 BoundedBreakIteratorScanner 未实现 first() 等标准方法导致高亮报错问题的回归测试。
+     * Verify that match_phrase_prefix query + sentence boundary scanner + highlight does not throw IllegalStateException.
+     * This is a regression test for the issue where BoundedBreakIteratorScanner did not implement standard methods
+     * like first(), causing highlighting failures.
      */
     public void testMatchPhrasePrefixWithSentenceBoundaryScanner() throws IOException {
 
@@ -119,15 +120,16 @@ public class CustomUnifiedHighlighterTests extends HighlighterTestCase {
                     .highlighterType("unified")
             );
 
-        // 不应抛出 IllegalStateException
+        // Should not throw IllegalStateException
         Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
         assertNotNull(highlights);
         assertFalse(highlights.isEmpty());
     }
 
     /**
-     * 验证 match_phrase_prefix 查询 + sentence boundary scanner + 多值字段 highlight 不会抛出 IllegalStateException。
-     * 多值字段会触发 SplittingBreakIterator 的跨片段边界逻辑。
+     * Verify that match_phrase_prefix query + sentence boundary scanner + multi-valued field highlight
+     * does not throw IllegalStateException.
+     * Multi-valued fields trigger the cross-segment boundary logic in SplittingBreakIterator.
      */
     public void testMatchPhrasePrefixWithSentenceBoundaryScannerMultiValue() throws IOException {
 
@@ -148,7 +150,7 @@ public class CustomUnifiedHighlighterTests extends HighlighterTestCase {
                     .highlighterType("unified")
             );
 
-        // 不应抛出 IllegalStateException
+        // Should not throw IllegalStateException
         Map<String, HighlightField> highlights = highlight(mapperService, doc, search);
         assertNotNull(highlights);
     }

@@ -1701,6 +1701,12 @@ public class EsqlCapabilities {
         FIX_NO_COLUMNS,
 
         /**
+         * Fix LimitOperator truncation with zero columns
+         * https://github.com/elastic/elasticsearch/issues/142473
+         */
+        FIX_LIMIT_TRUNCATION_WITH_ZERO_COLUMNS,
+
+        /**
          * Support for dots in FUSE attributes
          */
         DOTS_IN_FUSE,

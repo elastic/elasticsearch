@@ -857,6 +857,11 @@ public class EsqlCapabilities {
         SOURCE_FIELD_MAPPING,
 
         /**
+         * Support for field aliases in mappings.
+         */
+        FIELD_ALIAS_SUPPORT,
+
+        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,

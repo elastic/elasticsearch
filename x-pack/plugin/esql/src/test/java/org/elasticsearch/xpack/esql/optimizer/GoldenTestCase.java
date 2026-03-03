@@ -57,6 +57,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -176,6 +177,15 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public void run() {
             runGoldenTest(esqlQuery, stages, searchStats, transportVersion, nestedPath);
+        }
+
+        public Optional<Throwable> tryRun() {
+            try {
+                run();
+                return Optional.empty();
+            } catch (Throwable e) {
+                return Optional.of(e);
+            }
         }
     }
 

@@ -1,0 +1,6 @@
+Limit[1000[INTEGER],false,false]
+\_Eval[[does_not_exist_field{r}#0 AS x#1]]
+  \_InlineStats[]
+    \_Aggregate[[emp_no{f(EsField)}#2],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS COUNT(*)#3, emp_no{f(EsField)}#2]]
+      \_Eval[[null[NULL] AS does_not_exist_field#0]]
+        \_EsRelation[employees][avg_worked_seconds{f}#4, birth_date{f}#5, emp_no{f}#2, first_name{f}#6, gender{f}#7, height{f}#8, height.float{f}#9, height.half_float{f}#10, height.scaled_float{f}#11, hire_date{f}#12, is_rehired{f}#13, job_positions{f}#14, languages{f}#15, languages.byte{f}#16, languages.long{f}#17, languages.short{f}#18, last_name{f}#19, salary{f}#20, salary_change{f}#21, salary_change.int{f}#22, salary_change.keyword{f}#23, salary_change.long{f}#24, still_hired{f}#25]

@@ -1,7 +1,7 @@
-ProjectExec[[emp_no{f}#0, height{f}#1]]
-\_TopNExec[[Order[height{f}#1,ASC,LAST]],20[INTEGER],null]
-  \_ExchangeExec[[emp_no{f}#0, height{f}#1],false]
+ProjectExec[[emp_no{f(EsField)}#0, height{f(EsField)}#1]]
+\_TopNExec[[Order[height{f(EsField)}#1,ASC,LAST]],20[INTEGER],null]
+  \_ExchangeExec[[emp_no{f(EsField)}#0, height{f(EsField)}#1],false]
     \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
-Project[[emp_no{f}#0, height{f}#1]]
-\_TopN[[Order[height{f}#1,ASC,LAST]],20[INTEGER],false]
+Project[[emp_no{f(EsField)}#0, height{f(EsField)}#1]]
+\_TopN[[Order[height{f(EsField)}#1,ASC,LAST]],20[INTEGER],false]
   \_EsRelation[employees][avg_worked_seconds{f}#2, birth_date{f}#3, emp_no{f}#0, first_name{f}#4, gender{f}#5, height{f}#1, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{f}#9, is_rehired{f}#10, job_positions{f}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, last_name{f}#16, salary{f}#17, salary_change{f}#18, salary_change.int{f}#19, salary_change.keyword{f}#20, salary_change.long{f}#21, still_hired{f}#22]<>]]

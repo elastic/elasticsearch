@@ -1,0 +1,2 @@
+SET unmapped_fields="load"; FROM employees
+| DROP does_not_exist_field, emp_no

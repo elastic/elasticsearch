@@ -1,0 +1,2 @@
+SET unmapped_fields="nullify"; FROM sample_data, sample_data_ts_long, no_mapping_sample_data
+| EVAL x = @timestamp :: DOUBLE

@@ -732,7 +732,8 @@ public class CsvTests extends ESTestCase {
 
     private static TestPhysicalOperationProviders testOperationProviders(
         FoldContext foldCtx,
-        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> allDatasets,
+        UnmappedResolution unmappedResolution
     ) throws Exception {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
         for (CsvTestsDataLoader.MultiIndexTestDataset datasets : allDatasets.values()) {
@@ -744,7 +745,7 @@ public class CsvTests extends ESTestCase {
                 );
             }
         }
-        return TestPhysicalOperationProviders.create(foldCtx, indexPages);
+        return TestPhysicalOperationProviders.create(foldCtx, indexPages, unmappedResolution);
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
@@ -760,7 +761,8 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(plan);
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
-        LogicalPlan analyzed = analyzedPlan(plan, statement.setting(UNMAPPED_FIELDS), configuration, testDatasets, minimumVersion);
+        var unmappedResolution = statement.setting(UNMAPPED_FIELDS);
+        LogicalPlan analyzed = analyzedPlan(plan, unmappedResolution, configuration, testDatasets, minimumVersion);
 
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
@@ -782,7 +784,7 @@ public class CsvTests extends ESTestCase {
             PlannerSettings.DEFAULTS,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
-        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
+        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets, unmappedResolution);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
         var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(

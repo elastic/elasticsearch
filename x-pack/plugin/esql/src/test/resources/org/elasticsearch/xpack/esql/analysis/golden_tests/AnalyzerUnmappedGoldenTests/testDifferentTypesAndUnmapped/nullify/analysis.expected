@@ -1,0 +1,3 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[!@timestamp]]
+  \_EsRelation[sample_data,sample_data_ts_long,no_mapping_sample_data][!@timestamp, client_ip{f}#0, event_duration{f}#1, message{f}#2]

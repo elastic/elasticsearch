@@ -453,6 +453,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries.Datenanos_derivative_compared_to_rate}
   issue: https://github.com/elastic/elasticsearch/issues/143431
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:lookup-join.MvJoinKeyFromRow}
+  issue: https://github.com/elastic/elasticsearch/issues/143432
 
 # Examples:
 #

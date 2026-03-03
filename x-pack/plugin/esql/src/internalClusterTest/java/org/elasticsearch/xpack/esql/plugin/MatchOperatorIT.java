@@ -368,6 +368,36 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMatchOperatorAfterMvExpand() {
+        var query = """
+            FROM test
+            | MV_EXPAND content
+            | WHERE content : "fox"
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
+    }
+
+    public void testMatchOperatorAfterMvExpandWithIntermediateCommands() {
+        var error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | EVAL upper_content = to_upper(content)
+            | WHERE content : "fox"
+            """));
+        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
+
+        error = expectThrows(VerificationException.class, () -> run("""
+            FROM test
+            | MV_EXPAND content
+            | SORT id
+            | KEEP id, content
+            | WHERE content : "fox"
+            """));
+        assertThat(error.getMessage(), containsString("[:] operator cannot be used after MV_EXPAND"));
+    }
+
     public void testMatchOperatorWithLookupJoin() {
         var query = """
             FROM test

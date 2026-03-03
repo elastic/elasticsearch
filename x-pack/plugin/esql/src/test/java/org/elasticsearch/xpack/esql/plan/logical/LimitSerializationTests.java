@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 
 import java.io.IOException;
+import java.util.List;
 
 public class LimitSerializationTests extends AbstractLogicalPlanSerializationTests<Limit> {
     @Override
@@ -20,23 +21,30 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
         Source source = randomSource();
         Expression limit = FieldAttributeTests.createFieldAttribute(0, false);
         LogicalPlan child = randomChild(0);
-        return new Limit(source, limit, child, randomBoolean(), randomBoolean());
+        List<Expression> groupings = randomGroupings();
+        return new Limit(source, limit, child, groupings, randomBoolean(), randomBoolean());
     }
 
     @Override
     protected Limit mutateInstance(Limit instance) throws IOException {
         Expression limit = instance.limit();
         LogicalPlan child = instance.child();
+        List<Expression> groupings = instance.groupings();
         boolean duplicated = instance.duplicated();
         boolean local = instance.local();
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> limit = randomValueOtherThan(limit, () -> FieldAttributeTests.createFieldAttribute(0, false));
             case 1 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 2 -> duplicated = duplicated == false;
-            case 3 -> local = local == false;
+            case 2 -> groupings = randomValueOtherThan(groupings, LimitSerializationTests::randomGroupings);
+            case 3 -> duplicated = duplicated == false;
+            case 4 -> local = local == false;
             default -> throw new IllegalStateException("Should never reach here");
         }
-        return new Limit(instance.source(), limit, child, duplicated, local);
+        return new Limit(instance.source(), limit, child, groupings, duplicated, local);
+    }
+
+    private static List<Expression> randomGroupings() {
+        return randomList(0, 3, () -> FieldAttributeTests.createFieldAttribute(0, false));
     }
 
     @Override

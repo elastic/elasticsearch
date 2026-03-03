@@ -140,16 +140,14 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
     public void testDefaultsForTimeSeriesIndex() throws IOException {
         var isStored = randomBoolean();
-        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
+        boolean useSyntheticId = randomBoolean();
 
-        var indexSettingsBuilder = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            indexSettingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
-        }
-        var indexSettings = indexSettingsBuilder.build();
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId)
+            .build();
 
         var mapping = mapping(b -> {
             b.startObject("field");

@@ -71,11 +71,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         long startTime = System.nanoTime();
         ClusterState state = clusterService.state();
         ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
-        boolean useOCC = BulkByScrollOCCResolver.resolveUseOCC(
-            indexNameExpressionResolver,
-            projectMetadata,
-            request
-        );
+        boolean useOCC = BulkByScrollOCCResolver.resolveUseOCC(indexNameExpressionResolver, projectMetadata, request);
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByScrollTask,

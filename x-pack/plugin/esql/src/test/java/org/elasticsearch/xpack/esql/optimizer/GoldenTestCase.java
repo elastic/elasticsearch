@@ -61,6 +61,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -387,29 +388,20 @@ public abstract class GoldenTestCase extends ESTestCase {
         if (output.toString().contains("extra")) {
             throw new IllegalStateException("Extra output files should not be created automatically:" + output);
         }
-        Files.writeString(output, normalizeNameIds(plan), StandardCharsets.UTF_8);
+        String full = plan.toString(Node.NodeStringFormat.FULL);
+        Files.writeString(output, normalizeNameIds(normalizeSyntheticNames(full)), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
     }
 
     /**
      * Rewrites node IDs ({@code #n}) in the plan string to a stable numbering by order of first appearance.
-     * Actual IDs assi;ned during plan building can vary between runs, so this is needed to keep golden output deterministic.
+     * Actual IDs assigned during plan building can vary between runs, so this is needed to keep golden output deterministic.
      */
-    private static String normalizeNameIds(Node<?> plan) {
-        String full = plan.toString(Node.NodeStringFormat.FULL);
-        String normalized = normalizeSyntheticNames(full);
-        Matcher matcher = IDENTIFIER_PATTERN.matcher(normalized);
-        StringBuilder sb = new StringBuilder();
-        int lastEnd = 0;
-        var idMap = new IdMap<Integer>();
-        while (matcher.find()) {
-            sb.append(normalized, lastEnd, matcher.start());
+    private static String normalizeNameIds(String planString) {
+        return replaceMatches(planString, IDENTIFIER_PATTERN, (matcher, idMap) -> {
             int originalId = Integer.parseInt(matcher.group().substring(1)); // Drop the initial '#' prefix
-            sb.append("#").append(idMap.getId(originalId));
-            lastEnd = matcher.end();
-        }
-        sb.append(normalized, lastEnd, normalized.length());
-        return sb.toString();
+            return "#" + idMap.getId(originalId);
+        });
     }
 
     /**
@@ -417,17 +409,23 @@ public abstract class GoldenTestCase extends ESTestCase {
      * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.
      */
     private static String normalizeSyntheticNames(String full) {
-        Matcher matcher = SYNTHETIC_PATTERN.matcher(full);
+        return replaceMatches(full, SYNTHETIC_PATTERN, (matcher, idMap) -> {
+            String firstSegment = matcher.group(1);
+            return "$$" + firstSegment + "$" + idMap.getId(firstSegment);
+        });
+    }
+
+    private static <K> String replaceMatches(String input, Pattern pattern, BiFunction<Matcher, IdMap<K>, String> replacer) {
+        var idMap = new IdMap<K>();
+        Matcher matcher = pattern.matcher(input);
         StringBuilder sb = new StringBuilder();
         int lastEnd = 0;
-        var idMap = new IdMap<String>();
         while (matcher.find()) {
-            sb.append(full, lastEnd, matcher.start());
-            String firstSegment = matcher.group(1);
-            sb.append("$$").append(firstSegment).append("$").append(idMap.getId(firstSegment));
+            sb.append(input, lastEnd, matcher.start());
+            sb.append(replacer.apply(matcher, idMap));
             lastEnd = matcher.end();
         }
-        sb.append(full, lastEnd, full.length());
+        sb.append(input, lastEnd, input.length());
         return sb.toString();
     }
 
@@ -446,7 +444,8 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
-        String testString = normalize(normalizeNameIds(plan));
+        String full = plan.toString(Node.NodeStringFormat.FULL);
+        String testString = normalize(normalizeNameIds(normalizeSyntheticNames(full)));
         if (testString.equals(normalize(Files.readString(output)))) {
             if (System.getProperty("golden.cleanactual") != null) {
                 Path path = actualPath(output);

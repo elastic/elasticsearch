@@ -8,7 +8,13 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -51,6 +57,7 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
+import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -78,6 +85,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -95,8 +103,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -147,6 +158,7 @@ import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -315,6 +327,8 @@ public class LocalExecutionPlanner {
             return planCompoundOutputEval(coe, context);
         } else if (node instanceof MetricsInfoExec metricsInfo) {
             return planMetricsInfo(metricsInfo, context);
+        } else if (node instanceof TsInfoExec tsInfo) {
+            return planTsInfo(tsInfo, context);
         }
 
         // source nodes
@@ -586,6 +600,7 @@ public class LocalExecutionPlanner {
                 asList(encoders),
                 orders,
                 context.pageSize(topNExec, rowSize),
+                context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNExec.inputOrdering(),
                 topNExec.minCompetitive()
             ),
@@ -872,6 +887,7 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(fieldName, input));
         }
+        boolean useStreamingOperator = shouldUseStreamingOperator(lookupFromIndexService, indexName);
         return source.with(
             new LookupFromIndexOperator.Factory(
                 matchFields,
@@ -884,10 +900,64 @@ public class LocalExecutionPlanner {
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source(),
                 join.right(),
-                join.joinOnConditions()
+                join.joinOnConditions(),
+                useStreamingOperator,
+                context.queryPragmas().exchangeBufferSize(),
+                configuration.profile()
             ),
             layout
         );
+    }
+
+    /**
+     * The transport version that introduced streaming lookup support.
+     */
+    private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
+
+    /**
+     * Determines whether streaming lookup should be used based on the target node's transport version.
+     * Streaming lookup requires all target nodes to support the streaming protocol.
+     * Currently only enabled in snapshot builds.
+     */
+    private boolean shouldUseStreamingOperator(LookupFromIndexService service, String indexName) {
+        // Streaming lookup is only enabled in snapshot builds
+        if (Build.current().isSnapshot() == false) {
+            return false;
+        }
+
+        try {
+            ClusterState clusterState = service.getClusterService().state();
+
+            // Resolve target nodes for the lookup index
+            var projectState = service.getProjectResolver().getProjectState(clusterState);
+            var shardIterators = service.getClusterService()
+                .operationRouting()
+                .searchShards(projectState, new String[] { indexName }, Map.of(), "_local");
+
+            // Check ALL shard routings (primary + replicas) to ensure every node
+            // that could potentially handle the lookup supports streaming
+            for (ShardIterator shardIt : shardIterators) {
+                for (ShardRouting shardRouting : shardIt) {
+                    DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
+                    Transport.Connection connection = service.getTransportService().getConnection(node);
+                    TransportVersion nodeVersion = connection.getTransportVersion();
+                    if (nodeVersion.supports(ESQL_STREAMING_LOOKUP_JOIN) == false) {
+                        logger.debug(
+                            "Using non-streaming lookup operator: node [{}] has transport version [{}] which does not support [{}]",
+                            node.getId(),
+                            nodeVersion,
+                            ESQL_STREAMING_LOOKUP_JOIN
+                        );
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            // If we can't determine the version, fall back to non-streaming for safety
+            logger.debug("Failed to determine target node version for lookup, using non-streaming operator", e);
+            return false;
+        }
     }
 
     private static EsRelation findEsRelation(PhysicalPlan node) {
@@ -1005,6 +1075,100 @@ public class LocalExecutionPlanner {
         return source.with(new MetricsInfoOperator.FinalFactory(channels), layoutBuilder.build());
     }
 
+    private PhysicalOperation planTsInfo(TsInfoExec tsInfoExec, LocalExecutionPlannerContext context) {
+        if (tsInfoExec.mode() == TsInfoExec.Mode.FINAL || tsInfoExec.mode() == TsInfoExec.Mode.INTERMEDIATE) {
+            return planTsInfoFinal(tsInfoExec, context);
+        }
+        // INITIAL mode: extraction on data nodes — identical field extraction pipeline as MetricsInfo.
+        // Step 1: Extract _tsid only
+        FieldAttribute tsidAttr = new FieldAttribute(
+            tsInfoExec.source(),
+            null,
+            null,
+            MetadataAttribute.TSID_FIELD,
+            new EsField(MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
+            true
+        );
+
+        FieldExtractExec tsidExtractExec = new FieldExtractExec(
+            tsInfoExec.source(),
+            tsInfoExec.child(),
+            List.of(tsidAttr),
+            MappedFieldType.FieldExtractPreference.DOC_VALUES
+        );
+
+        PhysicalOperation tsidSource = planFieldExtractNode(tsidExtractExec, context);
+
+        // Step 2: Dedup by _tsid
+        int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
+        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
+
+        // Step 3: Extract _timeseries metadata and _index
+        FieldAttribute metadataSourceAttr = new FieldAttribute(
+            tsInfoExec.source(),
+            null,
+            null,
+            "_timeseries_metadata",
+            new FunctionEsField(
+                new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
+                DataType.KEYWORD,
+                new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS)
+            ),
+            true
+        );
+
+        FieldAttribute indexAttr = new FieldAttribute(
+            tsInfoExec.source(),
+            null,
+            null,
+            MetadataAttribute.INDEX,
+            new EsField(MetadataAttribute.INDEX, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
+            true
+        );
+
+        FieldExtractExec metadataExtractExec = new FieldExtractExec(
+            tsInfoExec.source(),
+            tsidExtractExec,
+            List.of(metadataSourceAttr, indexAttr),
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+
+        PhysicalOperation sourceWithMetadata = physicalOperationProviders.fieldExtractPhysicalOperation(
+            metadataExtractExec,
+            dedupedSource,
+            context
+        );
+
+        int metadataSourceChannel = sourceWithMetadata.layout.get(metadataSourceAttr.id()).channel();
+        int indexChannel = sourceWithMetadata.layout.get(indexAttr.id()).channel();
+
+        Layout.Builder layoutBuilder = new Layout.Builder();
+        layoutBuilder.append(tsInfoExec.output());
+
+        MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
+
+        return sourceWithMetadata.with(new TsInfoOperator.Factory(fieldLookup, metadataSourceChannel, indexChannel), layoutBuilder.build());
+    }
+
+    /**
+     * FINAL mode: runs on the coordinator. Reads the 7-column TsInfo output from the
+     * exchange (produced by data-node INITIAL phases) and merges rows by ts signature.
+     */
+    private PhysicalOperation planTsInfoFinal(TsInfoExec tsInfoExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(tsInfoExec.child(), context);
+
+        List<Attribute> outputAttrs = tsInfoExec.output();
+        int[] channels = new int[outputAttrs.size()];
+        for (int i = 0; i < outputAttrs.size(); i++) {
+            channels[i] = source.layout.get(outputAttrs.get(i).id()).channel();
+        }
+
+        Layout.Builder layoutBuilder = new Layout.Builder();
+        layoutBuilder.append(outputAttrs);
+
+        return source.with(new TsInfoOperator.FinalFactory(channels), layoutBuilder.build());
+    }
+
     private static MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
         Map<String, MappingLookup> mappingsByIndex = new HashMap<>();
         for (ShardContext shard : shardContexts.iterable()) {
@@ -1069,11 +1233,28 @@ public class LocalExecutionPlanner {
             throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
         }
 
-        // Single path through OperatorFactoryRegistry — handles connectors, plugins, and storage+format
         StoragePath path = StoragePath.of(externalSource.sourcePath());
         List<String> projectedColumns = new ArrayList<>();
         for (Attribute attr : externalSource.output()) {
             projectedColumns.add(attr.name());
+        }
+
+        int splitCount = externalSource.splits().size();
+        ExternalSliceQueue sliceQueue = null;
+        int instanceCount = 1;
+
+        if (splitCount > 1) {
+            sliceQueue = new ExternalSliceQueue(externalSource.splits());
+            instanceCount = Math.min(splitCount, context.queryPragmas().taskConcurrency());
+        }
+
+        FileSet fileSet = externalSource.fileSet();
+        Set<String> partitionColumnNames = Set.of();
+        if (fileSet != null) {
+            PartitionMetadata pm = fileSet.partitionMetadata();
+            if (pm != null && pm.isEmpty() == false) {
+                partitionColumnNames = pm.partitionColumns().keySet();
+            }
         }
 
         SourceOperatorContext operatorContext = SourceOperatorContext.builder()
@@ -1087,11 +1268,13 @@ public class LocalExecutionPlanner {
             .config(externalSource.config())
             .sourceMetadata(externalSource.sourceMetadata())
             .pushedFilter(externalSource.pushedFilter())
-            .fileSet(externalSource.fileSet())
+            .fileSet(fileSet)
+            .partitionColumnNames(partitionColumnNames)
+            .sliceQueue(sliceQueue)
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
-        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 

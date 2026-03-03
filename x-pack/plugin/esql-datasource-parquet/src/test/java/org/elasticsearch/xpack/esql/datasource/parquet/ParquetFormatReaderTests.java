@@ -50,7 +50,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
     public void testFormatName() {
@@ -211,6 +211,51 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
             assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(1, new BytesRef()));
             assertEquals(87.3, ((DoubleBlock) page.getBlock(1)).getDouble(1), 0.001);
+        }
+    }
+
+    public void testProjectedColumnMissingFromFileReturnsNullBlock() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group group1 = factory.newGroup();
+            group1.add("id", 1L);
+            group1.add("name", "Alice");
+            group1.add("score", 95.5);
+
+            Group group2 = factory.newGroup();
+            group2.add("id", 2L);
+            group2.add("name", "Bob");
+            group2.add("score", 87.3);
+
+            return List.of(group1, group2);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("id", "nonexistent", "score"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+            assertEquals(3, page.getBlockCount());
+
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertTrue(page.getBlock(1).isNull(0));
+            assertEquals(95.5, ((DoubleBlock) page.getBlock(2)).getDouble(0), 0.001);
+
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertTrue(page.getBlock(1).isNull(1));
+            assertEquals(87.3, ((DoubleBlock) page.getBlock(2)).getDouble(1), 0.001);
         }
     }
 

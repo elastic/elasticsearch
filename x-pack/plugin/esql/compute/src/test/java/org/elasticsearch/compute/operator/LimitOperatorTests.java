@@ -136,6 +136,24 @@ public class LimitOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testTruncatePageWithZeroBlocks() {
+        try (var op = simple().get(driverContext())) {
+            assertTrue(op.needsInput());
+            Page p = new Page(200);
+            op.addInput(p);
+            assertFalse(op.needsInput());
+            Page result = op.getOutput();
+            try {
+                assertThat(result.getPositionCount(), equalTo(100));
+                assertThat(result.getBlockCount(), equalTo(0));
+            } finally {
+                result.releaseBlocks();
+            }
+            assertFalse(op.needsInput());
+            assertTrue(op.isFinished());
+        }
+    }
+
     public void testEarlyTermination() {
         int numDrivers = between(1, 4);
         final List<Driver> drivers = new ArrayList<>();

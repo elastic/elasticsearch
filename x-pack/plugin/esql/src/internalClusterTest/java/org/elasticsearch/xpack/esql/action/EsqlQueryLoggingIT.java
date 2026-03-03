@@ -24,9 +24,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
-import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;

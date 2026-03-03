@@ -67,11 +67,11 @@ import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_IS_S
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS;
 import static org.elasticsearch.action.search.SearchLogProducer.QUERY_FIELD_SEARCH_HITS_GTE;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
-import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_QUERY;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;

@@ -255,6 +255,9 @@ public class SliceBuilderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that slicing on the {@code _id} field with a point-in-time request produces a {@link TermsSliceQuery}.
+     */
     public void testToFilterWithIdFieldAndPointInTime() throws IOException {
         Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
@@ -271,6 +274,9 @@ public class SliceBuilderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that slicing on the {@code _id} field with a scroll request produces a {@link TermsSliceQuery}.
+     */
     public void testToFilterWithIdFieldAndScroll() throws IOException {
         Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
@@ -287,6 +293,10 @@ public class SliceBuilderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that slicing on the {@code _id} field with a point-in-time request produces a {@link TermsSliceQuery}
+     * when {@code max > numShards}, exercising the multi-shard path in {@link SliceBuilder#toFilter}.
+     */
     public void testToFilterWithIdFieldAndPointInTimeWithMultipleShards() throws IOException {
         Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {

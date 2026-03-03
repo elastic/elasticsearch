@@ -30,7 +30,7 @@ setup:
 "Test apm timestamp.us coercion":
   - do:
       index:
-        index: traces-apm-timestampus-testing
+        index: traces-apm-timestampus
         refresh: true
         body:
           "@timestamp": "2017-06-22T00:00:00Z"
@@ -41,7 +41,7 @@ setup:
             us: 1.0
   - do:
       search:
-        index: traces-apm-timestampus-testing
+        index: traces-apm-timestampus
         body:
           fields: ["timestamp.us"]
   - length: { hits.hits: 1 }

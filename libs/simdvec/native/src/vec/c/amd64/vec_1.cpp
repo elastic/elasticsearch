@@ -72,7 +72,8 @@ template <
     auto inner_op,
     auto scalar_op,
     auto bulk_tail,
-    int batches = 2
+    int batches = 2,
+    int stride = STRIDE_BYTES_LEN
 >
 static inline void call_bulk(
     const int8_t* a,
@@ -83,7 +84,8 @@ static inline void call_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    const int blk = dims & ~(STRIDE_BYTES_LEN - 1);
+    using ResultT = decltype(inner_op(nullptr, nullptr, 0));
+    const int blk = dims & ~(stride - 1);
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
 
@@ -103,9 +105,9 @@ static inline void call_bulk(
             prefetch(next[I], lines_to_fetch);
         });
 
-        int32_t res[batches] = {};
+        ResultT res[batches] = {};
         int i = 0;
-        if (dims > STRIDE_BYTES_LEN) {
+        if (dims > stride) {
             i = blk;
             apply_indexed<batches>([&](auto I) {
                 res[I] = inner_op(ptrs[I], b, i);
@@ -214,6 +216,14 @@ struct cosine_results_t {
     int32_t sum;
     int32_t norm1;
     int32_t norm2;
+
+    cosine_results_t& operator+=(const cosine_results_t& o) {
+        sum += o.sum; norm1 += o.norm1; norm2 += o.norm2;
+        return *this;
+    }
+    explicit operator f32_t() const {
+        return (f32_t)((double)sum / sqrt((double)norm1 * norm2));
+    }
 };
 
 static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -250,6 +260,11 @@ static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, con
     };
 }
 
+static inline cosine_results_t cosi8_scalar(int8_t a, int8_t b) {
+    int32_t ai = a, bi = b;
+    return { ai * bi, ai * ai, bi * bi };
+}
+
 EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     cosine_results_t res = cosine_results_t { 0, 0, 0 };
     int i = 0;
@@ -268,24 +283,8 @@ EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     return (f32_t) ((double) res.sum / sqrt((double) res.norm1 * res.norm2));
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*)>
-static inline void cosi8_inner_bulk(
-    const int8_t* a,
-    const int8_t* b,
-    const int32_t dims,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    for (int c=0; c<count; c++) {
-        const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        results[c] = vec_cosi8(a0, b, dims);
-    }
-}
-
 EXPORT void vec_cosi8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    cosi8_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
+    call_bulk<identity_mapper, cosi8_inner, cosi8_scalar, vec_cosi8, 2, sizeof(__m128i)>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_cosi8_bulk_offsets(
@@ -296,7 +295,7 @@ EXPORT void vec_cosi8_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    cosi8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
+    call_bulk<array_mapper, cosi8_inner, cosi8_scalar, vec_cosi8, 2, sizeof(__m128i)>(a, b, dims, pitch, offsets, count, results);
 }
 
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {

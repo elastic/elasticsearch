@@ -80,7 +80,7 @@ Grouping on a single expression is currently much more optimized than grouping
 on many expressions. In some tests we have seen grouping on a single `keyword`
 column to be five times faster than grouping on two `keyword` columns. Do
 not try to work around this by combining the two columns together with
-something like [`CONCAT`](/reference/query-languages/esql/functions-operators/string-functions.md#esql-concat)
+something like [`CONCAT`](/reference/query-languages/esql/functions-operators/string-functions/concat.md)
 and then grouping - that is not going to be faster.
 ::::
 
@@ -186,7 +186,7 @@ employee, then pass the result to `AVG`:
 :::{include} ../examples/stats.csv-spec/docsStatsAvgNestedExpression.md
 :::
 
-Grouping expressions aren't limited to column references — any expression
+Grouping expressions aren't limited to column references: any expression
 works. For example, group by a derived value using `LEFT`:
 
 :::{include} ../examples/stats.csv-spec/docsStatsByExpression.md

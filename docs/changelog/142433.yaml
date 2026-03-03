@@ -1,6 +1,0 @@
-area: Security
-issues: []
-pr: 142433
-summary: Fix built-in roles sync to retry on lock contention instead of silently discarding
-  pending updates
-type: bug

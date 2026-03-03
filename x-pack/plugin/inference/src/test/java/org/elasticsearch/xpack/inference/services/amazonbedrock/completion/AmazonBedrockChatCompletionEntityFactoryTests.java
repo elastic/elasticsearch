@@ -8,6 +8,11 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolCall;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -87,17 +92,13 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
             var expectedTemp = randomDoubleBetween(1, 10, true);
             var expectedTopP = randomDoubleBetween(1, 10, true);
 
-            var content = new UnifiedCompletionRequest.ContentString("content");
-            var toolCall = new UnifiedCompletionRequest.ToolCall(
-                "id",
-                new UnifiedCompletionRequest.ToolCall.FunctionField("function", expectedModel),
-                ""
-            );
-            var message = new UnifiedCompletionRequest.Message(content, "user", "tooluse_Z7IP83_eTt2y_TECni1ULw", List.of(toolCall));
+            var content = new ContentString("content");
+            var toolCall = new ToolCall("id", new ToolCall.FunctionField("function", expectedModel), "");
+            var message = new Message(content, "user", "tooluse_Z7IP83_eTt2y_TECni1ULw", List.of(toolCall));
             var expectedMessages = List.of(message);
 
-            var expectedToolChoice = new UnifiedCompletionRequest.ToolChoiceString("any");
-            var tools = List.of(new UnifiedCompletionRequest.Tool("type", null));
+            var expectedToolChoice = new ToolChoiceString("any");
+            var tools = List.of(new Tool("type", null));
 
             var request = new UnifiedCompletionRequest(
                 expectedMessages,

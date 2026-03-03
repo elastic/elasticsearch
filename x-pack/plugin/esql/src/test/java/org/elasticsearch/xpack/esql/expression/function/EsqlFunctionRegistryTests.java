@@ -22,10 +22,12 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.DoubleConstantFunction;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -36,6 +38,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.constructorWithFunctionInfo;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.def;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.containsString;
@@ -242,7 +245,9 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         Set<String> errors = new TreeSet<>();
         for (FunctionDefinition def : registry.listFunctions()) {
             checkFunctionTestExists(errors, def, "Tests", AbstractFunctionTestCase.class);
-            checkFunctionTestExists(errors, def, "ErrorTests", ErrorsForCasesWithoutExamplesTestCase.class);
+            if (takesParameters(def)) {
+                checkFunctionTestExists(errors, def, "ErrorTests", ErrorsForCasesWithoutExamplesTestCase.class);
+            }
             boolean isSerializable = false == OnlySurrogateExpression.class.isAssignableFrom(def.clazz())
                 && false == FoldablesConvertFunction.class.isAssignableFrom(def.clazz())
                 && false == InferenceFunction.class.isAssignableFrom(def.clazz());
@@ -302,15 +307,6 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVectorErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohexErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersionErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.date.NowErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AcoshErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AsinhErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.AtanhErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.EErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.PiErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.ScalbErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.SinhErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.math.TauErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersectionErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSortErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnionErrorTests is missing")
@@ -349,6 +345,25 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         } catch (ClassNotFoundException e) {
             errors.add(testClassName + " is missing");
         }
+    }
+
+    /**
+     * Does the function take any parameters?
+     */
+    private static boolean takesParameters(FunctionDefinition def) {
+        for (Parameter p: constructorWithFunctionInfo(def.clazz()).getParameters()) {
+            if (Source.class.isAssignableFrom(p.getType())) {
+                continue;
+            }
+            if (Configuration.class.isAssignableFrom(p.getType())) {
+                continue;
+            }
+            if (Expression.class.isAssignableFrom(p.getType())) {
+                return true;
+            }
+            throw new IllegalStateException("unknown argument type " + p);
+        }
+        return false;
     }
 
     public static class DummyConfigurationOptionalArgumentFunction extends EsqlConfigurationFunction implements OptionalArgument {

@@ -898,7 +898,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         DocsV3Support.renderDocs(functionName(), getTestClass());
     }
 
-    protected static Constructor<?> constructorWithFunctionInfo(Class<?> clazz) {
+    public static Constructor<?> constructorWithFunctionInfo(Class<?> clazz) {
         for (Constructor<?> ctor : clazz.getConstructors()) {
             FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
             if (functionInfo != null) {

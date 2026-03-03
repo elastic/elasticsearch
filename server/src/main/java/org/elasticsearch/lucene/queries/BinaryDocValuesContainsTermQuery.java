@@ -27,7 +27,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Predicate;
 

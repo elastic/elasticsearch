@@ -79,6 +79,8 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         assertThat(response.isAcknowledged(), is(true));
 
         assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+
+        deleteTransform(transformId);
     }
 
     public void testPutTransform_NoDeferValidation() {
@@ -120,6 +122,8 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         client().execute(UpdateTransformAction.INSTANCE, request).actionGet();
 
         assertCriticalWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+
+        deleteTransform(transformId);
     }
 
     public void testUpdateTransform_NoDeferValidation() {
@@ -153,6 +157,8 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
             () -> client().execute(UpdateTransformAction.INSTANCE, request).actionGet()
         );
         assertThat(e.getMessage(), is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
+
+        deleteTransform(transformId);
     }
 
     private static TransformConfig randomConfig(String transformId) {

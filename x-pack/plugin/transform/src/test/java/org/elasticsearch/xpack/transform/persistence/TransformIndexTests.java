@@ -206,9 +206,8 @@ public class TransformIndexTests extends ESTestCase {
 
     public void testCreateDestinationIndex_SkipsCreateWhenActionCreateAndDestMissing() throws InterruptedException {
         IndexNameExpressionResolver indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(
-            indexNameExpressionResolver.concreteIndexNames(any(ClusterState.class), any(IndicesOptions.class), eq("data-stream-dest"))
-        ).thenReturn(new String[0]);
+        when(indexNameExpressionResolver.concreteIndexNames(any(ClusterState.class), any(IndicesOptions.class), eq("data-stream-dest")))
+            .thenReturn(new String[0]);
         TransformAuditor auditor = mock(TransformAuditor.class);
         ClusterState clusterState = mock(ClusterState.class);
 

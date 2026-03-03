@@ -110,18 +110,8 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testNonSlicedLocalReindexRelocation() throws Exception {
-        final int slices = 1;
-        testReindexRelocation(
-            (nodeAName, nodeBName) -> startAsyncThrottledLocalReindexOnNode(nodeBName, slices),
-            localReindexDescription(),
-            slices,
-            false
-        );
-    }
-
-    public void testSlicedLocalReindexRelocation() throws Exception {
-        final int slices = randomIntBetween(2, 10);
+    public void testLocalReindexRelocation() throws Exception {
+        final int slices = randomIntBetween(1, 10);
         testReindexRelocation(
             (nodeAName, nodeBName) -> startAsyncThrottledLocalReindexOnNode(nodeBName, slices),
             localReindexDescription(),

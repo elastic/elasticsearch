@@ -12,7 +12,7 @@ Jump to:
 - [Add version metadata](#add-version-metadata)
 - [Publish your docs](#publish-your-docs)
 - [Understand the file structure](#understand-the-file-structure)
-- [Understand how content is generated](#understand-how-content-is-generated)
+- [Understand how generated content works](#understand-how-generated-content-works)
 - [PromQL docs](#generate-promql-definitions)
 
 ## Add a new command
@@ -394,7 +394,7 @@ The [`kibana`](https://github.com/elastic/elasticsearch/tree/main/docs/reference
 
 These are also generated as part of the unit tests described above.
 
-## Understand how content is generated
+## Understand how generated content works
 
 There are three overlapping mechanisms for generating the content:
 * The `AbstractFunctionTestCase` class generates the content for all the functions and most operators.

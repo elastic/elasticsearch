@@ -87,6 +87,32 @@ public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
         assertTrue(contains(value, term));
     }
 
+    public void testMultiByteUtf8() {
+        BytesRef value = new BytesRef("Ω≈ç√∫");
+        BytesRef term = new BytesRef("≈ç√");
+        assertTrue(contains(value, term));
+    }
+
+    public void testRandomUtf8() {
+        var left = randomRealisticUnicodeOfCodepointLength(between(0, 20));
+        var middle = randomRealisticUnicodeOfCodepointLength(between(1, 20));
+        var right = randomRealisticUnicodeOfCodepointLength(between(0, 20));
+        var full = left + middle + right;
+        BytesRef value = new BytesRef(full);
+        BytesRef term = new BytesRef(middle);
+        assertTrue(contains(value, term));
+    }
+
+    public void testSameAsStringContains() {
+        var left = randomRealisticUnicodeOfCodepointLength(between(0, 20));
+        var middle = randomRealisticUnicodeOfCodepointLength(between(1, 20));
+        var right = randomRealisticUnicodeOfCodepointLength(between(0, 20));
+        var full = randomBoolean() ? left + middle + right : left + right;
+        BytesRef value = new BytesRef(full);
+        BytesRef term = new BytesRef(middle);
+        assertEquals(full.contains(middle), contains(value, term));
+    }
+
     public void testSingleValued() throws Exception {
         String fieldName = "field";
         try (Directory dir = newDirectory()) {

@@ -32,6 +32,10 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
+/**
+ * A query that matches documents whose binary doc values contain a specific term. Only works with binary doc values
+ * encoded using {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount}.
+ */
 public final class BinaryDocValuesContainsTermQuery extends Query {
     final String fieldName;
     final BytesRef containsTerm;

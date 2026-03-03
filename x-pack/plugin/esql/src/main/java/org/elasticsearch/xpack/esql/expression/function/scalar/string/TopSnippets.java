@@ -48,6 +48,7 @@ import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.expression.function.Options.resolve;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
@@ -177,7 +178,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
      * @return type resolution for the query parameter
      */
     protected TypeResolution resolveQuery() {
-        return isString(query(), sourceText(), SECOND);
+        return isString(query(), sourceText(), SECOND).and(() -> isFoldable(query(), sourceText(), SECOND));
     }
 
     private static void validateOptions(Map<String, Object> options) {

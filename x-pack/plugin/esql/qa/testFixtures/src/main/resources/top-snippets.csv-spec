@@ -212,17 +212,17 @@ snippets:keyword
 topSnippetsWithFoldableConcatQuery
 required_capability: top_snippets_function
 
-FROM employees
-| EVAL snippets = TOP_SNIPPETS(first_name, CONCAT("Jo", "hn"))
-| KEEP emp_no, first_name, snippets
-| SORT emp_no
+FROM books
+| EVAL snippets = TOP_SNIPPETS(description, CONCAT("Tol", "kien"))
+| KEEP book_no, title, snippets
+| SORT book_no
 | LIMIT 5
 ;
 
-emp_no:integer | first_name:keyword | snippets:keyword
-10001          | Georgi             | null
-10002          | Bezalel            | null
-10003          | Parto              | null
-10004          | Chirstian          | null
-10005          | Kyoichi            | null
+book_no:keyword | title:text                                            | snippets:keyword
+1211            | The brothers Karamazov                                | null
+1463            | Realms of Tolkien: Images of Middle-earth             | Twenty new and familiar Tolkien artists are represented in this fabulous volume, breathing an extraordinary variety of life into 58 different scenes, each of which is accompanied by appropriate passage from The Hobbit and The Lord of the Rings and The Silmarillion
+1502            | Selected Passages from Correspondence with Friends    | null
+1937            | The Best Short Stories of Dostoevsky (Modern Library) | null
+1985            | Brothers Karamazov                                    | null
 ;

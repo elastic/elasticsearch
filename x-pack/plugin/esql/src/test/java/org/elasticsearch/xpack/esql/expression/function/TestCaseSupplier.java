@@ -81,7 +81,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Supplier<TestCaseSupplier.TestCase> {
 
     public static final Source TEST_SOURCE = new Source(new Location(1, 0), "source");
-    public static final Configuration TEST_CONFIGURATION = EsqlTestUtils.configuration(TEST_SOURCE.text());
 
     private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
 
@@ -1774,11 +1773,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private final String[] expectedBuildEvaluatorWarnings;
 
-        /**
-         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
-         */
-        @Deprecated
-        private final String expectedTypeError;
         private final boolean canBuildEvaluator;
 
         private final Class<? extends Throwable> foldingExceptionClass;
@@ -1795,17 +1789,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<?> matcher) {
-            this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null, null);
-        }
-
-        /**
-         * Build a test case for type errors.
-         *
-         * @deprecated use a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
-         */
-        @Deprecated
-        public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
-            return new TestCase(data, null, null, null, null, null, expectedTypeError, null, null, null);
+            this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null);
         }
 
         TestCase(
@@ -1815,7 +1799,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Matcher<?> matcher,
             String[] expectedWarnings,
             String[] expectedBuildEvaluatorWarnings,
-            String expectedTypeError,
             Class<? extends Throwable> foldingExceptionClass,
             String foldingExceptionMessage,
             Object extra
@@ -1829,7 +1812,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -1846,7 +1828,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Matcher<?> matcher,
             String[] expectedWarnings,
             String[] expectedBuildEvaluatorWarnings,
-            String expectedTypeError,
             Class<? extends Throwable> foldingExceptionClass,
             String foldingExceptionMessage,
             Object extra,
@@ -1862,7 +1843,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.matcher = downcast;
             this.expectedWarnings = expectedWarnings;
             this.expectedBuildEvaluatorWarnings = expectedBuildEvaluatorWarnings;
-            this.expectedTypeError = expectedTypeError;
             this.foldingExceptionClass = foldingExceptionClass;
             this.foldingExceptionMessage = foldingExceptionMessage;
             this.extra = extra;
@@ -1934,14 +1914,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
-         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
-         */
-        @Deprecated
-        public String getExpectedTypeError() {
-            return expectedTypeError;
-        }
-
-        /**
          * Extra data embedded in the test case. Test subclasses can cast
          * as needed and extra <strong>whatever</strong> helps them.
          */
@@ -1965,7 +1937,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -1986,7 +1957,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2007,7 +1977,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2025,7 +1994,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 addWarning(expectedWarnings, warning),
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2043,7 +2011,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 warnings == null ? null : warnings.toArray(new String[0]),
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2065,7 +2032,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 addWarning(expectedBuildEvaluatorWarnings, warning),
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2092,7 +2058,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 clazz,
                 message,
                 extra,
@@ -2116,7 +2081,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,

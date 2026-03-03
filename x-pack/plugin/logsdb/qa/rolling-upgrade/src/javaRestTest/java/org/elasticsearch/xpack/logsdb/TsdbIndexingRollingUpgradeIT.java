@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.logsdb.TsdbIT.TEMPLATE;
 import static org.elasticsearch.xpack.logsdb.TsdbIT.formatInstant;
@@ -61,14 +62,13 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         search(dataStreamName);
         query(dataStreamName);
 
-        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
-        for (int i = 0; i < numNodes; i++) {
-            upgradeNode(i);
-            startTime = startTime.plusNanos(60 * 30);
+        AtomicReference<Instant> startTimeRef = new AtomicReference<>(startTime);
+        clusterRollingUpgrade(index -> {
+            startTimeRef.set(startTimeRef.get().plusNanos(60 * 30));
             bulkIndex(dataStreamName, 4, 1024, startTime, TsdbIndexingRollingUpgradeIT::docSupplier);
             search(dataStreamName);
             query(dataStreamName);
-        }
+        });
 
         var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
         forceMergeRequest.addParameter("max_num_segments", "1");

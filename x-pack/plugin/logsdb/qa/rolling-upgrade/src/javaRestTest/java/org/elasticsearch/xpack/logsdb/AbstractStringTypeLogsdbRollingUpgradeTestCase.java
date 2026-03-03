@@ -120,12 +120,11 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         verifyIndexMode(IndexMode.LOGSDB, templates.get(0).dataStreamName());
 
         // during upgrade
-        for (int i = 0; i < numNodes; i++) {
-            upgradeNode(i);
+        clusterRollingUpgrade(index -> {
             for (TemplateConfig config : templates) {
                 indexDocumentsAndVerifyResults(config);
             }
-        }
+        });
 
         // after everything is upgraded
         for (TemplateConfig config : templates) {

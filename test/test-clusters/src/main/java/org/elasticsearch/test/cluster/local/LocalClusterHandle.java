@@ -14,9 +14,11 @@ import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.Version;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Consumer;
 
 public interface LocalClusterHandle extends ClusterHandle {
 
@@ -96,6 +98,19 @@ public interface LocalClusterHandle extends ClusterHandle {
      * @param version version to upgrade to
      */
     void upgradeNodeToVersion(int index, Version version);
+
+    /**
+     * Perform a rolling upgrade to the given version.
+     * @param version               The version to upgrade to.
+     * @param onNodeUpgradeComplete A callback that is invoked after each node is upgraded.
+     */
+    default void rollingUpgradeToVersion(Version version, Consumer<Integer> onNodeUpgradeComplete) {
+        int numNodes = getNumNodes();
+        for (int index = 0; index < numNodes; index++) {
+            upgradeNodeToVersion(index, version);
+            onNodeUpgradeComplete.accept(index);
+        }
+    }
 
     /**
      * Performs a "full cluster restart" upgrade to the given version. Method blocks until the cluster is restarted and available.

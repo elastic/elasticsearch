@@ -214,6 +214,36 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * With limitPerGroup=0 every row is dropped regardless of the group key.
+     * No keys should be tracked and status must reflect zero emitted rows.
+     */
+    public void testLimitPerGroupZero() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (
+            GroupedLimitOperator op = new GroupedLimitOperator(
+                0,
+                new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
+                blockFactory
+            )
+        ) {
+            Page p1 = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock());
+            op.addInput(p1);
+            assertThat(op.getOutput(), nullValue());
+
+            Page p2 = new Page(blockFactory.newLongArrayVector(new long[] { 1, 1, 2 }, 3).asBlock());
+            op.addInput(p2);
+            assertThat(op.getOutput(), nullValue());
+
+            GroupedLimitOperator.Status status = op.status();
+            assertThat(status.rowsReceived(), equalTo(6L));
+            assertThat(status.rowsEmitted(), equalTo(0L));
+            assertThat(status.pagesProcessed(), equalTo(0));
+            assertThat(status.groupCount(), equalTo(0));
+        }
+    }
+
+    /**
      * Groups are determined by composite keys across multiple channels.
      * (1,10), (1,20), and (2,10) are three distinct groups.
      */

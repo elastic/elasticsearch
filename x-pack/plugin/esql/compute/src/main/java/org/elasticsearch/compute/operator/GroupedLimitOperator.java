@@ -89,6 +89,11 @@ public class GroupedLimitOperator implements Operator {
         int positionCount = page.getPositionCount();
         rowsReceived += positionCount;
 
+        if (limitPerGroup == 0) {
+            page.releaseBlocks();
+            return;
+        }
+
         int acceptedCount = 0;
         int[] accepted = new int[positionCount];
 
@@ -96,11 +101,13 @@ public class GroupedLimitOperator implements Operator {
             for (int pos = 0; pos < positionCount; pos++) {
                 BytesRef key = keyEncoder.encode(page, pos);
                 long hashOrd = seenKeys.add(key);
-                int count = 0;
+                int count;
                 long ord;
                 if (hashOrd >= 0) {
                     ord = hashOrd;
                     counts = bigArrays.grow(counts, ord + 1);
+                    count = 0;
+                    counts.set(ord, 0);
                 } else {
                     ord = -(hashOrd + 1);
                     count = counts.get(ord);

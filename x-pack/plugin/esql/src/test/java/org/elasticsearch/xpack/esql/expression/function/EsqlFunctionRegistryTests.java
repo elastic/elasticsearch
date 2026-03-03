@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.DoubleConstantFunction;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -351,7 +350,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
      * Does the function take any parameters?
      */
     private static boolean takesParameters(FunctionDefinition def) {
-        for (Parameter p: constructorWithFunctionInfo(def.clazz()).getParameters()) {
+        for (Parameter p : constructorWithFunctionInfo(def.clazz()).getParameters()) {
             if (Source.class.isAssignableFrom(p.getType())) {
                 continue;
             }

@@ -19,9 +19,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 @FunctionName("v_hamming")
-public class HammingSimilarityTests extends AbstractVectorSimilarityFunctionTestCase {
+public class HammingTests extends AbstractVectorSimilarityFunctionTestCase {
 
-    public HammingSimilarityTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public HammingTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         super(testCaseSupplier);
     }
 

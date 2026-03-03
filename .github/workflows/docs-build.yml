@@ -11,6 +11,11 @@ jobs:
   docs-preview:
     uses: elastic/docs-builder/.github/workflows/preview-build.yml@main
     with:
+      enable-vale-linting: true
+      include-paths: |
+        docs/reference/**
+        docs/extend/**
+        !docs/reference/query-languages/esql/**
       path-pattern: docs/**
       path-pattern-ignore: docs/changelog/**/*.yaml
       enable-cumulative-comment: true

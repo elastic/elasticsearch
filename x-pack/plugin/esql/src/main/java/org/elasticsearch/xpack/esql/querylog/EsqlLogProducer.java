@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.querylog;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.activity.ActivityLogProducer;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
@@ -22,7 +23,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
     @Override
     public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
-        msg.field(ES_QUERY_FIELDS_PREFIX + "query", context.getQuery()).field(ES_QUERY_FIELDS_PREFIX + "hits", context.getHits());
+        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery()).field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());
         context.getQueryProfile().ifPresent(profile -> {
             for (TimeSpanMarker timeSpanMarker : profile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();

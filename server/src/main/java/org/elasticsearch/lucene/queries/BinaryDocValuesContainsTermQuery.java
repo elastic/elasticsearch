@@ -118,11 +118,26 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
         return Objects.hash(classHash(), fieldName, containsTerm);
     }
 
-    static boolean contains(BytesRef value, BytesRef containsTerm) {
-        int termEnd = containsTerm.offset + containsTerm.length;
-        for (int i = value.offset, max = value.offset + value.length - containsTerm.length; i <= max; i++) {
-            if (Arrays.mismatch(value.bytes, i, i + containsTerm.length, containsTerm.bytes, containsTerm.offset, termEnd) < 0) {
-                return true;
+    // Copied and modified from StringUTF16.indexOfLatin1Unsafe
+    public static boolean contains(BytesRef value, BytesRef term) {
+        byte first = term.bytes[term.offset];
+        int max = (value.length - term.length) + value.offset;
+        for (int i = value.offset; i <= max; i++) {
+            // Look for first character.
+            if (value.bytes[i] != first) {
+                while (++i <= max && value.bytes[i] != first)
+                    ;
+            }
+            // Found first character, now look at the rest of value
+            if (i <= max) {
+                int j = i + 1;
+                int end = j + term.length - 1;
+                for (int k = 1; j < end && value.bytes[j] == term.bytes[k]; j++, k++)
+                    ;
+                if (j == end) {
+                    // Found whole string.
+                    return true;
+                }
             }
         }
         return false;

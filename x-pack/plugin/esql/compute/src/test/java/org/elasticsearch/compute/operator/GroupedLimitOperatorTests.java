@@ -107,7 +107,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 2,
-                new PositionKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
+                new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
                 blockFactory
             )
         ) {
@@ -137,7 +137,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 2,
-                new PositionKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
+                new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
                 blockFactory
             )
         ) {
@@ -173,7 +173,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 1,
-                new PositionKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
+                new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
                 blockFactory
             )
         ) {
@@ -198,7 +198,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 10,
-                new PositionKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
+                new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
                 blockFactory
             )
         ) {
@@ -223,7 +223,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 1,
-                new PositionKeyEncoder(new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.LONG)),
+                new GroupKeyEncoder(new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.LONG)),
                 blockFactory
             )
         ) {

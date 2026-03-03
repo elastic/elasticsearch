@@ -27,14 +27,14 @@ import java.util.List;
  * in block iteration order. This means {@code [1, 2]} and {@code [2, 1]} produce different keys.
  * Null positions are encoded as a value count of zero.
  */
-public class PositionKeyEncoder {
+public class GroupKeyEncoder {
 
     private final int[] groupChannels;
     private final ElementType[] elementTypes;
     private final BytesRefBuilder scratch = new BytesRefBuilder();
     private final BytesRef scratchBytesRef = new BytesRef();
 
-    public PositionKeyEncoder(int[] groupChannels, List<ElementType> elementTypes) {
+    public GroupKeyEncoder(int[] groupChannels, List<ElementType> elementTypes) {
         this.groupChannels = groupChannels;
         this.elementTypes = new ElementType[groupChannels.length];
         for (int i = 0; i < groupChannels.length; i++) {

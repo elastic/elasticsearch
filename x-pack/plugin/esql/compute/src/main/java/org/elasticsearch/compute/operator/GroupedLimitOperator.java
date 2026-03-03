@@ -36,7 +36,7 @@ import java.util.Objects;
 public class GroupedLimitOperator implements Operator {
 
     private final int limitPerGroup;
-    private final PositionKeyEncoder keyEncoder;
+    private final GroupKeyEncoder keyEncoder;
     private final BigArrays bigArrays;
     private final BytesRefHashTable seenKeys;
     private IntArray counts;
@@ -48,7 +48,7 @@ public class GroupedLimitOperator implements Operator {
     private Page lastOutput;
     private boolean finished;
 
-    public GroupedLimitOperator(int limitPerGroup, PositionKeyEncoder keyEncoder, BlockFactory blockFactory) {
+    public GroupedLimitOperator(int limitPerGroup, GroupKeyEncoder keyEncoder, BlockFactory blockFactory) {
         this.limitPerGroup = limitPerGroup;
         this.keyEncoder = keyEncoder;
         this.bigArrays = blockFactory.bigArrays();
@@ -69,11 +69,7 @@ public class GroupedLimitOperator implements Operator {
 
         @Override
         public GroupedLimitOperator get(DriverContext driverContext) {
-            return new GroupedLimitOperator(
-                limitPerGroup,
-                new PositionKeyEncoder(groupChannels, elementTypes),
-                driverContext.blockFactory()
-            );
+            return new GroupedLimitOperator(limitPerGroup, new GroupKeyEncoder(groupChannels, elementTypes), driverContext.blockFactory());
         }
 
         @Override

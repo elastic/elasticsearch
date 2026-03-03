@@ -140,7 +140,11 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         } else {
             listener.onFailure(
                 new IllegalStateException(
-                    "expected a result of type [" + EmbeddingFloatResults.class + "], received [" + response.getResults().getClass() + "]"
+                    "expected a result of type ["
+                        + EmbeddingFloatResults.class.getSimpleName()
+                        + "], received ["
+                        + response.getResults().getClass().getSimpleName()
+                        + "]"
                 )
             );
         }

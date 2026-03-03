@@ -43,7 +43,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -91,9 +90,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         if (unresolved.isEmpty()) {
             return plan;
         }
-        var unresolvedLinkedSet = unresolvedLinkedSet(unresolved);
 
-        var transformed = load ? load(plan, unresolvedLinkedSet) : nullify(plan, unresolvedLinkedSet);
+        var transformed = load ? load(plan, unresolved) : nullify(plan, unresolved);
 
         return transformed == plan ? plan : refreshPlan(transformed, unresolved);
     }
@@ -187,7 +185,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return project;
     }
 
-    private static LogicalPlan refreshPlan(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
+    private static LogicalPlan refreshPlan(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
         var refreshed = refreshUnresolved(plan, unresolved);
         return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
     }
@@ -196,7 +194,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * The UAs that haven't been resolved are marked as unresolvable with a custom message. This needs to be removed for
      * {@link Analyzer.ResolveRefs} to attempt again to wire them to the newly added aliases. That's what this method does.
      */
-    private static LogicalPlan refreshUnresolved(LogicalPlan plan, List<UnresolvedAttribute> unresolved) {
+    private static LogicalPlan refreshUnresolved(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
         return plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, ua -> {
             if (unresolved.contains(ua)) {
                 unresolved.remove(ua);
@@ -289,26 +287,19 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         return new Alias(attribute.source(), attribute.name(), NULLIFIED);
     }
 
-    // Some plans may reference the same UA multiple times (Aggregate groupings in aggregates, Eval): dedupe
-    private static LinkedHashSet<UnresolvedAttribute> unresolvedLinkedSet(List<UnresolvedAttribute> unresolved) {
-        Map<String, UnresolvedAttribute> aliasesMap = new LinkedHashMap<>(unresolved.size());
-        unresolved.forEach(u -> aliasesMap.putIfAbsent(u.name(), u));
-        return new LinkedHashSet<>(aliasesMap.values());
-    }
-
     /**
      * @return all the {@link UnresolvedAttribute}s in the given node / {@code plan}, but excluding the {@link UnresolvedPattern} and
      * {@link UnresolvedTimestamp} subtypes.
      */
-    private static List<UnresolvedAttribute> collectUnresolved(LogicalPlan plan) {
-        var aliasedGroupings = aliasNamesInAggregateGroupings(plan);
-        List<UnresolvedAttribute> unresolved = new ArrayList<>();
+    private static LinkedHashSet<UnresolvedAttribute> collectUnresolved(LogicalPlan plan) {
+        Set<String> aliasedGroupings = aliasNamesInAggregateGroupings(plan);
+        LinkedHashMap<String, UnresolvedAttribute> unresolved = new LinkedHashMap<>();
         Consumer<UnresolvedAttribute> collectUnresolved = ua -> {
             if (leaveUnresolved(ua) == false
                 // The aggs will "export" the aliases as UnresolvedAttributes part of their .aggregates(); we don't need to consider those
                 // as they'll be resolved as refs once the aliased expression is resolved.
                 && aliasedGroupings.contains(ua.name()) == false) {
-                unresolved.add(ua);
+                unresolved.putIfAbsent(ua.name(), ua);
             }
         };
         if (plan instanceof PromqlCommand promqlCommand) {
@@ -318,7 +309,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         } else {
             plan.forEachExpression(UnresolvedAttribute.class, collectUnresolved);
         }
-        return unresolved;
+        return new LinkedHashSet<>(unresolved.values());
     }
 
     private static boolean leaveUnresolved(UnresolvedAttribute attribute) {

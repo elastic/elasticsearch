@@ -143,8 +143,10 @@ public class ReindexerTests extends ESTestCase {
 
         final TaskManager taskManager = mock(TaskManager.class);
         when(taskManager.getCancellableTasks()).thenReturn(Map.of(parentTaskId, leaderTask));
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
 
-        final Reindexer reindexer = reindexerWithRelocation(mock(ClusterService.class), mock(TransportService.class), taskManager);
+        final Reindexer reindexer = reindexerWithRelocation(mock(ClusterService.class), transportService);
         final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", parentTaskId));
         task.setWorker(Float.POSITIVE_INFINITY, null);
 
@@ -311,17 +313,15 @@ public class ReindexerTests extends ESTestCase {
     }
 
     private static Reindexer reindexerWithRelocation() {
-        return reindexerWithRelocation(mock(ClusterService.class), mock(TransportService.class), mock(TaskManager.class));
-    }
-
-    private static Reindexer reindexerWithRelocation(ClusterService clusterService, TransportService transportService) {
-        return reindexerWithRelocation(clusterService, transportService, mock(TaskManager.class));
+        final TaskManager taskManager = mock(TaskManager.class);
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+        return reindexerWithRelocation(mock(ClusterService.class), transportService);
     }
 
     private static Reindexer reindexerWithRelocation(
         ClusterService clusterService,
-        TransportService transportService,
-        TaskManager taskManager
+        TransportService transportService
     ) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
@@ -333,7 +333,6 @@ public class ReindexerTests extends ESTestCase {
             mock(ScriptService.class),
             mock(ReindexSslConfig.class),
             null,
-            taskManager,
             transportService,
             mock(ReindexRelocationNodePicker.class)
         );
@@ -348,7 +347,6 @@ public class ReindexerTests extends ESTestCase {
             mock(ScriptService.class),
             mock(ReindexSslConfig.class),
             metrics,
-            mock(TaskManager.class),
             mock(TransportService.class),
             mock(ReindexRelocationNodePicker.class)
         );

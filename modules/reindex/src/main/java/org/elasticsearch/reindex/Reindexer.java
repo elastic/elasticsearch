@@ -121,7 +121,6 @@ public class Reindexer {
         ScriptService scriptService,
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
-        TaskManager taskManager,
         TransportService transportService,
         ReindexRelocationNodePicker relocationNodePicker
     ) {
@@ -132,8 +131,8 @@ public class Reindexer {
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
-        this.taskManager = Objects.requireNonNull(taskManager);
-        this.transportService = Objects.requireNonNull(transportService);
+        this.taskManager = transportService.getTaskManager(); // implicit null check
+        this.transportService = transportService;
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
     }
 
@@ -343,8 +342,8 @@ public class Reindexer {
         final ReindexRequest request,
         final ActionListener<BulkByScrollResponse> listener
     ) {
-        final boolean workerTaskWillPotentiallyBeRelocatedByParent = getReindexParent(task).isPresent();
-        if (workerTaskWillPotentiallyBeRelocatedByParent) {
+        final boolean isRelocationHandledByLeader = getReindexParent(task).isPresent();
+        if (isRelocationHandledByLeader) {
             return listener;
         }
         return listener.delegateFailureAndWrap((l, response) -> {

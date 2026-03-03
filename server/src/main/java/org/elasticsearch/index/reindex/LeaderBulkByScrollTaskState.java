@@ -131,8 +131,12 @@ public class LeaderBulkByScrollTaskState {
             return;
         }
 
-        if (task.isRelocationRequested() && getNodeToRelocateTo().isPresent() && relocationCompletedListener(listener)) {
-            return;
+        if (task.isRelocationRequested() && getNodeToRelocateTo().isPresent()) {
+            final BulkByScrollResponse relocationResponse = relocationResponseIfNeeded().orElse(null);
+            if (relocationResponse != null) {
+                listener.onResponse(relocationResponse);
+                return;
+            }
         }
 
         List<BulkByScrollResponse> responses = new ArrayList<>(results.length());
@@ -157,7 +161,7 @@ public class LeaderBulkByScrollTaskState {
         }
     }
 
-    private boolean relocationCompletedListener(final ActionListener<BulkByScrollResponse> listener) {
+    private Optional<BulkByScrollResponse> relocationResponseIfNeeded() {
         final Map<Integer, ResumeInfo.SliceStatus> sliceResumeInfoMap = new HashMap<>();
         boolean allJobsCompletedThereforeNoNeedForRelocation = true;
         for (final Result result : results.asList()) {
@@ -168,12 +172,12 @@ public class LeaderBulkByScrollTaskState {
             sliceResumeInfoMap.put(result.sliceId, sliceStatus);
         }
         if (allJobsCompletedThereforeNoNeedForRelocation) {
-            return false;
+            return Optional.empty();
         }
         final var resumeInfo = new ResumeInfo(null, sliceResumeInfoMap);
-        listener.onResponse(
-            // this response is a local carrier for resumeInfo only — for higher-level code to handle relocation and then discard.
-            // the status for the task that's serialized into the .tasks index is taken from the leader state.
+        // this response is a local carrier for resumeInfo only — for higher-level code to handle relocation and then discard.
+        // the status for the task that's serialized into the .tasks index is taken from the leader state.
+        return Optional.of(
             new BulkByScrollResponse(
                 TimeValue.MINUS_ONE,
                 new BulkByScrollTask.Status(List.of(), null),
@@ -183,7 +187,6 @@ public class LeaderBulkByScrollTaskState {
                 resumeInfo
             )
         );
-        return true;
     }
 
     private static ResumeInfo.SliceStatus getSliceStatus(final Result result) {

@@ -94,6 +94,10 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
              * any values in the enum are reordered. It must not be changed once defined.
              */
             SOURCE((byte) 0),
+            // Note that the ordinal of this state is before DONE (ordinal is separate from the `code`).
+            // We advance states in ordinal order SOURCE -> READY_FOR_CLEANUP -> DONE.
+            // `code` is a unique id that is only used for serialization, see above.
+            READY_FOR_CLEANUP((byte) 2),
             DONE((byte) 1);
 
             private final byte code;
@@ -112,6 +116,7 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
                 return switch (code) {
                     case 0 -> SOURCE;
                     case 1 -> DONE;
+                    case 2 -> READY_FOR_CLEANUP;
                     default -> throw new IllegalStateException("unknown source shard state [" + code + "]");
                 };
             }
@@ -316,20 +321,16 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
 
             /**
              * Set the shard state of a source shard
-             * Currently the only legal transition is from SOURCE to DONE and any other transition will assert.
-             * This could be expressed through a markSourceDone API but this form is the same shape as {@link #setTargetShardState}
-             * and leaves the door open for additional source states.
+             * Supported transition is SOURCE -> READY_FOR_CLEANUP -> DONE.
+             * The transition to READY_FOR_CLEANUP and above should only be done once all target shards are DONE.
              * @param shardNum an index into the shards which must be no greater than the number of shards before split
              * @param sourceShardState the state to which the shard should be set
              */
             public void setSourceShardState(int shardNum, SourceShardState sourceShardState) {
                 assert shardNum >= 0 && shardNum < sourceShards.length : "source shardNum is out of bounds";
                 assert sourceShards[shardNum].ordinal() + 1 == sourceShardState.ordinal() : "invalid source shard state transition";
-                assert sourceShardState == SourceShardState.DONE : "can only move source shard state to DONE";
                 var split = new Split(sourceShards, targetShards);
-                for (var target : split.getTargetStatesFor(shardNum)) {
-                    assert target == TargetShardState.DONE : "can only move source shard to DONE when all targets are DONE";
-                }
+                assert split.targetsDone(shardNum) : "can only move source shard above SOURCE when all targets are DONE";
 
                 sourceShards[shardNum] = sourceShardState;
             }

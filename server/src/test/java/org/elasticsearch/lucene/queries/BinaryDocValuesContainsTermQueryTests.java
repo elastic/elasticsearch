@@ -30,57 +30,61 @@ import static org.elasticsearch.lucene.queries.BinaryDocValuesContainsTermQuery.
 public class BinaryDocValuesContainsTermQueryTests extends ESTestCase {
 
     public void testContainsExactMatch() {
-        byte[] value = "foobar".getBytes(StandardCharsets.UTF_8);
+        BytesRef value = new BytesRef("foobar");
         BytesRef term = new BytesRef("foobar");
-        assertTrue(contains(value, 0, value.length, term));
+        assertTrue(contains(value, term));
     }
 
     public void testContainsPrefix() {
-        byte[] value = "foobar".getBytes(StandardCharsets.UTF_8);
+        BytesRef value = new BytesRef("foobar");
         BytesRef term = new BytesRef("foo");
-        assertTrue(contains(value, 0, value.length, term));
+        assertTrue(contains(value, term));
     }
 
     public void testContainsSuffix() {
-        byte[] value = "foobar".getBytes(StandardCharsets.UTF_8);
+        BytesRef value = new BytesRef("foobar");
         BytesRef term = new BytesRef("bar");
-        assertTrue(contains(value, 0, value.length, term));
+        assertTrue(contains(value, term));
     }
 
     public void testContainsMiddle() {
-        byte[] value = "foobar".getBytes(StandardCharsets.UTF_8);
+        BytesRef value = new BytesRef("foobar");
         BytesRef term = new BytesRef("oob");
-        assertTrue(contains(value, 0, value.length, term));
+        assertTrue(contains(value, term));
     }
 
     public void testContainsSingleChar() {
-        byte[] value = "foobar".getBytes(StandardCharsets.UTF_8);
+        BytesRef value = new BytesRef("foobar");
         BytesRef term = new BytesRef("b");
-        assertTrue(contains(value, 0, value.length, term));
+        assertTrue(contains(value, term));
     }
 
     public void testContainsNoMatch() {
-        byte[] value = "foobar".getBytes(StandardCharsets.UTF_8);
+        BytesRef value = new BytesRef("foobar");
         BytesRef term = new BytesRef("baz");
-        assertFalse(contains(value, 0, value.length, term));
+        assertFalse(contains(value, term));
     }
 
     public void testContainsTermLongerThanValue() {
-        byte[] value = "foo".getBytes(StandardCharsets.UTF_8);
+        BytesRef value = new BytesRef("foo");
         BytesRef term = new BytesRef("foobar");
-        assertFalse(contains(value, 0, value.length, term));
+        assertFalse(contains(value, term));
     }
 
     public void testContainsEmptyValue() {
-        byte[] value = new byte[0];
+        BytesRef value = new BytesRef("");
         BytesRef term = new BytesRef("foo");
-        assertFalse(contains(value, 0, value.length, term));
+        assertFalse(contains(value, term));
     }
 
     public void testWithOffset() {
-        byte[] value = "1234567890research".getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = "1234567890research".getBytes(StandardCharsets.UTF_8);
+        BytesRef value = new BytesRef(bytes.length + 10);
+        System.arraycopy(bytes, 0, value.bytes, 10, bytes.length);
+        value.length = bytes.length;
+        value.offset = 10;
         BytesRef term = new BytesRef("search");
-        assertTrue(contains(value, 10, value.length, term));
+        assertTrue(contains(value, term));
     }
 
     public void testSingleValued() throws Exception {

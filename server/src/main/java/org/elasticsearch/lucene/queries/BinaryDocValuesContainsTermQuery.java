@@ -25,7 +25,6 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
 import java.io.IOException;
@@ -60,25 +59,24 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                 DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
                 assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
                 final DocIdSetIterator iterator;
-                if (countsSkipper.maxValue() == 1 && values instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                    iterator = direct.containsIterator(containsTerm);
-                } else {
-                    Predicate<BytesRef> predicate = bytes -> contains(bytes.bytes, bytes.offset, bytes.length, containsTerm);
-                    iterator = TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
-                        final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
-                        @Override
-                        public boolean matches() throws IOException {
-                            values.advance(counts.docID());
-                            return reader.match(values.binaryValue(), counts.longValue(), predicate);
-                        }
+                // TODO This class would be simpler if it were made of subclass of AbstractBinaryDocValuesQuery, but we intend to
+                //  optimize the single value case shortly with a `containsIterator` which pushes contain matching down to the codec.
+                Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
+                iterator = TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
+                    final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
-                        @Override
-                        public float matchCost() {
-                            return matchCost;
-                        }
-                    });
-                }
+                    @Override
+                    public boolean matches() throws IOException {
+                        values.advance(counts.docID());
+                        return reader.match(values.binaryValue(), counts.longValue(), predicate);
+                    }
+
+                    @Override
+                    public float matchCost() {
+                        return matchCost;
+                    }
+                });
 
                 return ConstantScoreScorerSupplier.fromIterator(iterator, score(), scoreMode, context.reader().maxDoc());
             }
@@ -122,20 +120,20 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
         return Objects.hash(classHash(), fieldName, containsTerm);
     }
 
-    public static boolean contains(byte[] value, int valueOffset, int valueLength, BytesRef term) {
-        byte first = term.bytes[term.offset];
-        int max = (valueLength - term.length) + valueOffset;
-        for (int i = valueOffset; i <= max; i++) {
+    public static boolean contains(BytesRef value, BytesRef containsTerm) {
+        byte first = containsTerm.bytes[containsTerm.offset];
+        int max = (value.length - containsTerm.length) + value.offset;
+        for (int i = value.offset; i <= max; i++) {
             // Look for first character.
-            if (value[i] != first) {
-                while (++i <= max && value[i] != first)
+            if (value.bytes[i] != first) {
+                while (++i <= max && value.bytes[i] != first)
                     ;
             }
             // Found first character, now look at the rest of value
             if (i <= max) {
                 int j = i + 1;
-                int end = j + term.length - 1;
-                for (int k = 1; j < end && value[j] == term.bytes[k]; j++, k++)
+                int end = j + containsTerm.length - 1;
+                for (int k = 1; j < end && value.bytes[j] == containsTerm.bytes[k]; j++, k++)
                     ;
                 if (j == end) {
                     // Found whole string.

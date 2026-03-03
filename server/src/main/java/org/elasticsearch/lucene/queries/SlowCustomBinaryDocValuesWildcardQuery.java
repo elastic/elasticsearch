@@ -10,12 +10,16 @@
 package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -50,6 +54,43 @@ public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinary
             automaton = WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         }
         return new ByteRunAutomaton(automaton);
+    }
+
+    @Override
+    public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+        var innerPattern = getContainsPattern(pattern);
+        if (innerPattern != null) {
+            return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern));
+        } else {
+            return super.rewrite(indexSearcher);
+        }
+    }
+
+    /**
+     * The only patterns that can be re-written to a contains queries are of the form "*A*". The inner string cannot contain
+     * a wildcard, ?, or whitespace. Return pattern directly, rather than a boolean, to avoid getting substring twice.
+     * @param pattern the original wildcard pattern
+     * @return the contain pattern
+     */
+    String getContainsPattern(String pattern) {
+        // Must contain at least 3 characters to have a string surrounded by two wildcards
+        if (pattern.length() < 3) {
+            return null;
+        }
+        if (pattern.startsWith("*") == false || pattern.endsWith("*") == false) {
+            return null;
+        }
+        var inner = pattern.substring(1, pattern.length() - 1);
+        if (inner.contains("*")) {
+            return null;
+        }
+        if (inner.contains("?")) {
+            return null;
+        }
+        if (inner.contains(" ")) {
+            return null;
+        }
+        return inner;
     }
 
     @Override

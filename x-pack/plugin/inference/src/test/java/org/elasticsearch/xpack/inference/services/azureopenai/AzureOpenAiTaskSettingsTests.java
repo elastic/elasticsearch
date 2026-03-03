@@ -81,16 +81,13 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         var newSettings = createRandom();
 
         Map<String, Object> newSettingsMap = new HashMap<>();
-        if (newSettings.user().isPresent()) {
-            newSettingsMap.put(AzureOpenAiServiceFields.USER, newSettings.user().get());
-        } else if (newSettings.user().isNull()) {
-            newSettingsMap.put(AzureOpenAiServiceFields.USER, null);
+
+        if (newSettings.user().isUndefined() == false) {
+            newSettingsMap.put(AzureOpenAiServiceFields.USER, newSettings.user().orElse(null));
         }
 
-        if (newSettings.headers().isPresent()) {
-            newSettingsMap.put(Headers.HEADERS_FIELD, new HashMap<>(newSettings.headers().mapValue().get()));
-        } else if (newSettings.headers().isNull()) {
-            newSettingsMap.put(Headers.HEADERS_FIELD, null);
+        if (newSettings.headers().mapValue().isUndefined() == false) {
+            newSettingsMap.put(Headers.HEADERS_FIELD, newSettings.headers().mapValue().orElse(null));
         }
 
         var updatedSettings = initialSettings.updatedTaskSettings(Collections.unmodifiableMap(newSettingsMap));

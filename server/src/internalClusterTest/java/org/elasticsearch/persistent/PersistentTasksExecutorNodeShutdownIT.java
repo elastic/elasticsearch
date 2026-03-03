@@ -236,7 +236,7 @@ public class PersistentTasksExecutorNodeShutdownIT extends ESIntegTestCase {
             final var taskAfterShutdown = assertClusterStateHasTask(taskId, taskName);
             assertThat(
                 "task should remain on the shutting-down node",
-                    taskAfterShutdown.getAssignment().getExecutorNode(),
+                taskAfterShutdown.getAssignment().getExecutorNode(),
                 equalTo(originalNodeId)
             );
         } finally {
@@ -255,9 +255,7 @@ public class PersistentTasksExecutorNodeShutdownIT extends ESIntegTestCase {
     }
 
     private static void waitForTaskToStart(String taskName) throws Exception {
-        assertBusy(
-            () -> assertThat(clusterAdmin().prepareListTasks().setActions(taskName + "[c]").get().getTasks(), hasSize(1))
-        );
+        assertBusy(() -> assertThat(clusterAdmin().prepareListTasks().setActions(taskName + "[c]").get().getTasks(), hasSize(1)));
     }
 
     private static PersistentTask<?> assertClusterStateHasTask(String taskId, String taskName) {

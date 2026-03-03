@@ -679,11 +679,10 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         assertEquals(2, searchMetricsService.getSearchTierMetrics().getMaxShardCopies().maxCopies());
 
         try {
-            replicasUpdaterService.updatedEnableReplicasLoadBalancing(false);
-            // check that disabling replicas for instant failover removes additional replicas for all indices that have them
+            // disable LB directly on the scaler (not through the service) to avoid triggering a run
+            replicasLoadBalancingScaler.updateEnableReplicasForLoadBalancing(false);
+            // disabling IF through the service triggers an immediate run that scales everything to 1
             replicasUpdaterService.updateEnableReplicasForInstantFailover(false);
-            // run the main loop manually once to trigger the update
-            replicasUpdaterService.performReplicaUpdates();
             mockClient.assertUpdates(
                 "service disabled",
                 Map.of(
@@ -1097,10 +1096,11 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             new ConcurrentHashMap<>(Map.of(new ShardId(index1, 0), shardMetricOf(100), new ShardId(index2, 0), shardMetricOf(1)))
         );
 
-        replicasUpdaterService.updatedEnableReplicasLoadBalancing(false);
+        // disabling IF triggers an immediate run; LB is already disabled from setUp so both scalers are off → scale to 1
         replicasUpdaterService.updateEnableReplicasForInstantFailover(false);
-        replicasUpdaterService.performReplicaUpdates();
         mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index1", "index2")));
+        // disable LB directly on the scaler (not through the service) to avoid triggering a redundant run
+        replicasLoadBalancingScaler.updateEnableReplicasForLoadBalancing(false);
     }
 
     public void testEnforceTopologyBoundsWhenTopologyAvailable() {
@@ -1279,28 +1279,50 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         }
 
         {
-            // disabling instant failover whilst index1 has high search load so it gets 4 replicas from the load balancing scaler
-            // however index2 should now remain on 1 replica
+            // disabling IF triggers an immediate run; LB is still enabled so only LB recommendations apply
+            // index1 has high search load → gets 4 replicas from load balancing, index2 stays at 1
             assert results.isEmpty() : "we should've consumed the previous result";
             results.offer(new ReplicasLoadBalancingResult(Map.of(), new TreeMap<>(Map.of("index1", 4)), randomInt(100)));
             service.updateEnableReplicasForInstantFailover(false);
-            service.performReplicaUpdates();
 
             mockClient.assertUpdates("SPmin: " + spMin, new TreeMap<>(Map.of(4, Set.of("index1"))));
-            // reenable instant failover
             service.updateEnableReplicasForInstantFailover(true);
         }
 
         {
-            // disable replicas for load balancing so instant failover gives both indices 2 replicas (SPmin >= 250)
+            // disable LB directly on the scaler (not through the service) to test IF recommendations in isolation
             assert results.isEmpty() : "we should've consumed the previous result";
             results.offer(EMPTY_RESULT);
             replicasLoadBalancingScaler.updateEnableReplicasForLoadBalancing(false);
+
             service.performReplicaUpdates();
+            mockClient.assertUpdates("SPmin: " + spMin, Map.of(2, Set.of("index1", "index2")));
+            replicasLoadBalancingScaler.updateEnableReplicasForLoadBalancing(true);
+        }
+
+        {
+            when(searchMetricsService.getIndices()).thenReturn(
+                new ConcurrentHashMap<>(
+                    Map.of(
+                        index1,
+                        new SearchMetricsService.IndexProperties("index1", 1, 4, false, false, 0),
+                        index2,
+                        new SearchMetricsService.IndexProperties("index2", 1, 3, false, false, 0)
+                    )
+                )
+            );
+            when(searchMetricsService.getShardMetrics()).thenReturn(
+                new ConcurrentHashMap<>(Map.of(new ShardId(index1, 0), shardMetricOf(2000), new ShardId(index2, 0), shardMetricOf(1000)))
+            );
+
+            assert results.isEmpty() : "we should've consumed the previous result";
+            results.offer(EMPTY_RESULT);
+            // disabling LB *through the service* triggers an immediate run that scales down to what IF recommends
+            // index1: 4 -> 2, index2: 3 -> 2 (IF recommends 2 for SPmin >= 250)
+            service.updatedEnableReplicasLoadBalancing(false);
 
             mockClient.assertUpdates("SPmin: " + spMin, Map.of(2, Set.of("index1", "index2")));
-            // reenable load balancing
-            replicasLoadBalancingScaler.updateEnableReplicasForLoadBalancing(true);
+            service.updatedEnableReplicasLoadBalancing(true);
         }
     }
 
@@ -1593,13 +1615,12 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             )
         );
 
-        // Systems disabled scale down
-        // index1: 2 -> 1 replica
-        // index2: 2 -> 1 replica
+        // Disabling IF triggers an immediate run; LB is already disabled from setUp so both scalers are off → scale to 1
+        // index1: 2 -> 1 replica, index2: 2 -> 1 replica
         {
             replicasUpdaterService.updateEnableReplicasForInstantFailover(false);
-            replicasUpdaterService.updatedEnableReplicasLoadBalancing(false);
-            replicasUpdaterService.performReplicaUpdates();
+            // disable LB directly on the scaler to avoid triggering a redundant run
+            replicasLoadBalancingScaler.updateEnableReplicasForLoadBalancing(false);
             mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index1", "index2")));
             recordingMeterRegistry.getRecorder().collect();
 
@@ -1833,11 +1854,11 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             )
         );
 
-        // Scale-down everything to 1 due to disabled systems
+        // Disabling IF triggers an immediate run; LB is already disabled from setUp so both scalers are off → scale to 1
         {
             replicasUpdaterService.updateEnableReplicasForInstantFailover(false);
-            replicasUpdaterService.updatedEnableReplicasLoadBalancing(false);
-            replicasUpdaterService.performReplicaUpdates();
+            // disable LB directly on the scaler to avoid triggering a redundant run
+            replicasLoadBalancingScaler.updateEnableReplicasForLoadBalancing(false);
             mockClient.assertUpdates("SPmin: " + spMin, Map.of(1, Set.of("index1", "index2", "index3")));
 
             recordingMeterRegistry.getRecorder().collect();

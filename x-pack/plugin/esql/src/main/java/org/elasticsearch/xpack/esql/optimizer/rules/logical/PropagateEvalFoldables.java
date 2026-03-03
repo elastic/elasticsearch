@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.List;
@@ -55,10 +56,10 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
                     }
                 });
             }
-            // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
+            // Apply the replacement inside Filter, Eval and Row (which shouldn't make a difference)
             // TODO: also allow aggregates once aggs on constants are supported.
             // C.f. https://github.com/elastic/elasticsearch/issues/100634
-            if (p instanceof Filter || p instanceof Eval) {
+            if (p instanceof Filter || p instanceof Eval || p instanceof Row) {
                 p = p.transformExpressionsOnly(ReferenceAttribute.class, r -> builder.build().resolve(r, r));
             }
             return p;

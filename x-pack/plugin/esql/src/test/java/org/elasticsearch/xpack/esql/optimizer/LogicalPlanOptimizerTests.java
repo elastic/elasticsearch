@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -9852,6 +9853,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z")));
+
+        Page page = relation.supplier().get();
+        assertThat(page.getBlockCount(), equalTo(3));
+        assertThat(BlockUtils.toJavaObject(page.getBlock(0), 0), equalTo(4));
+        assertThat(BlockUtils.toJavaObject(page.getBlock(1), 0), equalTo(2));
+        assertThat(BlockUtils.toJavaObject(page.getBlock(2), 0), equalTo(6));
     }
 
     /**
@@ -9871,6 +9878,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d")));
+
+        Page page = relation.supplier().get();
+        assertThat(page.getBlockCount(), equalTo(4));
+        assertThat(BlockUtils.toJavaObject(page.getBlock(0), 0), equalTo(10));
+        assertThat(BlockUtils.toJavaObject(page.getBlock(1), 0), equalTo(20));
+        assertThat(BlockUtils.toJavaObject(page.getBlock(2), 0), equalTo(30));
+        assertThat(BlockUtils.toJavaObject(page.getBlock(3), 0), equalTo(10));
     }
 
     /**

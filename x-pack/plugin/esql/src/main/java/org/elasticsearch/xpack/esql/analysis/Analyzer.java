@@ -1396,10 +1396,26 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
-            List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
+            var resolved = resolveFields(eval.fields(), childOutput);
+            return resolved != null ? new Eval(eval.source(), eval.child(), resolved) : eval;
+        }
+
+        /**
+         * Resolve Row fields, allowing later fields to reference earlier ones.
+         * Uses attribute references (like resolveEval) so that non-deterministic expressions
+         * (e.g. random()) are evaluated once and shared across referencing fields.
+         * Field deduplication (shadowing) is handled by {@link Row#output()} via mergeOutputAttributes.
+         */
+        private LogicalPlan resolveRow(Row row) {
+            var resolved = resolveFields(row.fields(), List.of());
+            return resolved != null ? new Row(row.source(), resolved) : row;
+        }
+
+        private List<Alias> resolveFields(List<Alias> fields, List<Attribute> initialInputs) {
+            List<Attribute> allResolvedInputs = new ArrayList<>(initialInputs);
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
-            for (Alias field : eval.fields()) {
+            for (Alias field : fields) {
                 Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
 
                 changed |= result != field;
@@ -1417,38 +1433,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     allResolvedInputs.add(result.toAttribute());
                 }
             }
-            return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
-        }
-
-        /**
-         * Resolve Row fields, allowing later fields to reference earlier ones. Unlike resolveEval, Row fields are typically literals,
-         * so we directly substitute the literal expressions instead of creating attribute references.
-         */
-        private LogicalPlan resolveRow(Row row) {
-            Map<String, Expression> fieldExpressions = new HashMap<>();
-            List<Alias> newFields = new ArrayList<>();
-            boolean changed = false;
-            for (Alias field : row.fields()) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> fieldExpressions.getOrDefault(ua.name(), ua));
-
-                changed |= result != field;
-                newFields.add(result);
-
-                if (result.resolved()) {
-                    fieldExpressions.put(result.name(), result.child());
-                }
-            }
-
-            // last definition wins (same shadowing semantics as EVAL)
-            LinkedHashMap<String, Alias> deduped = LinkedHashMap.newLinkedHashMap(newFields.size());
-            for (Alias field : newFields) {
-                deduped.remove(field.name());
-                deduped.put(field.name(), field);
-            }
-            List<Alias> dedupedFields = new ArrayList<>(deduped.values());
-            changed |= dedupedFields.size() != newFields.size();
-
-            return changed ? new Row(row.source(), dedupedFields) : row;
+            return changed ? newFields : null;
         }
 
         /**

@@ -14,17 +14,15 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Row extends LeafPlan implements PostAnalysisVerificationAware, TelemetryAware {
 
@@ -51,22 +49,12 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware, Tele
 
     @Override
     public List<Attribute> output() {
-        return Expressions.asAttributes(fields);
+        return mergeOutputAttributes(fields, List.of());
     }
 
     @Override
     public boolean expressionsResolved() {
-        if (Resolvables.resolved(fields) == false) {
-            return false;
-        }
-        // Duplicate field names require analyzer processing (shadowing), so treat as unresolved
-        Set<String> names = new HashSet<>();
-        for (Alias field : fields) {
-            if (names.add(field.name()) == false) {
-                return false;
-            }
-        }
-        return true;
+        return Resolvables.resolved(fields);
     }
 
     @Override

@@ -74,7 +74,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
  */
 public class FireworksAiService extends SenderService<FireworksAiModel> {
     public static final String NAME = "fireworksai";
-    private static final String SERVICE_NAME = "FireworksAI";
+    private static final String SERVICE_NAME = "Fireworks AI";
 
     public static final TransportVersion INFERENCE_API_FIREWORKS_AI_SERVICE_ADDED = TransportVersion.fromName(
         "inference_api_fireworks_ai_service_added"

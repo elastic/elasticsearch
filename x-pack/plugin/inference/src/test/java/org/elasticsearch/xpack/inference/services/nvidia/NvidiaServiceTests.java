@@ -881,7 +881,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "nvidia",
-                       "name": "Nvidia",
+                       "name": "NVIDIA",
                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
                        "configurations": {
                            "api_key": {

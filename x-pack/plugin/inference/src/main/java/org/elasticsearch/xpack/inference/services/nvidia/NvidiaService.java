@@ -76,7 +76,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
  */
 public class NvidiaService extends SenderService<NvidiaModel> implements RerankingInferenceService {
     public static final String NAME = "nvidia";
-    private static final String SERVICE_NAME = "Nvidia";
+    private static final String SERVICE_NAME = "NVIDIA";
 
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,

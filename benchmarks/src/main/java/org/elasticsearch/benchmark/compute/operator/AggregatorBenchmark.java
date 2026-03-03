@@ -76,10 +76,9 @@ public class AggregatorBenchmark {
     private static final int GROUPS = 5;
     private static final int TOP_N_LIMIT = 3;
 
-    private static final BlockFactory blockFactory = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE  // TODO real big arrays?
-    );
+    private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     private static final String LONGS = "longs";
     private static final String INTS = "ints";

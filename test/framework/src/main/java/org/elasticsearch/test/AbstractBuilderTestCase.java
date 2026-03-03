@@ -479,9 +479,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             createCircuitBreakerService(breakerLimit)
         );
 
-        QueryBuilder query = querySupplier.get();
-        CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> query.toQuery(context));
-        assertThat(exception.getMessage(), containsString("Data too large"));
+        try {
+            QueryBuilder query = querySupplier.get();
+            CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> query.toQuery(context));
+            assertThat(exception.getMessage(), containsString("Data too large"));
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
     }
 
     /**
@@ -491,16 +495,20 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         CircuitBreaker cb = createCircuitBreakerService();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
 
-        long before = cb.getUsed();
-        Query query = queryBuilder.toQuery(context);
-        long after = cb.getUsed();
+        try {
+            long before = cb.getUsed();
+            Query query = queryBuilder.toQuery(context);
+            long after = cb.getUsed();
 
-        if (query instanceof Accountable accountable) {
-            long queryMemory = accountable.ramBytesUsed();
-            if (queryMemory > 0) {
-                assertTrue("Circuit breaker should account for query memory", after >= before);
-                assertEquals("Circuit breaker delta should equal query ramBytesUsed", queryMemory, after - before);
+            if (query instanceof Accountable accountable) {
+                long queryMemory = accountable.ramBytesUsed();
+                if (queryMemory > 0) {
+                    assertTrue("Circuit breaker should account for query memory", after >= before);
+                    assertEquals("Circuit breaker delta should equal query ramBytesUsed", queryMemory, after - before);
+                }
             }
+        } finally {
+            context.releaseQueryConstructionMemory();
         }
     }
 

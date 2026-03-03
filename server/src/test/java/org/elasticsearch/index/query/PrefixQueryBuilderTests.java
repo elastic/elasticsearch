@@ -91,11 +91,15 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     public void testBlendedRewriteMethod() throws IOException {
         String rewrite = "top_terms_blended_freqs_10";
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), createCircuitBreakerService());
-        Query parsedQuery = parseQuery(prefixQuery(TEXT_FIELD_NAME, "val").rewrite(rewrite)).toQuery(context);
-        assertThat(parsedQuery, instanceOf(PrefixQuery.class));
-        PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
-        assertThat(prefixQuery.getPrefix(), equalTo(new Term(TEXT_FIELD_NAME, "val")));
-        assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
+        try {
+            Query parsedQuery = parseQuery(prefixQuery(TEXT_FIELD_NAME, "val").rewrite(rewrite)).toQuery(context);
+            assertThat(parsedQuery, instanceOf(PrefixQuery.class));
+            PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
+            assertThat(prefixQuery.getPrefix(), equalTo(new Term(TEXT_FIELD_NAME, "val")));
+            assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
     }
 
     public void testFromJson() throws IOException {

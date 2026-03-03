@@ -407,18 +407,22 @@ public class SearchServiceTests extends IndexShardTestCase {
                     cb
                 );
 
-                long cbBefore = cb.getUsed();
-                assertEquals("Freshly created breaker must start at zero", 0L, cbBefore);
+                try {
+                    long cbBefore = cb.getUsed();
+                    assertEquals("Freshly created breaker must start at zero", 0L, cbBefore);
 
-                WildcardQueryBuilder queryBuilder = new WildcardQueryBuilder("field", "*test*pattern*");
-                assertNotNull(queryBuilder.toQuery(context));
+                    WildcardQueryBuilder queryBuilder = new WildcardQueryBuilder("field", "*test*pattern*");
+                    assertNotNull(queryBuilder.toQuery(context));
 
-                long cbAfter = cb.getUsed();
-                long tracked = context.getQueryConstructionMemoryUsed();
+                    long cbAfter = cb.getUsed();
+                    long tracked = context.getQueryConstructionMemoryUsed();
 
-                assertTrue("Circuit breaker should have accounted memory", cbAfter > cbBefore);
-                assertTrue("Context should have tracked memory", tracked > 0);
-                assertEquals("CB delta must match tracked memory", cbAfter - cbBefore, tracked);
+                    assertTrue("Circuit breaker should have accounted memory", cbAfter > cbBefore);
+                    assertTrue("Context should have tracked memory", tracked > 0);
+                    assertEquals("CB delta must match tracked memory", cbAfter - cbBefore, tracked);
+                } finally {
+                    context.releaseQueryConstructionMemory();
+                }
             }
         } finally {
             closeShards(indexShard);
@@ -436,12 +440,16 @@ public class SearchServiceTests extends IndexShardTestCase {
                     cb
                 );
 
-                BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-                for (int i = 0; i < 50; i++) {
-                    boolQuery.should(new WildcardQueryBuilder("field", "*a*b*c*" + i + "*"));
-                }
+                try {
+                    BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+                    for (int i = 0; i < 50; i++) {
+                        boolQuery.should(new WildcardQueryBuilder("field", "*a*b*c*" + i + "*"));
+                    }
 
-                expectThrows(CircuitBreakingException.class, () -> boolQuery.toQuery(context));
+                    expectThrows(CircuitBreakingException.class, () -> boolQuery.toQuery(context));
+                } finally {
+                    context.releaseQueryConstructionMemory();
+                }
             }
         } finally {
             closeShards(indexShard);

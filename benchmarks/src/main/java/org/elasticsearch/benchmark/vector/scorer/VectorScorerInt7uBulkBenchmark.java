@@ -15,7 +15,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.VectorScorerFactory;
@@ -100,13 +100,13 @@ public class VectorScorerInt7uBulkBenchmark {
     private IndexInput in;
 
     private static class ScalarDotProduct implements UpdateableRandomVectorScorer {
-        private final QuantizedByteVectorValues values;
+        private final LegacyQuantizedByteVectorValues values;
         private final float scoreCorrectionConstant;
 
         private byte[] queryVector;
         private float queryVectorCorrectionConstant;
 
-        private ScalarDotProduct(QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        private ScalarDotProduct(LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
             this.values = values;
             this.scoreCorrectionConstant = scoreCorrectionConstant;
         }
@@ -133,12 +133,12 @@ public class VectorScorerInt7uBulkBenchmark {
     }
 
     private static class ScalarSquareDistance implements UpdateableRandomVectorScorer {
-        private final QuantizedByteVectorValues values;
+        private final LegacyQuantizedByteVectorValues values;
         private final float scoreCorrectionConstant;
 
         private byte[] queryVector;
 
-        private ScalarSquareDistance(QuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        private ScalarSquareDistance(LegacyQuantizedByteVectorValues values, float scoreCorrectionConstant) {
             this.values = values;
             this.scoreCorrectionConstant = scoreCorrectionConstant;
         }

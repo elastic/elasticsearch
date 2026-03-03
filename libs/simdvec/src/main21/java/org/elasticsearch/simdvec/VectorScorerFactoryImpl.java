@@ -17,7 +17,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.internal.ByteVectorScorer;
 import org.elasticsearch.simdvec.internal.ByteVectorScorerSupplier;
@@ -91,7 +91,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     public Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        QuantizedByteVectorValues values,
+        LegacyQuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
         input = FilterIndexInput.unwrapOnlyTest(input);
@@ -114,7 +114,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getInt7SQVectorScorer(
         VectorSimilarityFunction sim,
-        QuantizedByteVectorValues values,
+        LegacyQuantizedByteVectorValues values,
         float[] queryVector
     ) {
         return Int7SQVectorScorer.create(sim, values, queryVector);

@@ -26,7 +26,7 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.Lucene99ScalarQuantizedVectorsWriter;
@@ -217,7 +217,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public QuantizedByteVectorValues getQuantizedVectorValues(String fieldName) throws IOException {
+        public LegacyQuantizedByteVectorValues getQuantizedVectorValues(String fieldName) throws IOException {
             return reader.getQuantizedVectorValues(fieldName);
         }
 
@@ -245,7 +245,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorerSupplier getRandomVectorScorerSupplier(VectorSimilarityFunction sim, KnnVectorValues values)
             throws IOException {
-            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
+            if (values instanceof LegacyQuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorerSupplier(sim, values);
@@ -268,7 +268,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, KnnVectorValues values, float[] query)
             throws IOException {
-            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
+            if (values instanceof LegacyQuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorer(sim, values, query);

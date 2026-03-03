@@ -50,7 +50,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.SuppressForbidden;
@@ -697,7 +697,7 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
      */
     public static DocsWithFieldSet writeQuantizedVectorData(
         IndexOutput output,
-        QuantizedByteVectorValues quantizedByteVectorValues,
+        LegacyQuantizedByteVectorValues quantizedByteVectorValues,
         byte bits,
         boolean compress
     ) throws IOException {
@@ -866,10 +866,10 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
     }
 
     static class QuantizedByteVectorValueSub extends DocIDMerger.Sub {
-        private final QuantizedByteVectorValues values;
+        private final LegacyQuantizedByteVectorValues values;
         private final KnnVectorValues.DocIndexIterator iterator;
 
-        QuantizedByteVectorValueSub(MergeState.DocMap docMap, QuantizedByteVectorValues values) {
+        QuantizedByteVectorValueSub(MergeState.DocMap docMap, LegacyQuantizedByteVectorValues values) {
             super(docMap);
             this.values = values;
             iterator = values.iterator();
@@ -886,8 +886,8 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
         }
     }
 
-    /** Returns a merged view over all the segment's {@link QuantizedByteVectorValues}. */
-    static class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
+    /** Returns a merged view over all the segment's {@link LegacyQuantizedByteVectorValues}. */
+    static class MergedQuantizedVectorValues extends LegacyQuantizedByteVectorValues {
         public static MergedQuantizedVectorValues mergeQuantizedByteVectorValues(
             FieldInfo fieldInfo,
             MergeState mergeState,
@@ -921,7 +921,7 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
                         sub = new QuantizedByteVectorValueSub(
                             mergeState.docMaps[i],
                             new OffsetCorrectedQuantizedByteVectorValues(
-                                reader.getQuantizedVectorValues(fieldInfo.name),
+                                (LegacyQuantizedByteVectorValues) reader.getQuantizedVectorValues(fieldInfo.name),
                                 fieldInfo.getVectorSimilarityFunction(),
                                 scalarQuantizer,
                                 reader.getQuantizationState(fieldInfo.name)
@@ -931,17 +931,20 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
                     subs.add(sub);
                 }
             }
-            return new MergedQuantizedVectorValues(subs, mergeState);
+            return new MergedQuantizedVectorValues(subs, mergeState, scalarQuantizer);
         }
 
+        private final ScalarQuantizer scalarQuantizer;
         private final List<QuantizedByteVectorValueSub> subs;
         private final DocIDMerger<QuantizedByteVectorValueSub> docIdMerger;
         private final int size;
 
         private QuantizedByteVectorValueSub current;
 
-        private MergedQuantizedVectorValues(List<QuantizedByteVectorValueSub> subs, MergeState mergeState) throws IOException {
+        private MergedQuantizedVectorValues(List<QuantizedByteVectorValueSub> subs, MergeState mergeState, ScalarQuantizer scalarQuantizer)
+            throws IOException {
             this.subs = subs;
+            this.scalarQuantizer = scalarQuantizer;
             docIdMerger = DocIDMerger.of(subs, mergeState.needsIndexSort);
             int totalSize = 0;
             for (QuantizedByteVectorValueSub sub : subs) {
@@ -971,8 +974,18 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
         }
 
         @Override
+        public ScalarQuantizer getScalarQuantizer() {
+            return scalarQuantizer;
+        }
+
+        @Override
         public float getScoreCorrectionConstant(int ord) throws IOException {
             return current.values.getScoreCorrectionConstant(current.index());
+        }
+
+        @Override
+        public MergedQuantizedVectorValues copy() throws IOException {
+            throw new UnsupportedOperationException("merge view cannot be copied");
         }
 
         private class CompositeIterator extends DocIndexIterator {
@@ -1019,7 +1032,7 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
         }
     }
 
-    static class QuantizedFloatVectorValues extends QuantizedByteVectorValues {
+    static class QuantizedFloatVectorValues extends LegacyQuantizedByteVectorValues {
         private final FloatVectorValues values;
         private final ScalarQuantizer quantizer;
         private final byte[] quantizedVector;
@@ -1033,6 +1046,11 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
             this.quantizer = quantizer;
             this.quantizedVector = new byte[values.dimension()];
             this.vectorSimilarityFunction = vectorSimilarityFunction;
+        }
+
+        @Override
+        public ScalarQuantizer getScalarQuantizer() {
+            return quantizer;
         }
 
         @Override
@@ -1082,6 +1100,11 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
         public DocIndexIterator iterator() {
             return values.iterator();
         }
+
+        @Override
+        public QuantizedFloatVectorValues copy() throws IOException {
+            return new QuantizedFloatVectorValues(values.copy(), vectorSimilarityFunction, quantizer);
+        }
     }
 
     static final class ScalarQuantizedCloseableRandomVectorScorerSupplier implements CloseableRandomVectorScorerSupplier {
@@ -1117,14 +1140,14 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
         }
     }
 
-    static final class OffsetCorrectedQuantizedByteVectorValues extends QuantizedByteVectorValues {
+    static final class OffsetCorrectedQuantizedByteVectorValues extends LegacyQuantizedByteVectorValues {
 
-        private final QuantizedByteVectorValues in;
+        private final LegacyQuantizedByteVectorValues in;
         private final VectorSimilarityFunction vectorSimilarityFunction;
         private final ScalarQuantizer scalarQuantizer, oldScalarQuantizer;
 
         OffsetCorrectedQuantizedByteVectorValues(
-            QuantizedByteVectorValues in,
+            LegacyQuantizedByteVectorValues in,
             VectorSimilarityFunction vectorSimilarityFunction,
             ScalarQuantizer scalarQuantizer,
             ScalarQuantizer oldScalarQuantizer
@@ -1136,8 +1159,18 @@ public final class Lucene99ScalarQuantizedVectorsWriter extends FlatVectorsWrite
         }
 
         @Override
+        public ScalarQuantizer getScalarQuantizer() {
+            return scalarQuantizer;
+        }
+
+        @Override
         public float getScoreCorrectionConstant(int ord) throws IOException {
             return scalarQuantizer.recalculateCorrectiveOffset(in.vectorValue(ord), oldScalarQuantizer, vectorSimilarityFunction);
+        }
+
+        @Override
+        public OffsetCorrectedQuantizedByteVectorValues copy() throws IOException {
+            return new OffsetCorrectedQuantizedByteVectorValues(in.copy(), vectorSimilarityFunction, scalarQuantizer, oldScalarQuantizer);
         }
 
         @Override

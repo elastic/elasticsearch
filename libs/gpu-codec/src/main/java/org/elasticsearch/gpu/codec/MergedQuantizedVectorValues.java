@@ -30,7 +30,7 @@ import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 
@@ -44,16 +44,19 @@ import static org.apache.lucene.codecs.KnnVectorsWriter.MergedVectorValues.hasVe
  * A copy from Lucene99ScalarQuantizedVectorsWriter to access mergeQuantizedByteVectorValues
  * during segment merge.
  */
-class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
+class MergedQuantizedVectorValues extends LegacyQuantizedByteVectorValues {
     private static final float REQUANTIZATION_LIMIT = 0.2f;
 
     private final List<QuantizedByteVectorValueSub> subs;
     private final DocIDMerger<QuantizedByteVectorValueSub> docIdMerger;
     private final int size;
+    private final ScalarQuantizer scalarQuantizer;
     private QuantizedByteVectorValueSub current;
 
-    private MergedQuantizedVectorValues(List<QuantizedByteVectorValueSub> subs, MergeState mergeState) throws IOException {
+    private MergedQuantizedVectorValues(List<QuantizedByteVectorValueSub> subs, MergeState mergeState, ScalarQuantizer scalarQuantizer)
+        throws IOException {
         this.subs = subs;
+        this.scalarQuantizer = scalarQuantizer;
         docIdMerger = DocIDMerger.of(subs, mergeState.needsIndexSort);
         int totalSize = 0;
         for (QuantizedByteVectorValueSub sub : subs) {
@@ -80,6 +83,16 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
     @Override
     public int dimension() {
         return subs.get(0).values.dimension();
+    }
+
+    @Override
+    public ScalarQuantizer getScalarQuantizer() {
+        return scalarQuantizer;
+    }
+
+    @Override
+    public MergedQuantizedVectorValues copy() throws IOException {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -173,7 +186,7 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
                     sub = new QuantizedByteVectorValueSub(
                         mergeState.docMaps[i],
                         new OffsetCorrectedQuantizedByteVectorValues(
-                            reader.getQuantizedVectorValues(fieldInfo.name),
+                            (LegacyQuantizedByteVectorValues) reader.getQuantizedVectorValues(fieldInfo.name),
                             fieldInfo.getVectorSimilarityFunction(),
                             scalarQuantizer,
                             reader.getQuantizationState(fieldInfo.name)
@@ -183,7 +196,7 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
                 subs.add(sub);
             }
         }
-        return new MergedQuantizedVectorValues(subs, mergeState);
+        return new MergedQuantizedVectorValues(subs, mergeState, scalarQuantizer);
     }
 
     private static boolean shouldRequantize(ScalarQuantizer existingQuantiles, ScalarQuantizer newQuantiles) {
@@ -195,10 +208,10 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
     }
 
     private static class QuantizedByteVectorValueSub extends DocIDMerger.Sub {
-        private final QuantizedByteVectorValues values;
+        private final LegacyQuantizedByteVectorValues values;
         private final KnnVectorValues.DocIndexIterator iterator;
 
-        QuantizedByteVectorValueSub(MergeState.DocMap docMap, QuantizedByteVectorValues values) {
+        QuantizedByteVectorValueSub(MergeState.DocMap docMap, LegacyQuantizedByteVectorValues values) {
             super(docMap);
             this.values = values;
             iterator = values.iterator();
@@ -215,7 +228,7 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
         }
     }
 
-    private static class QuantizedFloatVectorValues extends QuantizedByteVectorValues {
+    private static class QuantizedFloatVectorValues extends LegacyQuantizedByteVectorValues {
         private final FloatVectorValues values;
         private final ScalarQuantizer quantizer;
         private final byte[] quantizedVector;
@@ -229,6 +242,16 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
             this.quantizer = quantizer;
             this.quantizedVector = new byte[values.dimension()];
             this.vectorSimilarityFunction = vectorSimilarityFunction;
+        }
+
+        @Override
+        public ScalarQuantizer getScalarQuantizer() {
+            return quantizer;
+        }
+
+        @Override
+        public QuantizedFloatVectorValues copy() throws IOException {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -322,13 +345,13 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
         }
     }
 
-    private static final class OffsetCorrectedQuantizedByteVectorValues extends QuantizedByteVectorValues {
-        private final QuantizedByteVectorValues in;
+    private static final class OffsetCorrectedQuantizedByteVectorValues extends LegacyQuantizedByteVectorValues {
+        private final LegacyQuantizedByteVectorValues in;
         private final VectorSimilarityFunction vectorSimilarityFunction;
         private final ScalarQuantizer scalarQuantizer, oldScalarQuantizer;
 
         OffsetCorrectedQuantizedByteVectorValues(
-            QuantizedByteVectorValues in,
+            LegacyQuantizedByteVectorValues in,
             VectorSimilarityFunction vectorSimilarityFunction,
             ScalarQuantizer scalarQuantizer,
             ScalarQuantizer oldScalarQuantizer
@@ -337,6 +360,16 @@ class MergedQuantizedVectorValues extends QuantizedByteVectorValues {
             this.vectorSimilarityFunction = vectorSimilarityFunction;
             this.scalarQuantizer = scalarQuantizer;
             this.oldScalarQuantizer = oldScalarQuantizer;
+        }
+
+        @Override
+        public ScalarQuantizer getScalarQuantizer() {
+            return scalarQuantizer;
+        }
+
+        @Override
+        public OffsetCorrectedQuantizedByteVectorValues copy() throws IOException {
+            throw new UnsupportedOperationException();
         }
 
         @Override

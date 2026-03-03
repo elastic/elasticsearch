@@ -9,8 +9,8 @@
 
 package org.elasticsearch.simdvec;
 
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.BaseQuantizedByteVectorValues;
 
 public interface QuantizedByteVectorValuesAccess {
-    QuantizedByteVectorValues get();
+    BaseQuantizedByteVectorValues get();
 }

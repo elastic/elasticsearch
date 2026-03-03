@@ -20,7 +20,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
-import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.OffHeapQuantizedByteVectorValues;
@@ -442,7 +442,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                     int idx0 = randomIntBetween(0, size - 1);
                     int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
                     for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                        QuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
+                        LegacyQuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
                         float[] expected = new float[size];
                         float[] scores = new float[size];
                         var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
@@ -492,7 +492,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
                     int idx0 = randomIntBetween(0, size - 1);
                     int[] nodes = shuffledList(ids).stream().mapToInt(i -> i).toArray();
                     for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
-                        QuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
+                        LegacyQuantizedByteVectorValues values = vectorValues(dims, size, in, sim.function());
                         float[] expected = new float[size];
                         float[] scores = new float[size];
                         var referenceScorer = luceneScoreSupplier(values, sim.function()).scorer();
@@ -591,7 +591,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-    QuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
+    LegacyQuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
         var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
         var slice = in.slice("values", 0, in.length());
         return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, sq, false, sim, null, slice);
@@ -610,7 +610,7 @@ public class Int7SQVectorScorerFactoryTests extends AbstractVectorTestCase {
         return scorer.score(a, aOffsetValue, b, bOffsetValue);
     }
 
-    static RandomVectorScorerSupplier luceneScoreSupplier(QuantizedByteVectorValues values, VectorSimilarityFunction sim)
+    static RandomVectorScorerSupplier luceneScoreSupplier(LegacyQuantizedByteVectorValues values, VectorSimilarityFunction sim)
         throws IOException {
         return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
     }

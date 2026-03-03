@@ -115,6 +115,10 @@ public class MvPercentile extends EsqlScalarFunction {
         return field;
     }
 
+    Expression percentile() {
+        return percentile;
+    }
+
     @Override
     public DataType dataType() {
         return field.dataType();

@@ -53,10 +53,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  */
 public class ExternalSourceParallelismTests extends ESTestCase {
 
-    private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("test"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
 
     public void testMultipleDriversReadAllSplits() throws Exception {
         int fileCount = randomIntBetween(5, 20);

@@ -50,11 +50,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.persistent.PersistentTasks.getAllTasks;
 import static org.elasticsearch.persistent.PersistentTasks.taskTypeString;
+import static org.elasticsearch.persistent.PersistentTasksExecutorRegistry.taskIsAutomaticallyReassignedOnShutdown;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.assertAllocationIdsConsistencyForOnePersistentTasks;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getNonZeroAllocationIds;
 
@@ -404,7 +404,11 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     projectId = maybeNullProjectIdForClusterTask(currentState, projectIdHint, taskId);
                     final var tasksInProgress = builder(currentState, projectId);
+
                     if (tasksInProgress.hasTask(taskId, taskAllocationId)) {
+                        final var taskName = tasksInProgress.getCurrentTasks().get(taskId).getTaskName();
+                        assert registry.getPersistentTaskExecutorSafe(taskName).automaticReassignmentOnShutdown() == false
+                            : "task [" + taskId + "] has automaticReassignmentOnShutdown enabled and should not be manually unassigned";
                         logger.trace("Unassigning {} task {} with allocation id {}", taskTypeString(projectId), taskId, taskAllocationId);
                         // The allocationId is shared between cluster-scoped and project-scoped tasks from all projects.
                         // Therefore new or reassigned task must begin with the current max.
@@ -670,32 +674,30 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     }
 
     /**
-     * Returns true if the task needs reassignment, either because it is unassigned / its node no longer
-     * exists, or because it is assigned to a node that is marked for shutdown (and the corresponding task executor
-     * has the automaticReassignmentOnShutdown flag set).
+     * Returns {@code true} if the task needs reassignment, either because it is unassigned or its node no longer
+     * exists, or because it is assigned to a node that is marked for shutdown and the corresponding task executor
+     * has {@link PersistentTasksExecutor#automaticReassignmentOnShutdown()} set to {@code true}.
+     *
+     * @param task     the persistent task to evaluate
+     * @param nodes    the current set of nodes in the cluster
+     * @param metadata cluster metadata, or {@code null} when the task does not opt in to automatic reassignment
      */
-    private boolean needsReassignment(final PersistentTask<?> task, final DiscoveryNodes nodes, final Metadata metadata) {
+    public boolean needsReassignment(final PersistentTask<?> task, final DiscoveryNodes nodes, @Nullable final Metadata metadata) {
         if (isUnassignedOrMisassigned(task.getAssignment(), nodes)) {
             return true;
         }
-        if (metadata.nodeShutdowns().contains(task.getAssignment().getExecutorNode())) {
-            PersistentTasksExecutor<?> executor = registry.getPersistentTaskExecutorSafe(task.getTaskName());
-            return executor.automaticReassignmentOnShutdown();
+        if (taskIsAutomaticallyReassignedOnShutdown(task.getTaskName()) == false) {
+            return false;
         }
-        return false;
+        return metadata != null && metadata.nodeShutdowns().contains(task.getAssignment().getExecutorNode());
     }
 
     /**
-     * Returns true if any persistent task needs reassignment (unassigned, misassigned, or opt-in task on a shutdown node).
-     * When no node is shutting down, only unassigned/misassigned tasks are checked
+     * Returns {@code true} if any persistent task needs reassignment (unassigned, misassigned, or opt-in task on a shutdown node).
      */
     private boolean anyTaskNeedsReassignment(ClusterState state) {
-        // Skip reassignment check for shutting down nodes if no nodes are shutting down
-        final Predicate<PersistentTask<?>> taskNeedsToBeReassigned = state.metadata().nodeShutdowns().getAll().isEmpty()
-            ? task -> isUnassignedOrMisassigned(task.getAssignment(), state.nodes())
-            : task -> needsReassignment(task, state.nodes(), state.metadata());
-
-        return getAllTasks(state).flatMap(tasks -> tasks.v2().tasks().stream()).anyMatch(taskNeedsToBeReassigned);
+        return getAllTasks(state).flatMap(tasks -> tasks.v2().tasks().stream())
+            .anyMatch(task -> needsReassignment(task, state.nodes(), state.metadata()));
     }
 
     private static PersistentTasks.Builder<?> builder(ClusterState currentState, @Nullable ProjectId projectId) {

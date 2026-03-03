@@ -10,6 +10,7 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
@@ -43,6 +45,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -63,7 +66,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
-import static org.elasticsearch.persistent.PersistentTasksClusterService.isUnassignedOrMisassigned;
 import static org.elasticsearch.persistent.PersistentTasksClusterService.persistentTasksChanged;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -394,17 +396,6 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         assertTrue("persistent tasks changed (task assigned)", persistentTasksChanged(new ClusterChangedEvent("test", current, previous)));
     }
 
-    public void testIsUnassignedOrMisassigned() {
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(DiscoveryNodeUtils.create("_node_1"))
-            .add(DiscoveryNodeUtils.create("_node_2"))
-            .build();
-
-        assertTrue(isUnassignedOrMisassigned(new Assignment(null, "unassigned"), nodes));
-        assertTrue(isUnassignedOrMisassigned(new Assignment("_node_left", "assigned to a node that left"), nodes));
-        assertFalse(isUnassignedOrMisassigned(new Assignment("_node_1", "assigned"), nodes));
-    }
-
     public void testPeriodicRecheck() throws Exception {
         ClusterState initialState = initialState();
         ClusterState.Builder builder = ClusterState.builder(initialState);
@@ -644,9 +635,38 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testShouldReassignOptInTaskOnShuttingDownNode() {
-        final var masterNode = DiscoveryNodeUtils.create("master_node");
-        final var workerNode = DiscoveryNodeUtils.create("worker_node");
+    public void testNeedsReassignment() {
+        final var nodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create("_node_1"))
+            .add(DiscoveryNodeUtils.create("_node_2"))
+            .build();
+
+        final var service = createService((params, candidates, state) -> randomNodeAssignment(candidates));
+
+        // t1: unassigned, t2: assigned to a node that left, t3: correctly assigned
+        final var tasks = tasksBuilder(null).addTask(
+            "t1",
+            TestPersistentTasksExecutor.NAME,
+            new TestParams("test"),
+            new Assignment(null, "unassigned")
+        )
+            .addTask(
+                "t2",
+                TestPersistentTasksExecutor.NAME,
+                new TestParams("test"),
+                new Assignment("_node_left", "assigned to a node that left")
+            )
+            .addTask("t3", TestPersistentTasksExecutor.NAME, new TestParams("test"), new Assignment("_node_1", "assigned"))
+            .build();
+
+        assertTrue(service.needsReassignment(tasks.getTask("t1"), nodes, null));
+        assertTrue(service.needsReassignment(tasks.getTask("t2"), nodes, null));
+        assertFalse(service.needsReassignment(tasks.getTask("t3"), nodes, null));
+    }
+
+    public void testNeedsReassignmentShuttingDownNode() {
+        final var masterNode = DiscoveryNodeUtils.create("_node_1");
+        final var workerNode = DiscoveryNodeUtils.create("_node_2");
         final var nodes = DiscoveryNodes.builder()
             .add(masterNode)
             .add(workerNode)
@@ -654,22 +674,44 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             .masterNodeId(masterNode.getId())
             .build();
 
-        final var tasks = tasksBuilder(null).addTask(
-            "_task_1",
-            TestPersistentTasksExecutor.NAME,
-            new TestParams("assign_me"),
-            new Assignment(workerNode.getId(), "assigned to worker")
-        );
-        final var previousState = ClusterState.builder(new ClusterName("_name"))
-            .nodes(nodes)
-            .metadata(updateTasksCustomMetadata(Metadata.builder(), tasks))
-            .build();
-
         for (SingleNodeShutdownMetadata.Type shutdownType : List.of(
             SingleNodeShutdownMetadata.Type.REMOVE,
             SingleNodeShutdownMetadata.Type.RESTART,
             SingleNodeShutdownMetadata.Type.SIGTERM
         )) {
+            // Use a unique task name per iteration: PersistentTasksExecutorRegistry's static
+            // MANUAL_REASSIGNMENT_ON_SHUTDOWN_TASKS set persists task name across registry instances.
+            final var taskName = TestPersistentTasksExecutor.NAME + "_" + randomIdentifier();
+            final var taskParams = new PersistentTaskParams() {
+                @Override
+                public String getWriteableName() {
+                    return taskName;
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) {}
+
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                    return builder;
+                }
+
+                @Override
+                public TransportVersion getMinimalSupportedVersion() {
+                    return TransportVersion.zero();
+                }
+            };
+            final var tasks = tasksBuilder(null).addTask(
+                "_task_1",
+                taskName,
+                taskParams,
+                new Assignment(workerNode.getId(), "assigned to worker")
+            );
+            final var previousState = ClusterState.builder(new ClusterName("_name"))
+                .nodes(nodes)
+                .metadata(updateTasksCustomMetadata(Metadata.builder(), tasks))
+                .build();
+
             SingleNodeShutdownMetadata shutdownMeta = SingleNodeShutdownMetadata.builder()
                 .setNodeId(workerNode.getId())
                 .setNodeEphemeralId(workerNode.getEphemeralId())
@@ -691,14 +733,15 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             // Task with automated reassignment on node shutdown
             assertTrue(
                 "should trigger reassignment for opt-in task on " + shutdownType + " node",
-                createService(clusterService, (params, candidates, state) -> randomNodeAssignment(candidates), true)
+                createService(clusterService, (params, candidates, state) -> randomNodeAssignment(candidates), taskName, true)
                     .shouldReassignPersistentTasks(event)
             );
 
             // Task stays put until the node actually leaves the cluster
             assertFalse(
                 "should not trigger reassignment for non-opt-in task on " + shutdownType + " node",
-                createService((params, candidates, state) -> randomNodeAssignment(candidates)).shouldReassignPersistentTasks(event)
+                createService(clusterService, (params, candidates, state) -> randomNodeAssignment(candidates), taskName, false)
+                    .shouldReassignPersistentTasks(event)
             );
         }
     }
@@ -720,10 +763,32 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             SingleNodeShutdownMetadata.Type.RESTART,
             SingleNodeShutdownMetadata.Type.SIGTERM
         )) {
+            // Use a unique task name per iteration: PersistentTasksExecutorRegistry's static
+            // MANUAL_REASSIGNMENT_ON_SHUTDOWN_TASKS set persists task name across registry instances.
+            final var taskName = TestPersistentTasksExecutor.NAME + "_" + randomIdentifier();
+            final var taskParams = new PersistentTaskParams() {
+                @Override
+                public String getWriteableName() {
+                    return taskName;
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) {}
+
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                    return builder;
+                }
+
+                @Override
+                public TransportVersion getMinimalSupportedVersion() {
+                    return TransportVersion.zero();
+                }
+            };
             var tasks = tasksBuilder(null).addTask(
                 "_task_1",
-                TestPersistentTasksExecutor.NAME,
-                new TestParams("assign_me"),
+                taskName,
+                taskParams,
                 new Assignment(workerNode.getId(), "assigned to worker")
             );
 
@@ -750,6 +815,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             PersistentTasksClusterService serviceWithOptIn = createService(
                 clusterService,
                 (params, candidateNodes, clusterState) -> randomNodeAssignment(candidateNodes),
+                taskName,
                 true
             );
             final var newState = serviceWithOptIn.reassignTasks(state);
@@ -765,7 +831,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             // Task stays put until the node actually leaves the cluster
             PersistentTasksClusterService serviceWithoutOptIn = createService(
                 clusterService,
-                (params, candidateNodes, clusterState) -> randomNodeAssignment(candidateNodes)
+                (params, candidateNodes, clusterState) -> randomNodeAssignment(candidateNodes),
+                taskName,
+                false
             );
             final var unchangedState = serviceWithoutOptIn.reassignTasks(state);
             final var unchangedTasks = getPersistentTasks(unchangedState);
@@ -1207,23 +1275,24 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     private <P extends PersistentTaskParams> PersistentTasksClusterService createService(
         final TriFunction<P, Collection<DiscoveryNode>, ClusterState, Assignment> fn
     ) {
-        return createService(clusterService, fn, false);
+        return createService(clusterService, fn, TestPersistentTasksExecutor.NAME, false);
     }
 
     private <P extends PersistentTaskParams> PersistentTasksClusterService createService(
         ClusterService clusterService,
         final TriFunction<P, Collection<DiscoveryNode>, ClusterState, Assignment> fn
     ) {
-        return createService(clusterService, fn, false);
+        return createService(clusterService, fn, TestPersistentTasksExecutor.NAME, false);
     }
 
     private <P extends PersistentTaskParams> PersistentTasksClusterService createService(
         ClusterService clusterService,
         final TriFunction<P, Collection<DiscoveryNode>, ClusterState, Assignment> fn,
+        final String singletonTaskName,
         final boolean automatedTaskReassignmentOnNodeShutdown
     ) {
         PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(
-            singleton(new PersistentTasksExecutor<P>(TestPersistentTasksExecutor.NAME, null) {
+            singleton(new PersistentTasksExecutor<P>(singletonTaskName, null) {
                 @Override
                 public Scope scope() {
                     return scope;

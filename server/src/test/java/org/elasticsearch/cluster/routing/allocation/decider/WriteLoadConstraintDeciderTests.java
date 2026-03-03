@@ -588,9 +588,9 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             matchesPattern(
                 Strings.format(
                     """
-                        Node \\[.*\\] has a queue latency of \\[%d\\] millis that exceeds the queue latency threshold of \\[%s\\] and a thread \
-                        pool utilization of \\[%f\\] that exceeds the utilization threshold of \\[%s\\]. This node is hot-spotting. Shard write \
-                        load \\[.*\\]. Should move shard\\(s\\) away""",
+                        Node \\[.*\\] has a queue latency of \\[%d\\] millis that exceeds the queue latency threshold of \\[%s\\] and a \
+                        thread pool utilization of \\[%f\\] that exceeds the utilization threshold of \\[%s\\]. This node is \
+                        hot-spotting. Shard write load \\[.*\\]. Should move shard\\(s\\) away""",
                     latency,
                     highLatencyThresholdString,
                     utilization,

@@ -21,8 +21,6 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.logging.Level;
 
 import java.util.Optional;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
@@ -40,31 +38,38 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
     private long threshold = -1;
     private Level logLevel = Level.INFO;
 
+    /** Prefix for activity log related settings; used by subclasses for their own settings (e.g. search). */
     public static final String ACTIVITY_LOGGER_SETTINGS_PREFIX = "elasticsearch.activitylog.";
-    public static final Setting.AffixSetting<Boolean> ACTIVITY_LOGGER_ENABLED = Setting.affixKeySetting(
-        ACTIVITY_LOGGER_SETTINGS_PREFIX,
-        "enabled",
-        key -> boolSetting(key, false, Setting.Property.Dynamic, Setting.Property.NodeScope)
+
+    public static final Setting<Boolean> ACTIVITY_LOGGER_ENABLED = boolSetting(
+        "elasticsearch.activitylog.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
     );
 
-    public static final Setting.AffixSetting<TimeValue> ACTIVITY_LOGGER_THRESHOLD = Setting.affixKeySetting(
-        ACTIVITY_LOGGER_SETTINGS_PREFIX,
-        "threshold",
-        key -> timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.Dynamic, Setting.Property.NodeScope)
+    public static final Setting<TimeValue> ACTIVITY_LOGGER_THRESHOLD = timeSetting(
+        "elasticsearch.activitylog.threshold",
+        TimeValue.MINUS_ONE,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
     );
 
     // Level for this log type. Presently set as operator configurable.
-    public static final Setting.AffixSetting<Level> ACTIVITY_LOGGER_LEVEL = Setting.affixKeySetting(
-        ACTIVITY_LOGGER_SETTINGS_PREFIX,
-        "log_level",
-        key -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.OperatorDynamic, Setting.Property.NodeScope)
+    public static final Setting<Level> ACTIVITY_LOGGER_LEVEL = new Setting<>(
+        "elasticsearch.activitylog.log_level",
+        Level.INFO.name(),
+        Level::valueOf,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
     );
 
     // Whether to include authentication information in the log
-    public static final Setting.AffixSetting<Boolean> ACTIVITY_LOGGER_INCLUDE_USER = Setting.affixKeySetting(
-        ACTIVITY_LOGGER_SETTINGS_PREFIX,
-        "include.user",
-        key -> boolSetting(key, true, Setting.Property.Dynamic, Setting.Property.NodeScope)
+    public static final Setting<Boolean> ACTIVITY_LOGGER_INCLUDE_USER = boolSetting(
+        "elasticsearch.activitylog.include.user",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
     );
 
     public ActivityLogger(
@@ -77,21 +82,12 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
         this.producer = producer;
         this.writer = writerProvider.getWriter(producer.loggerName());
         var context = new ActionLoggingFieldsContext(true);
-        // Initialize
         this.additionalFields = fieldsProvider.create(context);
-        this.enabled = settings.get(ACTIVITY_LOGGER_ENABLED.getConcreteSettingForNamespace(name));
-        this.threshold = settings.get(ACTIVITY_LOGGER_THRESHOLD.getConcreteSettingForNamespace(name)).nanos();
-        setLogLevel(settings.get(ACTIVITY_LOGGER_LEVEL.getConcreteSettingForNamespace(name)));
-        context.setIncludeUserInformation(settings.get(ACTIVITY_LOGGER_INCLUDE_USER.getConcreteSettingForNamespace(name)));
 
-        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
-        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
-        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_LEVEL, updater(name, this::setLogLevel), (k, v) -> {
-            if (v.equals(Level.ERROR) || v.equals(Level.FATAL)) {
-                throw new IllegalStateException("Log level can not be " + v.name() + " for " + k);
-            }
-        });
-        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_INCLUDE_USER, updater(name, context::setIncludeUserInformation), (k, v) -> {});
+        settings.initializeAndWatch(ACTIVITY_LOGGER_ENABLED, v -> enabled = v);
+        settings.initializeAndWatch(ACTIVITY_LOGGER_THRESHOLD, v -> threshold = v.nanos());
+        settings.initializeAndWatch(ACTIVITY_LOGGER_LEVEL, this::setLogLevel);
+        settings.initializeAndWatch(ACTIVITY_LOGGER_INCLUDE_USER, context::setIncludeUserInformation);
     }
 
     private void setLogLevel(Level level) {
@@ -104,10 +100,6 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
     // For tests
     public Level getLogLevel() {
         return logLevel;
-    }
-
-    private <T> BiConsumer<String, T> updater(String name, Consumer<T> updater) {
-        return (k, v) -> { if (name.equals(k)) updater.accept(v); };
     }
 
     // Accessible for tests

@@ -56,6 +56,7 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -79,7 +80,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -480,7 +480,7 @@ public abstract class EngineTestCase extends ESTestCase {
         String routing,
         LuceneDocument document,
         BytesReference source,
-        Mapping mappingUpdate
+        CompressedXContent mappingUpdate
     ) {
         return testParsedDocument(id, routing, document, source, mappingUpdate, false);
     }
@@ -490,7 +490,7 @@ public abstract class EngineTestCase extends ESTestCase {
         String routing,
         LuceneDocument document,
         BytesReference source,
-        Mapping mappingUpdate,
+        CompressedXContent mappingUpdate,
         boolean recoverySource
     ) {
         Field idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);

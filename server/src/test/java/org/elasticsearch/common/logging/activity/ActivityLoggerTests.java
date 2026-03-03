@@ -112,17 +112,15 @@ public class ActivityLoggerTests extends ESTestCase {
     }
 
     private void enableLogger() {
-        clusterSettings.applySettings(
-            Settings.builder().put(ActivityLogger.ACTIVITY_LOGGER_ENABLED.getConcreteSettingForNamespace(loggerName).getKey(), true).build()
-        );
+        clusterSettings.applySettings(Settings.builder().put(ActivityLogger.ACTIVITY_LOGGER_ENABLED.getKey(), true).build());
     }
 
     // Setting the threshold includes enabling since there's no point to have it on disabled logger
     private void setThreshold(TimeValue threshold) {
         clusterSettings.applySettings(
             Settings.builder()
-                .put(ActivityLogger.ACTIVITY_LOGGER_ENABLED.getConcreteSettingForNamespace(loggerName).getKey(), true)
-                .put(ActivityLogger.ACTIVITY_LOGGER_THRESHOLD.getConcreteSettingForNamespace(loggerName).getKey(), threshold)
+                .put(ActivityLogger.ACTIVITY_LOGGER_ENABLED.getKey(), true)
+                .put(ActivityLogger.ACTIVITY_LOGGER_THRESHOLD.getKey(), threshold)
                 .build()
         );
     }

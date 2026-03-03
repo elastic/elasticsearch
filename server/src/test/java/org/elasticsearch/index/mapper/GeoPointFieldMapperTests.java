@@ -623,10 +623,14 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                     .map(Value::output)
                     .toList();
 
-                // Malformed values always come last in synthetic source
-                Stream<Object> malformedValues = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+                // Malformed values always come last in synthetic source (sorted by encoded BytesRef).
+                List<Object> malformedValues = values.stream()
+                    .filter(v -> v.malformedOutput != null)
+                    .map(Value::malformedOutput)
+                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                    .toList();
 
-                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedValues).toList();
+                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedValues.stream()).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
                 return new SyntheticSourceExample(in, out, this::mapping);

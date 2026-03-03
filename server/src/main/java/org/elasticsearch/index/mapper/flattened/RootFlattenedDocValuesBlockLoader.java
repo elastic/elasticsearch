@@ -70,11 +70,11 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
         return null;
     }
 
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    FlattenedReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         var reader = fieldLoader.docValuesLoader(context.reader(), null);
         var trackingReader = reader != null ? new TrackingLoader(reader) : null;
 
-        return new AllReader() {
+        return new FlattenedReader() {
             private final Thread creationThread = Thread.currentThread();
 
             @Override
@@ -143,6 +143,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
     public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         return reader(breaker, context);
     }
+
+    private interface FlattenedReader extends ColumnAtATimeReader, RowStrideReader {}
 
     /**
      * A DocValuesLoader that tracks the last advanced docId.

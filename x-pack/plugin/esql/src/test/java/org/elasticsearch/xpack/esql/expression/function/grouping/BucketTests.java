@@ -94,7 +94,6 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         numberCasesWithSpan(suppliers, "fixed int with span", DataType.INTEGER, () -> 100);
         numberCases(suppliers, "fixed double", DataType.DOUBLE, () -> 100.0);
         numberCasesWithSpan(suppliers, "fixed double with span", DataType.DOUBLE, () -> 100.);
-        // TODO make errorsForCasesWithoutExamples do something sensible for 4+ parameters
         return parameterSuppliersFromTypedData(
             anyNullIsNull(
                 suppliers,

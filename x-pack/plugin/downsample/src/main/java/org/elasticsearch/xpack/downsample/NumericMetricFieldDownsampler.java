@@ -183,7 +183,9 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         long lastTimestamp = -1;
         // Cross bucket value
         double previousValue = Double.NaN;
-        double lastBucketValue = Double.NaN;
+        // This value captures the persisted value of the previous bucket for the same tsid and
+        // allows us to avoid persisting the after-the-reset-document
+        double previousBucketValue = Double.NaN;
 
         AggregateCounterFieldDownsampler(String name, IndexFieldData<?> fieldData) {
             super(name, fieldData);
@@ -210,7 +212,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                     continue;
                 }
 
-                // when we detect a timestamp
+                // when we detect a reset
                 if (currentCounterValue > previousValue) {
                     // We check if we need to persist the previous value too
                     // If timestamp -1 means that the previous value is already persisted by a previous bucket, nothing to extra to persist
@@ -220,8 +222,8 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                         double lastPersisted = Double.NaN;
                         if (resetStack.isEmpty() == false) {
                             lastPersisted = resetStack.peek().value();
-                        } else if (Double.isNaN(lastBucketValue) == false) {
-                            lastPersisted = lastBucketValue;
+                        } else if (Double.isNaN(previousBucketValue) == false) {
+                            lastPersisted = previousBucketValue;
                         }
                         // If there is no known last persisted value or the last persisted is larger than the current value,
                         // we need to store the previous document to capture the reset.
@@ -240,7 +242,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
         public void reset() {
             isEmpty = true;
-            lastBucketValue = downsampledValue;
+            previousBucketValue = downsampledValue;
             downsampledValue = Double.NaN;
             lastTimestamp = -1;
             resetStack.clear();
@@ -249,7 +251,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         public void tsidReset() {
             reset();
             previousValue = Double.NaN;
-            lastBucketValue = Double.NaN;
+            previousBucketValue = Double.NaN;
         }
 
         @Override

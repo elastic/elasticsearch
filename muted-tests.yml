@@ -372,9 +372,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
-- class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
-  method: testCliConnectionWithApiKey
-  issue: https://github.com/elastic/elasticsearch/issues/143125
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819

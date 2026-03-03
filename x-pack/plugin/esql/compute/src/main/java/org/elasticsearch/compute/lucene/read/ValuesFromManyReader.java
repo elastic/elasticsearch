@@ -33,6 +33,7 @@ class ValuesFromManyReader extends ValuesReader {
 
     private final int[] forwards;
     private final int[] backwards;
+    private final boolean nonDecreasing;
 
     private BlockLoaderStoredFieldsFromLeafLoader storedFields;
 
@@ -40,7 +41,17 @@ class ValuesFromManyReader extends ValuesReader {
         super(operator, docs);
         forwards = docs.shardSegmentDocMapForwards();
         backwards = docs.shardSegmentDocMapBackwards();
-        log.debug("initializing {} positions", docs.getPositionCount());
+        nonDecreasing = isIdentity(forwards);
+        log.debug("initializing {} positions, nonDecreasing={}", docs.getPositionCount(), nonDecreasing);
+    }
+
+    private static boolean isIdentity(int[] array) {
+        for (int i = 0; i < array.length; i++) {
+            if (array[i] != i) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -85,7 +96,6 @@ class ValuesFromManyReader extends ValuesReader {
         }
 
         void run(int offset) throws IOException {
-            assert offset == 0; // TODO allow non-0 offset to support splitting pages
             for (int f = 0; f < operator.fields.length; f++) {
                 /*
                  * Important note: each field has a desired type, which might not match the mapped type (in the case of union-types).
@@ -94,7 +104,7 @@ class ValuesFromManyReader extends ValuesReader {
                  * loading in a way that is correct for the mapped field type, and then convert between that type and the desired type.
                  */
                 finalBuilders[f] = operator.fields[f].info.type()
-                    .newBlockBuilder(docs.getPositionCount(), operator.driverContext.blockFactory());
+                    .newBlockBuilder(docs.getPositionCount() - offset, operator.driverContext.blockFactory());
             }
             int p = forwards[offset];
             int shard = docs.shards().getInt(p);
@@ -108,8 +118,8 @@ class ValuesFromManyReader extends ValuesReader {
             int segmentStart = offset;
             int i = offset + 1;
             long estimated = estimatedRamBytesUsed();
-            long dangerZoneBytes = Long.MAX_VALUE; // TODO danger_zone if ascending
-            while (i < forwards.length && estimated < dangerZoneBytes) {
+            long dangerZoneBytes = nonDecreasing ? operator.jumboBytes : Long.MAX_VALUE;
+            while (i < forwards.length && (rowStride.isEmpty() || estimated < dangerZoneBytes)) {
                 p = forwards[i];
                 shard = docs.shards().getInt(p);
                 segment = docs.segments().getInt(p);
@@ -125,29 +135,31 @@ class ValuesFromManyReader extends ValuesReader {
                 estimated = estimatedRamBytesUsed();
                 log.trace("{}: bytes loaded {}/{}", p, estimated, dangerZoneBytes);
             }
+            int count = i - offset;
             readColumnAtATime(segmentStart, i);
-            buildBlocks();
+            buildBlocks(count);
             if (log.isDebugEnabled()) {
                 long actual = 0;
                 for (Block b : target) {
                     actual += b.ramBytesUsed();
                 }
-                log.debug("loaded {} positions total estimated/actual {}/{} bytes", p + 1, estimated, actual);
+                log.debug("loaded {} positions total estimated/actual {}/{} bytes", count, estimated, actual);
             }
         }
 
-        private void buildBlocks() {
+        private void buildBlocks(int count) {
             convertAndAccumulate();
             for (int f = 0; f < target.length; f++) {
-                try (Block targetBlock = finalBuilders[f].build()) {
-                    assert targetBlock.getPositionCount() == backwards.length
-                        : targetBlock.getPositionCount() + " == " + backwards.length + " " + targetBlock;
-                    target[f] = targetBlock.filter(false, backwards);
+                if (nonDecreasing) {
+                    target[f] = finalBuilders[f].build();
+                } else {
+                    try (Block targetBlock = finalBuilders[f].build()) {
+                        target[f] = targetBlock.filter(false, backwards);
+                    }
                 }
-                operator.sanityCheckBlock(current[f].rowStride, backwards.length, target[f], f);
-            }
-            if (target[0].getPositionCount() != docs.getPositionCount()) {
-                throw new IllegalStateException("partial pages not yet supported");
+                assert target[f].getPositionCount() == count
+                    : target[f].getPositionCount() + " == " + count + " " + target[f];
+                operator.sanityCheckBlock(current[f].rowStride, count, target[f], f);
             }
         }
 

@@ -291,6 +291,8 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
         response = client().performRequest(request);
         request.setOptions(requestOptions);
         assertWriteResponse(response);
+
+        logIndexStats(name);
     }
 
     @SuppressWarnings("unchecked")
@@ -336,5 +338,24 @@ public abstract class HeapAttackTestCase extends ESRestTestCase {
             }
         }
         return false;
+    }
+
+    protected void logIndexStats(String name) throws IOException {
+        Request request = new Request("GET", "/" + name + "/_segments");
+        Response response = client().performRequest(request);
+        Map<?, ?> map = entityAsMap(response);
+        Map<?, ?> indices = (Map<?, ?>) map.get("indices");
+        Map<?, ?> index = (Map<?, ?>) indices.get(name);
+        Map<?, ?> shards = (Map<?, ?>) index.get("shards");
+        int totalSegments = 0;
+        for (Map.Entry<?, ?> shardEntry : shards.entrySet()) {
+            List<?> replicas = (List<?>) shardEntry.getValue();
+            for (int r = 0; r < replicas.size(); r++) {
+                int numSegments = (int) ((Map<?, ?>) replicas.get(r)).get("num_committed_segments");
+                logger.info("index [{}] shard [{}] replica [{}] has [{}] segments", name, shardEntry.getKey(), r, numSegments);
+                totalSegments += numSegments;
+            }
+        }
+        logger.info("index [{}] has [{}] shards and [{}] total segments", name, shards.size(), totalSegments);
     }
 }

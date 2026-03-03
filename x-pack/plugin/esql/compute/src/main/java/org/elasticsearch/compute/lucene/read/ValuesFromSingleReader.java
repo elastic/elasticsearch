@@ -56,6 +56,7 @@ class ValuesFromSingleReader extends ValuesReader {
     @Override
     protected void load(Block[] target, int offset) throws IOException {
         if (docs.singleSegmentNonDecreasing()) {
+            System.out.println("FANG!!! split pages using jumboBytes " + operator.jumboBytes);
             loadFromSingleLeaf(operator.jumboBytes, target, new ValuesReaderDocs(docs), offset);
             return;
         }
@@ -65,6 +66,9 @@ class ValuesFromSingleReader extends ValuesReader {
         int[] forwards = docs.shardSegmentDocMapForwards();
         Block[] unshuffled = new Block[target.length];
         try {
+            System.out.println("FANG!!! cannot split pages, single segment: " + docs.singleSegment() + ", non-decreasing: " + docs.singleSegmentNonDecreasing());
+            System.out.println("FANG!!! shards: " + docs.shards());
+            System.out.println("FANG!!! segments: " + docs.segments());
             loadFromSingleLeaf(
                 Long.MAX_VALUE, // Effectively disable splitting pages when we're not loading in order
                 unshuffled,

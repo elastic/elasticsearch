@@ -522,6 +522,21 @@ x:integer      |does_not_exist:null |y:keyword | language_name:keyword
 1              |null                |null      |null
 ;
 
+mvExpand
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM employees
+| EVAL does_not_exist = does_not_exist2
+| MV_EXPAND does_not_exist
+| KEEP does_not_exist*
+| STATS COUNT(*)
+;
+
+COUNT(*):long
+100
+;
+
 tsImplicitTimestampSortBasicWithMissing
 required_capability: ts_command_v0
 required_capability: ts_implicit_timestamp_sort

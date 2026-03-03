@@ -963,6 +963,18 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailure(setUnmappedLoad(query), failure);
     }
 
+    public void testFailStatsThenKeepShadowing() {
+        var query = """
+            FROM employees
+            | STATS count(*)
+            | EVAL foo = emp_no
+            """;
+
+        var failure = "line 3:14: Unknown column [emp_no]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
     public void testFailStatsThenEval() {
         var query = """
             FROM test

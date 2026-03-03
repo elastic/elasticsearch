@@ -214,8 +214,10 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
                 && (nAry instanceof Join == false || child == ((Join) nAry).left())) {
                 assertSourceType(source);
                 var nullAliases = removeShadowing(nullAliases(unresolved), source.output());
-                child = new Eval(source.source(), source, nullAliases);
-                changed = true;
+                if (nullAliases.isEmpty() == false) {
+                    child = new Eval(source.source(), source, nullAliases);
+                    changed = true;
+                }
             }
             newChildren.add(child);
         }
@@ -244,7 +246,10 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
             return new Eval(eval.source(), eval.child(), combine(pre, eval.fields(), post));
         } else {
             List<Alias> filteredNullAliases = removeShadowing(nullAliases, unaryAtopSource.child().output());
-            return unaryAtopSource.replaceChild(new Eval(unaryAtopSource.source(), unaryAtopSource.child(), filteredNullAliases));
+            var newChild = filteredNullAliases.isEmpty()
+                ? unaryAtopSource.child()
+                : new Eval(unaryAtopSource.source(), unaryAtopSource.child(), filteredNullAliases);
+            return unaryAtopSource.replaceChild(newChild);
         }
     }
 

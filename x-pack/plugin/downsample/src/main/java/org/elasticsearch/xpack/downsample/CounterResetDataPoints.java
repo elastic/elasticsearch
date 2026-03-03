@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.core.Tuple;
+
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -22,10 +26,10 @@ class CounterResetDataPoints {
     /**
      * Tracks timestamp measurements and the counter values at that moment.
      */
-    private final Map<Long, Map<String, Double>> dataPoints = new HashMap<>();
+    private final Map<Long, List<Tuple<String, Double>>> dataPoints = new HashMap<>();
 
     void addDataPoint(String counterName, ResetPoint resetPoint) {
-        dataPoints.computeIfAbsent(resetPoint.timestamp, k -> new HashMap<>()).put(counterName, resetPoint.value);
+        dataPoints.computeIfAbsent(resetPoint.timestamp, k -> new ArrayList<>()).add(Tuple.tuple(counterName, resetPoint.value));
     }
 
     public boolean isEmpty() {
@@ -35,7 +39,7 @@ class CounterResetDataPoints {
     /**
      * Apply the processor consumer on each tracked measurement.
      */
-    public void processDataPoints(BiConsumer<Long, Map<String, Double>> processor) {
+    public void processDataPoints(BiConsumer<Long, List<Tuple<String, Double>>> processor) {
         if (isEmpty() == false) {
             dataPoints.forEach(processor);
         }

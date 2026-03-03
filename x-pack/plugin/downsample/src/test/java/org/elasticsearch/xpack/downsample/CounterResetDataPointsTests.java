@@ -7,14 +7,15 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 
 public class CounterResetDataPointsTests extends ESTestCase {
@@ -55,20 +56,9 @@ public class CounterResetDataPointsTests extends ESTestCase {
 
         dataPoints.processDataPoints((t, values) -> {
             assertThat(t, equalTo(timestamp));
-            assertThat(values, hasEntry("counter_a", 10.0));
-            assertThat(values, hasEntry("counter_b", 20.0));
+            assertThat(values, hasItem(Tuple.tuple("counter_a", 10.0)));
+            assertThat(values, hasItem(Tuple.tuple("counter_b", 20.0)));
         });
-    }
-
-    public void testOverwriteCounterAtSameTimestamp() {
-        CounterResetDataPoints dataPoints = new CounterResetDataPoints();
-        long timestamp = randomLongBetween(100, 10000);
-        dataPoints.addDataPoint("counter_a", new CounterResetDataPoints.ResetPoint(timestamp, 10.0));
-        dataPoints.addDataPoint("counter_a", new CounterResetDataPoints.ResetPoint(timestamp, 99.0));
-
-        assertThat(dataPoints.countResetDocuments(), equalTo(1));
-
-        dataPoints.processDataPoints((t, values) -> assertThat(values, equalTo(Map.of("counter_a", 99.0))));
     }
 
     public void testProcessDataPointsOnEmpty() {
@@ -104,9 +94,9 @@ public class CounterResetDataPointsTests extends ESTestCase {
 
         dataPoints.processDataPoints((timestamp, values) -> {
             if (timestamp == 100L) {
-                assertThat(values, equalTo(Map.of("cpu", 50.0, "mem", 80.0)));
+                assertThat(values, hasItems(Tuple.tuple("cpu", 50.0), Tuple.tuple("mem", 80.0)));
             } else if (timestamp == 200L) {
-                assertThat(values, equalTo(Map.of("cpu", 5.0)));
+                assertThat(values, equalTo(List.of(Tuple.tuple("cpu", 5.0))));
             } else {
                 fail("unexpected timestamp: " + timestamp);
             }

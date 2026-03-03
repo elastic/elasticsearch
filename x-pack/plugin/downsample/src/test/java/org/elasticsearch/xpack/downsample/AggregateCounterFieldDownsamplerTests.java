@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.internal.hppc.IntDoubleHashMap;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.List;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,10 +52,10 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, anyOf(equalTo(60L), equalTo(50L)));
             if (timestamp == 60L) {
-                assertThat(dataPoints, equalTo(Map.of("my-counter", 5.0)));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 5.0))));
             }
             if (timestamp == 50L) {
-                assertThat(dataPoints, equalTo(Map.of("my-counter", 16.0)));
+                assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 16.0))));
             }
         });
         producer.reset();
@@ -77,7 +78,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
-            assertThat(dataPoints, equalTo(Map.of("my-counter", 0.0)));
+            assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 0.0))));
         });
         producer.reset();
         assertThat(producer.downsampledValue, equalTo(Double.NaN));
@@ -111,7 +112,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
         assertThat(resetDataPoints.countResetDocuments(), equalTo(1));
         resetDataPoints.processDataPoints((timestamp, dataPoints) -> {
             assertThat(timestamp, equalTo(20L));
-            assertThat(dataPoints, equalTo(Map.of("my-counter", 8.0)));
+            assertThat(dataPoints, equalTo(List.of(Tuple.tuple("my-counter", 8.0))));
         });
         producer.reset();
         assertThat(producer.downsampledValue, equalTo(Double.NaN));

@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
@@ -763,7 +764,7 @@ class DownsampleShardIndexer {
             return builder;
         }
 
-        public XContentBuilder buildExtraCounterDocument(long timestamp, Map<String, Double> counterValues) throws IOException {
+        public XContentBuilder buildExtraCounterDocument(long timestamp, List<Tuple<String, Double>> counterValues) throws IOException {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE);
             builder.startObject();
             builder.field(timestampField.name(), timestampFormat.format(timestamp));
@@ -772,8 +773,8 @@ class DownsampleShardIndexer {
             for (DimensionFieldDownsampler dimensionFieldDownsampler : dimensionDownsamplers) {
                 dimensionFieldDownsampler.write(builder);
             }
-            for (var counterValue : counterValues.entrySet()) {
-                builder.field(counterValue.getKey(), counterValue.getValue());
+            for (Tuple<String, Double> counterValue : counterValues) {
+                builder.field(counterValue.v1(), counterValue.v2());
             }
 
             extractLegacyDimensionsIfNeeded(builder);

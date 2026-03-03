@@ -10,7 +10,6 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.script.ScriptService;
@@ -62,6 +61,8 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             transportService,
             scriptService,
             null,
+            null,
+            null,
             null
         );
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
@@ -71,7 +72,7 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             threadPool,
             scriptService,
             request,
-            ClusterState.EMPTY_STATE,
+            true,
             listener()
         );
     }

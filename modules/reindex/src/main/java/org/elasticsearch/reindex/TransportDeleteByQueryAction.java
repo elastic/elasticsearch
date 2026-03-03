@@ -14,6 +14,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -35,6 +39,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ProjectResolver projectResolver;
     private final DeleteByQueryMetrics deleteByQueryMetrics;
 
     @Inject
@@ -45,6 +51,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         @Nullable DeleteByQueryMetrics deleteByQueryMetrics
     ) {
         super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -52,6 +60,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.projectResolver = projectResolver;
         this.deleteByQueryMetrics = deleteByQueryMetrics;
     }
 
@@ -59,6 +69,13 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         long startTime = System.nanoTime();
+        ClusterState state = clusterService.state();
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+        boolean useOCC = BulkByScrollOCCResolver.resolveUseOCC(
+            indexNameExpressionResolver,
+            projectMetadata,
+            request
+        );
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByScrollTask,
@@ -79,6 +96,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     threadPool,
                     request,
                     scriptService,
+                    useOCC,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
                         if (deleteByQueryMetrics != null) {

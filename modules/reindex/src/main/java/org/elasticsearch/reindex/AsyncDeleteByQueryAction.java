@@ -25,6 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 
+    private final boolean useOCC;
+
     public AsyncDeleteByQueryAction(
         BulkByScrollTask task,
         Logger logger,
@@ -32,9 +34,11 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         ThreadPool threadPool,
         DeleteByQueryRequest request,
         ScriptService scriptService,
+        boolean useOCC,
         ActionListener<BulkByScrollResponse> listener
     ) {
-        super(task, false, true, false, logger, client, threadPool, request, listener, scriptService, null);
+        super(task, false, useOCC, false, logger, client, threadPool, request, listener, scriptService, null);
+        this.useOCC = useOCC;
     }
 
     @Override
@@ -49,8 +53,10 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
         DeleteRequest delete = new DeleteRequest();
         delete.index(doc.getIndex());
         delete.id(doc.getId());
-        delete.setIfSeqNo(doc.getSeqNo());
-        delete.setIfPrimaryTerm(doc.getPrimaryTerm());
+        if (useOCC) {
+            delete.setIfSeqNo(doc.getSeqNo());
+            delete.setIfPrimaryTerm(doc.getPrimaryTerm());
+        }
         return wrap(delete);
     }
 

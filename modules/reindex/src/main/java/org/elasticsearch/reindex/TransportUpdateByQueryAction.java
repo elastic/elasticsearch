@@ -17,6 +17,9 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -47,6 +50,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ProjectResolver projectResolver;
     private final UpdateByQueryMetrics updateByQueryMetrics;
 
     @Inject
@@ -57,6 +62,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         TransportService transportService,
         ScriptService scriptService,
         ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         @Nullable UpdateByQueryMetrics updateByQueryMetrics
     ) {
         super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -64,6 +71,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.projectResolver = projectResolver;
         this.updateByQueryMetrics = updateByQueryMetrics;
     }
 
@@ -71,6 +80,13 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         long startTime = System.nanoTime();
+        ClusterState state = clusterService.state();
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+        boolean useOCC = BulkByScrollOCCResolver.resolveUseOCC(
+            indexNameExpressionResolver,
+            projectMetadata,
+            request
+        );
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByScrollTask,
@@ -79,7 +95,6 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             client,
             clusterService.localNode(),
             () -> {
-                ClusterState state = clusterService.state();
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
                     client,
                     clusterService.localNode(),
@@ -92,7 +107,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     threadPool,
                     scriptService,
                     request,
-                    state,
+                    useOCC,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
                         if (updateByQueryMetrics != null) {
@@ -109,6 +124,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
+        private final boolean useOCC;
+
         AsyncIndexBySearchAction(
             BulkByScrollTask task,
             Logger logger,
@@ -116,14 +133,14 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             ThreadPool threadPool,
             ScriptService scriptService,
             UpdateByQueryRequest request,
-            ClusterState clusterState,
+            boolean useOCC,
             ActionListener<BulkByScrollResponse> listener
         ) {
             super(
                 task,
                 // use sequence number powered optimistic concurrency control unless requested
                 request.getSearchRequest().source() != null && Boolean.TRUE.equals(request.getSearchRequest().source().version()),
-                true,
+                useOCC,
                 true,
                 logger,
                 client,
@@ -133,6 +150,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 scriptService,
                 null
             );
+            this.useOCC = useOCC;
         }
 
         @Override
@@ -150,8 +168,10 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.index(doc.getIndex());
             index.id(doc.getId());
             index.source(doc.getSource(), doc.getXContentType());
-            index.setIfSeqNo(doc.getSeqNo());
-            index.setIfPrimaryTerm(doc.getPrimaryTerm());
+            if (useOCC) {
+                index.setIfSeqNo(doc.getSeqNo());
+                index.setIfPrimaryTerm(doc.getPrimaryTerm());
+            }
             index.setPipeline(mainRequest.getPipeline());
             return wrap(index);
         }

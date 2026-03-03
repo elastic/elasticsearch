@@ -62,6 +62,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTask;
 import org.elasticsearch.cluster.routing.allocation.ShardWriteLoadDistributionMetrics;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
@@ -624,7 +625,8 @@ class NodeConstruction {
                 searchModule.getNamedXContents().stream(),
                 pluginsService.flatMap(Plugin::getNamedXContent),
                 ClusterModule.getNamedXWriteables().stream(),
-                HealthNodeTaskExecutor.getNamedXContentParsers().stream()
+                HealthNodeTaskExecutor.getNamedXContentParsers().stream(),
+                IndexBalanceMetricsTask.getNamedXContentParsers().stream()
             ).flatMap(Function.identity()).toList()
         );
         modules.add(b -> {
@@ -1286,7 +1288,15 @@ class NodeConstruction {
 
         final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
 
-        modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
+        modules.add(
+            loadPersistentTasksService(
+                settingsModule,
+                clusterService,
+                threadPool,
+                clusterModule.getIndexNameExpressionResolver(),
+                telemetryProvider.getMeterRegistry()
+            )
+        );
 
         modules.add(
             loadPluginShutdownService(clusterService),
@@ -1794,7 +1804,8 @@ class NodeConstruction {
         SettingsModule settingsModule,
         ClusterService clusterService,
         ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MeterRegistry meterRegistry
     ) {
         PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
         HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
@@ -1803,7 +1814,16 @@ class NodeConstruction {
             settingsModule.getSettings(),
             clusterService.getClusterSettings()
         );
-        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(healthNodeTaskExecutor);
+        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors;
+        if (meterRegistry != MeterRegistry.NOOP
+            && IndexBalanceMetricsTask.INDEX_BALANCE_METRICS_ENABLED_SETTING.get(settingsModule.getSettings())) {
+            builtinTaskExecutors = Stream.of(
+                healthNodeTaskExecutor,
+                new IndexBalanceMetricsTask(clusterService, persistentTasksService, clusterService.getClusterSettings(), meterRegistry)
+            );
+        } else {
+            builtinTaskExecutors = Stream.of(healthNodeTaskExecutor);
+        }
 
         Stream<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
             .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule, indexNameExpressionResolver))

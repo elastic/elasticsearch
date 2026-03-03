@@ -58,36 +58,30 @@ public final class SlowCustomBinaryDocValuesWildcardQuery extends AbstractBinary
 
     @Override
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-        var innerPattern = getContainsPattern(pattern);
-        if (innerPattern != null) {
-            return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern));
-        } else {
-            return super.rewrite(indexSearcher);
+        if (caseInsensitive == false) {
+            var innerPattern = getContainsPattern(pattern);
+            if (innerPattern != null) {
+                return new BinaryDocValuesContainsTermQuery(fieldName, new BytesRef(innerPattern));
+            }
         }
+        return super.rewrite(indexSearcher);
     }
 
     /**
-     * The only patterns that can be re-written to a contains queries are of the form "*A*". The inner string cannot contain
-     * a wildcard, ?, or whitespace. Return pattern directly, rather than a boolean, to avoid getting substring twice.
-     * @param pattern the original wildcard pattern
-     * @return the contain pattern
+     * Extracts the inner literal from patterns of the form {@code *literal*} that can be rewritten to a contains query.
+     * Returns {@code null} if the pattern cannot be rewritten (contains wildcards, single-char wildcards, or escapes).
+     * Backslash-containing patterns are rejected because wildcard syntax uses {@code \} to escape special characters
+     * (e.g. {@code \*} for a literal asterisk), so the raw pattern string doesn't match the intended literal bytes.
      */
-    String getContainsPattern(String pattern) {
-        // Must contain at least 3 characters to have a string surrounded by two wildcards
+    static String getContainsPattern(String pattern) {
         if (pattern.length() < 3) {
             return null;
         }
-        if (pattern.startsWith("*") == false || pattern.endsWith("*") == false) {
+        if (pattern.charAt(0) != '*' || pattern.charAt(pattern.length() - 1) != '*') {
             return null;
         }
         var inner = pattern.substring(1, pattern.length() - 1);
-        if (inner.contains("*")) {
-            return null;
-        }
-        if (inner.contains("?")) {
-            return null;
-        }
-        if (inner.contains(" ")) {
+        if (inner.indexOf('*') >= 0 || inner.indexOf('?') >= 0 || inner.indexOf('\\') >= 0) {
             return null;
         }
         return inner;

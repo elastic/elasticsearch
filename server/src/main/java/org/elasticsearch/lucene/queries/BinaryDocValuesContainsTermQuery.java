@@ -11,7 +11,6 @@ package org.elasticsearch.lucene.queries;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorerSupplier;
@@ -28,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Predicate;
 
@@ -54,10 +54,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                     return null;
                 }
 
-                String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-                final NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-                DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-                assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
                 final DocIdSetIterator iterator;
 
                 // TODO This class would be simpler if it were made of subclass of AbstractBinaryDocValuesQuery, but we intend to
@@ -100,7 +97,7 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
     }
 
     public String toString(String field) {
-        return "BinaryDocValuesLengthQuery(fieldName=" + field + ",containsTerm=" + containsTerm + ")";
+        return "BinaryDocValuesContainsTermQuery(fieldName=" + field + ",containsTerm=" + containsTerm + ")";
     }
 
     @Override
@@ -120,25 +117,11 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
         return Objects.hash(classHash(), fieldName, containsTerm);
     }
 
-    public static boolean contains(BytesRef value, BytesRef containsTerm) {
-        byte first = containsTerm.bytes[containsTerm.offset];
-        int max = (value.length - containsTerm.length) + value.offset;
-        for (int i = value.offset; i <= max; i++) {
-            // Look for first character.
-            if (value.bytes[i] != first) {
-                while (++i <= max && value.bytes[i] != first)
-                    ;
-            }
-            // Found first character, now look at the rest of value
-            if (i <= max) {
-                int j = i + 1;
-                int end = j + containsTerm.length - 1;
-                for (int k = 1; j < end && value.bytes[j] == containsTerm.bytes[k]; j++, k++)
-                    ;
-                if (j == end) {
-                    // Found whole string.
-                    return true;
-                }
+    static boolean contains(BytesRef value, BytesRef containsTerm) {
+        int termEnd = containsTerm.offset + containsTerm.length;
+        for (int i = value.offset, max = value.offset + value.length - containsTerm.length; i <= max; i++) {
+            if (Arrays.mismatch(value.bytes, i, i + containsTerm.length, containsTerm.bytes, containsTerm.offset, termEnd) < 0) {
+                return true;
             }
         }
         return false;

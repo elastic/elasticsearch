@@ -24,13 +24,13 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public abstract sealed class RegexExtract extends UnaryPlan
+public abstract class RegexExtract extends UnaryPlan
     implements
         GeneratingPlan<RegexExtract>,
         PostAnalysisVerificationAware,
         Streaming,
         SortAgnostic,
-        SortPreserving permits Dissect, Grok {
+        SortPreserving {
     protected final Expression input;
     protected final List<Attribute> extractedFields;
 

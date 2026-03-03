@@ -672,7 +672,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         TransportGetAllocationStatsAction.CACHE_TTL_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_TYPE_SETTING,
-        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_HIGH_UTILIZATION_THRESHOLD_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING,

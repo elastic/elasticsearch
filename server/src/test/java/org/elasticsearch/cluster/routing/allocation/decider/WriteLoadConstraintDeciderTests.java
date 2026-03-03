@@ -307,7 +307,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 highUtilizationHotspotThreshold
             )
             .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 highUtilizationBalanceThreshold
             )
             .put(
@@ -405,7 +405,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
     public void testWriteLoadDeciderShouldNotPreferAllocationDuringHotspot() {
         final var indexName = randomIdentifier();
         final int numThreads = randomIntBetween(1, 10);
-        final float highUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
+        final float allocationUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
         final long highLatencyThreshold = randomLongBetween(1000, 10000);
         final var settings = Settings.builder()
             .put(
@@ -413,8 +413,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
-                highUtilizationThreshold
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                allocationUtilizationThreshold
             )
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
@@ -435,7 +435,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                             ThreadPool.Names.WRITE,
                             new ThreadPoolUsageStats(
                                 numThreads,
-                                randomFloatBetween(0.0f, highUtilizationThreshold - .0001f, false),
+                                randomFloatBetween(0.0f, allocationUtilizationThreshold - .0001f, false),
                                 randomLongBetween(0, highLatencyThreshold - 1)
                             )
                         )
@@ -447,7 +447,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                             ThreadPool.Names.WRITE,
                             new ThreadPoolUsageStats(
                                 numThreads,
-                                randomFloatBetween(0.0f, highUtilizationThreshold - .0001f, false),
+                                randomFloatBetween(0.0f, allocationUtilizationThreshold - .0001f, false),
                                 randomLongBetween(0, highLatencyThreshold - 1)
                             )
                         )
@@ -488,8 +488,8 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
     }
 
     public void testWriteLoadDeciderNeedsBothUtilizationAndLatencyForHotspot() {
-        final float highUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
-        final String highUtilizationThresholdString = RatioValue.parseRatioValue(String.valueOf(highUtilizationThreshold))
+        final float hotspotUtilizationThreshold = randomFloatBetween(0.5f, 0.9f, true);
+        final String hotspotUtilizationThresholdString = RatioValue.parseRatioValue(String.valueOf(hotspotUtilizationThreshold))
             .formatNoTrailingZerosPercent();
         final long highLatencyThreshold = randomLongBetween(1000, 10000);
         final String highLatencyThresholdString = new TimeValue(highLatencyThreshold).toHumanReadableString(2);
@@ -498,7 +498,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
-            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(), highUtilizationThreshold)
+            .put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(), hotspotUtilizationThreshold)
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING.getKey(),
                 TimeValue.timeValueMillis(highLatencyThreshold)
@@ -510,7 +510,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final var hotspotNode = randomFrom(state.nodes().getAllNodes());
 
         // test utilization low, latency high
-        var utilization = randomFloatBetween(0.0f, highUtilizationThreshold, true);
+        var utilization = randomFloatBetween(0.0f, hotspotUtilizationThreshold, true);
         var latency = randomLongBetween(highLatencyThreshold + 1, 2 * highLatencyThreshold);
         var routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latency);
         var hotspotRoutingNode = routingAllocation.routingNodes().node(hotspotNode.getId());
@@ -537,13 +537,13 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     latency,
                     highLatencyThresholdString,
                     utilization,
-                    highUtilizationThresholdString
+                    hotspotUtilizationThresholdString
                 )
             )
         );
 
         // test utilization high, latency low
-        utilization = randomFloatBetween(highUtilizationThreshold, 1.2f, false);
+        utilization = randomFloatBetween(hotspotUtilizationThreshold, 1.2f, false);
         latency = randomLongBetween(0, highLatencyThreshold - 1);
         routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latency);
         hotspotRoutingNode = routingAllocation.routingNodes().node(hotspotNode.getId());
@@ -565,13 +565,13 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     latency,
                     highLatencyThresholdString,
                     utilization,
-                    highUtilizationThresholdString
+                    hotspotUtilizationThresholdString
                 )
             )
         );
 
         // test utilization high and latency high
-        utilization = randomFloatBetween(highUtilizationThreshold, 1.2f, false);
+        utilization = randomFloatBetween(hotspotUtilizationThreshold, 1.2f, false);
         latency = randomLongBetween(highLatencyThreshold + 1, highLatencyThreshold * 2);
         routingAllocation = buildRoutingAllocation(state, decider, hotspotNode.getId(), utilization, latency);
         hotspotRoutingNode = routingAllocation.routingNodes().node(hotspotNode.getId());
@@ -594,7 +594,7 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
                     latency,
                     highLatencyThresholdString,
                     utilization,
-                    highUtilizationThresholdString
+                    hotspotUtilizationThresholdString
                 )
             )
         );

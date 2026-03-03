@@ -718,7 +718,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
             )
             .put(
-                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_HIGH_UTILIZATION_THRESHOLD_SETTING.getKey(),
+                WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING.getKey(),
                 utilizationThresholdPercent + "%"
             )
             .put(

@@ -57,6 +57,7 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         // TODO we should implement more generic randomization for SET parameters
         return randomBoolean()
             && testCase.expectedWarnings().isEmpty() // avoid shifting warnings positions in source query
+            && testCase.expectedWarningsRegex().isEmpty() // regexp might also contain line/position
             && query.startsWith("SET") == false // avoid conflicts with provided settings
                 ? "SET unmapped_fields=\"nullify\"; " + query
                 : query;

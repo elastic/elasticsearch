@@ -24,9 +24,9 @@ package org.elasticsearch.tdigest;
 import java.util.Collection;
 
 /**
- * Read-only view of a T-Digest.
+ * Read-only view of a T-Digest. Note that this does not imply that the T-Digest is actually immutable.
  */
-public interface ReadableTDigest {
+public interface TDigestReadView {
 
     /**
         * Returns the number of points that have been added to this TDigest.

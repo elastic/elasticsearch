@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.tdigest.Centroid;
-import org.elasticsearch.tdigest.ReadableTDigest;
+import org.elasticsearch.tdigest.TDigestReadView;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,7 +28,7 @@ import java.util.List;
  *     <li>centroid mean as IEEE754 double (8 bytes, big-endian)</li>
  * </ul>
  */
-public final class EncodedTDigest implements ReadableTDigest {
+public final class EncodedTDigest implements TDigestReadView {
 
     private final BytesRef encodedDigest = new BytesRef();
     private long cachedSize = -1L;

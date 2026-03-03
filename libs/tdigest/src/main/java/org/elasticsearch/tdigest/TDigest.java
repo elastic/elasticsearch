@@ -38,7 +38,7 @@ import java.util.Locale;
  * - test coverage roughly at 90%
  * - easy to adapt for use with map-reduce
  */
-public abstract class TDigest implements ReadableTDigest, Releasable, Accountable {
+public abstract class TDigest implements TDigestReadView, Releasable, Accountable {
     protected ScaleFunction scale = ScaleFunction.K_2;
     double min = Double.POSITIVE_INFINITY;
     double max = Double.NEGATIVE_INFINITY;
@@ -170,7 +170,7 @@ public abstract class TDigest implements ReadableTDigest, Releasable, Accountabl
      *
      * @param other The other digest
      */
-    public abstract void add(ReadableTDigest other);
+    public abstract void add(TDigestReadView other);
 
     /**
      * Prepare internal structure for loading the requested number of samples.

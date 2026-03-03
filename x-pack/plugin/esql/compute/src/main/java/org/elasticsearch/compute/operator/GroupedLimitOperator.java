@@ -35,7 +35,7 @@ import java.util.Objects;
  */
 public class GroupedLimitOperator implements Operator {
 
-    private final int limit;
+    private final int limitPerGroup;
     private final PositionKeyEncoder keyEncoder;
     private final BigArrays bigArrays;
     private final BytesRefHashTable seenKeys;
@@ -49,7 +49,7 @@ public class GroupedLimitOperator implements Operator {
     private boolean finished;
 
     public GroupedLimitOperator(int limitPerGroup, PositionKeyEncoder keyEncoder, BlockFactory blockFactory) {
-        this.limit = limitPerGroup;
+        this.limitPerGroup = limitPerGroup;
         this.keyEncoder = keyEncoder;
         this.bigArrays = blockFactory.bigArrays();
         this.seenKeys = HashImplFactory.newBytesRefHash(blockFactory);
@@ -57,24 +57,24 @@ public class GroupedLimitOperator implements Operator {
     }
 
     public static final class Factory implements Operator.OperatorFactory {
-        private final int limit;
+        private final int limitPerGroup;
         private final int[] groupChannels;
         private final List<ElementType> elementTypes;
 
-        public Factory(int limit, List<Integer> groupChannels, List<ElementType> elementTypes) {
-            this.limit = limit;
+        public Factory(int limitPerGroup, List<Integer> groupChannels, List<ElementType> elementTypes) {
+            this.limitPerGroup = limitPerGroup;
             this.groupChannels = groupChannels.stream().mapToInt(Integer::intValue).toArray();
             this.elementTypes = elementTypes;
         }
 
         @Override
         public GroupedLimitOperator get(DriverContext driverContext) {
-            return new GroupedLimitOperator(limit, new PositionKeyEncoder(groupChannels, elementTypes), driverContext.blockFactory());
+            return new GroupedLimitOperator(limitPerGroup, new PositionKeyEncoder(groupChannels, elementTypes), driverContext.blockFactory());
         }
 
         @Override
         public String describe() {
-            return "GroupedLimitOperator[limit = " + limit + "]";
+            return "GroupedLimitOperator[limit = " + limitPerGroup + "]";
         }
     }
 
@@ -105,7 +105,7 @@ public class GroupedLimitOperator implements Operator {
                     ord = -(hashOrd + 1);
                     count = counts.get(ord);
                 }
-                if (count < limit) {
+                if (count < limitPerGroup) {
                     counts.set(ord, count + 1);
                     accepted[acceptedCount++] = pos;
                 }
@@ -180,7 +180,7 @@ public class GroupedLimitOperator implements Operator {
 
     @Override
     public Status status() {
-        return new Status(limit, (int) seenKeys.size(), pagesProcessed, rowsReceived, rowsEmitted);
+        return new Status(limitPerGroup, (int) seenKeys.size(), pagesProcessed, rowsReceived, rowsEmitted);
     }
 
     @Override
@@ -190,7 +190,7 @@ public class GroupedLimitOperator implements Operator {
 
     @Override
     public String toString() {
-        return "GroupedLimitOperator[limit = " + limit + ", groups = " + seenKeys.size() + "]";
+        return "GroupedLimitOperator[limit = " + limitPerGroup + ", groups = " + seenKeys.size() + "]";
     }
 
     public static class Status implements Operator.Status {
@@ -234,6 +234,14 @@ public class GroupedLimitOperator implements Operator {
         @Override
         public String getWriteableName() {
             return ENTRY.name;
+        }
+
+        public int limitPerGroup() {
+            return limitPerGroup;
+        }
+
+        public int groupCount() {
+            return groupCount;
         }
 
         public int pagesProcessed() {

@@ -21,9 +21,11 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -33,11 +35,11 @@ import java.util.function.Consumer;
 public class RecordingApmServer extends ExternalResource {
     private static final Logger logger = LogManager.getLogger(RecordingApmServer.class);
 
-    final ArrayBlockingQueue<String> received = new ArrayBlockingQueue<>(1000);
+    final ArrayBlockingQueue<ReceivedTelemetry> received = new ArrayBlockingQueue<>(1000);
 
     private static HttpServer server;
     private final Thread messageConsumerThread = consumerThread();
-    private volatile Consumer<String> consumer;
+    private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
 
     @Override
@@ -55,8 +57,8 @@ public class RecordingApmServer extends ExternalResource {
             while (running) {
                 if (consumer != null) {
                     try {
-                        String msg = received.poll(1L, TimeUnit.SECONDS);
-                        if (msg != null && msg.isEmpty() == false) {
+                        ReceivedTelemetry msg = received.poll(1L, TimeUnit.SECONDS);
+                        if (msg != null) {
                             consumer.accept(msg);
                         }
 
@@ -81,8 +83,10 @@ public class RecordingApmServer extends ExternalResource {
                 try {
                     try (InputStream requestBody = exchange.getRequestBody()) {
                         if (requestBody != null) {
-                            var read = readJsonMessages(requestBody);
-                            received.addAll(read);
+                            List<String> lines = readJsonMessages(requestBody);
+                            for (String line : lines) {
+                                ApmIntakeMessageParser.parseLine(line).ifPresent(received::add);
+                            }
                         }
                     }
 
@@ -110,7 +114,14 @@ public class RecordingApmServer extends ExternalResource {
         return server.getAddress().getPort();
     }
 
-    public void addMessageConsumer(Consumer<String> messageConsumer) {
+    public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {
         this.consumer = messageConsumer;
+    }
+
+    /**
+     * Returns a copy of all received telemetry so far. Useful for list-based assertions.
+     */
+    public List<ReceivedTelemetry> getReceivedMessages() {
+        return new ArrayList<>(received);
     }
 }

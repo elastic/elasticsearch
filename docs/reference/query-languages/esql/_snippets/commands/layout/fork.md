@@ -19,12 +19,18 @@ on the same input data and combines the results in a single output table. A disc
 
 Together with the [`FUSE`](/reference/query-languages/esql/commands/fuse.md) command, `FORK` enables hybrid search to combine and score results from multiple queries. To learn more about using {{esql}} for search, refer to [ES|QL for search](docs-content://solutions/search/esql-for-search.md).
 
-::::{note}
-`FORK` branches default to `LIMIT 1000` if no `LIMIT` is provided.
+::::{applies-switch}
 
+:::{applies-item} { serverless: , stack: preview 9.4+ }
 In a future release, no implicit `LIMIT` will be added to `FORK` branches.
 To maintain the current behavior of the queries using `FORK`, it is recommended
 to include a `LIMIT` in each `FORK` branch.
+:::
+
+:::{applies-item} stack: preview 9.1-9.3
+`FORK` branches default to `LIMIT 1000` if no `LIMIT` is provided.
+:::
+
 ::::
 
 ## Output behavior

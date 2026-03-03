@@ -367,11 +367,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.bigArrays = bigArrays;
         this.rankFeatureShardPhase = rankFeatureShardPhase;
         this.fetchPhase = fetchPhase;
-        circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.multiBucketConsumerService = new MultiBucketConsumerService(
             clusterService,
             settings,
-            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+            circuitBreaker
         );
         this.executorSelector = executorSelector;
         this.tracer = tracer;
@@ -1280,6 +1280,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         checkCancelled(task);
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, resultsType);
         resultsType.addResultsObject(context);
+
+        // Release the memory used for query construction once the search context is closed.
+        context.addReleasable(context.getSearchExecutionContext()::releaseQueryConstructionMemory);
+
         try {
             if (request.scroll() != null) {
                 context.scrollContext().scroll = request.scroll();
@@ -1312,6 +1316,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
             DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.NONE);
             searchContext.addReleasable(readerContext.markAsUsed(0L));
+            searchContext.addReleasable(searchContext.getSearchExecutionContext()::releaseQueryConstructionMemory);
             return searchContext;
         }
     }
@@ -1342,13 +1347,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searchExecutor,
                 resultsType,
                 enableQueryPhaseParallelCollection,
-                minimumDocsPerSlice
+                minimumDocsPerSlice,
+                circuitBreaker
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.
             SearchExecutionContext context = new SearchExecutionContext(searchContext.getSearchExecutionContext());
+
             Rewriteable.rewrite(request.getRewriteable(), context, true);
+            assert context.getQueryConstructionMemoryUsed() == 0
+                : "rewrite phase should not build queries; found " + context.getQueryConstructionMemoryUsed() + " bytes tracked";
+
             assert searchContext.getSearchExecutionContext().isCacheable();
             success = true;
         } finally {
@@ -2149,4 +2159,5 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         };
     }
+
 }

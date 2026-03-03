@@ -4,7 +4,7 @@ setup:
       reason: "tsdb index with nested field support enabled"
   - requires:
       cluster_features: ["index.time_series_synthetic_id"]
-      reason: "index.mapping.synthetic_id requires the tsdb_synthetic_id feature flag"
+      reason: "index.mapping.synthetic_id requires support for synthetic id in the cluster"
 
 ---
 "Create TSDB index with field of nested type and synthetic_id false":

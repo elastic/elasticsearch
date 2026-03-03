@@ -52,10 +52,7 @@ public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
         // The evaluator quantizes coordinates for indexed fields, but fold() handles literals
         // where quantization doesn't apply. Recompute without quantization for the fold test.
         var data = testCase.getData();
-        if (testCase.getExpectedTypeError() == null
-            && data.size() == 2
-            && data.get(0).data() instanceof BytesRef wkb
-            && data.get(1).data() instanceof Number tolerance) {
+        if (data.size() == 2 && data.get(0).data() instanceof BytesRef wkb && data.get(1).data() instanceof Number tolerance) {
             testCase = new TestCaseSupplier.TestCase(
                 data,
                 testCase.evaluatorToString().toString(),

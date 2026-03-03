@@ -44,11 +44,10 @@ public class CuVSGPUSupport implements GPUSupport {
         return INSTANCE;
     }
 
-    static long checkNonNegative(long value, String name) {
+    static void checkNonNegative(long value, String name) {
         if (value < 0) {
             throw new IllegalArgumentException(name + " must be non-negative, got [" + value + "]");
         }
-        return value;
     }
 
     private static class Holder {
@@ -114,12 +113,13 @@ public class CuVSGPUSupport implements GPUSupport {
             LOG.warn("GPU based vector indexing is not supported on this platform; " + msg);
             return GpuInfo.UNSUPPORTED;
         } catch (Throwable t) {
-            if (t instanceof ExceptionInInitializerError ex) {
-                t = ex.getCause();
-            }
-            LOG.warn("Exception occurred during creation of cuvs resources", t);
+            LOG.warn("Exception occurred during creation of cuvs resources", unwrap(t));
             return GpuInfo.UNSUPPORTED;
         }
+    }
+
+    private static Throwable unwrap(Throwable t) {
+        return t instanceof ExceptionInInitializerError ex ? ex.getCause() : t;
     }
 
     @Override

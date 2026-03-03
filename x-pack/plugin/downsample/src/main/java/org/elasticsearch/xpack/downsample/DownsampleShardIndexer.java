@@ -361,8 +361,8 @@ class DownsampleShardIndexer {
     private class TimeSeriesBucketCollector extends BucketCollector {
         // Constants to reduce object allocation when we do not need documents for counter resets
         private static final DimensionFieldDownsampler[] EMPTY_DIMENSIONS_FOR_COUNTER_RESETS = new DimensionFieldDownsampler[0];
-        private static final NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] EMPTY_AGGREGATE_COUNTERS =
-            new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[0];
+        private static final NumericMetricFieldDownsampler.AggregateCounter[] EMPTY_AGGREGATE_COUNTERS =
+            new NumericMetricFieldDownsampler.AggregateCounter[0];
         private final BulkProcessor2 bulkProcessor;
         private final DownsampleBucketBuilder downsampleBucketBuilder;
         private LeafDownsampleCollector currentLeafCollector;
@@ -373,7 +373,7 @@ class DownsampleShardIndexer {
         private final NumericMetricFieldDownsampler[] numericDownsamplers;
         // Aggregate counter downsampler is dealt with separately than the numeric ones because
         // they additionally require timestamps.
-        private final NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] aggregateCounterDownsamplers;
+        private final NumericMetricFieldDownsampler.AggregateCounter[] aggregateCounterDownsamplers;
         private long docsProcessed;
         private long bucketsCreated;
         long lastTimestamp = Long.MAX_VALUE;
@@ -383,7 +383,7 @@ class DownsampleShardIndexer {
             this.bulkProcessor = bulkProcessor;
             this.numericDownsamplers = fieldDownsamplers.stream()
                 .filter(NumericMetricFieldDownsampler.class::isInstance)
-                .filter(d -> d instanceof NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler == false)
+                .filter(d -> d instanceof NumericMetricFieldDownsampler.AggregateCounter == false)
                 .toArray(NumericMetricFieldDownsampler[]::new);
             this.formattedDocValuesDownsamplers = fieldDownsamplers.stream()
                 .filter(LastValueFieldDownsampler.class::isInstance)
@@ -396,8 +396,8 @@ class DownsampleShardIndexer {
                 .toArray(TDigestHistogramFieldDownsampler[]::new);
             if (DownsampleShardIndexer.this.samplingMethod == DownsampleConfig.SamplingMethod.AGGREGATE) {
                 this.aggregateCounterDownsamplers = fieldDownsamplers.stream()
-                    .filter(NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler.class::isInstance)
-                    .toArray(NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[]::new);
+                    .filter(NumericMetricFieldDownsampler.AggregateCounter.class::isInstance)
+                    .toArray(NumericMetricFieldDownsampler.AggregateCounter[]::new);
 
             } else {
                 this.aggregateCounterDownsamplers = EMPTY_AGGREGATE_COUNTERS;
@@ -670,12 +670,12 @@ class DownsampleShardIndexer {
         private final DownsampleFieldSerializer[] fieldSerializers;
         // We track the dimensions and aggregate counter downsamplers separately to serialise the extra counter reset documents
         private final DimensionFieldDownsampler[] dimensionDownsamplers;
-        private final NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] aggregateCounterDownsamplers;
+        private final NumericMetricFieldDownsampler.AggregateCounter[] aggregateCounterDownsamplers;
         private final boolean legacyDimensions;
 
         DownsampleBucketBuilder(
             List<AbstractFieldDownsampler<?>> fieldDownsamplers,
-            NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler[] aggregateCounterDownsamplers,
+            NumericMetricFieldDownsampler.AggregateCounter[] aggregateCounterDownsamplers,
             DimensionFieldDownsampler[] dimensionDownsamplers,
             String[] dimensions
         ) {

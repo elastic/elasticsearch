@@ -28,7 +28,7 @@ import java.util.Stack;
  */
 abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsampler<SortedNumericDoubleValues> permits
     AggregateMetricDoubleFieldDownsampler, NumericMetricFieldDownsampler.AggregateGauge, NumericMetricFieldDownsampler.LastValue,
-    NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler {
+    NumericMetricFieldDownsampler.AggregateCounter {
 
     NumericMetricFieldDownsampler(String name, IndexFieldData<?> fieldData) {
         super(name, fieldData);
@@ -60,7 +60,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         if (metricType == TimeSeriesParams.MetricType.GAUGE) {
             return new NumericMetricFieldDownsampler.AggregateGauge(fieldName, fieldData);
         }
-        return new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler(fieldName, fieldData);
+        return new NumericMetricFieldDownsampler.AggregateCounter(fieldName, fieldData);
     }
 
     static final double MAX_NO_VALUE = -Double.MAX_VALUE;
@@ -175,8 +175,9 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
      *  counter metric field. This producer tracks the following:
      * - The first value for this counter per tsid and bucket, so it can be stored in the downsampled document.
      * - The last-seen timestamp, so it can update the extraDataPoints structure which is shared across all aggregate counter producers.
+     * Important note: This class assumes that field values are collected and sorted by descending order by time.
      */
-    static final class AggregateCounterFieldDownsampler extends NumericMetricFieldDownsampler {
+    static final class AggregateCounter extends NumericMetricFieldDownsampler {
 
         final Stack<CounterResetDataPoints.ResetPoint> resetStack = new Stack<>();
         double downsampledValue = Double.NaN;
@@ -187,7 +188,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         // allows us to avoid persisting the after-the-reset-document
         double previousBucketValue = Double.NaN;
 
-        AggregateCounterFieldDownsampler(String name, IndexFieldData<?> fieldData) {
+        AggregateCounter(String name, IndexFieldData<?> fieldData) {
             super(name, fieldData);
         }
 
@@ -212,7 +213,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                     continue;
                 }
 
-                // when we detect a reset
+                // when we detect a reset, (remember that field values are collected and sorted by descending order by time)
                 if (currentCounterValue > previousValue) {
                     // We check if we need to persist the previous value too
                     // If timestamp -1 means that the previous value is already persisted by a previous bucket, nothing extra to persist
@@ -236,6 +237,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 }
                 downsampledValue = currentCounterValue;
                 previousValue = currentCounterValue;
+                assert lastTimestamp == -1 || currentTimestamp < lastTimestamp;
                 lastTimestamp = currentTimestamp;
             }
         }

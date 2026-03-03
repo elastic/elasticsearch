@@ -22,8 +22,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
 
     public void testAggregateCounter() throws IOException {
         CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
-        NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler producer =
-            new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
+        NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 64, 32, 16, 8, 4, 2, 1);
@@ -41,8 +40,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
 
     public void testAggregateCounterWithReset() throws IOException {
         CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
-        NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler producer =
-            new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
+        NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4, 3, 2, 1, 0);
         long[] timeValues = new long[] { 70, 60, 50, 40, 30, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 8, 5, 16, 8, 4, 2, 1);
@@ -69,8 +67,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
 
     public void testAggregateCounterDoesNotDuplicateFirstValue() throws IOException {
         CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
-        NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler producer =
-            new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
+        NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         IntArrayList docIdBuffer = IntArrayList.from(2, 1, 0);
         long[] timeValues = new long[] { 30, 20, 10 };
         SortedNumericDoubleValues counterValues = createNumericValuesInstance(docIdBuffer, 7, 0, 1);
@@ -92,8 +89,7 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
 
     public void testAggregateCounterDoesNotAddNotRedundantValue() throws IOException {
         CounterResetDataPoints resetDataPoints = new CounterResetDataPoints();
-        NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler producer =
-            new NumericMetricFieldDownsampler.AggregateCounterFieldDownsampler("my-counter", null);
+        NumericMetricFieldDownsampler.AggregateCounter producer = new NumericMetricFieldDownsampler.AggregateCounter("my-counter", null);
         // Bucket #2
         IntArrayList docIdBuffer = IntArrayList.from(6, 5, 4);
         long[] timeValues = new long[] { 70, 60, 50 };

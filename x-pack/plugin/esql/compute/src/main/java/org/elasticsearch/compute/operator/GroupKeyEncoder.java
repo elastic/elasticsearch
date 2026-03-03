@@ -109,6 +109,13 @@ public class GroupKeyEncoder {
         }
     }
 
+    /**
+     * Appends a non-negative int using variable-length encoding (1–5 bytes).
+     * Each byte stores 7 data bits in the low bits; the high bit is set to 1
+     * to indicate that more bytes follow, and 0 for the final byte. Values
+     * below 128 are encoded in a single byte, making this compact for the
+     * small numbers typical of value counts and byte-array lengths.
+     */
     private void writeVInt(int value) {
         while ((value & ~0x7F) != 0) {
             scratch.append((byte) ((value & 0x7F) | 0x80));
@@ -117,6 +124,11 @@ public class GroupKeyEncoder {
         scratch.append((byte) value);
     }
 
+    /**
+     * Appends an int as exactly 4 bytes in big-endian (most-significant byte
+     * first) order. Fixed-width encoding preserves the natural sort order of
+     * the original values and avoids the need for a length prefix.
+     */
     private void writeInt(int value) {
         scratch.append((byte) (value >> 24));
         scratch.append((byte) (value >> 16));
@@ -124,6 +136,10 @@ public class GroupKeyEncoder {
         scratch.append((byte) value);
     }
 
+    /**
+     * Appends a long as exactly 8 bytes in big-endian order by writing the
+     * upper 32 bits followed by the lower 32 bits, each via {@link #writeInt}.
+     */
     private void writeLong(long value) {
         writeInt((int) (value >> 32));
         writeInt((int) value);

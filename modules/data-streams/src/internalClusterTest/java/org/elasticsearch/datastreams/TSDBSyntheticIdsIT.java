@@ -1221,6 +1221,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         } else if (rarely()) {
             settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED);
         }
+        if (rarely()) {
+            settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
+        }
         settings.put(extraSettings);
 
         final var mappings = """

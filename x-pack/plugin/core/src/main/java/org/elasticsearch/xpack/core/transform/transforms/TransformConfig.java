@@ -214,7 +214,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         final DestConfig dest,
         final TimeValue frequency,
         final SyncConfig syncConfig,
-        @Nullable final TransformHeaders headers,
+        final TransformHeaders headers,
         final PivotConfig pivotConfig,
         final LatestConfig latestConfig,
         final String description,

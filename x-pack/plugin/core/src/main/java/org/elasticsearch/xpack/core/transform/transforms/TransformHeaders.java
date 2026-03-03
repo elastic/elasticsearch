@@ -97,22 +97,20 @@ public record TransformHeaders(Map<String, String> headers, @Nullable String uia
     }
 
     public TransformHeaders withMintedInternalToken(String uiamToken) {
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
-            return new TransformHeaders(headers, uiamToken);
-        } else {
-            return this;
-        }
+        return new TransformHeaders(headers, uiamToken);
     }
 
     public static TransformHeaders fromMap(Map<String, String> headers) {
         if (headers == null || headers.isEmpty()) {
             return EMPTY;
         }
-        var mutableHeaders = new HashMap<>(headers);
-        var uiamToken = mutableHeaders.remove(UIAM_TOKEN_KEY);
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
-            uiamToken = null;
+
+        if (headers.containsKey(UIAM_TOKEN_KEY)) {
+            var mutableHeaders = new HashMap<>(headers);
+            var uiamToken = mutableHeaders.remove(UIAM_TOKEN_KEY);
+            return new TransformHeaders(mutableHeaders, uiamToken);
         }
-        return new TransformHeaders(mutableHeaders, uiamToken);
+
+        return new TransformHeaders(headers, null);
     }
 }

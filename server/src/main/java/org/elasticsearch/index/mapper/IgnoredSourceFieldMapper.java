@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -28,6 +29,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -553,7 +555,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         DOC_VALUES_IGNORED_SOURCE {
             @Override
             public IgnoredSourceLeafLoader createLeafLoader(LeafReader leafReader) throws IOException {
-                SortedSetDocValues docValues = leafReader.getSortedSetDocValues(NAME);
+                var docValues = MultiValuedSortedBinaryDocValues.from(leafReader, NAME);
                 return new IgnoredSourceLeafLoader() {
                     @Override
                     public Map<String, List<NameValue>> loadAllIgnoredFields(
@@ -567,8 +569,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                         Map<String, List<NameValue>> objectsWithIgnoredFields = new HashMap<>();
                         int count = docValues.docValueCount();
                         for (int i = 0; i < count; i++) {
-                            long ord = docValues.nextOrd();
-                            BytesRef encoded = docValues.lookupOrd(ord);
+                            BytesRef encoded = docValues.nextValue();
                             List<NameValue> nameValues = CoalescedIgnoredSourceEncoding.decode(encoded);
                             assert nameValues.isEmpty() == false;
                             for (var nameValue : nameValues) {
@@ -595,8 +596,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                         }
                         int count = docValues.docValueCount();
                         for (int i = 0; i < count; i++) {
-                            long ord = docValues.nextOrd();
-                            BytesRef encoded = docValues.lookupOrd(ord);
+                            BytesRef encoded = docValues.nextValue();
                             List<NameValue> nameValues = CoalescedIgnoredSourceEncoding.decode(encoded);
                             assert nameValues.isEmpty() == false;
                             String fieldPath = nameValues.getFirst().name();
@@ -622,8 +622,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
                 for (var docEntry : entriesMap.entrySet()) {
                     for (var fieldEntry : docEntry.getValue().entrySet()) {
-                        docEntry.getKey()
-                            .add(new SortedSetDocValuesField(NAME, CoalescedIgnoredSourceEncoding.encode(fieldEntry.getValue())));
+                        MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+                            docEntry.getKey(),
+                            NAME,
+                            CoalescedIgnoredSourceEncoding.encode(fieldEntry.getValue())
+                        );
                     }
                 }
             }

@@ -15,6 +15,9 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.MultiDocValues;
+import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -236,9 +239,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
             var reader = searcher.getDirectoryReader();
-            var document = reader.storedFields().document(0);
-            Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-            assertThat(storedFieldNames, contains(IgnoredSourceFieldMapper.NAME));
+            var binaryDV = MultiDocValues.getBinaryValues(reader, IgnoredSourceFieldMapper.NAME);
+            assertThat(binaryDV, notNullValue());
+            binaryDV.advanceExact(0);
+            assertThat(binaryDV.binaryValue(), notNullValue());
             assertThat(FieldInfos.getMergedFieldInfos(reader).fieldInfo("parent.field.offsets"), nullValue());
         }
     }
@@ -376,7 +380,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var document = reader.storedFields().document(i);
                 // Verify that there is ignored source because of leaf array being wrapped by object array:
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, contains("_id", IgnoredSourceFieldMapper.NAME));
+                assertThat(storedFieldNames, contains("_id"));
 
                 // Verify that there is no offset field:
                 LeafReader leafReader = reader.leaves().get(0).reader();

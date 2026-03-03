@@ -282,27 +282,22 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType != null) {
             Query query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
-            if(query != null) {
+            if (query != null) {
                 return query;
             }
         }
         AutomatonQuery query = method == null
-                ? new RegexpQuery(
-                    new Term(fieldName, BytesRefs.toBytesRef(value)),
-                    sanitisedSyntaxFlag,
-                    matchFlagsValue,
-                    maxDeterminizedStates
-                )
-                : new RegexpQuery(
-                    new Term(fieldName, BytesRefs.toBytesRef(value)),
-                    sanitisedSyntaxFlag,
-                    matchFlagsValue,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    maxDeterminizedStates,
-                    method
-                );
-            context.addCircuitBreakerMemory(query.ramBytesUsed(), "regexp:" + fieldName);
-            return query;
+            ? new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates)
+            : new RegexpQuery(
+                new Term(fieldName, BytesRefs.toBytesRef(value)),
+                sanitisedSyntaxFlag,
+                matchFlagsValue,
+                RegexpQuery.DEFAULT_PROVIDER,
+                maxDeterminizedStates,
+                method
+            );
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), "regexp:" + fieldName);
+        return query;
     }
 
     @Override

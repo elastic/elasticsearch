@@ -471,6 +471,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
             if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
                 timeRangeFilterFromMillis = in.readOptionalLong();
             }
+            if (in.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+                setBytesRead(in.readVLong());
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -538,6 +541,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
             out.writeOptionalLong(timeRangeFilterFromMillis);
+        }
+        if (out.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            out.writeVLong(getBytesRead());
         }
     }
 

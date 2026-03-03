@@ -51,6 +51,17 @@ public final class ScrollQuerySearchResult extends SearchPhaseResult {
     }
 
     @Override
+    public void setBytesRead(long bytesRead) {
+        super.setBytesRead(bytesRead);
+        result.setBytesRead(bytesRead);
+    }
+
+    @Override
+    public long getBytesRead() {
+        return result.getBytesRead();
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         getSearchShardTarget().writeTo(out);
         result.writeTo(out);

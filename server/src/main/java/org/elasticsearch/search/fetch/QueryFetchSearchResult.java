@@ -80,6 +80,17 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     }
 
     @Override
+    public void setBytesRead(long bytesRead) {
+        super.setBytesRead(bytesRead);
+        queryResult.setBytesRead(bytesRead);
+    }
+
+    @Override
+    public long getBytesRead() {
+        return queryResult.getBytesRead();
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         queryResult.writeTo(out);
         fetchResult.writeTo(out);

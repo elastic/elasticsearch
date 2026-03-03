@@ -33,4 +33,11 @@ public class EsqlLogContext extends ActivityLoggerContext {
     String getQuery() {
         return request.query();
     }
+
+    long getHits() {
+        if (response == null) {
+            return 0;
+        }
+        return response.getRowCount();
+    }
 }

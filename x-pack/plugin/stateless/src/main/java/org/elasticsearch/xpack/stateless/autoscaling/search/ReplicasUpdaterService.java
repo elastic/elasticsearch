@@ -439,6 +439,9 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         } else {
             LOGGER.info("disabling replicas for instant failover");
             pendingScaleDownAfterDisabling = true;
+            if (job != null) {
+                performReplicaUpdates(true);
+            }
         }
     }
 
@@ -450,6 +453,9 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         } else {
             LOGGER.info("disabling replicas for load balancing");
             pendingScaleDownAfterDisabling = true;
+            if (job != null) {
+                performReplicaUpdates(true);
+            }
         }
     }
 

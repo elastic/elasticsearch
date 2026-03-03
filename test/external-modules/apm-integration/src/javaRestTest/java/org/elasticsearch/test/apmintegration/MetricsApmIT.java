@@ -131,4 +131,78 @@ public class MetricsApmIT extends ESRestTestCase {
         assertTrue("Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions, completed);
     }
 
+    /**
+     * Asserts that the APM agent exports its built-in JVM and system metrics to the mock server.
+     * Each metric is mapped to a predicate over the reported value (or histogram total); we do not
+     * assert exact values since they are environment-dependent.
+     */
+    public void testApmAgentGeneratedMetrics() throws Exception {
+        Map<String, Predicate<Number>> agentMetricAssertions = new HashMap<>(
+            Map.ofEntries(
+                entry("jvm.memory.heap.used", isAtLeast(0)),
+                entry("jvm.memory.heap.committed", isAtLeast(0)),
+                entry("jvm.memory.heap.max", isAtLeast(-1)),
+                entry("jvm.memory.non_heap.used", isAtLeast(0)),
+                entry("jvm.memory.non_heap.committed", isAtLeast(0)),
+                entry("jvm.memory.heap.pool.used", isAtLeast(0)),
+                entry("jvm.memory.heap.pool.committed", isAtLeast(0)),
+                entry("jvm.memory.heap.pool.max", isAtLeast(-1)),
+                entry("jvm.gc.count", isAtLeast(0)),
+                entry("jvm.gc.time", isAtLeast(0)),
+                entry("jvm.gc.alloc", isAtLeast(0)),
+                entry("jvm.thread.count", isAtLeast(0)),
+                entry("system.cpu.total.norm.pct", isPercent()),
+                entry("system.process.cpu.total.norm.pct", isPercent()),
+                entry("system.memory.total", isAtLeast(0))
+            )
+        );
+        /*
+         * The following metrics are not available on all platforms, so we don't require them here.
+         * - jvm.memory.non_heap.max
+         * - jvm.classes.loaded
+         * - system.fd.open
+         * - system.fd.max
+         * - system.memory.free
+         */
+
+        CountDownLatch finished = new CountDownLatch(1);
+
+        mockApmServer.addMessageConsumer((ReceivedTelemetry msg) -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m) {
+                for (Map.Entry<String, ReceivedTelemetry.ReceivedMetricValue> entry : m.samples().entrySet()) {
+                    String metricName = entry.getKey();
+                    Predicate<Number> predicate = agentMetricAssertions.remove(metricName);
+                    if (predicate == null) {
+                        continue;
+                    }
+                    ReceivedTelemetry.ReceivedMetricValue sample = entry.getValue();
+                    if (sample instanceof ReceivedTelemetry.ValueSample(Number value)) {
+                        if (value != null && predicate.test(value)) {
+                            logger.info("Agent metric {} assertion PASSED", metricName);
+                            agentMetricAssertions.remove(metricName);
+                        }
+                    } else {
+                        fail("Unexpected metric value type: " + sample);
+                    }
+                }
+            }
+            if (agentMetricAssertions.isEmpty()) {
+                finished.countDown();
+            }
+        });
+
+        client().performRequest(new Request("GET", "/_use_apm_metrics"));
+
+        var completed = finished.await(30, TimeUnit.SECONDS);
+        assertTrue("Timeout waiting for agent-generated metrics. Remaining: " + agentMetricAssertions.keySet(), completed);
+    }
+
+    private static Predicate<Number> isAtLeast(double min) {
+        return n -> n != null && n.doubleValue() >= min;
+    }
+
+    private static Predicate<Number> isPercent() {
+        return n -> n != null && n.doubleValue() >= 0 && n.doubleValue() <= 100;
+    }
+
 }

@@ -69,7 +69,11 @@ public class GroupedLimitOperator implements Operator {
 
         @Override
         public GroupedLimitOperator get(DriverContext driverContext) {
-            return new GroupedLimitOperator(limitPerGroup, new PositionKeyEncoder(groupChannels, elementTypes), driverContext.blockFactory());
+            return new GroupedLimitOperator(
+                limitPerGroup,
+                new PositionKeyEncoder(groupChannels, elementTypes),
+                driverContext.blockFactory()
+            );
         }
 
         @Override

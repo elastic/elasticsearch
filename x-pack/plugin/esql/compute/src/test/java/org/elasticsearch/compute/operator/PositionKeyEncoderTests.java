@@ -207,10 +207,7 @@ public class PositionKeyEncoderTests extends ComputeTestCase {
             bytesBuilder.appendBytesRef(new BytesRef("a"));
             Page page = new Page(longBuilder.build(), bytesBuilder.build());
             try {
-                PositionKeyEncoder encoder = new PositionKeyEncoder(
-                    new int[] { 0, 1 },
-                    List.of(ElementType.LONG, ElementType.BYTES_REF)
-                );
+                PositionKeyEncoder encoder = new PositionKeyEncoder(new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.BYTES_REF));
                 BytesRef key0 = copy(encoder.encode(page, 0));
                 BytesRef key1 = copy(encoder.encode(page, 1));
                 BytesRef key2 = copy(encoder.encode(page, 2));

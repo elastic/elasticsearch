@@ -196,6 +196,13 @@ public class ApproximationPlan {
     private static final Logger logger = LogManager.getLogger(ApproximationPlan.class);
 
     /**
+     * Returns whether the logical plan is an approximation plan.
+     */
+    public static boolean is(LogicalPlan logicalPlan) {
+        return logicalPlan.anyMatch(plan -> plan instanceof SampledAggregate);
+    }
+
+    /**
      * Returns a plan that approximates the original plan and computes confidence intervals.
      * This approximation query consists of the following:
      * <ul>

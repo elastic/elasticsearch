@@ -884,9 +884,7 @@ public class CsvTests extends ESTestCase {
                 optimizedPlan,
                 configuration,
                 foldCtx,
-                configuration.approximationSettings() != null && configuration.approximationSettings().enabled()
-                    ? new Approximation(optimizedPlan, configuration.approximationSettings())
-                    : null,
+                Approximation.create(optimizedPlan, configuration.approximationSettings()),
                 minimumVersion,
                 planTimeProfile,
                 listener.delegateFailureAndWrap(

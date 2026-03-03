@@ -298,7 +298,7 @@ public class EsqlSession {
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             projectRouting(request, statement),
-            approximation(request, statement),
+            approximationSettings(request, statement),
             viewResolution.viewQueries()
         );
 
@@ -354,9 +354,7 @@ public class EsqlSession {
                                 p,
                                 finalConfiguration,
                                 foldContext,
-                                configuration.approximationSettings() != null && configuration.approximationSettings().enabled()
-                                    ? new Approximation(p, configuration.approximationSettings())
-                                    : null,
+                                Approximation.create(p, configuration.approximationSettings()),
                                 minimumVersion,
                                 planTimeProfile,
                                 l
@@ -381,7 +379,7 @@ public class EsqlSession {
         return projectRouting;
     }
 
-    private static ApproximationSettings approximation(EsqlQueryRequest request, EsqlStatement statement) {
+    private static ApproximationSettings approximationSettings(EsqlQueryRequest request, EsqlStatement statement) {
         // The precedence for settings is: SET in the statement > request parameter > default (=disabled).
         return ApproximationSettings.DISABLED.merge(request.approximation()).merge(statement.setting(QuerySettings.APPROXIMATION));
     }

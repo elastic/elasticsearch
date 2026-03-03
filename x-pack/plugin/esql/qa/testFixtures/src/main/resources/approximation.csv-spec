@@ -405,3 +405,37 @@ FROM many_numbers | STATS count=COUNT(sv_and_one_mv)
 count:long     | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
 110000..140000 | [110000..140000,110000..140000]                | {any}
 ;
+
+
+warn on no stats
+required_capability: approximation_v3
+
+SET approximation=true\;
+FROM many_numbers | KEEP mv | MV_EXPAND mv | SORT mv | LIMIT 5
+;
+
+warning:line 2:1: approximation not supported: query without [STATS] cannot be approximated
+
+mv:integer
+1
+2
+2
+3
+3
+;
+
+
+warn on max
+required_capability: approximation_v3
+
+SET approximation=true\;
+FROM many_numbers | STATS max=MAX(sv) BY sv | SORT max | LIMIT 3
+;
+
+warning:line 2:31: approximation not supported: aggregation function [MAX(sv)] cannot be approximated
+
+max:integer | sv:integer
+1           | 1
+2           | 2
+3           | 3
+;

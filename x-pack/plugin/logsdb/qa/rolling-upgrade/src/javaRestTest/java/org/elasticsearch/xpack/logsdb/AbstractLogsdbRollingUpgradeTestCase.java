@@ -77,7 +77,7 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
 
         int[] count = new int[1];
         var upgradeVersion = newClusterVersion != null ? Version.fromString(newClusterVersion) : Version.CURRENT;
-        getCluster().rollingUpgradeToVersion(upgradeVersion, () -> {
+        getCluster().upgradeToVersion(upgradeVersion, () -> {
             try {
                 initClient();
                 onNodeUpgradeComplete.accept(count[0]++);

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -475,6 +476,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 e = surrogate;
             }
         }
+        assertThat("expression required surrogates", e, not(instanceOf(OnlySurrogateExpression.class)));
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
         Expression.TypeResolution resolution = e.typeResolved();
@@ -931,17 +933,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     protected final DriverContext driverContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
     }
 
     protected final DriverContext crankyContext() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService())
             .withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        return new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
     }
 
     @After

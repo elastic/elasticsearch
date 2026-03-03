@@ -168,15 +168,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
      * The value is not validated against existing inference endpoints at index creation time; an invalid ID will only surface as an error
      * when a document is indexed against a {@code semantic_text} field that uses this default.
      */
-    public static final Setting<String> INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID = new Setting<>(
+    public static final Setting<String> INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID = Setting.simpleString(
         "index.semantic_text.default_inference_id",
-        s -> null,
-        Function.identity(),
-        v -> {
-            if (v != null && Strings.isEmpty(v)) {
-                throw new IllegalArgumentException("[index.semantic_text.default_inference_id] must not be set to an empty value");
-            }
-        },
         Setting.Property.IndexScope,
         Setting.Property.Final,
         Setting.Property.ServerlessPublic
@@ -197,7 +190,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
      */
     private static String getDefaultInferenceId(ModelRegistry modelRegistry, IndexSettings indexSettings) {
         String userDefault = INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.get(indexSettings.getSettings());
-        if (userDefault != null) {
+        if (Strings.isEmpty(userDefault) == false) {
             return userDefault;
         }
         if (modelRegistry != null && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {

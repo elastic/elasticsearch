@@ -23,6 +23,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;

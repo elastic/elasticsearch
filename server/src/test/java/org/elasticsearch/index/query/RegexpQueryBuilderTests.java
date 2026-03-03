@@ -152,7 +152,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
     }
 
     public void testRegexpCircuitBreakerTripsWithLowLimit() {
-        assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
+        assertCircuitBreakerTripsOnQueryConstruction("50kb", () -> {
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             IntStream.range(0, 50)
                 .forEach(

@@ -221,7 +221,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     public void testPrefixCircuitBreakerTripsWithLowLimit() {
-        assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
+        assertCircuitBreakerTripsOnQueryConstruction("50kb", () -> {
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             IntStream.range(0, 100).forEach(i -> {
                 PrefixQueryBuilder prefixQuery = new PrefixQueryBuilder(TEXT_FIELD_NAME, "prefix" + i);

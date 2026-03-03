@@ -103,11 +103,11 @@ public interface LocalClusterHandle extends ClusterHandle {
      * @param version               The version to upgrade to.
      * @param onNodeUpgradeComplete A callback that is invoked after each node is upgraded.
      */
-    default void rollingUpgradeToVersion(Version version, Consumer<Integer> onNodeUpgradeComplete) {
+    default void rollingUpgradeToVersion(Version version, Runnable onNodeUpgradeComplete) {
         int numNodes = getNumNodes();
         for (int index = 0; index < numNodes; index++) {
             upgradeNodeToVersion(index, version);
-            onNodeUpgradeComplete.accept(index);
+            onNodeUpgradeComplete.run();
         }
     }
 

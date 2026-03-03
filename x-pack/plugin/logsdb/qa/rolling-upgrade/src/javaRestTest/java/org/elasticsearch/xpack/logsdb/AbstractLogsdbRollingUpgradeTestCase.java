@@ -75,11 +75,12 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         var newClusterVersion = System.getProperty("tests.new_cluster_version");
         logger.info("serverlessBwcStackVersion={}, bwcTag={}, newClusterVersion={}", serverlessBwcStackVersion, bwcTag, newClusterVersion);
 
+        int[] count = new int[1];
         var upgradeVersion = newClusterVersion != null ? Version.fromString(newClusterVersion) : Version.CURRENT;
-        getCluster().rollingUpgradeToVersion(upgradeVersion, (index) -> {
+        getCluster().rollingUpgradeToVersion(upgradeVersion, () -> {
             try {
                 initClient();
-                onNodeUpgradeComplete.accept(index);
+                onNodeUpgradeComplete.accept(count[0]++);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

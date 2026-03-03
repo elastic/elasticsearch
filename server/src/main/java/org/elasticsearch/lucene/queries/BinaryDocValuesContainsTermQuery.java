@@ -57,8 +57,14 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                 final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
                 final DocIdSetIterator iterator;
 
+<<<<<<< Updated upstream
                 // TODO This class would be simpler if it were made of subclass of AbstractBinaryDocValuesQuery, but we intend to
                 // optimize the single value case shortly with a `containsIterator` which pushes contain matching down to the codec.
+=======
+                // TODO This class would be simpler if it were a subclass of AbstractBinaryDocValuesQuery, but we
+                //  intend to optimize the single value case with a `containsIterator` which pushes matching down to
+                //  the codec. Since a separate class will then be needed, we will start with a standalone class.
+>>>>>>> Stashed changes
                 Predicate<BytesRef> predicate = bytes -> contains(bytes, containsTerm);
                 iterator = TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(counts) {
                     final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();

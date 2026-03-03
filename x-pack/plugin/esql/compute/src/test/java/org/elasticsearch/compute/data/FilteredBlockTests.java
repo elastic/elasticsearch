@@ -10,7 +10,6 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -37,8 +36,9 @@ import static org.mockito.Mockito.when;
 public class FilteredBlockTests extends ESTestCase {
 
     final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final BlockFactory blockFactory = BlockFactory.getInstance(breaker, bigArrays);
+    final BlockFactory blockFactory = BlockFactory.builder(
+        new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker))
+    ).build();
 
     @Before
     @After
@@ -473,7 +473,7 @@ public class FilteredBlockTests extends ESTestCase {
     }
 
     BytesRefArray arrayOf(String... values) {
-        var array = new BytesRefArray(values.length, bigArrays);
+        var array = new BytesRefArray(values.length, blockFactory.bigArrays());
         Arrays.stream(values).map(BytesRef::new).forEach(array::append);
         return array;
     }

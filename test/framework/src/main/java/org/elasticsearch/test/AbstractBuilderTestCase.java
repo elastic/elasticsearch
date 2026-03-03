@@ -13,6 +13,8 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.MockResolvedIndices;
@@ -29,6 +31,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
@@ -55,6 +59,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.DataRewriteContext;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
@@ -64,6 +69,9 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.DateFieldRangeInfo;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.node.InternalSettingsPreparer;
@@ -109,12 +117,14 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractBuilderTestCase extends ESTestCase {
 
@@ -422,6 +432,86 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     }
 
+    protected static CircuitBreaker createCircuitBreakerService(String limit) {
+        Settings settings = Settings.builder()
+            .put("indices.breaker.request.limit", limit)
+            .put("indices.breaker.request.overhead", "1.0")
+            .build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            Collections.emptyList(),
+            clusterSettings
+        );
+
+        return service.getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    /**
+     * Creates a circuit breaker for testing query construction with default limit (10% of heap).
+     *
+     * @return a configured CircuitBreaker instance
+     */
+    protected static CircuitBreaker createCircuitBreakerService() {
+        return createCircuitBreakerService("10%");
+    }
+
+    /**
+     * Override this method to provide a custom CircuitBreakerService for tests.
+     * By default, returns NoneCircuitBreakerService for backwards compatibility.
+     *
+     * @param nodeSettings the node settings
+     * @param clusterSettings the cluster settings
+     * @return the CircuitBreakerService to use in tests
+     */
+    protected CircuitBreakerService createCircuitBreakerService(Settings nodeSettings, ClusterSettings clusterSettings) {
+        return new NoneCircuitBreakerService();
+    }
+
+    /**
+     * Asserts that building the supplied query trips the circuit breaker with a "Data too large" message.
+     */
+    protected static void assertCircuitBreakerTripsOnQueryConstruction(String breakerLimit, Supplier<QueryBuilder> querySupplier) {
+        SearchExecutionContext context = new SearchExecutionContext(
+            createSearchExecutionContext(),
+            createCircuitBreakerService(breakerLimit)
+        );
+
+        try {
+            QueryBuilder query = querySupplier.get();
+            CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> query.toQuery(context));
+            assertThat(exception.getMessage(), containsString("Data too large"));
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    /**
+     * Asserts that the circuit breaker correctly accounts for the memory used by the given query.
+     */
+    protected static void assertCircuitBreakerAccountsForQuery(QueryBuilder queryBuilder) throws IOException {
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+
+        try {
+            long before = cb.getUsed();
+            Query query = queryBuilder.toQuery(context);
+            long after = cb.getUsed();
+
+            if (query instanceof Accountable accountable) {
+                long queryMemory = accountable.ramBytesUsed();
+                if (queryMemory > 0) {
+                    assertTrue("Circuit breaker should account for query memory", after >= before);
+                    assertEquals("Circuit breaker delta should equal query ramBytesUsed", queryMemory, after - before);
+                }
+            }
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
     private static class ServiceHolder implements Closeable {
         private final IndexFieldDataService indexFieldDataService;
         private final SearchModule searchModule;
@@ -436,6 +526,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final Client client;
         private final long nowInMillis;
         private final IndexMetadata indexMetadata;
+        private final CircuitBreakerService circuitBreakerService;
 
         ServiceHolder(
             Settings nodeSettings,
@@ -452,12 +543,15 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             PluginsService pluginsService;
             pluginsService = new MockPluginsService(nodeSettings, env, plugins);
 
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             ClusterService clusterService = new ClusterService(
                 Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                clusterSettings,
                 new DeterministicTaskQueue().getThreadPool(),
                 null
             );
+
+            this.circuitBreakerService = testCase.createCircuitBreakerService(nodeSettings, clusterSettings);
 
             client = (Client) Proxy.newProxyInstance(
                 Client.class.getClassLoader(),

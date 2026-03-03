@@ -479,6 +479,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#tsInfoCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitTsInfoCommand(EsqlBaseParser.TsInfoCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    * @return the visitor result

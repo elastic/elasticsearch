@@ -1,5 +1,6 @@
 area: ES|QL
-issues: []
+issues:
+  - 139296
 pr: 143491
 summary: Add memory tracking for TS_INFO and METRICS_INFO
 type: enhancement

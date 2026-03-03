@@ -67,7 +67,9 @@ import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -107,6 +109,7 @@ public class Reindexer {
     private final ScriptService scriptService;
     private final ReindexSslConfig reindexSslConfig;
     private final ReindexMetrics reindexMetrics;
+    private final TaskManager taskManager;
     private final TransportService transportService;
     private final ReindexRelocationNodePicker relocationNodePicker;
 
@@ -128,7 +131,8 @@ public class Reindexer {
         this.scriptService = scriptService;
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
-        this.transportService = Objects.requireNonNull(transportService);
+        this.taskManager = transportService.getTaskManager(); // implicit null check
+        this.transportService = transportService;
         this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
     }
 
@@ -338,8 +342,8 @@ public class Reindexer {
         final ReindexRequest request,
         final ActionListener<BulkByScrollResponse> listener
     ) {
-        final boolean slicedThereforeNoRelocation = task.getParentTaskId().isSet() || task.isLeader();
-        if (slicedThereforeNoRelocation) {
+        final boolean isRelocationHandledByLeader = getReindexParent(task).isPresent();
+        if (isRelocationHandledByLeader) {
             return listener;
         }
         return listener.delegateFailureAndWrap((l, response) -> {
@@ -349,8 +353,9 @@ public class Reindexer {
                 l.onResponse(response);
                 return;
             }
-            assert task.isWorker() : "relocation only supports non-sliced for now";
-            final String nodeToRelocateTo = task.getWorkerState().getNodeToRelocateTo().orElse(null);
+            final String nodeToRelocateTo = task.isLeader()
+                ? task.getLeaderState().getNodeToRelocateTo().orElse(null)
+                : task.getWorkerState().getNodeToRelocateTo().orElse(null);
             assert nodeToRelocateTo != null : "node to relocate to should be set if taskResumeInfo is present";
             final DiscoveryNode nodeToRelocateToNode = clusterService.state().nodes().get(nodeToRelocateTo);
             if (nodeToRelocateToNode == null) {
@@ -384,10 +389,19 @@ public class Reindexer {
         if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false) {
             return;
         }
-        final boolean nonSlicedThereforeSetupRelocation = task.isWorker() && task.getParentTaskId().isSet() == false;
-        if (nonSlicedThereforeSetupRelocation) {
-            // we don't need a thread-safe nodeToRelocateToSupplier for non-sliced, but re-using leads to less code
-            task.getWorkerState().setNodeToRelocateToSupplier(new NodeToRelocateToSupplier(clusterService, relocationNodePicker));
+        // set up reindex relocation, specifically the supplier which says which node to relocate to.
+        // we have 3 states to handle:
+        // 1. leader which has >= 2 subslices: initialized with a centralized node picker. workers will fetch this and use it.
+        // 2. worker which is one of many subslices: fetch the leader node picker and use it for relocation decisions.
+        // 3. worker which is the only slice, no leader: set up its own node picker, call that, and when it's done, relocate itself.
+        // n.b.
+        // - workers with a leader only need the supplier to see if there is a node to relocate to, therefore, whether they should stop.
+        // - leader then relocates the entire reindex once workers have completed.
+        // - approach relies on the entire reindex (including subtasks) existing on the same node.
+        if (task.isLeader()) {
+            task.getLeaderState().setNodeToRelocateToSupplier(new NodeToRelocateToSupplier(clusterService, relocationNodePicker));
+        } else {
+            task.getWorkerState().setNodeToRelocateToSupplier(getWorkerNodeToRelocateToSupplier(task));
         }
     }
 
@@ -427,6 +441,29 @@ public class Reindexer {
                 )
             );
         }
+    }
+
+    /**
+     * Returns the parent {@link BulkByScrollTask} leader if this task is a worker whose parent will handle relocation on its behalf.
+     * A parent task ID can also refer to an external caller (e.g. enrich, system migration) -- those don't handle relocation.
+     * N.b. relies on reindex subtasks existing on the same node as the parent.
+     */
+    private Optional<BulkByScrollTask> getReindexParent(final BulkByScrollTask task) {
+        if (task.isWorker() == false || task.getParentTaskId().isSet() == false) {
+            return Optional.empty();
+        }
+        final CancellableTask parent = taskManager.getCancellableTasks().get(task.getParentTaskId().getId());
+        if (parent instanceof BulkByScrollTask parentBbs && parentBbs.isLeader()) {
+            return Optional.of(parentBbs);
+        }
+        return Optional.empty();
+    }
+
+    private Supplier<Optional<String>> getWorkerNodeToRelocateToSupplier(final BulkByScrollTask workerTask) {
+        assert workerTask.isWorker() : "task should be a worker";
+        return getReindexParent(workerTask).map(leader -> (Supplier<Optional<String>>) leader.getLeaderState()::getNodeToRelocateTo)
+            // we don't need a thread-safe nodeToRelocateToSupplier for non-sliced, but re-using leads to less code
+            .orElseGet(() -> new NodeToRelocateToSupplier(clusterService, relocationNodePicker));
     }
 
     /**

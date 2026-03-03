@@ -32,7 +32,7 @@ Do not modify the root `jvm.options` file. Use files in `jvm.options.d/` instead
 
 ## JVM options syntax [jvm-options-syntax]
 
-A JVM options file contains a line-delimited list of JVM arguments. Arguments are preceded by a dash (`-`). To apply the setting to specific versions, prepend the version or a range of versions followed by a colon.
+A JVM options file contains a line-delimited list of JVM arguments. Arguments are preceded by a dash (`-`). To apply the setting to specific versions, prepend the version or a range of versions followed by a colon. Customers may have questions
 
 * Apply a setting to all versions:
 

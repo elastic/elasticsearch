@@ -21,6 +21,10 @@ Together with the [`FUSE`](/reference/query-languages/esql/commands/fuse.md) com
 
 ::::{note}
 `FORK` branches default to `LIMIT 1000` if no `LIMIT` is provided.
+
+In a future release, no implicit `LIMIT` will be added to `FORK` branches.
+To maintain the current behavior of the queries using `FORK`, it is recommended
+to include a `LIMIT` in each `FORK` branch.
 ::::
 
 ## Output behavior

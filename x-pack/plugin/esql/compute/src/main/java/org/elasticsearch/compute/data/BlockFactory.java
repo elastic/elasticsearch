@@ -29,7 +29,7 @@ public class BlockFactory {
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
 
-    public static final long DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = ByteSizeValue.ofMb(1).getBytes();
+    public static final ByteSizeValue DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = ByteSizeValue.ofMb(1);
     public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 1.5;
 
     private final CircuitBreaker breaker;
@@ -40,56 +40,27 @@ public class BlockFactory {
     private final long bytesRefRamOverestimateThreshold;
     private final double bytesRefRamOverestimateFactor;
 
-    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
-        this(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE);
+    /**
+     * {@return a builder for constructing a {@link BlockFactory}}
+     */
+    public static BlockFactoryBuilder builder(BigArrays bigArrays) {
+        return new BlockFactoryBuilder(bigArrays);
     }
 
-    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
-        this(breaker, bigArrays, maxPrimitiveArraySize, null);
-    }
-
-    public BlockFactory(
-        CircuitBreaker breaker,
-        BigArrays bigArrays,
-        ByteSizeValue maxPrimitiveArraySize,
-        long bytesRefRamOverestimateThreshold,
-        double bytesRefRamOverestimateFactor
-    ) {
-        this(breaker, bigArrays, maxPrimitiveArraySize, null, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor);
-    }
-
-    protected BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
-        this(
-            breaker,
-            bigArrays,
-            maxPrimitiveArraySize,
-            parent,
-            DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
-            DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR
-        );
-    }
-
-    protected BlockFactory(
-        CircuitBreaker breaker,
-        BigArrays bigArrays,
-        ByteSizeValue maxPrimitiveArraySize,
-        BlockFactory parent,
-        long bytesRefRamOverestimateThreshold,
-        double bytesRefRamOverestimateFactor
-    ) {
-        assert breaker instanceof LocalCircuitBreaker == false
-            || (parent != null && ((LocalCircuitBreaker) breaker).parentBreaker() == parent.breaker)
-            : "use local breaker without parent block factory";
-        this.breaker = breaker;
-        this.bigArrays = bigArrays;
+    protected BlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
+        this.bigArrays = builder.bigArrays;
+        this.breaker = builder.breaker == null ? bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST) : builder.breaker;
+        this.maxPrimitiveArrayBytes = builder.maxPrimitiveArraySize;
+        this.bytesRefRamOverestimateThreshold = builder.bytesRefRamOverestimateThreshold;
+        this.bytesRefRamOverestimateFactor = builder.bytesRefRamOverestimateFactor;
         this.parent = parent;
-        this.maxPrimitiveArrayBytes = maxPrimitiveArraySize.getBytes();
-        this.bytesRefRamOverestimateThreshold = bytesRefRamOverestimateThreshold;
-        this.bytesRefRamOverestimateFactor = bytesRefRamOverestimateFactor;
+        assert breaker instanceof LocalCircuitBreaker == false
+            || (parent != null && ((LocalCircuitBreaker) builder.breaker).parentBreaker() == parent.breaker)
+            : "use local breaker without parent block factory";
     }
 
-    public static BlockFactory getInstance(CircuitBreaker breaker, BigArrays bigArrays) {
-        return new BlockFactory(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, null);
+    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
+        this(BlockFactory.builder(bigArrays).breaker(breaker), null);
     }
 
     // For testing
@@ -119,12 +90,12 @@ public class BlockFactory {
             throw new IllegalStateException("Different parent breaker");
         }
         return new BlockFactory(
-            childBreaker,
-            bigArrays,
-            ByteSizeValue.ofBytes(maxPrimitiveArrayBytes),
-            this,
-            bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            BlockFactory.builder(bigArrays)
+                .breaker(childBreaker)
+                .maxPrimitiveArraySize(maxPrimitiveArrayBytes)
+                .bytesRefRamOverestimateThreshold(bytesRefRamOverestimateThreshold)
+                .bytesRefRamOverestimateFactor(bytesRefRamOverestimateFactor),
+            this
         );
     }
 

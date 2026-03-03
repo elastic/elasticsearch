@@ -257,7 +257,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
                 indexResolutions(unionIndex),
                 defaultLookupResolution(),
                 enrichResolution,
-                emptyInferenceResolution()
+                defaultInferenceResolution()
             ),
             TEST_VERIFIER
         );

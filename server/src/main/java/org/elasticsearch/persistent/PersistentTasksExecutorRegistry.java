@@ -32,7 +32,7 @@ public class PersistentTasksExecutorRegistry {
      * Set of task names whose executor has {@link PersistentTasksExecutor#automaticReassignmentOnShutdown()}
      * set to {@code false}.
      */
-    private static final Set<String> MANUAL_REASSIGNMENT_ON_SHUTDOWN_TASKS = ConcurrentCollections.newConcurrentSet();
+    private static final Set<String> NO_AUTOMATIC_REASSIGNMENT_ON_SHUTDOWN_TASKS = ConcurrentCollections.newConcurrentSet();
 
     private final Map<String, PersistentTasksExecutor<?>> taskExecutors;
 
@@ -54,7 +54,7 @@ public class PersistentTasksExecutorRegistry {
                 CLUSTER_SCOPED_TASKS.add(executor.getTaskName());
             }
             if (executor.automaticReassignmentOnShutdown() == false) {
-                MANUAL_REASSIGNMENT_ON_SHUTDOWN_TASKS.add(executor.getTaskName());
+                NO_AUTOMATIC_REASSIGNMENT_ON_SHUTDOWN_TASKS.add(executor.getTaskName());
             }
         }
         this.taskExecutors = Collections.unmodifiableMap(map);
@@ -87,6 +87,6 @@ public class PersistentTasksExecutorRegistry {
      * @param taskName the name of the persistent task to check
      */
     public static boolean taskIsAutomaticallyReassignedOnShutdown(String taskName) {
-        return MANUAL_REASSIGNMENT_ON_SHUTDOWN_TASKS.contains(taskName) == false;
+        return NO_AUTOMATIC_REASSIGNMENT_ON_SHUTDOWN_TASKS.contains(taskName) == false;
     }
 }

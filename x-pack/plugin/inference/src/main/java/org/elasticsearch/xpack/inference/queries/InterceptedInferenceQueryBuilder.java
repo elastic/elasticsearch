@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.con
 
 /**
  * <p>
- * An internal {@link QueryBuilder} type that associates an original query builder with a map of inference results required successfully
+ * An internal {@link QueryBuilder} type that associates an original query builder with a map of inference results required to successfully
  * query a {@link SemanticTextFieldMapper.SemanticTextFieldType}.
  * </p>
  * <p>
@@ -73,11 +73,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     protected InterceptedInferenceQueryBuilder(T originalQuery, Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
-        Objects.requireNonNull(originalQuery, "original query must not be null");
-        this.originalQuery = originalQuery;
-        this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
-        this.inferenceInfoFuture = null;
-        this.interceptedCcsRequest = false;
+        this(originalQuery, inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null, null, false);
     }
 
     @SuppressWarnings("unchecked")
@@ -108,7 +104,16 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
         boolean interceptedCcsRequest
     ) {
-        this.originalQuery = other.originalQuery;
+        this(other.originalQuery, inferenceResultsMap, inferenceInfoFuture, interceptedCcsRequest);
+    }
+
+    protected InterceptedInferenceQueryBuilder(
+        T originalQuery,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
+        boolean interceptedCcsRequest
+    ) {
+        this.originalQuery = Objects.requireNonNull(originalQuery, "original query must not be null");
         this.inferenceResultsMap = inferenceResultsMap;
         this.inferenceInfoFuture = inferenceInfoFuture;
         this.interceptedCcsRequest = interceptedCcsRequest;
@@ -155,7 +160,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * @param interceptedCcsRequest       Flag indicating if this is a CCS request
      * @return A copy of {@code this} with the provided inference results map
      */
-    protected abstract QueryBuilder copy(
+    protected abstract InterceptedInferenceQueryBuilder<T> copy(
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture,
         boolean interceptedCcsRequest
@@ -189,13 +194,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected abstract boolean useDefaultFields();
 
     /**
-     * Get the query-time inference ID override. If not applicable or available, {@code null} should be returned.
-     */
-    protected FullyQualifiedInferenceId getInferenceIdOverride() {
-        return null;
-    }
-
-    /**
      * Perform any custom pre-inference coordinator node validation.
      *
      * @param resolvedIndices The resolved indices
@@ -211,10 +209,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * @param inferenceInfo The inference information
      */
     protected void postInferenceCoordinatorNodeValidate(InferenceQueryUtils.InferenceInfo inferenceInfo) {}
-
-    protected T rewriteToOriginalQuery(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
-        return originalQuery;
-    }
 
     /**
      * A hook for subclasses to do additional rewriting and inference result fetching while we are on the coordinator node.
@@ -342,7 +336,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             if (inferenceFieldCount == 0 && interceptedCcsRequest == false) {
                 // We aren't querying any inference fields and this query wasn't intercepted in a previous coordinator node rewrite.
                 // Therefore, we don't need to intercept the query.
-                rewritten = rewriteToOriginalQuery(newInferenceResultsMap);
+                rewritten = originalQuery;
             } else if (Objects.equals(inferenceResultsMap, newInferenceResultsMap) == false) {
                 inferenceResultsErrorCheck(newInferenceResultsMap);
                 boolean newInterceptedCcsRequest = this.interceptedCcsRequest
@@ -360,7 +354,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             getFields(),
             getQuery(),
             inferenceResultsMap,
-            getInferenceIdOverride(),
             resolveWildcards(),
             useDefaultFields(),
             alwaysSkipRemotes

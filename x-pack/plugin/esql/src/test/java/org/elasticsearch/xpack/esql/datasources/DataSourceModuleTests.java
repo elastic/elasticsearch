@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
@@ -45,7 +46,7 @@ public class DataSourceModuleTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
     }
 
     /**
@@ -313,6 +314,41 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
+     * Test that with gzip plugin, compressed paths (.csv.gz) are supported.
+     */
+    public void testFileSourceFactoryCanHandleCompressedPaths() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        var fileFactory = module.sourceFactories().get("file");
+        assertNotNull(fileFactory);
+
+        assertTrue("Should handle file:///tmp/data.csv.gz", fileFactory.canHandle("file:///tmp/data.csv.gz"));
+        assertTrue("Should handle file:///tmp/data.tsv.gz", fileFactory.canHandle("file:///tmp/data.tsv.gz"));
+        assertFalse("Should not handle file:///tmp/data.parquet.gz", fileFactory.canHandle("file:///tmp/data.parquet.gz"));
+    }
+
+    /**
+     * Test that with gzip plugin, byExtension returns delegating reader for compound extensions.
+     */
+    public void testFormatReaderRegistryCompressedExtension() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+        assertTrue("Should have compressed extension for data.csv.gz", registry.hasCompressedExtension("data.csv.gz"));
+        assertFalse("Should not have compressed extension for data.csv", registry.hasCompressedExtension("data.csv"));
+
+        FormatReader reader = registry.byExtension("data.csv.gz");
+        assertNotNull(reader);
+        assertEquals("csv", reader.formatName());
+        assertTrue(
+            "Reader should be CompressionDelegatingFormatReader",
+            reader.getClass().getSimpleName().contains("CompressionDelegating")
+        );
+    }
+
+    /**
      * Test that DataSourceModule correctly reports table catalog availability.
      */
     public void testTableCatalogAvailability() {
@@ -392,7 +428,7 @@ public class DataSourceModuleTests extends ESTestCase {
         assertTrue("Custom provider should be registered", module.storageProviderRegistry().hasProvider("custom"));
         StorageProvider customProvider = module.storageProviderRegistry().provider(StoragePath.of("custom://bucket/file.txt"));
         assertNotNull("Custom provider should be retrievable", customProvider);
-        assertTrue("Custom provider should be MockStorageProvider", customProvider instanceof MockStorageProvider);
+        assertTrue("Custom provider should be wrapped with retry for non-file schemes", customProvider instanceof RetryableStorageProvider);
     }
 
     /**

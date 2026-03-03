@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 141920
+pr: 143460
+summary: Prevent pushdown of unmapped fields in filters and sorts
+type: "bug, feature"

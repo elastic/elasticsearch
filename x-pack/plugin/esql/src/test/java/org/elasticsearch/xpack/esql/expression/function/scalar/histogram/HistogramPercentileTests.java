@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.aggregation.TDigestStates;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -99,7 +100,8 @@ public class HistogramPercentileTests extends AbstractScalarFunctionTestCase {
         return switch (histogramObj) {
             case ExponentialHistogram expHisto -> ExponentialHistogramQuantile.getQuantile(expHisto, percVal / 100.0);
             case TDigestHolder tdigest -> {
-                try (TDigestState scratch = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION)) {
+                NoopCircuitBreaker noopBreaker = new NoopCircuitBreaker("noop-breaker");
+                try (TDigestState scratch = TDigestState.createOfType(noopBreaker, TDigestState.Type.MERGING, TDigestStates.COMPRESSION)) {
                     tdigest.addTo(scratch);
                     yield scratch.quantile(percVal / 100.0);
                 }

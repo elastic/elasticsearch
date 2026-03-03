@@ -9,7 +9,7 @@ ROW log = """{"severity":"ERROR","body":"Payment processing failed"}"""
 
 | log:keyword | severity:keyword |
 | --- | --- |
-| "{""severity"":""ERROR"",""body"":""Payment processing failed""}" | ERROR |
+| {"severity":"ERROR","body":"Payment processing failed"} | ERROR |
 
 The `$` prefix is optional — this query produces the same result as the previous example:
 
@@ -20,7 +20,7 @@ ROW log = """{"severity":"ERROR","body":"Payment processing failed"}"""
 
 | log:keyword | severity:keyword |
 | --- | --- |
-| "{""severity"":""ERROR"",""body"":""Payment processing failed""}" | ERROR |
+| {"severity":"ERROR","body":"Payment processing failed"} | ERROR |
 
 To extract a deeply nested value, use dot-notation:
 
@@ -31,7 +31,7 @@ ROW log = """{"resource":{"service":{"name":"order-service"}}}"""
 
 | log:keyword | svc:keyword |
 | --- | --- |
-| "{""resource"":{""service"":{""name"":""order-service""}}}" | order-service |
+| {"resource":{"service":{"name":"order-service"}}} | order-service |
 
 Keys that contain dots (common in OpenTelemetry semantic conventions) require quoted bracket notation — here `service.name` is a single key, not a nested path:
 
@@ -58,7 +58,7 @@ ROW log = """{"spans":[{"name":"auth","duration":12},{"name":"db-query","duratio
 
 | log:keyword | span:keyword |
 | --- | --- |
-| "{""spans"":[{""name"":""auth"",""duration"":12},{""name"":""db-query"",""duration"":45}]}" | db-query |
+| {"spans":[{"name":"auth","duration":12},{"name":"db-query","duration":45}]} | db-query |
 
 When the extracted value is an object or array, it is returned as a JSON string:
 
@@ -69,7 +69,7 @@ ROW log = """{"resource":{"service.name":"api-gateway","host.name":"api-server-0
 
 | log:keyword | resource:keyword |
 | --- | --- |
-| "{""resource"":{""service.name"":""api-gateway"",""host.name"":""api-server-03""},""severity"":""INFO""}" | "{""service.name"":""api-gateway"",""host.name"":""api-server-03""}" |
+| {"resource":{"service.name":"api-gateway","host.name":"api-server-03"},"severity":"INFO"} | {"service.name":"api-gateway","host.name":"api-server-03"} |
 
 To extract from a top-level JSON array, use a bracket index on the root element:
 

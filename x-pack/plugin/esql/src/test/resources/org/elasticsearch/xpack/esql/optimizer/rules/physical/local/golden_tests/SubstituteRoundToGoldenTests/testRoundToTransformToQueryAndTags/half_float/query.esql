@@ -1,0 +1,2 @@
+from all_types
+| stats count(*) by x = round_to(half_float, 4.0,2.0,3.0,1.0)

@@ -11,6 +11,10 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.EnumSet;
 
+/**
+ * Golden tests for filter and sort pushdown to Lucene.
+ * New pushdown tests should be added here rather than in {@link LocalPhysicalPlanOptimizerTests}.
+ */
 public class PushdownGoldenTests extends GoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOCAL_PHYSICAL_OPTIMIZATION);
 
@@ -19,7 +23,15 @@ public class PushdownGoldenTests extends GoldenTestCase {
             FROM sample_data
             | KEEP message
             | WHERE message == "Connection error?"
-            | SORT message
+            """;
+        runGoldenTest(query, STAGES);
+    }
+
+    public void testFilterPushdownNoUnmappedFilterOnly() {
+        String query = """
+            FROM sample_data
+            | KEEP message
+            | WHERE message == "Connection error?"
             """;
         runGoldenTest(query, STAGES);
     }
@@ -29,7 +41,6 @@ public class PushdownGoldenTests extends GoldenTestCase {
             FROM sample_data
             | KEEP message, does_not_exist
             | WHERE does_not_exist::KEYWORD == "Connection error?"
-            | SORT message
             """;
         runUnmappedTests(query);
     }
@@ -54,10 +65,37 @@ public class PushdownGoldenTests extends GoldenTestCase {
         runUnmappedTests(query);
     }
 
+    public void testFilterConjunctionPushableAndNonPushable() {
+        String query = """
+            FROM sample_data
+            | KEEP message, does_not_exist
+            | WHERE message == "Connection error?" AND does_not_exist::KEYWORD == "foo"
+            """;
+        runUnmappedTests(query);
+    }
+
+    public void testFilterDisjunctionPushableAndNonPushable() {
+        String query = """
+            FROM sample_data
+            | KEEP message, does_not_exist
+            | WHERE message == "Connection error?" OR does_not_exist::KEYWORD == "foo"
+            """;
+        runUnmappedTests(query);
+    }
+
+    public void testSortConjunctionPushableAndNonPushable() {
+        String query = """
+            FROM sample_data
+            | KEEP message, does_not_exist
+            | SORT message, does_not_exist
+            | LIMIT 5
+            """;
+        runUnmappedTests(query);
+    }
+
     private void runUnmappedTests(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
-        assumeTrue("Requires OPTIONAL_FIELDS", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
         runGoldenTest("SET unmapped_fields=\"nullify\"; " + query, STAGES, "nullify");
+        assumeTrue("Requires OPTIONAL_FIELDS_V2 for load", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
         runGoldenTest("SET unmapped_fields=\"load\"; " + query, STAGES, "load");
     }
 }

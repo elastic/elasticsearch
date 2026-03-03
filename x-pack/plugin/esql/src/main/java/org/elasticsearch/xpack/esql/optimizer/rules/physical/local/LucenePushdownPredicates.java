@@ -83,6 +83,8 @@ public interface LucenePushdownPredicates {
      * support it, and relying on the compute engine for the nodes that do not.
      */
     default boolean isPushableFieldAttribute(Expression exp) {
+        // Potentially unmapped fields are not pushabled: the field may be unmapped on some shards, and pushing down would produce wrong
+        // results (e.g., missing rows when the predicate is pushed to Lucene).
         if (exp instanceof FieldAttribute fa
             && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false
             && fa.getExactInfo().hasExact()

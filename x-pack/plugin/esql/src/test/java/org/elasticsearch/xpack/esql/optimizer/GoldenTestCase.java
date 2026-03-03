@@ -204,8 +204,13 @@ public abstract class GoldenTestCase extends ESTestCase {
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = EsqlParser.INSTANCE.createStatement(esqlQuery);
             LogicalPlan parsedPlan = statement.plan();
-            Files.createDirectories(PathUtils.get(basePath.toString(), testName));
-            Files.writeString(PathUtils.get(basePath.toString(), testName, "query.esql"), esqlQuery);
+            String[] queryPathParts = new String[nestedPath.length + 2];
+            queryPathParts[0] = testName;
+            System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);
+            queryPathParts[queryPathParts.length - 1] = "query.esql";
+            Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
+            Files.createDirectories(queryPath.getParent());
+            Files.writeString(queryPath, esqlQuery);
             var analyzer = new Analyzer(
                 new AnalyzerContext(
                     EsqlTestUtils.TEST_CFG,

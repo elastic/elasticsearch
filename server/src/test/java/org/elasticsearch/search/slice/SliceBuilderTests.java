@@ -255,6 +255,54 @@ public class SliceBuilderTests extends ESTestCase {
         }
     }
 
+    public void testToFilterWithIdFieldAndPointInTime() throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            SearchExecutionContext context = createShardContext(IndexVersion.current(), reader, "_id", null);
+            SliceBuilder builder = new SliceBuilder("_id", 5, 10);
+            // Force toFilter to take the numShards == 1 path
+            Query query = builder.toFilter(createPointInTimeRequest(0, 1), context);
+
+            assertThat(query, instanceOf(TermsSliceQuery.class));
+            assertThat(builder.toFilter(createPointInTimeRequest(0, 1), context), equalTo(query));
+        }
+    }
+
+    public void testToFilterWithIdFieldAndScroll() throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            SearchExecutionContext context = createShardContext(IndexVersion.current(), reader, "_id", null);
+            SliceBuilder builder = new SliceBuilder("_id", 5, 10);
+            // Force toFilter to take the numShards == 1 path
+            Query query = builder.toFilter(createScrollRequest(0, 1), context);
+
+            assertThat(query, instanceOf(TermsSliceQuery.class));
+            assertThat(builder.toFilter(createScrollRequest(0, 1), context), equalTo(query));
+        }
+    }
+
+    public void testToFilterWithIdFieldAndPointInTimeWithMultipleShards() throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            SearchExecutionContext context = createShardContext(IndexVersion.current(), reader, "_id", null);
+            SliceBuilder builder = new SliceBuilder("_id", 0, 4);
+            // Force toFilter to take the max > numShards path
+            Query query = builder.toFilter(createPointInTimeRequest(0, 2), context);
+
+            assertThat(query, instanceOf(TermsSliceQuery.class));
+            assertThat(builder.toFilter(createPointInTimeRequest(0, 2), context), equalTo(query));
+        }
+    }
+
     public void testToFilterRandom() throws IOException {
         Directory dir = new ByteBuffersDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {

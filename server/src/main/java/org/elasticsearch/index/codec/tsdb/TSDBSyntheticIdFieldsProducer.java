@@ -232,40 +232,44 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             final long timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(id);
 
             // Use doc values skipper on timestamp to early exit or skip to the first document matching the timestamp
+            int nextDocID;
             var skipper = docValues.docValuesSkipperForTimestamp();
-            if (timestamp > skipper.maxValue()) {
-                // timestamp is greater than the global maximum value in the segment, so the first docID matching the _tsid is guaranteed to
-                // have a smaller timestamp that the one we're looking for and we can early exit at the current docID position. Note that
-                // synthetic ids are generated so that the resulting array of bytes has a natural order that reflects the order of docs in
-                // the segment (_tsid asc then @timestamp desc). So if timestamp > skipper.maxValue(), it means that the next doc has a
-                // @timestamp smaller than what we're looking for.
-                docID = firstDocID;
-                docTsIdOrd = tsIdOrd;
-                docTimestamp = null;
-                return SeekStatus.NOT_FOUND;
-            }
-            if (skipper.minValue() > timestamp) {
-                // timestamp is smaller than the global minimum value in the segment, so no docs matching the _tsid will also match the
-                // timestamp, so we can early exit at the position of the next _tsid (if there is such one).
-                int nextDocTsIdOrd = tsIdOrd + 1;
-                if (nextDocTsIdOrd < docValues.getTsIdValueCount()) {
-                    docID = docValues.findFirstDocWithTsIdOrdinalEqualTo(nextDocTsIdOrd);
-                    docTsIdOrd = nextDocTsIdOrd;
+            if (skipper != null) {
+                if (timestamp > skipper.maxValue()) {
+                    // timestamp is greater than the global maximum value in the segment, so the first docID matching the _tsid is
+                    // guaranteed to have a smaller timestamp that the one we're looking for and we can early exit at the current docID
+                    // position. Note that synthetic ids are generated so that the resulting array of bytes has a natural order that
+                    // reflects the order of docs in the segment (_tsid asc then @timestamp desc). So if timestamp > skipper.maxValue(),
+                    // it means that the next doc has a @timestamp smaller than what we're looking for.
+                    docID = firstDocID;
+                    docTsIdOrd = tsIdOrd;
                     docTimestamp = null;
                     return SeekStatus.NOT_FOUND;
                 }
-                // no docs/terms to iterate on
-                resetDocID(DocIdSetIterator.NO_MORE_DOCS);
-                return SeekStatus.END;
-            }
-            skipper.advance(firstDocID);
-            skipper.advance(timestamp, Long.MAX_VALUE);
+                if (skipper.minValue() > timestamp) {
+                    // timestamp is smaller than the global minimum value in the segment, so no docs matching the _tsid will also match
+                    // the timestamp, so we can early exit at the position of the next _tsid (if there is such one).
+                    int nextDocTsIdOrd = tsIdOrd + 1;
+                    if (nextDocTsIdOrd < docValues.getTsIdValueCount()) {
+                        docID = docValues.findFirstDocWithTsIdOrdinalEqualTo(nextDocTsIdOrd);
+                        docTsIdOrd = nextDocTsIdOrd;
+                        docTimestamp = null;
+                        return SeekStatus.NOT_FOUND;
+                    }
+                    // no docs/terms to iterate on
+                    resetDocID(DocIdSetIterator.NO_MORE_DOCS);
+                    return SeekStatus.END;
+                }
+                skipper.advance(firstDocID);
+                skipper.advance(timestamp, Long.MAX_VALUE);
 
-            int nextDocID;
-            if (skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
-                nextDocID = Math.max(firstDocID, skipper.minDocID(0));
+                if (skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS) {
+                    nextDocID = Math.max(firstDocID, skipper.minDocID(0));
+                } else {
+                    // we exhausted the doc values skipper, scan all docs from first doc matching _tsid
+                    nextDocID = firstDocID;
+                }
             } else {
-                // we exhausted the doc values skipper, scan all docs from first doc matching _tsid
                 nextDocID = firstDocID;
             }
             int nextDocTsIdOrd = tsIdOrd;

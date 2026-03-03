@@ -16,8 +16,6 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MultiDocValues;
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;

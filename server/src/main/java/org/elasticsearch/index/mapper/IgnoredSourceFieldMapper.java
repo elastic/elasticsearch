@@ -9,11 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;

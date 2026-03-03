@@ -69,6 +69,10 @@ public class StatelessPrefetchIT extends AbstractStatelessPluginIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
+        // Break the idle barrier. Otherwise, prefetching is skipped because the shard is considered idle.
+        // When max_commits is low enough that BCCs are uploaded, segment data reads route to the object store.
+        // If the data wasn't prefetched into the SharedBlobCache, the subsequent repository block causes the search to hang.
+        assertHitCount(client().prepareSearch(indexName).setQuery(new MatchAllQueryBuilder()), 0);
         int rounds = randomIntBetween(1, 4);
         int totalDocs = 0;
         for (int i = 0; i < rounds; i++) {

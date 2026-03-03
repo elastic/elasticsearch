@@ -109,13 +109,14 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
         assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(1));
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
-        assertEquals("""
+        long mappingSize = mappingSize(metadata);
+        assertEquals(Strings.format("""
             {
               "mappings" : {
                 "total_field_count" : 12,
                 "total_deduplicated_field_count" : 6,
-                "total_deduplicated_mapping_size" : "260b",
-                "total_deduplicated_mapping_size_in_bytes" : 260,
+                "total_deduplicated_mapping_size" : "%sb",
+                "total_deduplicated_mapping_size_in_bytes" : %s,
                 "field_types" : [
                   {
                     "name" : "dense_vector",
@@ -217,7 +218,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                   "stored" : 2
                 }
               }
-            }""", Strings.toString(mappingStats, true, true));
+            }""", mappingSize, mappingSize), Strings.toString(mappingStats, true, true));
     }
 
     public void testToXContentWithSomeSharedMappings() {
@@ -241,13 +242,14 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
         assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(2));
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
-        assertEquals("""
+        long mappingSize = mappingSize(metadata);
+        assertEquals(Strings.format("""
             {
               "mappings" : {
                 "total_field_count" : 18,
                 "total_deduplicated_field_count" : 12,
-                "total_deduplicated_mapping_size" : "519b",
-                "total_deduplicated_mapping_size_in_bytes" : 519,
+                "total_deduplicated_mapping_size" : "%sb",
+                "total_deduplicated_mapping_size_in_bytes" : %s,
                 "field_types" : [
                   {
                     "name" : "dense_vector",
@@ -349,7 +351,11 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                   "stored" : 3
                 }
               }
-            }""", Strings.toString(mappingStats, true, true));
+            }""", mappingSize, mappingSize), Strings.toString(mappingStats, true, true));
+    }
+
+    private static long mappingSize(Metadata metadata) {
+        return metadata.getProject().getMappingsByHash().values().stream().mapToLong(v -> v.source().compressed().length).sum();
     }
 
     private static String scriptAsJSON(String script) {

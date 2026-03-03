@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
@@ -59,5 +60,26 @@ public class LimitSerializationTests extends AbstractLogicalPlanSerializationTes
         // So, we need to manually simulate this situation.
         Limit deserializedCopy = super.copyInstance(instance, version);
         return deserializedCopy.withDuplicated(instance.duplicated()).withLocal(instance.local());
+    }
+
+    public void testSerializationWithGroupingsOnOldVersion() {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Limit.ESQL_LIMIT_BY);
+        Source source = randomSource();
+        Expression limit = FieldAttributeTests.createFieldAttribute(0, false);
+        LogicalPlan child = randomChild(0);
+        List<Expression> groupings = randomList(1, 3, () -> FieldAttributeTests.createFieldAttribute(0, false));
+        Limit instance = new Limit(source, limit, child, groupings, false, false);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> copyInstance(instance, oldVersion));
+        assertEquals("LIMIT BY is not supported by all nodes in the cluster", e.getMessage());
+    }
+
+    public void testSerializationWithoutGroupingsOnOldVersion() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(Limit.ESQL_LIMIT_BY);
+        Source source = randomSource();
+        Expression limit = FieldAttributeTests.createFieldAttribute(0, false);
+        LogicalPlan child = randomChild(0);
+        Limit instance = new Limit(source, limit, child, List.of(), false, false);
+        Limit deserialized = copyInstance(instance, oldVersion);
+        assertEquals(List.of(), deserialized.groupings());
     }
 }

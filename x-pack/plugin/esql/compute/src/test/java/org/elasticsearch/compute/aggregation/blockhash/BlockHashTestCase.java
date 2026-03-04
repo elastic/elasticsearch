@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -45,10 +46,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public abstract class BlockHashTestCase extends ESTestCase {
-
     final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+    final MockBlockFactory blockFactory = new MockBlockFactory(
+        BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker)))
+    );
 
     @After
     public void checkBreaker() {

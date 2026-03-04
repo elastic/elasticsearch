@@ -8,6 +8,7 @@
 package org.elasticsearch.blobcache.shared;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
@@ -22,6 +23,7 @@ import java.nio.file.Files;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SharedBytesTests extends ESTestCase {
 
@@ -115,6 +117,105 @@ public class SharedBytesTests extends ESTestCase {
                     assertEquals((byte) 0, readRegionData[i]);
                 }
             }
+        } finally {
+            if (sharedBytes != null) {
+                sharedBytes.decRef();
+            }
+        }
+    }
+
+    // Verifies that byteBufferSlice returns a read-only buffer with correct content when mmap
+    // is enabled. Randomized region count (1-4) and region size (1-16 pages).
+    public void testByteBufferSliceMmap() throws Exception {
+        int regions = randomIntBetween(1, 4);
+        int regionSize = randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE;
+        var nodeSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put("path.home", createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+            .build();
+        SharedBytes sharedBytes = null;
+        try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
+            // mmap=true
+            sharedBytes = new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, true);
+            int region = randomIntBetween(0, regions - 1);
+            byte[] randomData = randomByteArrayOfLength(regionSize);
+            ByteBuffer tempBuffer = ByteBuffer.allocate(regionSize);
+            SharedBytes.copyToCacheFileAligned(
+                sharedBytes.getFileChannel(region),
+                new ByteArrayInputStream(randomData),
+                0,
+                writtenBytesCount -> {},
+                tempBuffer
+            );
+
+            SharedBytes.IO io = sharedBytes.getFileChannel(region);
+
+            // byteBufferSlice returns a non-null read-only buffer with correct data
+            int sliceOffset = randomIntBetween(0, regionSize / 2);
+            int sliceLength = randomIntBetween(1, regionSize - sliceOffset);
+            ByteBuffer slice = io.byteBufferSlice(sliceOffset, sliceLength);
+            assertNotNull(slice);
+            assertTrue(slice.isReadOnly());
+            assertEquals(sliceLength, slice.remaining());
+            byte[] sliceData = new byte[sliceLength];
+            slice.get(sliceData);
+            for (int i = 0; i < sliceLength; i++) {
+                assertEquals(randomData[sliceOffset + i], sliceData[i]);
+            }
+        } finally {
+            if (sharedBytes != null) {
+                sharedBytes.decRef();
+            }
+        }
+    }
+
+    // Verifies that byteBufferSlice returns null when mmap is disabled.
+    // Randomized region count (1-4) and region size (1-16 pages), mmap=false.
+    public void testByteBufferSliceNoMmap() throws Exception {
+        int regions = randomIntBetween(1, 4);
+        int regionSize = randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE;
+        var nodeSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put("path.home", createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+            .build();
+        SharedBytes sharedBytes = null;
+        try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
+            // mmap=false
+            sharedBytes = new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, false);
+            int region = randomIntBetween(0, regions - 1);
+            SharedBytes.IO io = sharedBytes.getFileChannel(region);
+
+            // byteBufferSlice returns null when not mmap'd
+            assertThat(io.byteBufferSlice(0, regionSize), nullValue());
+        } finally {
+            if (sharedBytes != null) {
+                sharedBytes.decRef();
+            }
+        }
+    }
+
+    // Verifies that byteBufferSlice rejects out-of-bounds requests: offset+length exceeding
+    // region size, and negative offset. Single region of 4 pages, mmap=true.
+    public void testByteBufferSliceBoundsCheck() throws Exception {
+        int regions = 1;
+        int regionSize = 4 * SharedBytes.PAGE_SIZE;
+        var nodeSettings = Settings.builder()
+            .put(Node.NODE_NAME_SETTING.getKey(), "node")
+            .put("path.home", createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString())
+            .build();
+        SharedBytes sharedBytes = null;
+        try (var nodeEnv = new NodeEnvironment(nodeSettings, TestEnvironment.newEnvironment(nodeSettings))) {
+            sharedBytes = new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, true);
+            SharedBytes.IO io = sharedBytes.getFileChannel(0);
+
+            var expectedType = Assertions.ENABLED ? AssertionError.class : IllegalArgumentException.class;
+            // position + length exceeds region size
+            expectThrows(expectedType, () -> io.byteBufferSlice(regionSize - 10, 20));
+            // negative position
+            expectThrows(expectedType, () -> io.byteBufferSlice(-1, 10));
         } finally {
             if (sharedBytes != null) {
                 sharedBytes.decRef();

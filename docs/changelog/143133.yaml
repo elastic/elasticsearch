@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143133
+summary: ES|QL - Top N queries are parallelized
+type: enhancement

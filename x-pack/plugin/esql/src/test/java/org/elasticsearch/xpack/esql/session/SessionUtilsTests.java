@@ -151,7 +151,7 @@ public class SessionUtilsTests extends ESTestCase {
         CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(breaker);
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService);
-        return new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        return BlockFactory.builder(bigArrays).build();
     }
 
     private static void enqueueBlock(BytesRefBlock.Builder builder, List<Page> pages) {

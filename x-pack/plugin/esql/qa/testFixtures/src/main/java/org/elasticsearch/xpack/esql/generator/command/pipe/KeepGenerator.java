@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.generator.FunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -22,6 +21,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isUnmappedFieldsEnabled;
 
 public class KeepGenerator implements CommandGenerator {
 
@@ -41,7 +41,7 @@ public class KeepGenerator implements CommandGenerator {
         QuerySchema schema,
         QueryExecutor executor
     ) {
-        boolean unmappedFieldsEnabled = FunctionGenerator.isUnmappedFieldsEnabled(previousCommands);
+        boolean unmappedFieldsEnabled = isUnmappedFieldsEnabled(previousCommands);
         int n = randomIntBetween(1, previousOutput.size());
         Set<String> proj = new HashSet<>();
         for (int i = 0; i < n; i++) {

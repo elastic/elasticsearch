@@ -8,8 +8,8 @@
  */
 package org.elasticsearch.benchmark.bytes;
 
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 public class BytesArrayIndexOfBenchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     static final byte MARKER = (byte) '\n';

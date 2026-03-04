@@ -50,7 +50,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
     public void testFormatName() {

@@ -19,7 +19,6 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -71,8 +70,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
     @Before
     public void setupBlockFactory() {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        this.blockFactory = new BlockFactory(breaker, bigArrays);
+        this.blockFactory = BlockFactory.builder(bigArrays).build();
     }
 
     @After

@@ -71,4 +71,8 @@ public class TrainedModelSizeStats implements ToXContentObject, Writeable {
     public long getModelSizeBytes() {
         return modelSizeBytes;
     }
+
+    public long getRequiredNativeMemoryBytes() {
+        return requiredNativeMemoryBytes;
+    }
 }

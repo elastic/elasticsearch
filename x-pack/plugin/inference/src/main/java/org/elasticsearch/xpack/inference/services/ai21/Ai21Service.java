@@ -64,7 +64,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
  * using AI21 models. It supports completion and chat completion tasks.
  * The service uses Ai21ActionCreator to create actions for executing inference requests.
  */
-public class Ai21Service extends SenderService {
+public class Ai21Service extends SenderService<Ai21Model> {
     public static final String NAME = "ai21";
 
     private static final String SERVICE_NAME = "AI21";
@@ -94,7 +94,7 @@ public class Ai21Service extends SenderService {
     }
 
     public Ai21Service(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -203,20 +203,6 @@ public class Ai21Service extends SenderService {
     }
 
     @Override
-    public Ai21Model parsePersistedConfigWithSecrets(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, secretSettingsMap);
-    }
-
-    @Override
     public Ai21Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
             MODEL_CREATORS,
@@ -225,14 +211,6 @@ public class Ai21Service extends SenderService {
             config.getService(),
             ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
-    public Ai21Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        return createModelFromPersistent(modelId, taskType, serviceSettingsMap, null);
     }
 
     @Override
@@ -262,15 +240,6 @@ public class Ai21Service extends SenderService {
             secretSettings,
             context
         );
-    }
-
-    private Ai21Model createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> secretSettings
-    ) {
-        return createModel(inferenceEntityId, taskType, serviceSettings, secretSettings, ConfigurationParseContext.PERSISTENT);
     }
 
     /**

@@ -678,4 +678,15 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertNotNull(rewriteQuery.toQuery(context));
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
+
+    public void testRangeQueryCircuitBreakerAccountingTextFields() throws IOException {
+        assertCircuitBreakerAccountsForQuery(new RangeQueryBuilder(TEXT_FIELD_NAME).gte("aaa").lte("zzz"));
+    }
+
+    public void testRangeQueryCircuitBreakerTripsOnLargeTextRange() {
+        assertCircuitBreakerTripsOnQueryConstruction(
+            "1kb",
+            () -> new RangeQueryBuilder(TEXT_FIELD_NAME).gte("a").lte("zzzzzzzzzzzzzzzzzzzz")
+        );
+    }
 }

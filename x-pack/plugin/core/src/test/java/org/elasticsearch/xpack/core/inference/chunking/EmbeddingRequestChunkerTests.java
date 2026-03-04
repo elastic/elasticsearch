@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.inference.chunking;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.WeightedToken;
@@ -28,7 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.inference.InferenceString.DataType.TEXT;
+import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.DEFAULT_SETTINGS;
 import static org.hamcrest.Matchers.contains;
@@ -1081,7 +1082,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
 
     public void testDoesNotChunkNonTextInputs_whenChunkingSettingsAreNullInInput() {
         InferenceString nonTextString = new InferenceString(
-            randomValueOtherThan(TEXT, () -> randomFrom(InferenceString.DataType.values())),
+            randomValueOtherThan(TEXT, () -> randomFrom(DataType.values())),
             "image chunks"
         );
         ChunkInferenceInput imageInput = new ChunkInferenceInput(new InferenceStringGroup(nonTextString), null);
@@ -1102,7 +1103,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
 
     public void testDoesNotChunkNonTextInputs_whenChunkingSettingsAreSpecifiedInInput() {
         InferenceString nonTextString = new InferenceString(
-            randomValueOtherThan(TEXT, () -> randomFrom(InferenceString.DataType.values())),
+            randomValueOtherThan(TEXT, () -> randomFrom(DataType.values())),
             "image chunks"
         );
         WordBoundaryChunkingSettings chunkingSettings = new WordBoundaryChunkingSettings(1, 0);

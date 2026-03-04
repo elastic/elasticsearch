@@ -60,6 +60,11 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
+tasks.named("javadoc").configure {
+  // ORC/Hadoop dependency tree causes javadoc issues (unnamed vs named module conflicts)
+  enabled = false
+}
+
 tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /orc-.*/, to: 'orc'

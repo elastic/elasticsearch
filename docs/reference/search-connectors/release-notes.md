@@ -13,6 +13,12 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.3.1 [connectors-9.2.1-release-notes]
+* Fixed an issue where MultiService would enter an unresponsive state instead of shutting down cleanly when a managed service crashed with an unhandled exception. ([#3940](https://github.com/elastic/connectors/pull/3940),[#3939](https://github.com/elastic/connectors/issues/3939))
+
+## 9.2.6 [connectors-9.2.1-release-notes]
+* Fixed an issue where MultiService would enter an unresponsive  state instead of shutting down cleanly when a managed service crashed with an unhandled exception. ([#3940](https://github.com/elastic/connectors/pull/3940), [#3939](https://github.com/elastic/connectors/issues/3939))
+
 ## 9.3.0 [connectors-9.3.0-release-notes]
 
 ### Fixes [connectors-9.3.0-fixes]

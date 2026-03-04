@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Tuple;
@@ -31,7 +30,7 @@ public class FirstLastAggregatorTestingUtils {
         for (Page page : input) {
             matchingGroups(page, group).forEach(p -> {
                 Block values = page.getBlock(1);
-                LongBlock timestamps = page.getBlock(2);
+                Block timestamps = page.getBlock(2);
                 Tuple<List<Long>, List<Object>> pair = unpack(timestamps, values, p);
                 work.add(pair.v1(), pair.v2());
             });
@@ -44,7 +43,7 @@ public class FirstLastAggregatorTestingUtils {
     public static void processPages(GroundTruthFirstLastAggregator work, List<Page> input) {
         for (Page page : input) {
             Block values = page.getBlock(0);
-            LongBlock timestamps = page.getBlock(1);
+            Block timestamps = page.getBlock(1);
 
             for (int p = 0; p < page.getPositionCount(); ++p) {
                 Tuple<List<Long>, List<Object>> pair = unpack(timestamps, values, p);
@@ -57,9 +56,12 @@ public class FirstLastAggregatorTestingUtils {
      * Unpacks values of the passed two blocks, at the given position, into two lists. If there are no values for a particular block
      * at that position, the corresponding list is empty.
      */
-    private static Tuple<List<Long>, List<Object>> unpack(LongBlock timestamps, Block values, int p) {
+    private static Tuple<List<Long>, List<Object>> unpack(Block timestamps, Block values, int p) {
         // extract all timestamps at this position into a list
-        List<Long> timestampsAtPosition = BlockTestUtils.valuesAtPosition(timestamps, p, true);
+        List<Long> timestampsAtPosition = BlockTestUtils.valuesAtPosition(timestamps, p, true)
+            .stream()
+            .map(v -> ((Number) v).longValue())
+            .toList();
 
         // extract all values at this position into a list
         List<Object> valuesAtPosition = BlockTestUtils.valuesAtPosition(values, p, true);

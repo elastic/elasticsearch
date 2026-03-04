@@ -59,7 +59,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionServiceSettings;
@@ -147,7 +146,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             new CommonConfig(TEXT_EMBEDDING, SPARSE_EMBEDDING, EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK)) {
 
                 @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                protected NvidiaService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return NvidiaServiceTests.createService(threadPool, clientManager);
                 }
 
@@ -319,7 +318,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
         assertThat(nvidiaModel.getTaskType(), is(RERANK));
     }
 
-    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static NvidiaService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }

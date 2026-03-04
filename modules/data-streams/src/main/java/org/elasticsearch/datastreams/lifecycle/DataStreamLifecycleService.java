@@ -39,6 +39,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
@@ -74,6 +75,7 @@ import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmActionContext;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
+import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -185,6 +187,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> forceMergeClusterStateUpdateTaskQueue;
     private final MasterServiceTaskQueue<DeleteSourceAndAddDownsampleToDS> swapSourceWithDownsampleIndexQueue;
+    private final MasterServiceTaskQueue<MarkIndexForDlmForceMergeTask> markIndexForDlmForceMergeQueue;
     private volatile ByteSizeValue targetMergePolicyFloorSegment;
     private volatile int targetMergePolicyFactor;
     /**
@@ -252,6 +255,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             "data-stream-lifecycle-swap-source-with-downsample",
             Priority.URGENT, // urgent priority as this deletes indices
             new DeleteSourceAndAddDownsampleIndexExecutor(allocationService)
+        );
+        this.markIndexForDlmForceMergeQueue = clusterService.createTaskQueue(
+            "dlm-mark-index-for-force-merge",
+            Priority.LOW,
+            new MarkIndexForDLMForceMergeExecutor()
         );
         this.dslHealthInfoPublisher = dataStreamLifecycleHealthInfoPublisher;
         this.actions = actions;
@@ -513,7 +521,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             transportActionsDeduplicator,
             errorStore,
             signallingErrorRetryInterval,
-            client
+            client,
+            Clock.systemUTC()
         );
         for (DlmAction action : actions) {
 
@@ -568,7 +577,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             for (Index index : indicesEligibleForAction) {
                 long findStepStartTime = nowSupplier.getAsLong();
-                DlmStep stepToExecute = findFirstIncompleteStep(projectState, dataStream, action, index);
+                int stepToExecuteIndex = findFirstIncompleteStepIndex(projectState, dataStream, action, index);
                 if (logger.isTraceEnabled()) {
                     long findStepDuration = nowSupplier.getAsLong() - findStepStartTime;
                     logger.trace(
@@ -580,7 +589,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     );
                 }
 
-                if (stepToExecute != null) {
+                if (stepToExecuteIndex >= 0) {
+                    DlmStep stepToExecute = action.steps().get(stepToExecuteIndex);
                     try {
                         logger.trace(
                             "Executing step [{}] for action [{}] on datastream [{}] index [{}]",
@@ -590,7 +600,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             index.getName()
                         );
                         long stepStartTime = nowSupplier.getAsLong();
-                        DlmStepContext dlmStepContext = actionContext.stepContextFor(index);
+                        Index indexForExecution = resolveIndexOutputFromPreviousStep(stepToExecuteIndex, index, action, projectState);
+                        DlmStepContext dlmStepContext = actionContext.stepContextFor(indexForExecution);
                         stepToExecute.execute(dlmStepContext);
                         if (logger.isTraceEnabled()) {
                             long stepDuration = nowSupplier.getAsLong() - stepStartTime;
@@ -633,20 +644,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         return indicesProcessed;
     }
 
-    private DlmStep findFirstIncompleteStep(ProjectState projectState, DataStream dataStream, DlmAction action, Index index) {
-        DlmStep stepToExecute = null;
-        for (DlmStep step : action.steps().reversed()) {
+    private int findFirstIncompleteStepIndex(ProjectState projectState, DataStream dataStream, DlmAction action, Index index) {
+        assert action.steps().size() >= 1 : "an action must have at least one step";
+        int stepToExecute = -1;
+        for (int i = action.steps().size() - 1; i >= 0; i--) {
+            DlmStep step = action.steps().get(i);
             try {
                 long checkStartTime = nowSupplier.getAsLong();
-                if (step.stepCompleted(index, projectState) == false) {
-                    stepToExecute = step;
+                Index indexInUse = resolveIndexOutputFromPreviousStep(i, index, action, projectState);
+                if (step.stepCompleted(indexInUse, projectState) == false) {
+                    stepToExecute = i;
                     if (logger.isTraceEnabled()) {
                         logger.trace(
                             "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete, checked in [{}]",
                             step.stepName(),
                             action.name(),
                             dataStream.getName(),
-                            index.getName(),
+                            indexInUse.getName(),
                             formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
                         );
                     }
@@ -657,7 +671,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             step.stepName(),
                             action.name(),
                             dataStream.getName(),
-                            index.getName(),
+                            indexInUse.getName(),
                             formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
                         );
                     }
@@ -678,6 +692,32 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
         }
         return stepToExecute;
+    }
+
+    // visible for testing
+    Index resolveIndexOutputFromPreviousStep(int stepToExecuteIndex, Index index, DlmAction action, ProjectState projectState) {
+        if (stepToExecuteIndex < 1) {
+            return index;
+        }
+
+        DlmStep previousStep = action.steps().get(stepToExecuteIndex - 1);
+        List<String> possibleIndexNames = previousStep.possibleOutputIndexNamePatterns(index.getName());
+
+        return possibleIndexNames.stream()
+            .filter(projectState.metadata()::hasIndex)
+            .findFirst()
+            .map(possibleName -> projectState.metadata().index(possibleName).getIndex())
+            .orElseGet(() -> {
+                assert false
+                    : "Unable to resolve index name for executing step ["
+                        + action.steps().get(stepToExecuteIndex).stepName()
+                        + "] for action ["
+                        + action.name()
+                        + "] with index ["
+                        + index.getName()
+                        + "]";
+                return index;
+            });
     }
 
     // visible for testing
@@ -1759,6 +1799,47 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * MarkIndexForDLMForceMergeExecutor for the MarkIndexForDlmForceMergeTask.
+     * Public for testing.
+     */
+    public static class MarkIndexForDLMForceMergeExecutor implements ClusterStateTaskExecutor<MarkIndexForDlmForceMergeTask> {
+        @Override
+        public ClusterState execute(BatchExecutionContext<MarkIndexForDlmForceMergeTask> batchExecutionContext) {
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try {
+                    final MarkIndexForDlmForceMergeTask task = taskContext.getTask();
+                    state = task.execute(state);
+                    taskContext.success(task);
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
+            }
+            return state;
+        }
+    }
+
+    /**
+     * Marks the given index to be force merged for DLM by updating the cluster state with the name of the index to be force merged in the
+     * custom metadata of the source index. This method returns immediately, but the update to the cluster state happens asynchronously and
+     * the listener is notified on success or failure of the cluster state update.
+     * @param projectId the id of the project the index belongs to
+     * @param request the request
+     * @param listener the listener to be notified on success or failure of the cluster state update.
+     */
+    public void markIndexForDlmForceMerge(
+        ProjectId projectId,
+        MarkIndexForDLMForceMergeAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        markIndexForDlmForceMergeQueue.submitTask(
+            Strings.format("DLM marking index [%s] to be force merged for DLM", request.getIndexToBeForceMerged()),
+            new MarkIndexForDlmForceMergeTask(listener, projectId, request),
+            null
+        );
     }
 
     /**

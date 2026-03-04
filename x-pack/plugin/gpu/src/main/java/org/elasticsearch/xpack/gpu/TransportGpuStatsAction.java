@@ -38,6 +38,7 @@ public class TransportGpuStatsAction extends TransportNodesAction<
     Void> {
 
     private final boolean gpuSettingEnabled;
+    private final GPUSupport gpuSupport;
 
     @Inject
     public TransportGpuStatsAction(
@@ -45,7 +46,8 @@ public class TransportGpuStatsAction extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        Settings settings
+        Settings settings,
+        GPUSupport gpuSupport
     ) {
         super(
             GpuStatsAction.NAME,
@@ -55,8 +57,9 @@ public class TransportGpuStatsAction extends TransportNodesAction<
             NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.gpuSupport = gpuSupport;
         GPUPlugin.GpuMode gpuMode = GPUPlugin.VECTORS_INDEXING_USE_GPU_NODE_SETTING.get(settings);
-        this.gpuSettingEnabled = gpuMode != GPUPlugin.GpuMode.FALSE && GPUSupport.isSupported();
+        this.gpuSettingEnabled = gpuMode != GPUPlugin.GpuMode.FALSE && gpuSupport.isSupported();
     }
 
     @Override
@@ -82,11 +85,11 @@ public class TransportGpuStatsAction extends TransportNodesAction<
     protected NodeGpuStatsResponse nodeOperation(NodeRequest nodeRequest, Task task) {
         return new NodeGpuStatsResponse(
             clusterService.localNode(),
-            GPUSupport.isSupported(),
+            gpuSupport.isSupported(),
             gpuSettingEnabled,
             GPUSupport.getUsageCount(),
-            GPUSupport.getTotalGpuMemory(),
-            GPUSupport.getGpuName()
+            gpuSupport.getTotalGpuMemory(),
+            gpuSupport.getGpuName()
         );
     }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsRequestTaskSettings;
 
 import java.util.Map;
 
@@ -31,7 +30,7 @@ public record AzureAiStudioEmbeddingsRequestTaskSettings(@Nullable String user) 
      * does not throw an error.
      *
      * @param map the settings received from a request
-     * @return a {@link AzureOpenAiEmbeddingsRequestTaskSettings}
+     * @return a {@link AzureAiStudioEmbeddingsRequestTaskSettings}
      */
     public static AzureAiStudioEmbeddingsRequestTaskSettings fromMap(Map<String, Object> map) {
         if (map.isEmpty()) {

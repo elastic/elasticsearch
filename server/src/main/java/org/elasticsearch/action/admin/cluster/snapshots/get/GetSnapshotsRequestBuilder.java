@@ -114,10 +114,10 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     public GetSnapshotsRequestBuilder setAfter(String after) {
-        return setAfter(after == null ? null : SnapshotSortKey.decodeAfterQueryParam(after));
+        return setAfter(after == null ? null : After.decodeAfterQueryParam(after));
     }
 
-    public GetSnapshotsRequestBuilder setAfter(@Nullable SnapshotSortKey.After after) {
+    public GetSnapshotsRequestBuilder setAfter(@Nullable After after) {
         request.after(after);
         return this;
     }

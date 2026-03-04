@@ -19,6 +19,8 @@ import java.io.IOException;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
@@ -145,6 +147,41 @@ public class StoreMetricsIndexInputTests extends ESTestCase {
 
         // Back in the original thread, metrics should be unchanged
         assertEquals(1, metricHolder.instance().getBytesRead());
+    }
+
+    public void testRandomAccessIndexInputReadBytes() throws IOException {
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput mockIndexInput = mock(IndexInput.class, withSettings().extraInterfaces(RandomAccessInput.class));
+        IndexInput indexInput = StoreMetricsIndexInput.create("test", mockIndexInput, metricHolder);
+
+        assertThat(indexInput, Matchers.instanceOf(RandomAccessInput.class));
+        RandomAccessInput randomAccessInput = (RandomAccessInput) indexInput;
+
+        int length = randomIntBetween(1, 128);
+        byte[] result = new byte[length];
+        randomAccessInput.readBytes(10, result, 0, length);
+
+        verify((RandomAccessInput) mockIndexInput).readBytes(10, result, 0, length);
+        verify((RandomAccessInput) mockIndexInput, never()).readByte(anyLong());
+        assertEquals(length, metricHolder.instance().getBytesRead());
+    }
+
+    public void testMetricsRandomAccessInputReadBytes() throws IOException {
+        PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
+        IndexInput mockIndexInput = mock(IndexInput.class);
+        RandomAccessInput mockRandomAccessInput = mock(RandomAccessInput.class);
+        when(mockIndexInput.randomAccessSlice(anyLong(), anyLong())).thenReturn(mockRandomAccessInput);
+        IndexInput indexInput = StoreMetricsIndexInput.create("test", mockIndexInput, metricHolder);
+
+        RandomAccessInput randomAccessInput = indexInput.randomAccessSlice(0, 1000);
+
+        int length = randomIntBetween(1, 128);
+        byte[] result = new byte[length];
+        randomAccessInput.readBytes(10, result, 0, length);
+
+        verify(mockRandomAccessInput).readBytes(10, result, 0, length);
+        verify(mockRandomAccessInput, never()).readByte(anyLong());
+        assertEquals(length, metricHolder.instance().getBytesRead());
     }
 
     public void testCreate() {

@@ -50,7 +50,6 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -102,8 +101,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         ProjectResolver projectResolver,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        FeatureService featureService,
-        SamplingService samplingService
+        FeatureService featureService
     ) {
         this(
             threadPool,
@@ -119,8 +117,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             threadPool::relativeTimeInNanos,
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            featureService,
-            samplingService
+            featureService
         );
     }
 
@@ -138,8 +135,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        FeatureService featureService,
-        SamplingService samplingService
+        FeatureService featureService
     ) {
         this(
             TYPE,
@@ -157,8 +153,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             relativeTimeProvider,
             failureStoreMetrics,
             dataStreamFailureStoreSettings,
-            featureService,
-            samplingService
+            featureService
         );
     }
 
@@ -178,8 +173,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
-        FeatureService featureService,
-        SamplingService samplingService
+        FeatureService featureService
     ) {
         super(
             bulkAction,
@@ -193,8 +187,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             systemIndices,
             projectResolver,
             relativeTimeProvider,
-            featureService,
-            samplingService
+            featureService
         );
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         Objects.requireNonNull(relativeTimeProvider);

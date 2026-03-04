@@ -239,7 +239,8 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize,
+        int maxPageRows,
+        long jumboPageBytes,
         InputOrdering inputOrdering,
         @Nullable SharedMinCompetitive.Supplier minCompetitive
     ) implements OperatorFactory {
@@ -262,7 +263,8 @@ public class TopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                maxPageSize,
+                maxPageRows,
+                jumboPageBytes,
                 inputOrdering,
                 minCompetitive
             );
@@ -287,7 +289,8 @@ public class TopNOperator implements Operator, Accountable {
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
 
-    private final int maxPageSize;
+    private final int maxPageRows;
+    private final long jumboPageBytes;
 
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
@@ -344,7 +347,8 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize,
+        int maxPageRows,
+        long jumboPageBytes,
         InputOrdering inputOrdering,
         @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier
     ) {
@@ -364,7 +368,8 @@ public class TopNOperator implements Operator, Accountable {
         this.minCompetitive = minCompetitive;
         this.blockFactory = blockFactory;
         this.breaker = breaker;
-        this.maxPageSize = maxPageSize;
+        this.maxPageRows = maxPageRows;
+        this.jumboPageBytes = jumboPageBytes;
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
@@ -689,7 +694,7 @@ public class TopNOperator implements Operator, Accountable {
         @Override
         public Page next() {
             long start = System.nanoTime();
-            int size = Math.min(maxPageSize, rows.size() - r);
+            int size = Math.min(maxPageRows, rows.size() - r);
             if (size <= 0) {
                 throw new IllegalStateException("can't make empty pages. " + size + " must be > 0");
             }
@@ -704,12 +709,23 @@ public class TopNOperator implements Operator, Accountable {
                         readKeys(builders, row.keys.bytesRefView());
                         readValues(builders, row.values.bytesRefView());
                     }
+                    if (totalSize(builders) > jumboPageBytes) {
+                        break;
+                    }
                 }
                 return new Page(ResultBuilder.buildAll(builders));
             } finally {
                 Releasables.close(builders);
                 emitNanos += System.nanoTime() - start;
             }
+        }
+
+        private long totalSize(ResultBuilder[] builders) {
+            long total = 0;
+            for (ResultBuilder b : builders) {
+                total += b.estimatedBytes();
+            }
+            return total;
         }
 
         @Override

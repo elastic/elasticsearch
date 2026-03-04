@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModelTests;
@@ -120,7 +119,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             new CommonConfig(TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION)) {
 
                 @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                protected LlamaService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return LlamaServiceTests.createService(threadPool, clientManager);
                 }
 
@@ -240,7 +239,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
         assertThat(llamaModel.getTaskType(), Matchers.is(CHAT_COMPLETION));
     }
 
-    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static LlamaService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new LlamaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }

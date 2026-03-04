@@ -10,6 +10,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -273,7 +274,6 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
         int matchFlagsValue = caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0;
-        Query query = null;
         // For BWC we mask irrelevant bits (RegExp changed ALL from 0xffff to 0xff)
         // We need to preserve the DEPRECATED_COMPLEMENT for now though
         int deprecatedComplementFlag = syntaxFlagsValue & RegExp.DEPRECATED_COMPLEMENT;
@@ -281,25 +281,22 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType != null) {
-            query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
+            Query query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
+            if (query != null) {
+                return query;
+            }
         }
-        if (query == null) {
-            return method == null
-                ? new RegexpQuery(
-                    new Term(fieldName, BytesRefs.toBytesRef(value)),
-                    sanitisedSyntaxFlag,
-                    matchFlagsValue,
-                    maxDeterminizedStates
-                )
-                : new RegexpQuery(
-                    new Term(fieldName, BytesRefs.toBytesRef(value)),
-                    sanitisedSyntaxFlag,
-                    matchFlagsValue,
-                    RegexpQuery.DEFAULT_PROVIDER,
-                    maxDeterminizedStates,
-                    method
-                );
-        }
+        AutomatonQuery query = method == null
+            ? new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates)
+            : new RegexpQuery(
+                new Term(fieldName, BytesRefs.toBytesRef(value)),
+                sanitisedSyntaxFlag,
+                matchFlagsValue,
+                RegexpQuery.DEFAULT_PROVIDER,
+                maxDeterminizedStates,
+                method
+            );
+        context.addCircuitBreakerMemory(query.ramBytesUsed(), "regexp:" + fieldName);
         return query;
     }
 

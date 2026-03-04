@@ -30,12 +30,12 @@ public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
     }
 
     @Override
-    protected AllReader singletonReader(TrackingSortedDocValues docValues) {
+    protected ColumnAtATimeReader singletonReader(TrackingSortedDocValues docValues) {
         return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedSetReader(TrackingSortedSetDocValues docValues) {
+    protected ColumnAtATimeReader sortedSetReader(TrackingSortedSetDocValues docValues) {
         return new MvMinSortedSet(docValues);
     }
 
@@ -71,11 +71,6 @@ public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
                 }
                 return builder.build();
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BytesRefBuilder) builder);
         }
 
         private Block readSingleDoc(BlockFactory factory, int docId) throws IOException {

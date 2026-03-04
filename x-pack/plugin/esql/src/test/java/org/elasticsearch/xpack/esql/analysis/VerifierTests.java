@@ -1535,6 +1535,10 @@ public class VerifierTests extends ESTestCase {
             error("from test | STATS c = COUNT(id) BY " + fieldName + " | where " + functionInvocation, fullTextAnalyzer),
             containsString("[" + functionName + "] " + functionType + " cannot be used after STATS")
         );
+        assertThat(
+            error("from test | mv_expand id | where " + functionInvocation, fullTextAnalyzer),
+            containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+        );
     }
 
     // These should pass eventually once we lift some restrictions on match function
@@ -1555,6 +1559,21 @@ public class VerifierTests extends ESTestCase {
         String keywordError = error("row n = null | eval text = n + 5 | where " + keywordInvocation, fullTextAnalyzer);
         assertThat(keywordError, containsString("[" + functionName + "] " + functionType + " cannot operate on"));
         assertThat(keywordError, containsString("which is not a field from an index mapping"));
+    }
+
+    public void testMultiMatchWithLookupJoinField() {
+        assumeTrue("multi_match function available", EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled());
+        assertThat(
+            error(
+                "FROM test | EVAL language_code = languages "
+                    + "| LOOKUP JOIN languages_lookup ON language_code "
+                    + "| WHERE multi_match(\"test\", language_name)"
+            ),
+            containsString(
+                "[MultiMatch] function cannot operate on [language_name],"
+                    + " supplied by an index [languages_lookup] in non-STANDARD mode [lookup]"
+            )
+        );
     }
 
     public void testNonFieldBasedFullTextFunctionsNotAllowedAfterCommands() throws Exception {
@@ -3638,6 +3657,26 @@ public class VerifierTests extends ESTestCase {
 
     public void testMetricsInfoCannotBeUsedAfterSort() {
         assertThat(error("TS k8s | SORT @timestamp | METRICS_INFO", k8s), containsString("METRICS_INFO cannot be used after SORT command"));
+    }
+
+    public void testTsInfoRequiresTsSource() {
+        assertThat(error("FROM test | TS_INFO"), containsString("TS_INFO can only be used with TS source command"));
+    }
+
+    public void testTsInfoWithTsSource() {
+        query("TS k8s | TS_INFO", k8s);
+    }
+
+    public void testTsInfoCannotBeUsedAfterStats() {
+        assertThat(error("TS k8s | STATS c = count(*) | TS_INFO", k8s), containsString("TS_INFO cannot be used after STATS command"));
+    }
+
+    public void testTsInfoCannotBeUsedAfterLimit() {
+        assertThat(error("TS k8s | LIMIT 10 | TS_INFO", k8s), containsString("TS_INFO cannot be used after LIMIT command"));
+    }
+
+    public void testTsInfoCannotBeUsedAfterSort() {
+        assertThat(error("TS k8s | SORT @timestamp | TS_INFO", k8s), containsString("TS_INFO cannot be used after SORT command"));
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

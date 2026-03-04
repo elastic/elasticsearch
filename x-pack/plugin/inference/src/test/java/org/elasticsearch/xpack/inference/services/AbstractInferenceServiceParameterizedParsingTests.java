@@ -15,6 +15,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.Utils;
 import org.junit.Assume;
@@ -58,7 +59,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
     ) {}
 
     private record ServiceParserParams(
-        SenderService service,
+        SenderService<?> service,
         Utils.PersistedConfig persistedConfig,
         AbstractInferenceServiceBaseTests.TestConfiguration testConfiguration
     ) {}
@@ -184,9 +185,13 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                             null
                         ),
                         params -> params.service.parsePersistedConfig(
-                            "id",
-                            params.testConfiguration.commonConfig().unsupportedTaskType(),
-                            params.persistedConfig.config()
+                            new UnparsedModel(
+                                "id",
+                                params.testConfiguration.commonConfig().unsupportedTaskType(),
+                                "test_service",
+                                params.persistedConfig.config(),
+                                params.persistedConfig.secrets()
+                            )
                         ),
                         // We expect failure, so the expected task type is irrelevant
                         null
@@ -208,9 +213,13 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                             return persistedConfigMap;
                         },
                         params -> params.service.parsePersistedConfig(
-                            "id",
-                            params.testConfiguration.commonConfig().targetTaskType(),
-                            params.persistedConfig.config()
+                            new UnparsedModel(
+                                "id",
+                                params.testConfiguration.commonConfig().targetTaskType(),
+                                "test_service",
+                                params.persistedConfig.config(),
+                                params.persistedConfig.secrets()
+                            )
                         ),
                         // Test expected task type is the target task type
                         null
@@ -233,9 +242,13 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                             );
                         },
                         params -> params.service.parsePersistedConfig(
-                            "id",
-                            params.testConfiguration.commonConfig().targetTaskType(),
-                            params.persistedConfig.config()
+                            new UnparsedModel(
+                                "id",
+                                params.testConfiguration.commonConfig().targetTaskType(),
+                                "test_service",
+                                params.persistedConfig.config(),
+                                params.persistedConfig.secrets()
+                            )
                         ),
                         // Test expected task type is the target task type
                         null
@@ -259,9 +272,13 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                             );
                         },
                         params -> params.service.parsePersistedConfig(
-                            "id",
-                            params.testConfiguration.commonConfig().targetTaskType(),
-                            params.persistedConfig.config()
+                            new UnparsedModel(
+                                "id",
+                                params.testConfiguration.commonConfig().targetTaskType(),
+                                "test_service",
+                                params.persistedConfig.config(),
+                                params.persistedConfig.secrets()
+                            )
                         ),
                         // Test expected task type is the target task type
                         null
@@ -342,11 +359,14 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                             testConfiguration.commonConfig().createTaskSettingsMap(testConfiguration.commonConfig().targetTaskType()),
                             testConfiguration.commonConfig().createSecretSettingsMap()
                         ),
-                        params -> params.service.parsePersistedConfigWithSecrets(
-                            "id",
-                            params.testConfiguration.commonConfig().unsupportedTaskType(),
-                            params.persistedConfig.config(),
-                            params.persistedConfig.secrets()
+                        params -> params.service.parsePersistedConfig(
+                            new UnparsedModel(
+                                "id",
+                                params.testConfiguration.commonConfig().unsupportedTaskType(),
+                                "test_service",
+                                params.persistedConfig.config(),
+                                params.persistedConfig.secrets()
+                            )
                         ),
                         // We expect failure, so the expected task type is irrelevant
                         null
@@ -367,11 +387,14 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                             persistedConfigMap.config().put("extra_key", "value");
                             return persistedConfigMap;
                         },
-                        params -> params.service.parsePersistedConfigWithSecrets(
-                            "id",
-                            params.testConfiguration.commonConfig().targetTaskType(),
-                            params.persistedConfig.config(),
-                            params.persistedConfig.secrets()
+                        params -> params.service.parsePersistedConfig(
+                            new UnparsedModel(
+                                "id",
+                                params.testConfiguration.commonConfig().targetTaskType(),
+                                "test_service",
+                                params.persistedConfig.config(),
+                                params.persistedConfig.secrets()
+                            )
                         ),
                         null
                         // Test expected task type is the target task type
@@ -393,11 +416,14 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                                 testConfiguration.commonConfig().createSecretSettingsMap()
                             );
                         },
-                        params -> params.service.parsePersistedConfigWithSecrets(
-                            "id",
-                            params.testConfiguration.commonConfig().targetTaskType(),
-                            params.persistedConfig.config(),
-                            params.persistedConfig.secrets()
+                        params -> params.service.parsePersistedConfig(
+                            new UnparsedModel(
+                                "id",
+                                params.testConfiguration.commonConfig().targetTaskType(),
+                                "test_service",
+                                params.persistedConfig.config(),
+                                params.persistedConfig.secrets()
+                            )
                         ),
                         // Test expected task type is the target task type
                         null
@@ -420,11 +446,14 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                                 testConfiguration.commonConfig().createSecretSettingsMap()
                             );
                         },
-                        params -> params.service.parsePersistedConfigWithSecrets(
-                            "id",
-                            params.testConfiguration.commonConfig().targetTaskType(),
-                            params.persistedConfig.config(),
-                            params.persistedConfig.secrets()
+                        params -> params.service.parsePersistedConfig(
+                            new UnparsedModel(
+                                "id",
+                                params.testConfiguration.commonConfig().targetTaskType(),
+                                "test_service",
+                                params.persistedConfig.config(),
+                                params.persistedConfig.secrets()
+                            )
                         ),
                         // Test expected task type is the target task type
                         null
@@ -446,11 +475,14 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
                                 secretSettingsMap
                             );
                         },
-                        params -> params.service.parsePersistedConfigWithSecrets(
-                            "id",
-                            params.testConfiguration.commonConfig().targetTaskType(),
-                            params.persistedConfig.config(),
-                            params.persistedConfig.secrets()
+                        params -> params.service.parsePersistedConfig(
+                            new UnparsedModel(
+                                "id",
+                                params.testConfiguration.commonConfig().targetTaskType(),
+                                "test_service",
+                                params.persistedConfig.config(),
+                                params.persistedConfig.secrets()
+                            )
                         ),
                         // Test expected task type is the target task type
                         null
@@ -472,15 +504,14 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
     }
 
     private static ServiceParser getServiceParser(TaskType taskType) {
-        return params -> params.service.parsePersistedConfig("id", taskType, params.persistedConfig.config());
+        return params -> params.service.parsePersistedConfig(
+            new UnparsedModel("id", taskType, "test_service", params.persistedConfig.config(), params.persistedConfig.secrets())
+        );
     }
 
     private static ServiceParser getServiceParserWithSecrets(TaskType taskType) {
-        return params -> params.service.parsePersistedConfigWithSecrets(
-            "id",
-            taskType,
-            params.persistedConfig.config(),
-            params.persistedConfig.secrets()
+        return params -> params.service.parsePersistedConfig(
+            new UnparsedModel("id", taskType, "test_service", params.persistedConfig.config(), params.persistedConfig.secrets())
         );
     }
 
@@ -503,7 +534,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
         }
     }
 
-    private void assertFailedParse(SenderService service, Utils.PersistedConfig persistedConfig) {
+    private void assertFailedParse(SenderService<?> service, Utils.PersistedConfig persistedConfig) {
         var exception = expectThrows(
             ElasticsearchStatusException.class,
             () -> testCase.serviceParser.parseConfigs(new ServiceParserParams(service, persistedConfig, testConfiguration))
@@ -517,7 +548,7 @@ public abstract class AbstractInferenceServiceParameterizedParsingTests extends 
         );
     }
 
-    private void assertSuccessfulParse(SenderService service, Utils.PersistedConfig persistedConfig) {
+    private void assertSuccessfulParse(SenderService<?> service, Utils.PersistedConfig persistedConfig) {
         var model = testCase.serviceParser.parseConfigs(new ServiceParserParams(service, persistedConfig, testConfiguration));
 
         if (persistedConfig.config().containsKey(ModelConfigurations.CHUNKING_SETTINGS)) {

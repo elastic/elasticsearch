@@ -67,6 +67,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
+            DataPartitioning.AutoStrategy autoStrategy,
             int taskConcurrency,
             int maxPageSize,
             int limit,
@@ -78,7 +79,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 contexts,
                 queryFunction,
                 dataPartitioning,
-                query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : query -> {
+                    throw new UnsupportedOperationException("locked in " + dataPartitioning);
+                },
                 taskConcurrency,
                 limit,
                 needsScore,

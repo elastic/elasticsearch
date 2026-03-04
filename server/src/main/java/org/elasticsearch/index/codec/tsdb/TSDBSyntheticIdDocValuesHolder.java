@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -17,6 +18,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -39,6 +41,8 @@ class TSDBSyntheticIdDocValuesHolder {
     private final FieldInfo timestampFieldInfo;
     private final FieldInfo routingHashFieldInfo;
     private final DocValuesProducer docValuesProducer;
+    private final boolean hasTsIdSkipper;
+    private final boolean hasTimestampSkipper;
 
     private SortedNumericDocValues timestampDocValues; // sorted desc. order
     private SortedDocValues routingHashDocValues; // sorted asc. order
@@ -52,6 +56,8 @@ class TSDBSyntheticIdDocValuesHolder {
         this.timestampFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TIMESTAMP);
         this.routingHashFieldInfo = safeFieldInfo(fieldInfos, TSDBSyntheticIdPostingsFormat.TS_ROUTING_HASH);
         this.docValuesProducer = docValuesProducer;
+        this.hasTsIdSkipper = tsIdFieldInfo.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
+        this.hasTimestampSkipper = timestampFieldInfo.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
     }
 
     private FieldInfo safeFieldInfo(FieldInfos fieldInfos, String fieldName) {
@@ -178,6 +184,9 @@ class TSDBSyntheticIdDocValuesHolder {
      * @throws IOException if any I/O exception occurs
      */
     private int findStartDocIDForTsIdOrd(int tsIdOrd) throws IOException {
+        if (hasTsIdSkipper == false) {
+            return 0;
+        }
         var skipper = docValuesProducer.getSkipper(tsIdFieldInfo);
         assert skipper != null;
         if (skipper.minValue() > tsIdOrd || tsIdOrd > skipper.maxValue()) {
@@ -265,7 +274,11 @@ class TSDBSyntheticIdDocValuesHolder {
         return DocIdSetIterator.NO_MORE_DOCS;
     }
 
+    @Nullable
     DocValuesSkipper docValuesSkipperForTimestamp() throws IOException {
+        if (hasTimestampSkipper == false) {
+            return null;
+        }
         var skipper = docValuesProducer.getSkipper(timestampFieldInfo);
         assert skipper != null;
         return skipper;

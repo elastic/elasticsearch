@@ -327,7 +327,7 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
                     shardBuilder.build(),
                     segmentBuilder.build(),
                     docBuilder.build(),
-                    DocVector.config()
+                    DocVector.config().mayContainDuplicates()
                 );
 
                 currentPosition += length;

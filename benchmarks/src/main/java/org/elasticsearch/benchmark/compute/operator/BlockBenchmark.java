@@ -89,7 +89,9 @@ public class BlockBenchmark {
 
     static final Random random = new Random();
 
-    static final BlockFactory blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("noop"), BigArrays.NON_RECYCLING_INSTANCE);
+    static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     static Block[] buildBlocks(String dataType, String blockKind, int totalPositions) {
         Block[] blocks = new Block[NUM_BLOCKS_PER_ITERATION];

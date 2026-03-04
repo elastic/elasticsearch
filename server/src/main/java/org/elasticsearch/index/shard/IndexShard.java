@@ -1943,6 +1943,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } finally {
                 engineResetLock.writeLock().unlock();
             }
+            checkAndCallWaitForEngineOrClosedShardListeners();
+
             synchronized (mutex) {
                 if (state == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(shardId);
@@ -2312,7 +2314,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         onSettingsChanged();
         assert assertLastestCommitUserData();
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
-        checkAndCallWaitForEngineOrClosedShardListeners();
     }
 
     // awful hack to work around problem in CloseFollowerIndexIT

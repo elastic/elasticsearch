@@ -33,7 +33,6 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -1647,7 +1646,7 @@ public class BlockHashTests extends BlockHashTestCase {
                         var timestampBlock = timestampsBuilder.build().asBlock()
                     ) {
                         Page page = new Page(tsidBlock, timestampBlock);
-                        Holder<IntVector> ords1 = new Holder<>();
+                        IntVector[] ords1 = new IntVector[1];
                         hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                             @Override
                             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -1662,7 +1661,7 @@ public class BlockHashTests extends BlockHashTestCase {
                             @Override
                             public void add(int positionOffset, IntVector groupIds) {
                                 groupIds.incRef();
-                                ords1.set(groupIds);
+                                ords1[0] = groupIds;
                             }
 
                             @Override
@@ -1670,14 +1669,14 @@ public class BlockHashTests extends BlockHashTestCase {
 
                             }
                         });
-                        Holder<IntVector> ords2 = new Holder<>();
+                        IntVector[] ords2 = new IntVector[1];
                         hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                             private void addBlock(int positionOffset, IntBlock groupIds) {
                                 // TODO: check why PackedValuesBlockHash doesn't emit a vector?
                                 IntVector vector = groupIds.asVector();
                                 assertNotNull("should emit a vector", vector);
                                 vector.incRef();
-                                ords2.set(vector);
+                                ords2[0] = vector;
                             }
 
                             @Override
@@ -1693,7 +1692,7 @@ public class BlockHashTests extends BlockHashTestCase {
                             @Override
                             public void add(int positionOffset, IntVector groupIds) {
                                 groupIds.incRef();
-                                ords2.set(groupIds);
+                                ords2[0] = groupIds;
                             }
 
                             @Override
@@ -1702,9 +1701,9 @@ public class BlockHashTests extends BlockHashTestCase {
                             }
                         });
                         try {
-                            assertThat("input=" + page, ords1.get(), equalTo(ords2.get()));
+                            assertThat("input=" + page, ords1[0], equalTo(ords2[0]));
                         } finally {
-                            Releasables.close(ords1.get(), ords2.get());
+                            Releasables.close(ords1[0], ords2[0]);
                         }
                     }
                 }
@@ -1765,7 +1764,7 @@ public class BlockHashTests extends BlockHashTestCase {
                         var timestampBlock = timestampsBuilder.build().asBlock()
                     ) {
                         Page page = new Page(tsidBlock, timestampBlock);
-                        Holder<IntVector> ords1 = new Holder<>();
+                        IntVector[] ords1 = new IntVector[1];
                         hash1.add(page, new GroupingAggregatorFunction.AddInput() {
                             @Override
                             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -1780,7 +1779,7 @@ public class BlockHashTests extends BlockHashTestCase {
                             @Override
                             public void add(int positionOffset, IntVector groupIds) {
                                 groupIds.incRef();
-                                ords1.set(groupIds);
+                                ords1[0] = groupIds;
                             }
 
                             @Override
@@ -1788,7 +1787,7 @@ public class BlockHashTests extends BlockHashTestCase {
 
                             }
                         });
-                        Holder<IntVector> ords2 = new Holder<>();
+                        IntVector[] ords2 = new IntVector[1];
                         hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                             @Override
                             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -1803,7 +1802,7 @@ public class BlockHashTests extends BlockHashTestCase {
                             @Override
                             public void add(int positionOffset, IntVector groupIds) {
                                 groupIds.incRef();
-                                ords2.set(groupIds);
+                                ords2[0] = groupIds;
                             }
 
                             @Override
@@ -1812,9 +1811,9 @@ public class BlockHashTests extends BlockHashTestCase {
                             }
                         });
                         try {
-                            assertThat("input=" + page, ords1.get(), equalTo(ords2.get()));
+                            assertThat("input=" + page, ords1[0], equalTo(ords2[0]));
                         } finally {
-                            Releasables.close(ords1.get(), ords2.get());
+                            Releasables.close(ords1[0], ords2[0]);
                         }
                     }
                 }

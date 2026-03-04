@@ -305,19 +305,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                                 );
                             }
                         } else {
-                            // extra dependencies like TS ones (that require a timestamp)
-                            sourceAttr = new ArrayList<>();
-                            for (Expression input : aggregateFunction.aggregateInputReferences(aggregateExec.child()::output)) {
-                                Attribute attr = Expressions.attribute(input);
-                                if (attr == null) {
-                                    throw new EsqlIllegalArgumentException(
-                                        "Cannot work with target field [{}] for agg [{}]",
-                                        input.sourceText(),
-                                        aggregateFunction.sourceText()
-                                    );
-                                }
-                                sourceAttr.add(attr);
-                            }
+                            sourceAttr = aggregateFunction.aggregateInputReferences(aggregateExec.child()::output);
                         }
                     }
 

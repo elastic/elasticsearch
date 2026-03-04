@@ -266,6 +266,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
         ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices);
         sliced.setRemoteInfo(remoteInfo);
+        sliced.setEligibleForRelocationOnShutdown(isEligibleForRelocationOnShutdown());
         return sliced;
     }
 
@@ -353,7 +354,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                     parser.contentType()
                 )
             ) {
-                request.getSearchRequest().source().parseXContent(innerParser, false, context);
+                request.getSearchRequest().source().parseXContent(request.getSearchRequest(), innerParser, false, context);
             }
         };
 

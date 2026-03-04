@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
@@ -47,7 +48,7 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
       if (fieldValVector == null) {
         return eval(page.getPositionCount(), fieldValBlock);
       }
-      return eval(page.getPositionCount(), fieldValVector).asBlock();
+      return eval(page.getPositionCount(), fieldValVector);
     }
   }
 
@@ -73,17 +74,27 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
               continue position;
         }
         int fieldVal = fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p));
-        result.appendInt(Abs.process(fieldVal));
+        try {
+          result.appendInt(Abs.process(fieldVal));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, IntVector fieldValVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+  public IntBlock eval(int positionCount, IntVector fieldValVector) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         int fieldVal = fieldValVector.getInt(p);
-        result.appendInt(p, Abs.process(fieldVal));
+        try {
+          result.appendInt(Abs.process(fieldVal));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }

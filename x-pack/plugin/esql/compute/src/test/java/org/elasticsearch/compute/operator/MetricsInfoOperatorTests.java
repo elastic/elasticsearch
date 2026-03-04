@@ -475,33 +475,20 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testInvalidJsonSkipped() {
+    public void testInvalidJsonThrows() {
         BlockFactory blockFactory = driverContext().blockFactory();
         try (Operator op = createInitialOperator()) {
             try (
-                BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(2);
-                BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(2)
+                BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(1);
+                BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(1)
             ) {
-                // Row 1: invalid JSON
                 metadataBuilder.appendBytesRef(new BytesRef("not-valid-json"));
                 indexBuilder.appendBytesRef(new BytesRef("my-index"));
 
-                // Row 2: valid JSON with a metric
-                metadataBuilder.appendBytesRef(new BytesRef("{\"cpu_usage\": 0.5}"));
-                indexBuilder.appendBytesRef(new BytesRef("my-index"));
-
                 Page input = new Page(metadataBuilder.build(), indexBuilder.build());
-                op.addInput(input);
+                var e = expectThrows(IllegalStateException.class, () -> op.addInput(input));
+                assertThat(e.getMessage(), equalTo("failed to parse _timeseries_metadata at position [0]"));
             }
-            op.finish();
-
-            Page output = op.getOutput();
-            assertNotNull(output);
-            // Only the valid row contributes
-            assertThat(output.getPositionCount(), equalTo(1));
-            assertColumnValue(output, 0, 0, "cpu_usage");
-
-            output.releaseBlocks();
         }
     }
 

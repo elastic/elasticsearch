@@ -98,7 +98,7 @@ public class RegisteredDomain extends CompoundOutputEval<RegisteredDomain> {
     public void postAnalysisVerification(Failures failures) {
         if (input.resolved()) {
             DataType type = input.dataType();
-            if (DataType.isString(type) == false) {
+            if (DataType.isNull(type) == false && DataType.isString(type) == false) {
                 failures.add(fail(input, "Input for REGISTERED_DOMAIN must be of type [string] but is [{}]", type.typeName()));
             }
         }

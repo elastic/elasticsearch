@@ -36,6 +36,7 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -503,16 +504,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     @Override
-    public Model parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        return parsePersistedConfig(inferenceEntityId, taskType, config);
-    }
-
-    @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         String modelId = config.getServiceSettings().modelId();
         return retrieveModelCreatorFromListOrThrow(config.getInferenceEntityId(), config.getTaskType(), modelId, config.getService())
@@ -520,28 +511,31 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     }
 
     @Override
-    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+    public Model parsePersistedConfig(UnparsedModel unparsedModel) {
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(unparsedModel.settings(), ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(unparsedModel.settings(), ModelConfigurations.TASK_SETTINGS);
 
         migrateModelVersionToModelId(serviceSettingsMap);
 
         ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.SPARSE_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        if (TaskType.TEXT_EMBEDDING.equals(unparsedModel.taskType()) || TaskType.SPARSE_EMBEDDING.equals(unparsedModel.taskType())) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(
+                removeFromMap(unparsedModel.settings(), ModelConfigurations.CHUNKING_SETTINGS)
+            );
         }
 
         String modelId = (String) serviceSettingsMap.get(MODEL_ID);
-        return retrieveModelCreatorFromListOrThrow(inferenceEntityId, taskType, modelId, NAME).createFromMaps(
-            inferenceEntityId,
-            taskType,
-            NAME,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            null,
-            ConfigurationParseContext.PERSISTENT
-        );
+        return retrieveModelCreatorFromListOrThrow(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), modelId, NAME)
+            .createFromMaps(
+                unparsedModel.inferenceEntityId(),
+                unparsedModel.taskType(),
+                NAME,
+                serviceSettingsMap,
+                taskSettingsMap,
+                chunkingSettings,
+                null,
+                ConfigurationParseContext.PERSISTENT
+            );
     }
 
     /**

@@ -12,8 +12,6 @@ package org.elasticsearch.inference;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.inference.InferenceString.DataFormat;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -48,7 +46,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
     }
 
     public void testParser_withSingleContentObject() throws IOException {
-        var imageFormat = randomFrom(InferenceString.supportedFormatsForType(DataType.IMAGE));
+        var imageFormat = randomFrom(DataType.IMAGE.getSupportedFormats());
         var requestJson = Strings.format("""
             {
                 "input": {
@@ -88,7 +86,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
     }
 
     public void testParser_withSingleContentObjectWithMultipleEntries() throws IOException {
-        var imageFormat = randomFrom(InferenceString.supportedFormatsForType(DataType.IMAGE));
+        var imageFormat = randomFrom(DataType.IMAGE.getSupportedFormats());
         var requestJson = Strings.format("""
             {
                 "input": {
@@ -117,7 +115,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
     }
 
     public void testParser_withMultipleContentObjects() throws IOException {
-        var imageFormat = randomFrom(InferenceString.supportedFormatsForType(DataType.IMAGE));
+        var imageFormat = randomFrom(DataType.IMAGE.getSupportedFormats());
         var requestJson = Strings.format("""
             {
                 "input": [

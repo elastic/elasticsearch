@@ -29,9 +29,7 @@ import java.util.Objects;
  * The number of blocks can be retrieved via {@link #getBlockCount()}, and the respective
  * blocks can be retrieved via their index {@link #getBlock(int)}.
  *
- * <p> Pages are immutable and can be passed between threads. This class may be subclassed to
- * add metadata (e.g., batch information for streaming exchanges). Subclasses must maintain
- * the immutability and thread-safety guarantees.
+ * <p> Pages are immutable and can be passed between threads.
  */
 public final class Page implements Writeable, Releasable {
 
@@ -75,6 +73,13 @@ public final class Page implements Writeable, Releasable {
      */
     public Page(int positionCount, Block... blocks) {
         this(true, positionCount, blocks, null);
+    }
+
+    /**
+     * Create a new page with the given blocks and batch metadata.
+     */
+    public Page(BatchMetadata batchMetadata, Block... blocks) {
+        this(true, determinePositionCount(blocks), blocks, batchMetadata);
     }
 
     private Page(boolean copyBlocks, int positionCount, Block[] blocks, @Nullable BatchMetadata batchMetadata) {

@@ -67,6 +67,11 @@ class ResultBuilderForInt implements ResultBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return builder.estimatedBytes();
+    }
+
+    @Override
     public String toString() {
         return "ResultBuilderForInt[inKey=" + inKey + "]";
     }

@@ -1,0 +1,7 @@
+area: Transform
+issues:
+ - 90643
+pr: 142856
+summary: "[ML]Fix latest transforms disregarding updates when sort and sync fields\
+  \ are non-monotonic"
+type: bug

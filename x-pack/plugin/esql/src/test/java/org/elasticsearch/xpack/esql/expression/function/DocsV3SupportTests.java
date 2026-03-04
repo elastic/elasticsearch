@@ -213,6 +213,34 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(results, equalTo(expectedResults));
     }
 
+    /**
+     * Verify that RFC 4180 CSV-quoted values with doubled quotes are properly unescaped,
+     * so JSON strings render correctly in docs instead of showing {""key"":""value""}.
+     */
+    public void testRenderingExampleResultCsvJsonUnescaping() throws IOException {
+        String expectedResults = """
+            | log:keyword | severity:keyword |
+            | --- | --- |
+            | {"severity":"ERROR","body":"Payment processing failed"} | ERROR |
+            """;
+        String results = docs.loadExample("json_extract.csv-spec", "json_extract-result");
+        assertThat(results, equalTo(expectedResults));
+    }
+
+    /**
+     * Verify that simple quoted values (no doubled quotes inside) are preserved as-is.
+     * Only values with "" (RFC 4180 escaping) should be unescaped.
+     */
+    public void testRenderingExampleResultSimpleQuotesPreserved() throws IOException {
+        String expectedResults = """
+            | wkt:keyword | pt:geo_point |
+            | --- | --- |
+            | "POINT(42.97109630194 14.7552534413725)" | POINT(42.97109630194 14.7552534413725) |
+            """;
+        String results = docs.loadExample("spatial.csv-spec", "to_geopoint-str-result");
+        assertThat(results, equalTo(expectedResults));
+    }
+
     public void testRenderingExampleRaw2() throws IOException {
         String expectedExample = """
             ROW n=1

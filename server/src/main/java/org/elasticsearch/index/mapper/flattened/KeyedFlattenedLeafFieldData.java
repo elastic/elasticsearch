@@ -57,22 +57,13 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     @Override
     public SortedSetDocValues getOrdinalsValues() {
-        BytesRef keyBytes = new BytesRef(key);
         SortedSetDocValues values = delegate.getOrdinalsValues();
 
-        long minOrd, maxOrd;
         try {
-            minOrd = findMinOrd(keyBytes, values);
-            if (minOrd < 0) {
-                return DocValues.emptySortedSet();
-            }
-            maxOrd = findMaxOrd(keyBytes, values);
-            assert maxOrd >= 0;
+            return getKeyFilteredSortedSetDocValues(values, key);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-
-        return new KeyedFlattenedDocValues(keyBytes, values, minOrd, maxOrd);
     }
 
     @Override
@@ -83,6 +74,24 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
     @Override
     public SortedBinaryDocValues getBytesValues() {
         return FieldData.toString(getOrdinalsValues());
+    }
+
+    /**
+     * Returns key-filtered view on the provided SortedSetDocValues, for use by block loaders.
+     * If the segment has no terms for the given key, returns an empty SortedSetDocValues.
+     */
+    static SortedSetDocValues getKeyFilteredSortedSetDocValues(SortedSetDocValues dv, String key) throws IOException {
+        if (dv.getValueCount() == 0) {
+            return DocValues.emptySortedSet();
+        }
+        BytesRef keyBytes = new BytesRef(key);
+        long minOrd = findMinOrd(keyBytes, dv);
+        if (minOrd < 0) {
+            return DocValues.emptySortedSet();
+        }
+        long maxOrd = findMaxOrd(keyBytes, dv);
+        assert maxOrd >= 0;
+        return new KeyedFlattenedDocValues(keyBytes, dv, minOrd, maxOrd);
     }
 
     /**

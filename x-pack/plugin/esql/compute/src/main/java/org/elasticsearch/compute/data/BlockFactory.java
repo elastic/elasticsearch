@@ -29,32 +29,38 @@ public class BlockFactory {
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
 
+    public static final ByteSizeValue DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = ByteSizeValue.ofMb(1);
+    public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 1.5;
+
     private final CircuitBreaker breaker;
 
     private final BigArrays bigArrays;
     private final long maxPrimitiveArrayBytes;
     private final BlockFactory parent;
+    private final long bytesRefRamOverestimateThreshold;
+    private final double bytesRefRamOverestimateFactor;
+
+    /**
+     * {@return a builder for constructing a {@link BlockFactory}}
+     */
+    public static BlockFactoryBuilder builder(BigArrays bigArrays) {
+        return new BlockFactoryBuilder(bigArrays);
+    }
+
+    protected BlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
+        this.bigArrays = builder.bigArrays;
+        this.breaker = builder.breaker == null ? bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST) : builder.breaker;
+        this.maxPrimitiveArrayBytes = builder.maxPrimitiveArraySize;
+        this.bytesRefRamOverestimateThreshold = builder.bytesRefRamOverestimateThreshold;
+        this.bytesRefRamOverestimateFactor = builder.bytesRefRamOverestimateFactor;
+        this.parent = parent;
+        assert breaker instanceof LocalCircuitBreaker == false
+            || (parent != null && ((LocalCircuitBreaker) builder.breaker).parentBreaker() == parent.breaker)
+            : "use local breaker without parent block factory";
+    }
 
     public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
-        this(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE);
-    }
-
-    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
-        this(breaker, bigArrays, maxPrimitiveArraySize, null);
-    }
-
-    protected BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
-        assert breaker instanceof LocalCircuitBreaker == false
-            || (parent != null && ((LocalCircuitBreaker) breaker).parentBreaker() == parent.breaker)
-            : "use local breaker without parent block factory";
-        this.breaker = breaker;
-        this.bigArrays = bigArrays;
-        this.parent = parent;
-        this.maxPrimitiveArrayBytes = maxPrimitiveArraySize.getBytes();
-    }
-
-    public static BlockFactory getInstance(CircuitBreaker breaker, BigArrays bigArrays) {
-        return new BlockFactory(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, null);
+        this(BlockFactory.builder(bigArrays).breaker(breaker), null);
     }
 
     // For testing
@@ -71,11 +77,26 @@ public class BlockFactory {
         return parent != null ? parent : this;
     }
 
+    public long bytesRefRamOverestimateThreshold() {
+        return bytesRefRamOverestimateThreshold;
+    }
+
+    public double bytesRefRamOverestimateFactor() {
+        return bytesRefRamOverestimateFactor;
+    }
+
     public BlockFactory newChildFactory(LocalCircuitBreaker childBreaker) {
         if (childBreaker.parentBreaker() != breaker) {
             throw new IllegalStateException("Different parent breaker");
         }
-        return new BlockFactory(childBreaker, bigArrays, ByteSizeValue.ofBytes(maxPrimitiveArrayBytes), this);
+        return new BlockFactory(
+            BlockFactory.builder(bigArrays)
+                .breaker(childBreaker)
+                .maxPrimitiveArraySize(maxPrimitiveArrayBytes)
+                .bytesRefRamOverestimateThreshold(bytesRefRamOverestimateThreshold)
+                .bytesRefRamOverestimateFactor(bytesRefRamOverestimateFactor),
+            this
+        );
     }
 
     /**
@@ -419,7 +440,7 @@ public class BlockFactory {
     }
 
     public BytesRefVector newConstantBytesRefVector(BytesRef value, int positions) {
-        long preadjusted = ConstantBytesRefVector.ramBytesUsedWithLength(value);
+        long preadjusted = ConstantBytesRefVector.ramBytesEstimated(value, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor);
         adjustBreaker(preadjusted);
         var v = new ConstantBytesRefVector(BytesRef.deepCopyOf(value), positions, this);
         assert v.ramBytesUsed() == preadjusted;

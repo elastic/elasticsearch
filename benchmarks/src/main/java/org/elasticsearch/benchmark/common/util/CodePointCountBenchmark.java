@@ -11,7 +11,7 @@ package org.elasticsearch.benchmark.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 public class CodePointCountBenchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     @Param({ "1", "5", "10", "20", "50", "100", "1000" })

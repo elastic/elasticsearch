@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
 public class BlockFactoryTests extends ESTestCase {
     public static BlockFactory blockFactory(ByteSizeValue size) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, size).withCircuitBreaking();
-        return new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        return BlockFactory.builder(bigArrays).build();
     }
 
     final CircuitBreaker breaker;
@@ -59,8 +59,8 @@ public class BlockFactoryTests extends ESTestCase {
             @Override
             public BlockFactory get() {
                 CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-                BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-                return BlockFactory.getInstance(breaker, bigArrays);
+                return BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker)))
+                    .build();
             }
 
             @Override

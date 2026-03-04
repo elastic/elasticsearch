@@ -58,7 +58,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      * Sort key value at which to start fetching snapshots. Mutually exclusive with {@link #offset} if not {@code null}.
      */
     @Nullable
-    private SnapshotSortKey.After after;
+    private After after;
 
     @Nullable
     private String fromSortValue;
@@ -112,7 +112,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         snapshots = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
         verbose = in.readBoolean();
-        after = in.readOptionalWriteable(SnapshotSortKey.After::new);
+        after = in.readOptionalWriteable(After::new);
         sort = in.readEnum(SnapshotSortKey.class);
         size = in.readVInt();
         order = SortOrder.readFromStream(in);
@@ -298,7 +298,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     }
 
     @Nullable
-    public SnapshotSortKey.After after() {
+    public After after() {
         return after;
     }
 
@@ -306,7 +306,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return sort;
     }
 
-    public GetSnapshotsRequest after(@Nullable SnapshotSortKey.After after) {
+    public GetSnapshotsRequest after(@Nullable After after) {
         this.after = after;
         return this;
     }

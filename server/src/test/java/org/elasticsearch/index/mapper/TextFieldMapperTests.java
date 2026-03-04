@@ -2335,12 +2335,16 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testNormsDisabledWhenIndexModeIsTsdb() throws IOException {
         // given
+        final boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         Instant currentTime = Instant.now();
         Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
         indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), currentTime.minus(1, ChronoUnit.HOURS).toEpochMilli())
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), currentTime.plus(1, ChronoUnit.HOURS).toEpochMilli())
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension");
+        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
+            indexSettingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
+        }
         Settings indexSettings = indexSettingsBuilder.build();
 
         XContentBuilder mapping = mapping(b -> {
@@ -2353,10 +2357,10 @@ public class TextFieldMapperTests extends MapperTestCase {
             b.endObject();
         });
 
-        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+        var source = source(null, b -> {
             b.field("@timestamp", Instant.now());
             b.field("potato", "a potato flew around my room");
-        }, null);
+        }, TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
 
         // when
         DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();

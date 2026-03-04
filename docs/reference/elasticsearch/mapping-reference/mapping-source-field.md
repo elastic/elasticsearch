@@ -201,7 +201,7 @@ Values of `geo_point` fields are represented in synthetic `_source` with reduced
 It is possible to avoid synthetic source modifications for a particular object or field, at extra storage cost. This is controlled through param `synthetic_source_keep` with the following option:
 
 * `none`: synthetic source diverges from the original source as described above (default).
-* `arrays`: arrays of the corresponding field or object preserve the original element ordering and duplicate elements. The synthetic source fragment for such arrays is not guaranteed to match the original source exactly, e.g. array `[1, 2, [5], [[4, [3]]], 5]` may appear as-is or in an equivalent format like `[1, 2, 5, 4, 3, 5]`. The exact format may change in the future, in an effort to reduce the storage overhead of this option.
+* `arrays`: arrays of the corresponding field or object preserve the original element ordering and duplicate elements. The synthetic source fragment for such arrays is not guaranteed to match the original source exactly, e.g. array `[1, 2, [5], [[4, [3]]], 5]` may appear as-is or in an equivalent format like `[1, 2, 5, 4, 3, 5]`. The exact format may change in the future, in an effort to reduce the storage overhead of this option. Additionally, if `index.mapping.ignore_above` or `index.mapping.ignore_malformed` index settings are enabled then malformed or ignored elements are always appended last in unspecified order.
 * `all`: the source for both singleton instances and arrays of the corresponding field or object gets recorded. When applied to objects, the source of all sub-objects and sub-fields gets captured. Furthermore, the original source of arrays gets captured and appears in synthetic source with no modifications.
 
 For instance:

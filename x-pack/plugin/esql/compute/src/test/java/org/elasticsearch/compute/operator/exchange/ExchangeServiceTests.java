@@ -732,9 +732,8 @@ public class ExchangeServiceTests extends ESTestCase {
 
     private BlockFactory blockFactory() {
         MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        MockBlockFactory factory = new MockBlockFactory(breaker, bigArrays);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        MockBlockFactory factory = new MockBlockFactory(BlockFactory.builder(bigArrays));
         blockFactories.add(factory);
         return factory;
     }

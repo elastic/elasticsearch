@@ -26,9 +26,10 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -152,7 +153,7 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                         }
                         case BYTES_REF -> {
                             BytesRef b = bytesRefFromPoints
-                                ? SpatialCoordinateTypes.GEO.asWkb(pointSupplier.get())
+                                ? new BytesRef(WellKnownBinary.toWKB(pointSupplier.get(), ByteOrder.LITTLE_ENDIAN))
                                 : new BytesRef(ESTestCase.randomRealisticUnicodeOfLength(4));
                             valuesAtPosition.add(b);
                             ((BytesRefBlock.Builder) builder).appendBytesRef(b);

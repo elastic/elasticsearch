@@ -44,10 +44,10 @@ public final class GeoBytesRefFromLongsBlockLoader extends BlockDocValuesReader.
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         NumericDvSingletonOrSorted dv = NumericDvSingletonOrSorted.get(breaker, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         TrackingSortedNumericDocValues sorted = dv.forceSorted();
         return new BytesRefsFromLong(sorted, geoPointLong -> {
@@ -89,11 +89,6 @@ public final class GeoBytesRefFromLongsBlockLoader extends BlockDocValuesReader.
                 }
                 return builder.build();
             }
-        }
-
-        @Override
-        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-            read(docId, (BlockLoader.BytesRefBuilder) builder);
         }
 
         private void read(int doc, BlockLoader.BytesRefBuilder builder) throws IOException {

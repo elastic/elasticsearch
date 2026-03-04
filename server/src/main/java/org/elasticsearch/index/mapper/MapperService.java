@@ -724,7 +724,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // This is the desired behavior when making an explicit mapping update, even if ignore_dynamic_beyond_limit is enabled.
             // When ignore_dynamic_beyond_limit is disabled and a dynamic mapping update would exceed the field limit,
             // the document will get rejected.
-            // Normally, this happens on the data node in DocumentParserContext.addDynamicMapper but if there's a race condition,
+            // Normally, this happens on the data node in DocumentParserContext.getDynamicMapper but if there's a race condition,
             // data nodes may add dynamic fields under an outdated assumption that enough capacity is still available.
             // In this case, the master node will reject mapping updates that would exceed the limit when handling the mapping update.
             return Long.MAX_VALUE;

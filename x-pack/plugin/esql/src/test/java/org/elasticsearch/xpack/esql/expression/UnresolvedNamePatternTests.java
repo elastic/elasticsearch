@@ -28,7 +28,7 @@ public class UnresolvedNamePatternTests extends AbstractNamedExpressionSerializa
             case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(4));
             case 1 -> pattern = randomValueOtherThan(pattern, () -> randomAlphaOfLength(4));
         }
-        return new UnresolvedNamePattern(source, null, name, pattern);
+        return new UnresolvedNamePattern(source, null, pattern, name);
     }
 
     @Override

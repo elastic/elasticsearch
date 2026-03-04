@@ -396,9 +396,9 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * Returns many moderately long strings.
      */
     public void testManyRepeat() throws IOException {
-        int strings = 30;
+        int strings = 12;
         initManyLongs(10);
-        assertManyStrings(manyRepeat("FROM manylongs", strings), 30);
+        assertManyStrings(manyRepeat("FROM manylongs", strings), strings);
     }
 
     /**

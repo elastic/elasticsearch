@@ -315,130 +315,6 @@ public class TopTests extends AbstractAggregationTestCase {
                         DataType.IP,
                         equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))))
                     )
-                ),
-
-                // Resolution errors
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(0, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "Limit must be greater than 0 in [source], found [0]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(2, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("wrong-order"), DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "Invalid order value in [source], expected [ASC, DESC] but got [wrong-order]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(null, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "Limit must be a constant integer in [source], found [null]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(5L, 8L, 2L, 0L, 200L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData(null, DataType.KEYWORD, "order").forceLiteral()
-                        ),
-                        "Invalid order value in [source], expected [ASC, DESC] but got [null]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD, DataType.BOOLEAN),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(1L, 2L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData("asc", DataType.KEYWORD, "order").forceLiteral(),
-                            TestCaseSupplier.TypedData.multiRow(List.of(true, false), DataType.BOOLEAN, "outputField")
-                        ),
-                        "fourth argument of [source] must be [date or numeric except unsigned_long or counter types], "
-                            + "found value [outputField] type [boolean]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD, DataType.KEYWORD),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(1L, 2L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData("asc", DataType.KEYWORD, "order").forceLiteral(),
-                            TestCaseSupplier.TypedData.multiRow(List.of("a", "b"), DataType.KEYWORD, "outputField")
-                        ),
-                        "fourth argument of [source] must be [date or numeric except unsigned_long or counter types], "
-                            + "found value [outputField] type [keyword]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.LONG, DataType.INTEGER, DataType.KEYWORD, DataType.IP),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(1L, 2L), DataType.LONG, "field"),
-                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData("asc", DataType.KEYWORD, "order").forceLiteral(),
-                            TestCaseSupplier.TypedData.multiRow(List.of("192.168.0.1", "192.168.0.2"), DataType.IP, "outputField")
-                        ),
-                        "fourth argument of [source] must be [date or numeric except unsigned_long or counter types], "
-                            + "found value [outputField] type [ip]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.BOOLEAN, DataType.INTEGER, DataType.KEYWORD, DataType.LONG),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of(true, false), DataType.BOOLEAN, "field"),
-                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData("asc", DataType.KEYWORD, "order").forceLiteral(),
-                            TestCaseSupplier.TypedData.multiRow(List.of(1L, 2L), DataType.LONG, "outputField")
-                        ),
-                        "when fourth argument is set, first argument of [source] must be "
-                            + "[date or numeric except unsigned_long or counter types], found value [field] type [boolean]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.KEYWORD, DataType.INTEGER, DataType.KEYWORD, DataType.LONG),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of("a", "b"), DataType.KEYWORD, "field"),
-                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData("asc", DataType.KEYWORD, "order").forceLiteral(),
-                            TestCaseSupplier.TypedData.multiRow(List.of(1L, 2L), DataType.LONG, "outputField")
-                        ),
-                        "when fourth argument is set, first argument of [source] must be "
-                            + "[date or numeric except unsigned_long or counter types], found value [field] type [keyword]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    List.of(DataType.IP, DataType.INTEGER, DataType.KEYWORD, DataType.LONG),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            TestCaseSupplier.TypedData.multiRow(List.of("192.168.0.1", "192.168.0.2"), DataType.IP, "field"),
-                            new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
-                            new TestCaseSupplier.TypedData("asc", DataType.KEYWORD, "order").forceLiteral(),
-                            TestCaseSupplier.TypedData.multiRow(List.of(1L, 2L), DataType.LONG, "outputField")
-                        ),
-                        "when fourth argument is set, first argument of [source] must be "
-                            + "[date or numeric except unsigned_long or counter types], found value [field] type [ip]"
-                    )
                 )
             )
         );
@@ -481,8 +357,12 @@ public class TopTests extends AbstractAggregationTestCase {
         }
 
         DataType expectedType = outputFieldSupplied ? outputFieldSupplier.type() : fieldSupplier.type();
+        String name = fieldSupplier.name() + ", " + limitCaseSupplier.name() + ", " + order;
+        if (outputFieldSupplied) {
+            name += ", " + outputFieldSupplier.name();
+        }
 
-        return new TestCaseSupplier(fieldSupplier.name(), dataTypes, () -> {
+        return new TestCaseSupplier(name, dataTypes, () -> {
             var fieldTypedData = fieldSupplier.get();
             var limitTypedData = limitCaseSupplier.get().forceLiteral();
             var limit = (int) limitTypedData.getValue();

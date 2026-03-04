@@ -10,10 +10,10 @@ package org.elasticsearch.compute.aggregation.table;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.test.MockBlockFactory;
@@ -28,8 +28,9 @@ import static org.mockito.Mockito.when;
 
 public class RowInTableLookupTests extends ESTestCase {
     final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-    final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-    final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+    final MockBlockFactory blockFactory = new MockBlockFactory(
+        BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker)))
+    );
 
     public void testDuplicateInts() {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(2)) {

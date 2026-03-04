@@ -33,6 +33,7 @@ import java.nio.ByteOrder;
 import java.util.concurrent.ThreadLocalRandom;
 
 class BenchmarkUtils {
+
     // Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;

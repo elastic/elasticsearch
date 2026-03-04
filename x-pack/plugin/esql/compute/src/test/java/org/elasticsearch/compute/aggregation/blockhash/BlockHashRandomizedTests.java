@@ -145,15 +145,14 @@ public class BlockHashRandomizedTests extends ESTestCase {
     public void test() {
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
-        test(new MockBlockFactory(breaker, bigArrays));
+        test(new MockBlockFactory(BlockFactory.builder(bigArrays)));
     }
 
     public void testWithCranky() {
         CircuitBreakerService service = new CrankyCircuitBreakerService();
-        CircuitBreaker breaker = service.getBreaker(CircuitBreaker.REQUEST);
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, service);
         try {
-            test(new MockBlockFactory(breaker, bigArrays));
+            test(new MockBlockFactory(BlockFactory.builder(bigArrays)));
             logger.info("cranky let us finish!");
         } catch (CircuitBreakingException e) {
             logger.info("cranky", e);

@@ -1,0 +1,5 @@
+area: Transform
+issues: []
+pr: 142452
+summary: Skip checkpoint query filter when `runtime_mappings` are present
+type: enhancement

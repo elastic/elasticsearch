@@ -220,7 +220,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return columns;
     }
 
-    List<Page> pages() {
+    public List<Page> pages() {
         return pages;
     }
 

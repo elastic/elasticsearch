@@ -122,6 +122,14 @@ public class Chicken extends EsqlScalarFunction implements OptionalArgument {
         return ENTRY.name;
     }
 
+    Expression message() {
+        return message;
+    }
+
+    Expression options() {
+        return options;
+    }
+
     @Override
     public DataType dataType() {
         return DataType.KEYWORD;

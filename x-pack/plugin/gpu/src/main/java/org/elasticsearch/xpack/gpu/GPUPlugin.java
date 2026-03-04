@@ -14,6 +14,7 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
@@ -23,6 +24,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
+import java.util.Collection;
 import java.util.List;
 
 public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlugin, ActionPlugin {
@@ -42,12 +45,6 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         XPackField.GPU_VECTOR_INDEXING,
         License.OperationMode.ENTERPRISE
     );
-
-    private final GpuMode gpuMode;
-
-    public GPUPlugin(Settings settings) {
-        this.gpuMode = VECTORS_INDEXING_USE_GPU_NODE_SETTING.get(settings);
-    }
 
     /**
      * An enum for the tri-state value of the `vectors.indexing.use_gpu` setting.
@@ -61,7 +58,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
     /**
      * Node-level setting to control whether to use GPU for vectors indexing across the node.
      * This is a static, node-scoped setting.
-     *
+     * <p>
      * If unset or "auto", an automatic decision is made based on the presence of GPU and necessary libraries.
      * If set to <code>true</code>, GPU must be used for vectors indexing, and if GPU or necessary libraries are not available,
      * the node will refuse to start and throw an exception.
@@ -73,6 +70,23 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         GpuMode.AUTO,
         Setting.Property.NodeScope
     );
+
+    private final GpuMode gpuMode;
+    private final GPUSupport gpuSupport;
+
+    public GPUPlugin(Settings settings) {
+        this(settings, CuVSGPUSupport.instance());
+    }
+
+    GPUPlugin(Settings settings, GPUSupport gpuSupport) {
+        this.gpuMode = VECTORS_INDEXING_USE_GPU_NODE_SETTING.get(settings);
+        this.gpuSupport = gpuSupport;
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        return List.of(new PluginComponentBinding<>(GPUSupport.class, gpuSupport));
+    }
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -96,7 +110,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
-        return List.of(new GpuModeBootstrapCheck());
+        return List.of(new GpuModeBootstrapCheck(gpuSupport));
     }
 
     /**
@@ -104,12 +118,18 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
      * Refuses to start the node if GPU support is required but not available.
      */
     static class GpuModeBootstrapCheck implements BootstrapCheck {
+        private final GPUSupport gpu;
+
+        GpuModeBootstrapCheck(GPUSupport gpuSupport) {
+            gpu = gpuSupport;
+        }
+
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
             Settings settings = context.settings();
             GpuMode gpuMode = VECTORS_INDEXING_USE_GPU_NODE_SETTING.get(settings);
 
-            if (gpuMode == GpuMode.TRUE && GPUSupport.isSupported() == false) {
+            if (gpuMode == GpuMode.TRUE && gpu.isSupported() == false) {
                 return BootstrapCheckResult.failure(
                     "vectors.indexing.use_gpu is set to [true], but GPU resources are not accessible on this node. Check logs for details."
                 );
@@ -131,8 +151,8 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
                 return null;
             }
 
-            if (gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && GPUSupport.isSupported())) {
-                assert GPUSupport.isSupported();
+            if (gpuMode == GpuMode.TRUE || (gpuMode == GpuMode.AUTO && gpuSupport.isSupported())) {
+                assert gpuSupport.isSupported();
                 if (isGpuIndexingFeatureAllowed()) {
                     return getVectorsFormat(indexOptions, similarity);
                 } else {
@@ -160,7 +180,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
         return type == DenseVectorFieldMapper.VectorIndexType.HNSW || type == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW;
     }
 
-    private static KnnVectorsFormat getVectorsFormat(
+    private KnnVectorsFormat getVectorsFormat(
         DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions,
         DenseVectorFieldMapper.VectorSimilarity similarity
     ) {
@@ -171,7 +191,7 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
             int m = hnswIndexOptions.m();
             int gpuM = 2 + m * 2 / 3;
             int gpuEfConstruction = m + m * efConstruction / 256;
-            return new ES92GpuHnswVectorsFormat(gpuM, gpuEfConstruction);
+            return new ES92GpuHnswVectorsFormat(gpuSupport.getTotalGpuMemory(), gpuM, gpuEfConstruction);
         } else if (indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.INT8_HNSW) {
             if (similarity == DenseVectorFieldMapper.VectorSimilarity.MAX_INNER_PRODUCT) {
                 throw new IllegalArgumentException(
@@ -189,7 +209,14 @@ public class GPUPlugin extends Plugin implements InternalVectorFormatProviderPlu
             int m = int8HnswIndexOptions.m();
             int gpuM = 2 + m * 2 / 3;
             int gpuEfConstruction = m + m * efConstruction / 256;
-            return new ES92GpuHnswSQVectorsFormat(gpuM, gpuEfConstruction, int8HnswIndexOptions.confidenceInterval(), 7, false);
+            return new ES92GpuHnswSQVectorsFormat(
+                gpuSupport.getTotalGpuMemory(),
+                gpuM,
+                gpuEfConstruction,
+                int8HnswIndexOptions.confidenceInterval(),
+                7,
+                false
+            );
         } else {
             throw new IllegalArgumentException(
                 "GPU vector indexing is not supported on this vector type: [" + indexOptions.getType() + "]"

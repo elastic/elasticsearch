@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.ApiKeySecurityConfig;
 
 import static org.elasticsearch.xpack.sql.qa.security.RestSqlIT.SSL_ENABLED;
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Integration tests for CLI connections using API key authentication.
@@ -65,6 +66,7 @@ public class CliApiKeyIT extends SqlApiKeyTestCase {
             cli.readLine(); // separator line
             String valueLine = cli.readLine();
             assertThat(valueLine, containsString("123"));
+            assertEquals("", cli.readLine());
         }
     }
 

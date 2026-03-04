@@ -175,7 +175,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 )
             ),
             randomBoolean(),
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true)
         );
     }
 
@@ -518,7 +519,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 )
             ),
             reuseColumnLoaders,
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true)
         ).get(driverContext);
         List<Page> results = new TestDriverRunner().numThreads(1).builder(driverContext).input(input).run(load);
         assertThat(results, hasSize(input.size()));
@@ -644,7 +646,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     )
                 ),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -664,7 +667,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         )
                     ),
                     randomBoolean(),
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true)
                 ).get(driverContext)
             );
         }
@@ -810,7 +814,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             )
                         ),
                         reuseBlockLoaders,
-                        0
+                        0,
+                        randomDoubleBetween(0.1, 10.0, true)
                     ).get(runner.context())
                 )
                 .toList()
@@ -967,7 +972,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             )
                         ),
                         randomBoolean(),
-                        0
+                        0,
+                        randomDoubleBetween(0.1, 10.0, true)
                     ).get(runner.context())
                 )
                 .toList()
@@ -1635,7 +1641,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             )
                         ),
                         randomBoolean(),
-                        0
+                        0,
+                        randomDoubleBetween(0.1, 10.0, true)
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -1690,7 +1697,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         )
                     ),
                     randomBoolean(),
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true)
                 )
             );
         Checks checks = new Checks(Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
@@ -1726,7 +1734,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 )
             ),
             randomBoolean(),
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true)
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -1779,7 +1788,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 })),
                 new IndexedByShardIdFromList<>(readerShardContexts),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             );
             var runner = new TestDriverRunner().builder(driverContext());
             List<Page> results = runner.input(luceneFactory).run(readerFactory);

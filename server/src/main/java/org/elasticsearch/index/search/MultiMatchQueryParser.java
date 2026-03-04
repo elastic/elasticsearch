@@ -17,6 +17,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -53,7 +54,9 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         boolean hasMappedField = fieldNames.keySet().stream().anyMatch(k -> context.getFieldType(k) != null);
         if (hasMappedField == false) {
             // all query fields are unmapped
-            return Queries.newUnmappedFieldsQuery(fieldNames.keySet());
+            Query query = Queries.newUnmappedFieldsQuery(fieldNames.keySet());
+            query.visit(queryVisitor);
+            return query;
         }
         final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
         final List<Query> queries = switch (type) {
@@ -126,7 +129,8 @@ public class MultiMatchQueryParser extends MatchQueryParser {
                     group.getKey(),
                     group.getValue().get(0).fieldType,
                     enablePositionIncrements,
-                    autoGenerateSynonymsPhraseQuery
+                    autoGenerateSynonymsPhraseQuery,
+                    queryVisitor
                 );
             } else {
                 builder = new CrossFieldsQueryBuilder(
@@ -134,7 +138,8 @@ public class MultiMatchQueryParser extends MatchQueryParser {
                     group.getValue(),
                     tieBreaker,
                     enablePositionIncrements,
-                    autoGenerateSynonymsPhraseQuery
+                    autoGenerateSynonymsPhraseQuery,
+                    queryVisitor
                 );
             }
 
@@ -147,6 +152,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             Query query = builder.createBooleanQuery(representativeField, value.toString(), occur);
             if (query == null) {
                 query = zeroTermsQuery.asQuery();
+                query.visit(queryVisitor);
             }
 
             query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
@@ -174,9 +180,10 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             List<FieldAndBoost> blendedFields,
             float tieBreaker,
             boolean enablePositionIncrements,
-            boolean autoGenerateSynonymsPhraseQuery
+            boolean autoGenerateSynonymsPhraseQuery,
+            QueryVisitor queryVisitor
         ) {
-            super(analyzer, blendedFields.get(0).fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery);
+            super(analyzer, blendedFields.get(0).fieldType, enablePositionIncrements, autoGenerateSynonymsPhraseQuery, queryVisitor);
             this.blendedFields = blendedFields;
             this.tieBreaker = tieBreaker;
         }
@@ -202,12 +209,16 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             for (int i = 0; i < terms.length; i++) {
                 values[i] = terms[i].term();
             }
-            return blendTerms(context, values, tieBreaker, lenient, blendedFields);
+            Query query = blendTerms(context, values, tieBreaker, lenient, blendedFields);
+            query.visit(queryVisitor);
+            return query;
         }
 
         @Override
         protected Query newTermQuery(Term term, float boost) {
-            return blendTerm(context, term.bytes(), tieBreaker, lenient, blendedFields);
+            Query query = blendTerm(context, term.bytes(), tieBreaker, lenient, blendedFields);
+            query.visit(queryVisitor);
+            return query;
         }
 
         @Override
@@ -223,6 +234,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
+                query.visit(queryVisitor);
                 disjunctions.add(query);
             }
             return new DisjunctionMaxQuery(disjunctions, tieBreaker);
@@ -236,6 +248,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
+                query.visit(queryVisitor);
                 disjunctions.add(query);
             }
             return new DisjunctionMaxQuery(disjunctions, tieBreaker);

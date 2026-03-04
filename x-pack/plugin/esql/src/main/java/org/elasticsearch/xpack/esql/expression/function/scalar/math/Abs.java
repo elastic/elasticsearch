@@ -57,12 +57,12 @@ public class Abs extends UnaryScalarFunction {
         return Math.abs(fieldVal);
     }
 
-    @Evaluator(extraName = "Long")
+    @Evaluator(extraName = "Long", warnExceptions = { ArithmeticException.class })
     static long process(long fieldVal) {
         return Math.absExact(fieldVal);
     }
 
-    @Evaluator(extraName = "Int")
+    @Evaluator(extraName = "Int", warnExceptions = { ArithmeticException.class })
     static int process(int fieldVal) {
         return Math.absExact(fieldVal);
     }

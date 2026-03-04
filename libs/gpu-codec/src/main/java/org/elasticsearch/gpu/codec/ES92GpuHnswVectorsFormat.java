@@ -19,6 +19,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -53,18 +54,25 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     // Intermediate graph degree, the number of connections for each node before pruning
     private final int beamWidth;
     private final Supplier<CuVSResourceManager> cuVSResourceManagerSupplier;
+    private final long totalDeviceMemory;
 
     public ES92GpuHnswVectorsFormat() {
-        this(CuVSResourceManager::pooling, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
+        this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
     }
 
-    public ES92GpuHnswVectorsFormat(int maxConn, int beamWidth) {
-        this(CuVSResourceManager::pooling, maxConn, beamWidth);
-    };
+    public ES92GpuHnswVectorsFormat(long totalDeviceMemory, int maxConn, int beamWidth) {
+        this(CuVSResourceManager::pooling, totalDeviceMemory, maxConn, beamWidth);
+    }
 
-    public ES92GpuHnswVectorsFormat(Supplier<CuVSResourceManager> cuVSResourceManagerSupplier, int maxConn, int beamWidth) {
+    ES92GpuHnswVectorsFormat(
+        Supplier<CuVSResourceManager> cuVSResourceManagerSupplier,
+        long totalDeviceMemory,
+        int maxConn,
+        int beamWidth
+    ) {
         super(NAME);
         this.cuVSResourceManagerSupplier = cuVSResourceManagerSupplier;
+        this.totalDeviceMemory = totalDeviceMemory;
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
     }
@@ -73,6 +81,7 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new ES92GpuHnswVectorsWriter(
             cuVSResourceManagerSupplier.get(),
+            totalDeviceMemory,
             state,
             maxConn,
             beamWidth,

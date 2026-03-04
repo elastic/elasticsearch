@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelTests;
@@ -97,7 +96,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             new CommonConfig(TaskType.COMPLETION, TaskType.TEXT_EMBEDDING, EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)) {
 
                 @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                protected Ai21Service createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return Ai21ServiceTests.createService(threadPool, clientManager);
                 }
 
@@ -195,7 +194,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
         assertThat(customModel.getTaskType(), Matchers.is(TaskType.CHAT_COMPLETION));
     }
 
-    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static Ai21Service createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new Ai21Service(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }

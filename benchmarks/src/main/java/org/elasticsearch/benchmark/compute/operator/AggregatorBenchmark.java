@@ -10,8 +10,8 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -76,10 +76,9 @@ public class AggregatorBenchmark {
     private static final int GROUPS = 5;
     private static final int TOP_N_LIMIT = 3;
 
-    private static final BlockFactory blockFactory = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE  // TODO real big arrays?
-    );
+    private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     private static final String LONGS = "longs";
     private static final String INTS = "ints";
@@ -115,7 +114,7 @@ public class AggregatorBenchmark {
     private static final String CONSTANT_FALSE = "constant_false";
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
 
         // Smoke test all the expected values and force loading subclasses more like prod
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {

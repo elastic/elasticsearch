@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -200,5 +201,18 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
         QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
         assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
+    }
+
+    public void testWildcardQueryCircuitBreakerAccounting() throws IOException {
+        assertCircuitBreakerAccountsForQuery(new WildcardQueryBuilder(TEXT_FIELD_NAME, "test*pattern*with*wildcards*"));
+    }
+
+    public void testCircuitBreakerTripsWithLowLimit() {
+        assertCircuitBreakerTripsOnQueryConstruction("1mb", () -> {
+            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+            IntStream.range(0, 100)
+                .forEach(i -> boolQuery.should(new WildcardQueryBuilder(TEXT_FIELD_NAME, "*a*b*c*d*e*f*g*h*i*j*k*l*m*n*o*p*" + i + "*")));
+            return boolQuery;
+        });
     }
 }

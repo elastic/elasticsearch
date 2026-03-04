@@ -129,13 +129,23 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
         return new BytesRefLookup(asBlock(), positions, targetBlockSize);
     }
 
-    public static long ramBytesEstimated(BytesRefArray values) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    /**
+     * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
+     * underlying byte data exceeds {@code overestimateThreshold}. This compensates for heap
+     * overhead that {@link RamUsageEstimator} does not track, such as page-level waste in
+     * {@link BytesRefArray} when loading large text fields from {@code _source}.
+     */
+    public static long ramBytesEstimated(BytesRefArray values, long overestimateThreshold, double overestimateFactor) {
+        long valuesSize = RamUsageEstimator.sizeOf(values);
+        if (valuesSize > overestimateThreshold) {
+            valuesSize = Math.round(valuesSize * overestimateFactor);
+        }
+        return BASE_RAM_BYTES_USED + valuesSize;
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesEstimated(values);
+        return ramBytesEstimated(values, blockFactory().bytesRefRamOverestimateThreshold(), blockFactory().bytesRefRamOverestimateFactor());
     }
 
     @Override

@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.vector.quantization;
 
 import org.apache.lucene.search.TaskExecutor;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborHood;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 public class ComputeNeighboursBenchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     @Param({ "1000", "2000", "3000", "5000", "10000", "20000", "50000" })

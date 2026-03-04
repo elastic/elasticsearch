@@ -37,10 +37,14 @@ dependencies {
   // The CSV datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-csv'))
   clusterPlugins project(xpackModule('esql-datasource-gzip'))
+  clusterPlugins project(xpackModule('esql-datasource-zstd'))
+  clusterPlugins project(xpackModule('esql-datasource-bzip2'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
   clusterPlugins project(xpackModule('esql-datasource-s3'))
   // GCS datasource plugin for gs:// storage backend
   clusterPlugins project(xpackModule('esql-datasource-gcs'))
+  // Azure Blob datasource plugin for wasbs:///wasb:// storage backend
+  clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
 // The CSV fixtures (employees.csv and csv-basic.csv-spec) are included

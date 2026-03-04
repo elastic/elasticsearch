@@ -130,6 +130,10 @@ public class StSimplify extends SpatialDocValuesFunction {
         return geometry;
     }
 
+    Expression tolerance() {
+        return tolerance;
+    }
+
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         EvalOperator.ExpressionEvaluator.Factory geometryEvaluator = toEvaluator.apply(geometry);

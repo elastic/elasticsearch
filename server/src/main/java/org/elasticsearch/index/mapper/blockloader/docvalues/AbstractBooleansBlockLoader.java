@@ -34,10 +34,10 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public final ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         NumericDvSingletonOrSorted dv = NumericDvSingletonOrSorted.get(breaker, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         if (dv.singleton() != null) {
             return singletonReader(dv.singleton());
@@ -45,9 +45,9 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
         return sortedReader(dv.sorted());
     }
 
-    protected abstract AllReader singletonReader(TrackingNumericDocValues docValues);
+    protected abstract ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues);
 
-    protected abstract AllReader sortedReader(TrackingSortedNumericDocValues docValues);
+    protected abstract ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues);
 
     public static class Singleton extends BlockDocValuesReader {
         private final TrackingNumericDocValues numericDocValues;
@@ -74,16 +74,6 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
                     lastDoc = doc;
                 }
                 return builder.build();
-            }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            BooleanBuilder blockBuilder = (BooleanBuilder) builder;
-            if (numericDocValues.docValues().advanceExact(docId)) {
-                blockBuilder.appendBoolean(numericDocValues.docValues().longValue() != 0);
-            } else {
-                blockBuilder.appendNull();
             }
         }
 
@@ -120,11 +110,6 @@ public abstract class AbstractBooleansBlockLoader extends BlockDocValuesReader.D
                 }
                 return builder.build();
             }
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BooleanBuilder) builder);
         }
 
         private void read(int doc, BooleanBuilder builder) throws IOException {

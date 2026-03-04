@@ -1967,9 +1967,9 @@ row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22
 ;
 
 // tag::to_geopoint-str-parse-error-warning[]
-warning:Line 3:13: evaluation of [to_geopoint(wkt)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
-warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+warningRegex:Line 3:13: evaluation of \[to_geopoint\(wkt\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
+warningRegex:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: '\)'
 // end::to_geopoint-str-parse-error-warning[]
 
 // tag::to_geopoint-str-parse-error-result[]

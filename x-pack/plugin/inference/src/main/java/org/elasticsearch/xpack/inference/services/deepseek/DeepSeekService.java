@@ -49,8 +49,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
-public class DeepSeekService extends SenderService {
-    private static final String NAME = "deepseek";
+public class DeepSeekService extends SenderService<DeepSeekChatCompletionModel> {
+    public static final String NAME = "deepseek";
     private static final String CHAT_COMPLETION_ERROR_PREFIX = "deepseek chat completions";
     private static final String COMPLETION_ERROR_PREFIX = "deepseek completions";
     private static final String SERVICE_NAME = "DeepSeek";
@@ -78,7 +78,7 @@ public class DeepSeekService extends SenderService {
     }
 
     public DeepSeekService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -182,18 +182,6 @@ public class DeepSeekService extends SenderService {
     }
 
     @Override
-    public Model parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        var serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        var secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
-        return createModelFromStorage(inferenceEntityId, taskType, serviceSettingsMap, secretSettingsMap);
-    }
-
-    @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
             MODEL_CREATORS,
@@ -202,21 +190,6 @@ public class DeepSeekService extends SenderService {
             config.getService(),
             ConfigurationParseContext.PERSISTENT
         ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        var serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        return createModelFromStorage(modelId, taskType, serviceSettingsMap, null);
-    }
-
-    private static DeepSeekChatCompletionModel createModelFromStorage(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettingsMap,
-        Map<String, Object> secrets
-    ) {
-        return createModel(inferenceEntityId, taskType, serviceSettingsMap, secrets, ConfigurationParseContext.PERSISTENT);
     }
 
     @Override

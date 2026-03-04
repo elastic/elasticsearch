@@ -131,8 +131,8 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
                 if (unvalidatedMap.containsKey(SERVICE_SETTINGS)) {
                     if (unvalidatedMap.get(SERVICE_SETTINGS) instanceof Map<?, ?> tempMap) {
                         for (Map.Entry<?, ?> entry : (tempMap).entrySet()) {
-                            if (entry.getKey() instanceof String key && entry.getValue() instanceof Object value) {
-                                serviceSettings.put(key, value);
+                            if (entry.getKey() instanceof String key) {
+                                serviceSettings.put(key, entry.getValue());
                             } else {
                                 throw new ElasticsearchStatusException(
                                     "Failed to parse update request [{}]",
@@ -154,8 +154,8 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
                 if (unvalidatedMap.containsKey(TASK_SETTINGS)) {
                     if (unvalidatedMap.get(TASK_SETTINGS) instanceof Map<?, ?> tempMap) {
                         for (Map.Entry<?, ?> entry : (tempMap).entrySet()) {
-                            if (entry.getKey() instanceof String key && entry.getValue() instanceof Object value) {
-                                taskSettings.put(key, value);
+                            if (entry.getKey() instanceof String key) {
+                                taskSettings.put(key, entry.getValue());
                             } else {
                                 throw new ElasticsearchStatusException(
                                     "Failed to parse update request [{}]",

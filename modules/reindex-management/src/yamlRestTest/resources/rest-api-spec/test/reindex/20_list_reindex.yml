@@ -79,6 +79,7 @@ setup:
   - is_true: reindex
   - length: { reindex: 1 }
   - match: { reindex.0.id: $taskId }
+  - match: { reindex.0.description: "reindex from [source] to [dest]" }
   - match: { reindex.0.cancelled: false }
   - exists: reindex.0.start_time
   - exists: reindex.0.start_time_in_millis

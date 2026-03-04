@@ -24,8 +24,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.inference.InferenceString.DataFormat.BASE64;
-import static org.elasticsearch.inference.InferenceString.DataType.IMAGE;
+import static org.elasticsearch.inference.DataFormat.BASE64;
+import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.inference.InputType.INGEST;
 import static org.elasticsearch.xpack.inference.TaskTypeTests.randomEmbeddingTaskType;
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModelTests.createModel;

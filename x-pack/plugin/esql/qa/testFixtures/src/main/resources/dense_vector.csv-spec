@@ -179,3 +179,37 @@ count_vectors:long
 1               
 ;
 
+coalesceDenseVectorWithFallback
+required_capability: coalesce_dense_vector
+
+FROM dense_vector
+| EVAL v = COALESCE(float_vector, to_dense_vector([0, 0, 0]))
+| KEEP id, v
+| SORT id
+;
+
+id:l | v:dense_vector
+0    | [1.0, 2.0, 3.0]
+1    | [4.0, 5.0, 6.0]
+2    | [9.0, 8.0, 7.0]
+3    | [0.054, 0.032, 0.012]
+4    | [0.0, 0.0, 0.0]
+;
+
+coalesceDenseVectorTwoColumns
+required_capability: coalesce_dense_vector
+
+FROM dense_vector_coalesce
+| EVAL v = COALESCE(float_vector, float_vector_2)
+| KEEP id, v
+| SORT id
+;
+
+id:l | v:dense_vector
+0    | [1.0, 2.0, 3.0]
+1    | [4.0, 5.0, 6.0]
+2    | [9.0, 8.0, 7.0]
+3    | [0.054, 0.032, 0.012]
+4    | [0.5, 0.5, 0.5]
+;
+

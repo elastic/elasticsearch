@@ -68,18 +68,18 @@ public class RestResolveIndexAction extends BaseRestHandler {
         AtomicReference<String> projectRouting = new AtomicReference<>();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS);
 
-        if (crossProjectEnabled) {
-            request.withContentOrSourceParamParserOrNull(parser -> {
-                try {
-                    // If parser is null, there's no request body. projectRouting will then yield `null`.
-                    if (parser != null) {
-                        projectRouting.set(parseProjectRouting(parser));
-                    }
-                } catch (Exception e) {
-                    throw new ElasticsearchException("Couldn't parse request body", e);
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            try {
+                // If parser is null, there's no request body. projectRouting will then yield `null`.
+                if (parser != null) {
+                    parseXContent(crossProjectEnabled, parser, projectRouting);
                 }
-            });
+            } catch (Exception e) {
+                throw new ElasticsearchException("Couldn't parse request body", e);
+            }
+        });
 
+        if (crossProjectEnabled) {
             indicesOptions = IndicesOptions.builder(indicesOptions)
                 .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                 .build();
@@ -98,11 +98,12 @@ public class RestResolveIndexAction extends BaseRestHandler {
         return channel -> client.admin().indices().resolveIndex(resolveRequest, new RestToXContentListener<>(channel));
     }
 
-    private static String parseProjectRouting(XContentParser parser) throws ParsingException {
+    private static void parseXContent(boolean crossProjectEnabled, XContentParser parser, AtomicReference<String> projectRouting)
+        throws ParsingException {
         try {
             XContentParser.Token first = parser.nextToken();
             if (first == null) {
-                return null;
+                return;
             }
 
             if (first != XContentParser.Token.START_OBJECT) {
@@ -113,20 +114,17 @@ public class RestResolveIndexAction extends BaseRestHandler {
                 );
             }
 
-            String projectRouting = null;
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String currentName = parser.currentName();
-                    if ("project_routing".equals(currentName)) {
+                    if (crossProjectEnabled && "project_routing".equals(currentName)) {
                         parser.nextToken();
-                        projectRouting = parser.text();
+                        projectRouting.set(parser.text());
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }
                 }
             }
-
-            return projectRouting;
         } catch (ParsingException e) {
             throw e;
         } catch (Exception e) {

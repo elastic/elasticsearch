@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -187,7 +186,6 @@ public class EnrichResultBuilderTests extends ESTestCase {
 
     BlockFactory blockFactory() {
         var bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(100)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        return new BlockFactory(breaker, bigArrays);
+        return BlockFactory.builder(bigArrays).build();
     }
 }

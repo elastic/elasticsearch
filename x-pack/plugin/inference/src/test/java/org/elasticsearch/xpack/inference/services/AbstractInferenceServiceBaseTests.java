@@ -110,7 +110,7 @@ public abstract class AbstractInferenceServiceBaseTests extends InferenceService
             return supportedTaskTypes;
         }
 
-        protected abstract SenderService createService(ThreadPool threadPool, HttpClientManager clientManager);
+        protected abstract SenderService<?> createService(ThreadPool threadPool, HttpClientManager clientManager);
 
         protected abstract Map<String, Object> createServiceSettingsMap(TaskType taskType);
 

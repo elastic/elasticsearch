@@ -64,6 +64,10 @@ import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecyc
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
+import org.elasticsearch.datastreams.lifecycle.transitions.steps.ForceMergeStep;
+import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.steps.TransportMarkIndexForDLMForceMergeAction;
 import org.elasticsearch.datastreams.options.action.DeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.GetDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportDeleteDataStreamOptionsAction;
@@ -187,6 +191,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING);
+        pluginSettings.add(ForceMergeStep.DLM_FORCE_MERGE_COMPLETE_SETTING);
         return pluginSettings;
     }
 
@@ -214,6 +219,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         // Register DLM actions here. Order matters - they will be executed in the order they are listed for a given index.
         List<DlmAction> dlmActions = List.of();
 
+        verifyActions(dlmActions);
+
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,
@@ -238,6 +245,26 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         return components;
     }
 
+    // visible for testing
+    static void verifyActions(List<DlmAction> dlmActions) {
+        for (DlmAction action : dlmActions) {
+            if (action.steps().isEmpty()) {
+                throw new IllegalStateException("DLM action [" + action.name() + "] must have at least one step");
+            }
+            for (DlmStep step : action.steps()) {
+                if (step.possibleOutputIndexNamePatterns("dummy-index").isEmpty()) {
+                    throw new IllegalStateException(
+                        "DLM step ["
+                            + step.stepName()
+                            + "] in action ["
+                            + action.name()
+                            + "] must have at least one possible output index name pattern"
+                    );
+                }
+            }
+        }
+    }
+
     @Override
     public List<ActionHandler> getActions() {
         List<ActionHandler> actions = new ArrayList<>();
@@ -260,6 +287,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         actions.add(new ActionHandler(UpdateDataStreamSettingsAction.INSTANCE, TransportUpdateDataStreamSettingsAction.class));
         actions.add(new ActionHandler(GetDataStreamMappingsAction.INSTANCE, TransportGetDataStreamMappingsAction.class));
         actions.add(new ActionHandler(UpdateDataStreamMappingsAction.INSTANCE, TransportUpdateDataStreamMappingsAction.class));
+        actions.add(new ActionHandler(MarkIndexForDLMForceMergeAction.TYPE, TransportMarkIndexForDLMForceMergeAction.class));
         return actions;
     }
 

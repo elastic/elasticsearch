@@ -14,30 +14,41 @@ there is no value at all. For example: `WHERE field != "value"` will be interpre
 ::::
 
 
-**Syntax**
+## Syntax
 
 ```esql
 WHERE expression
 ```
 
-**Parameters**
+## Parameters
 
 `expression`
 :   A boolean expression.
 
-**Examples**
+## Examples
+
+The following examples show common ways to filter rows with `WHERE`.
+
+### Filter rows by field value
 
 :::{include} ../examples/docs.csv-spec/where.md
 :::
+
 Which, if `still_hired` is a boolean field, can be simplified to:
 
 :::{include} ../examples/docs.csv-spec/whereBoolean.md
 :::
+
+### Filter by time range
+
 Use date math to retrieve data from a specific time range. For example, to
 retrieve the last hour of logs:
 
 :::{include} ../examples/date.csv-spec/docsNowWhere.md
 :::
+
+### Use WHERE with a function
+
 `WHERE` supports various [functions](/reference/query-languages/esql/esql-functions-operators.md#esql-functions).
 For example the [`LENGTH`](/reference/query-languages/esql/functions-operators/string-functions/length.md) function:
 
@@ -58,12 +69,9 @@ For NULL comparison, use the `IS NULL` and `IS NOT NULL` predicates.
 
 ### Matching text
 
-For matching text, you can use [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) like `MATCH`.
-
 Use [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) to perform a
 [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on a specified field.
-
-Match can be used on text fields, as well as other field types like boolean, dates, and numeric types.
+`MATCH` works on text fields as well as boolean, date, and numeric types.
 
 :::{include} ../../functions/examples/match.md
 :::

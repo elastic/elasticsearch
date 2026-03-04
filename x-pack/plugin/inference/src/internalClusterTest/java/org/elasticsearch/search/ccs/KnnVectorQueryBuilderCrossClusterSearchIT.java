@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
@@ -54,6 +55,52 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             configureClusters();
             clustersConfigured = true;
         }
+    }
+
+    // TODO is this what we want to test?
+    public void testKnnQueryLookupCcsMinimizeRoundTripsTrue() throws Exception {
+        knnQueryBaseTestCases(true);
+        // Verify lookup query vector builder works across clusters for mixed semantic/dense mappings.
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_2,
+                new LookupQueryVectorBuilder(getDocId(MIXED_TYPE_FIELD_1), LOCAL_INDEX_NAME, MIXED_TYPE_FIELD_1, null),
+                10,
+                100,
+                10f,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+            ),
+            null,
+            null
+        );
+    }
+
+    // TODO is this what we want to test?
+    public void testKnnQueryLookupCcsMinimizeRoundTripsFalse() throws Exception {
+        knnQueryBaseTestCases(false);
+        // Verify lookup query vector builder works across clusters for mixed semantic/dense mappings.
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_2,
+                new LookupQueryVectorBuilder(getDocId(MIXED_TYPE_FIELD_1), LOCAL_INDEX_NAME, MIXED_TYPE_FIELD_1, null),
+                10,
+                100,
+                10f,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult("", LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+            ),
+            null,
+            null
+        );
     }
 
     public void testKnnQueryWithCcsMinimizeRoundTripsTrue() throws Exception {

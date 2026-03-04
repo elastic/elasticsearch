@@ -137,7 +137,7 @@ public final class LocalStorageProvider implements StorageProvider {
     }
 
     private static StoragePath toStoragePath(Path filePath) {
-        return StoragePath.of(FILE_SCHEME_PREFIX + filePath.toAbsolutePath());
+        return StoragePath.of(StoragePath.fileUri(filePath));
     }
 
     /**

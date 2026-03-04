@@ -28,8 +28,9 @@ import java.io.IOException;
 public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
-        spec.plugin("inference-service-test").setting("logger." + ComputeService.class.getName(), "DEBUG"); // So we log a profile
-        Clusters.addAdditionalLoggingSettings(spec);
+        spec.plugin("inference-service-test")
+            .setting("logger." + ComputeService.class.getName(), "DEBUG") // So we log a profile
+            .settings(nodeSpec -> LOGGING_CLUSTER_SETTINGS);
     });
 
     public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, String instructions) {

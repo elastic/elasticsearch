@@ -9,8 +9,10 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.activity.ActivityLogProducer;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.ActionLoggingFields;
@@ -24,8 +26,10 @@ import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_
 public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> {
 
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
-    public static final String SEARCH_HAS_AGGREGATIONS_FIELD = ES_FIELDS_PREFIX + "search.has_aggregations";
-    public static final String SEARCH_IS_SYSTEM_FIELD = ES_FIELDS_PREFIX + "search.is_system";
+    public static final String QUERY_FIELD_HAS_AGGREGATIONS = ES_QUERY_FIELDS_PREFIX + "has_aggregations";
+    public static final String QUERY_FIELD_IS_SYSTEM = ES_QUERY_FIELDS_PREFIX + "is_system";
+    public static final String QUERY_FIELD_SEARCH_HITS = ES_QUERY_FIELDS_PREFIX + "search.total_count";
+    public static final String QUERY_FIELD_SEARCH_HITS_GTE = ES_QUERY_FIELDS_PREFIX + "search.total_count_partial";
 
     private boolean logSystemSearches = false;
     private final Predicate<String> systemChecker;
@@ -55,14 +59,21 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
             return Optional.empty();
         }
         ESLogMessage msg = produceCommon(context, additionalFields);
-        msg.field(ES_QUERY_FIELDS_PREFIX + "query", context.getQuery());
-        msg.field(ES_QUERY_FIELDS_PREFIX + "indices", context.getIndices());
-        msg.field(ES_QUERY_FIELDS_PREFIX + "hits", context.getHits());
+        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
+        msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
+        msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());
         if (isSystemSearch) {
-            msg.field(SEARCH_IS_SYSTEM_FIELD, true);
+            msg.field(QUERY_FIELD_IS_SYSTEM, true);
         }
         if (context.hasAggregations()) {
-            msg.field(SEARCH_HAS_AGGREGATIONS_FIELD, true);
+            msg.field(QUERY_FIELD_HAS_AGGREGATIONS, true);
+        }
+        var totalHits = context.getTotalHits();
+        if (totalHits != null) {
+            msg.field(QUERY_FIELD_SEARCH_HITS, totalHits.value());
+            if (totalHits.relation() != TotalHits.Relation.EQUAL_TO) {
+                msg.field(QUERY_FIELD_SEARCH_HITS_GTE, true);
+            }
         }
         return Optional.of(msg);
     }

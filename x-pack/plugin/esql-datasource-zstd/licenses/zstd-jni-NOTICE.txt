@@ -1,0 +1,6 @@
+zstd-jni
+Copyright (c) 2015-present, Luben Karavelov
+https://github.com/luben/zstd-jni
+
+This product includes zstd-jni, which uses the native zstd library.
+See zstd-LICENSE.txt for the zstd-jni license terms.

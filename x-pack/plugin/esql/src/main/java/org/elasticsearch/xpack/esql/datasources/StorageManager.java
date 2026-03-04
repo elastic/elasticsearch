@@ -111,7 +111,7 @@ public class StorageManager implements Closeable {
                     + ". "
                     + "No storage provider registered for this scheme. "
                     + "Install the appropriate data source plugin (e.g., esql-datasource-http for http/https/file, "
-                    + "esql-datasource-s3 for s3, esql-datasource-gcs for gs)."
+                    + "esql-datasource-s3 for s3, esql-datasource-gcs for gs, esql-datasource-azure for wasbs/wasb)."
             );
         }
 

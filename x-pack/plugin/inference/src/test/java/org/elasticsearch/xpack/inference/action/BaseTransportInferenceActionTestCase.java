@@ -396,7 +396,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     ) {
         InferenceService service = mock();
         Model model = mockModel();
-        when(service.parsePersistedConfigWithSecrets(any(), any(), any(), any())).thenReturn(model);
+        when(service.parsePersistedConfig(any())).thenReturn(model);
         when(service.name()).thenReturn(serviceId);
 
         when(service.canStream(any())).thenReturn(stream);

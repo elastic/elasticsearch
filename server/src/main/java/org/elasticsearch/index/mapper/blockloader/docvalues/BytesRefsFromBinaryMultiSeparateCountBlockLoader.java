@@ -35,10 +35,10 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         if (bc.counts() == null) {
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
@@ -53,11 +53,6 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         BytesRefsFromBinarySeparateCount(TrackingBinaryDocValues docValues, TrackingNumericDocValues counts) {
             super(docValues);
             this.counts = counts;
-        }
-
-        @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            return super.read(factory, docs, offset, nullsFiltered);
         }
 
         @Override

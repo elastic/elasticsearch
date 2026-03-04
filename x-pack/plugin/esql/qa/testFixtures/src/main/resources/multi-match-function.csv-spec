@@ -131,3 +131,39 @@ Return of the King Being the Third Part of The Lord of the Rings
 A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
 The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;
+
+multiMatchBeforeMvExpand
+required_capability: multi_match_function
+
+from books
+| where multi_match("Faulkner", author, description) and book_no == "2378"
+| mv_expand author
+| keep book_no, author
+;
+ignoreOrder: true
+
+book_no:keyword | author:text
+2378            | Carol Faulkner
+2378            | Holly Byers Ochoa
+2378            | Lucretia Mott
+;
+
+multiMatchBeforeMvExpandWithStats
+required_capability: multi_match_function
+
+from books
+| where multi_match("Tolkien", author, title)
+| mv_expand author
+| stats count = count(*) by book_no
+| sort book_no
+| limit 5
+;
+
+   count:long  |    book_no:keyword
+1              |1463           
+2              |2130           
+1              |2301           
+1              |2675           
+1              |2714
+;
+

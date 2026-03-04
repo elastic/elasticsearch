@@ -135,8 +135,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return IdLoader.create(blContext.indexSettings(), blContext.mappingLookup())
-                .blockLoader(blContext.ordinalsByteSize().getBytes());
+            return IdLoader.create(blContext.indexSettings(), blContext.mappingLookup()).blockLoader(blContext.ordinalsByteSize());
         }
 
         @Override

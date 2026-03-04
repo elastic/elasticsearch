@@ -63,7 +63,6 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedTaskTypeStatusException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -80,7 +79,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
  *
  * https://github.com/elastic/ml-team/issues/1706
  */
-public class AmazonBedrockService extends SenderService {
+public class AmazonBedrockService extends SenderService<AmazonBedrockModel> {
     public static final String NAME = "amazonbedrock";
     private static final String SERVICE_NAME = "Amazon Bedrock";
     public static final String CHAT_COMPLETION_ERROR_PREFIX = "Amazon Bedrock chat completion";
@@ -132,7 +131,7 @@ public class AmazonBedrockService extends SenderService {
         ServiceComponents serviceComponents,
         ClusterService clusterService
     ) {
-        super(httpSenderFactory, serviceComponents, clusterService);
+        super(httpSenderFactory, serviceComponents, clusterService, MODEL_CREATORS);
         this.amazonBedrockSender = amazonBedrockFactory.createSender();
     }
 
@@ -261,33 +260,6 @@ public class AmazonBedrockService extends SenderService {
     }
 
     @Override
-    public Model parsePersistedConfigWithSecrets(
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModel(
-            modelId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            secretSettingsMap,
-            ConfigurationParseContext.PERSISTENT
-        );
-    }
-
-    @Override
     public AmazonBedrockModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         var model = retrieveModelCreatorFromMapOrThrow(
             MODEL_CREATORS,
@@ -298,27 +270,6 @@ public class AmazonBedrockService extends SenderService {
         ).createFromModelConfigurationsAndSecrets(config, secrets);
         checkProviderForTask(config.getTaskType(), model.provider());
         return model;
-    }
-
-    @Override
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModel(
-            modelId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            null,
-            ConfigurationParseContext.PERSISTENT
-        );
     }
 
     @Override

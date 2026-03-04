@@ -18,12 +18,12 @@ public class DoublesBlockLoader extends AbstractDoublesFromDocValuesBlockLoader 
     }
 
     @Override
-    protected AllReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+    protected ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
         return new Singleton(docValues, toDouble);
     }
 
     @Override
-    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
         return new Sorted(docValues, toDouble);
     }
 

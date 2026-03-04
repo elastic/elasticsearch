@@ -82,8 +82,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "amazon_sagemaker",
-                    "mixedbread"
+                    "amazon_sagemaker"
                 ).toArray()
             )
         );
@@ -148,7 +147,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",
-                    "mixedbread",
                     "nvidia",
                     "openshift_ai",
                     "test_reranking_service",
@@ -168,6 +166,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "ai21",
+                    "fireworksai",
                     "llama",
                     "alibabacloud-ai-search",
                     "amazonbedrock",
@@ -200,6 +199,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 List.of(
                     "ai21",
                     "azureopenai",
+                    "fireworksai",
                     "llama",
                     "deepseek",
                     "elastic",

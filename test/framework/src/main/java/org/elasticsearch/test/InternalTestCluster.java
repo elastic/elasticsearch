@@ -154,6 +154,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.runInParallel;
 import static org.elasticsearch.test.ESTestCase.safeAwait;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
+import static org.elasticsearch.test.NodeRoles.indexOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.noRoles;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
@@ -2323,6 +2324,10 @@ public final class InternalTestCluster extends TestCluster {
 
     public String startDataOnlyNode(Settings settings) {
         return startNode(Settings.builder().put(settings).put(dataOnlyNode(settings)).build());
+    }
+
+    public String startIndexOnlyNode(Settings settings) {
+        return startNode(Settings.builder().put(settings).put(indexOnlyNode(settings)).build());
     }
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {

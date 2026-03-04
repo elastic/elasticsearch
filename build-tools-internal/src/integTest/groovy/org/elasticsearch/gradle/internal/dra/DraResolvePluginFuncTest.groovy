@@ -15,6 +15,7 @@ import org.elasticsearch.gradle.fixtures.WiremockFixture
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
 import spock.lang.Shared
+import spock.lang.Unroll
 
 class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
 
@@ -38,7 +39,7 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
     }
 
     def "provides flag indicating dra usage"() {
-        setup:
+        given:
         repository.generateJar("org.acme", "ml-cpp", "8.6.0-SNAPSHOT")
         buildFile << """
         if(useDra == false) {
@@ -84,8 +85,9 @@ class DraResolvePluginFuncTest extends AbstractGradleFuncTest {
         result.output.contains("Cannot resolve external dependency org.acme:ml-cpp:8.6.0-SNAPSHOT because no repositories are defined.")
     }
 
+    @Unroll
     def "configures repositories to resolve #draKey like dra #workflow artifacts"() {
-        setup:
+        given:
         repository.generateJar("some.group", "bar", "1.0.0")
         repository.generateJar("some.group", "baz", "1.0.0-SNAPSHOT")
         repository.configureBuild(buildFile)

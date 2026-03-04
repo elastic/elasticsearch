@@ -136,7 +136,7 @@ public class SnapshotStep implements DlmStep {
             public void onResponse(GetSnapshotsResponse response) {
                 List<SnapshotInfo> snapshots = response.getSnapshots();
                 if (snapshots.isEmpty()) {
-                    startSnapshot(stepContext, repositoryName, snapshotName);
+                    maybeStartSnapshot(stepContext, repositoryName, snapshotName);
                     return;
                 }
 
@@ -163,7 +163,7 @@ public class SnapshotStep implements DlmStep {
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof SnapshotMissingException) {
-                    startSnapshot(stepContext, repositoryName, snapshotName);
+                    maybeStartSnapshot(stepContext, repositoryName, snapshotName);
                 } else {
                     stepContext.errorStore()
                         .recordAndLogError(
@@ -187,13 +187,13 @@ public class SnapshotStep implements DlmStep {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 logger.info("DLM deleted stale snapshot [{}] for index [{}], starting new snapshot", snapshotName, indexName);
-                startSnapshot(stepContext, repositoryName, snapshotName);
+                maybeStartSnapshot(stepContext, repositoryName, snapshotName);
             }
 
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof SnapshotMissingException) {
-                    startSnapshot(stepContext, repositoryName, snapshotName);
+                    maybeStartSnapshot(stepContext, repositoryName, snapshotName);
                 } else {
                     stepContext.errorStore()
                         .recordAndLogError(
@@ -208,7 +208,7 @@ public class SnapshotStep implements DlmStep {
         });
     }
 
-    private void startSnapshot(DlmStepContext stepContext, String repositoryName, String snapshotName) {
+    private void maybeStartSnapshot(DlmStepContext stepContext, String repositoryName, String snapshotName) {
         String indexName = stepContext.indexName();
         CreateSnapshotRequest createRequest = buildCreateSnapshotRequest(repositoryName, indexName, snapshotName);
 

@@ -314,10 +314,15 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
                 //
                 // However, if the EsQueryExec index mode is time-series (e.g., rate), we should replace round_to with
                 // QueryAndTags when possible, as we currently lack a method to partition the data for increased parallelism.
-                if (queryExec.indexMode() != IndexMode.TIME_SERIES
-                    && ((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
+                if (((FieldAttribute) roundTo.field()).name().equals(MetadataAttribute.TIMESTAMP_FIELD)
                     && ctx.searchStats().targetShards().values().stream().allMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES)) {
-                    return evalExec;
+                    if (queryExec.indexMode() != IndexMode.TIME_SERIES) {
+                        return evalExec;
+                    }
+                    // prefer partitioning by tsid prefixes
+                    if (ctx.searchStats().canPartitioningTimeSeries()) {
+                        return evalExec;
+                    }
                 }
                 plan = planRoundTo(roundTo, evalExec, queryExec, ctx);
             }

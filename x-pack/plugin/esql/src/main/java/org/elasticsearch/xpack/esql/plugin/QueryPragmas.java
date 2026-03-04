@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
@@ -263,6 +264,13 @@ public final class QueryPragmas implements Writeable {
     public double partialAggregationEmitUniquenessThreshold(double defaultThreshold) {
         if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey())) {
             return PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
+    public int autoStrategyDocThreshold(int defaultThreshold) {
+        if (settings.hasValue(LuceneOperator.AUTO_STRATEGY_DOC_THRESHOLD_SETTING.getKey())) {
+            return LuceneOperator.AUTO_STRATEGY_DOC_THRESHOLD_SETTING.get(settings);
         }
         return defaultThreshold;
     }

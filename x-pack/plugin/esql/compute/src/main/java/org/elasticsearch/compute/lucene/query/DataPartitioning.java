@@ -58,6 +58,11 @@ public enum DataPartitioning {
      */
     DOC;
 
+    /**
+     * {@link DataPartitioning#AUTO} resolves to {@link DataPartitioning#SHARD} for indices with fewer than this many documents.
+     */
+    public static final int AUTO_STRATEGY_DEFAULT_DOC_THRESHOLD = 250_000;
+
     @FunctionalInterface
     public interface AutoStrategy {
         Function<Query, LuceneSliceQueue.PartitioningStrategy> pickStrategy(int limit);

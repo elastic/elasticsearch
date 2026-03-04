@@ -55,6 +55,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 queryFunction,
                 dataPartitioning,
                 query -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+                DataPartitioning.AUTO_STRATEGY_DEFAULT_DOC_THRESHOLD,
                 taskConcurrency,
                 limit,
                 false,

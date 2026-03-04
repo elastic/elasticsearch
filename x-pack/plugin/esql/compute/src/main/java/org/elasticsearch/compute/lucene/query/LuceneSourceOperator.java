@@ -74,6 +74,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             DataPartitioning.AutoStrategy autoStrategy,
+            int autoStrategyDocThreshold,
             int taskConcurrency,
             int maxPageSize,
             int limit,
@@ -86,6 +87,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : q -> {
                     throw new UnsupportedOperationException("locked in " + dataPartitioning);
                 },
+                autoStrategyDocThreshold,
                 taskConcurrency,
                 limit,
                 needsScore,

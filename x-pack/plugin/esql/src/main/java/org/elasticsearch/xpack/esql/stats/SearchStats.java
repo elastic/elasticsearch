@@ -70,6 +70,10 @@ public interface SearchStats {
      */
     Map<ShardId, IndexMetadata> targetShards();
 
+    default boolean canPartitioningTimeSeries() {
+        return false;
+    }
+
     /**
      * When there are no search stats available, for example when there are no search contexts, we have static results.
      */

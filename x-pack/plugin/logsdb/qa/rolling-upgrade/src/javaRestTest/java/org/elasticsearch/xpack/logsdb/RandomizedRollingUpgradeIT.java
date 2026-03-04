@@ -150,15 +150,13 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
             indexAndQueryDocuments(indexConfigs[i]);
         }
 
-        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
-        for (int i = 0; i < numNodes; i++) {
-            flush(indexNameBase + "*", true);
-            upgradeNode(i);
+        flush(indexNameBase + "*", true);
+        clusterRollingUpgrade(index -> {
             ensureGreen(indexNameBase + "*");
             for (int j = 0; j < NUM_INDICES; j++) {
                 indexAndQueryDocuments(indexConfigs[j]);
             }
-        }
+        });
     }
 
     public void testIndexingStandardSource() throws IOException {

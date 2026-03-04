@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 
 public final class AdaptivePipelineResolver implements PipelineResolver {
@@ -37,7 +38,7 @@ public final class AdaptivePipelineResolver implements PipelineResolver {
 
         final int blockSize = context.blockSize();
         final BlockProfile profile = profiler.profile(sample, sampleSize);
-        final PipelineConfig.DataType dataType = context.dataType();
+        final PipelineDescriptor.DataType dataType = context.dataType();
         final PipelineConfig pipeline = selector.select(profile, blockSize, dataType, context.hint(), context.metricType());
 
         if (logger.isDebugEnabled()) {

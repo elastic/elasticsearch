@@ -224,7 +224,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
             // NOTE: Legacy path for fields written without a pipeline descriptor.
             // Build a baseline codec to obtain the descriptor, then create a decoder from it.
             final PipelineConfig baselineConfig = PipelineConfig.of(
-                PipelineConfig.DataType.LONG,
+                PipelineDescriptor.DataType.LONG,
                 numericBlockSize,
                 PipelineResolver.ES819_BASELINE_SPECS
             );

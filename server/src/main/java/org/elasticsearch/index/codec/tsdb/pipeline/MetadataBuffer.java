@@ -88,25 +88,35 @@ public final class MetadataBuffer implements MetadataWriter {
     }
 
     @Override
+    public MetadataWriter writeInt(final int value) {
+        ensureCapacity(Integer.BYTES);
+        data[dataSize++] = (byte) value;
+        data[dataSize++] = (byte) (value >> 8);
+        data[dataSize++] = (byte) (value >> 16);
+        data[dataSize++] = (byte) (value >> 24);
+        return this;
+    }
+
+    // Parameter mutated by encoding loop — cannot be final.
+    @Override
     public MetadataWriter writeVInt(int value) {
+        ensureCapacity(5);
         while ((value & ~0x7F) != 0) {
-            ensureCapacity(1);
             data[dataSize++] = (byte) ((value & 0x7F) | 0x80);
             value >>>= 7;
         }
-        ensureCapacity(1);
         data[dataSize++] = (byte) value;
         return this;
     }
 
+    // Parameter mutated by encoding loop — cannot be final.
     @Override
     public MetadataWriter writeVLong(long value) {
+        ensureCapacity(10);
         for (int i = 0; i < 9 && (value & ~0x7FL) != 0; i++) {
-            ensureCapacity(1);
             data[dataSize++] = (byte) ((value & 0x7FL) | 0x80L);
             value >>>= 7;
         }
-        ensureCapacity(1);
         data[dataSize++] = (byte) value;
         return this;
     }

@@ -74,8 +74,8 @@ public class PipelineConfigTests extends ESTestCase {
         final PipelineConfig longConfig = PipelineConfig.forLongs(128).delta().bitPack();
         final PipelineConfig doubleConfig = PipelineConfig.forDoubles(128).alpDoubleStage().alpDouble();
 
-        assertEquals(PipelineConfig.DataType.LONG, longConfig.dataType());
-        assertEquals(PipelineConfig.DataType.DOUBLE, doubleConfig.dataType());
+        assertEquals(PipelineDescriptor.DataType.LONG, longConfig.dataType());
+        assertEquals(PipelineDescriptor.DataType.DOUBLE, doubleConfig.dataType());
     }
 
     public void testSpecsPreserved() {

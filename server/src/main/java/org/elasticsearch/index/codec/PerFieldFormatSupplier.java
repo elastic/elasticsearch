@@ -24,7 +24,7 @@ import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.profiler.AdaptivePipelineResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.profiler.BlockProfiler;
@@ -209,7 +209,7 @@ public class PerFieldFormatSupplier {
         final int blockSize = resolveBlockSize(indexMode);
         // NOTE: metadata fields like _seq_no are not in MappingLookup.getMapper() — handle by name
         if (SeqNoFieldMapper.NAME.equals(fieldName)) {
-            return new PipelineResolver.FieldContext(fieldName, indexMode, PipelineConfig.DataType.LONG, null, null, false, blockSize);
+            return new PipelineResolver.FieldContext(fieldName, indexMode, PipelineDescriptor.DataType.LONG, null, null, false, blockSize);
         }
         final Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         if (mapper instanceof NumberFieldMapper numberFieldMapper) {
@@ -227,14 +227,14 @@ public class PerFieldFormatSupplier {
             return new PipelineResolver.FieldContext(
                 fieldName,
                 indexMode,
-                PipelineConfig.DataType.LONG,
+                PipelineDescriptor.DataType.LONG,
                 parseOptimizeFor(dateFieldMapper.fieldType().optimizeFor()),
                 null,
                 true,
                 blockSize
             );
         }
-        return new PipelineResolver.FieldContext(fieldName, indexMode, PipelineConfig.DataType.LONG, null, null, false, blockSize);
+        return new PipelineResolver.FieldContext(fieldName, indexMode, PipelineDescriptor.DataType.LONG, null, null, false, blockSize);
     }
 
     @Nullable
@@ -242,11 +242,11 @@ public class PerFieldFormatSupplier {
         return fieldType.getMetricType();
     }
 
-    private static PipelineConfig.DataType resolveDataType(final NumberFieldMapper.NumberType numberType) {
+    private static PipelineDescriptor.DataType resolveDataType(final NumberFieldMapper.NumberType numberType) {
         return switch (numberType) {
-            case DOUBLE -> PipelineConfig.DataType.DOUBLE;
-            case FLOAT, HALF_FLOAT -> PipelineConfig.DataType.FLOAT;
-            default -> PipelineConfig.DataType.LONG;
+            case DOUBLE -> PipelineDescriptor.DataType.DOUBLE;
+            case FLOAT, HALF_FLOAT -> PipelineDescriptor.DataType.FLOAT;
+            default -> PipelineDescriptor.DataType.LONG;
         };
     }
 

@@ -14,6 +14,7 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.codec.tsdb.pipeline.NumericDataGenerators;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder;
@@ -38,7 +39,7 @@ public class PipelineDiscoveryTests extends ESTestCase {
             final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext(
                 ds.name(),
                 null,
-                PipelineConfig.DataType.LONG,
+                PipelineDescriptor.DataType.LONG,
                 null,
                 null,
                 false,
@@ -90,7 +91,7 @@ public class PipelineDiscoveryTests extends ESTestCase {
             final PipelineConfig selectedConfig = PipelineSelector.INSTANCE.select(
                 profile,
                 BLOCK_SIZE,
-                PipelineConfig.DataType.LONG,
+                PipelineDescriptor.DataType.LONG,
                 null,
                 null
             );
@@ -133,7 +134,7 @@ public class PipelineDiscoveryTests extends ESTestCase {
         return new PipelineResolver.FieldContext(
             fieldName,
             IndexMode.TIME_SERIES,
-            PipelineConfig.DataType.DOUBLE,
+            PipelineDescriptor.DataType.DOUBLE,
             null,
             MetricType.GAUGE,
             false,

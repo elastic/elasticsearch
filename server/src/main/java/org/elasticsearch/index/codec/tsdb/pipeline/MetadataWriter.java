@@ -47,6 +47,14 @@ public interface MetadataWriter {
     MetadataWriter writeLong(long value);
 
     /**
+     * Writes a fixed 4-byte integer in Lucene format.
+     *
+     * @param value the integer to write
+     * @return this writer for chaining
+     */
+    MetadataWriter writeInt(int value);
+
+    /**
      * Writes a variable-length integer.
      *
      * @param value the integer to write

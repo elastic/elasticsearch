@@ -92,15 +92,23 @@ public class BlockFormatTests extends ESTestCase {
         assertEquals("Pipeline must be set for decoding", e.getMessage());
     }
 
-    public void testEmptyBitmap() throws IOException {
+    public void testEmptyBitmapThrowsOnMissingPayload() throws IOException {
         final int blockSize = randomBlockSize();
         final byte[] stageIds = { 0x01, 0x02 };
         final EncodingContext encodingContext = createEncodingContext(stageIds, blockSize);
 
-        final DecodingContext decodingContext = writeAndRead(stageIds, new long[blockSize], encodingContext, blockSize, 1);
+        final byte[] buffer = new byte[blockSize * Long.BYTES + 256];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+        BlockFormat.writeBlock(out, new long[blockSize], TestPayloadCodecStage.INSTANCE, encodingContext);
 
-        assertFalse(decodingContext.isStageApplied(0));
-        assertFalse(decodingContext.isStageApplied(1));
+        final DecodingContext decodingContext = new DecodingContext(blockSize, stageIds.length);
+        final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+
+        final AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> BlockFormat.readBlock(in, new long[blockSize], TestPayloadCodecStage.INSTANCE, decodingContext, 1)
+        );
+        assertEquals("Payload stage not applied — possible data corruption", e.getMessage());
     }
 
     private EncodingContext createEncodingContext(final byte[] stageIds, int blockSize) {

@@ -49,6 +49,14 @@ public interface MetadataReader {
     long readLong() throws IOException;
 
     /**
+     * Reads a fixed 4-byte integer in Lucene format.
+     *
+     * @return the integer value
+     * @throws IOException if an I/O error occurs
+     */
+    int readInt() throws IOException;
+
+    /**
      * Reads a variable-length integer.
      *
      * @return the decoded integer

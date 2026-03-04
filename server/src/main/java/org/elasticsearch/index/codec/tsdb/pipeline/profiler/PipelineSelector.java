@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb.pipeline.profiler;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver.OptimizeFor;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 
@@ -27,7 +28,7 @@ public final class PipelineSelector {
     public PipelineConfig select(
         final BlockProfile profile,
         int blockSize,
-        final PipelineConfig.DataType dataType,
+        final PipelineDescriptor.DataType dataType,
         @Nullable OptimizeFor hint,
         @Nullable MetricType metricType
     ) {

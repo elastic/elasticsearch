@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb.pipeline.profiler;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.NumericDataGenerators;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +52,7 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
         final PipelineResolver.FieldContext ctx = doubleGaugeContext("cpu.usage");
         final PipelineConfig config = resolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
         assertFalse(config.specs().isEmpty());
-        assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
+        assertEquals(PipelineDescriptor.DataType.DOUBLE, config.dataType());
     }
 
     public void testFallsBackToBaselineWhenSampleEmpty() {
@@ -81,7 +82,7 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
         final PipelineResolver.FieldContext ctx = floatGaugeContext("temperature");
         final PipelineConfig config = resolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
         assertFalse(config.specs().isEmpty());
-        assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
+        assertEquals(PipelineDescriptor.DataType.FLOAT, config.dataType());
     }
 
     public void testInfersLongForIntegerFieldType() {
@@ -93,7 +94,7 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
         final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext(
             "count",
             null,
-            PipelineConfig.DataType.LONG,
+            PipelineDescriptor.DataType.LONG,
             null,
             MetricType.GAUGE,
             false,
@@ -101,7 +102,7 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
         );
         final PipelineConfig config = resolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
         assertFalse(config.specs().isEmpty());
-        assertEquals(PipelineConfig.DataType.LONG, config.dataType());
+        assertEquals(PipelineDescriptor.DataType.LONG, config.dataType());
     }
 
     public void testInfersLongForNullFieldType() {
@@ -113,18 +114,18 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
         final PipelineResolver.FieldContext ctx = longContext("test");
         final PipelineConfig config = resolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
         assertFalse(config.specs().isEmpty());
-        assertEquals(PipelineConfig.DataType.LONG, config.dataType());
+        assertEquals(PipelineDescriptor.DataType.LONG, config.dataType());
     }
 
     private static PipelineResolver.FieldContext longContext(final String fieldName) {
-        return new PipelineResolver.FieldContext(fieldName, null, PipelineConfig.DataType.LONG, null, null, false, BLOCK_SIZE);
+        return new PipelineResolver.FieldContext(fieldName, null, PipelineDescriptor.DataType.LONG, null, null, false, BLOCK_SIZE);
     }
 
     private static PipelineResolver.FieldContext doubleGaugeContext(final String fieldName) {
         return new PipelineResolver.FieldContext(
             fieldName,
             null,
-            PipelineConfig.DataType.DOUBLE,
+            PipelineDescriptor.DataType.DOUBLE,
             null,
             MetricType.GAUGE,
             false,
@@ -133,6 +134,14 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
     }
 
     private static PipelineResolver.FieldContext floatGaugeContext(final String fieldName) {
-        return new PipelineResolver.FieldContext(fieldName, null, PipelineConfig.DataType.FLOAT, null, MetricType.GAUGE, false, BLOCK_SIZE);
+        return new PipelineResolver.FieldContext(
+            fieldName,
+            null,
+            PipelineDescriptor.DataType.FLOAT,
+            null,
+            MetricType.GAUGE,
+            false,
+            BLOCK_SIZE
+        );
     }
 }

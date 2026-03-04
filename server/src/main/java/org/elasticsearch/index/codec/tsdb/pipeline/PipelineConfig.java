@@ -20,17 +20,11 @@ import java.util.Objects;
  */
 public final class PipelineConfig {
 
-    public enum DataType {
-        LONG,
-        DOUBLE,
-        FLOAT
-    }
-
-    private final DataType dataType;
+    private final PipelineDescriptor.DataType dataType;
     private final int blockSize;
     private final List<StageSpec> specs;
 
-    PipelineConfig(DataType dataType, int blockSize, List<StageSpec> specs) {
+    PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize, List<StageSpec> specs) {
         this.dataType = dataType;
         this.blockSize = blockSize;
         this.specs = List.copyOf(specs);
@@ -54,11 +48,11 @@ public final class PipelineConfig {
         return new FloatBuilder(blockSize);
     }
 
-    public static PipelineConfig of(final DataType dataType, int blockSize, final List<StageSpec> specs) {
+    public static PipelineConfig of(final PipelineDescriptor.DataType dataType, int blockSize, final List<StageSpec> specs) {
         return new PipelineConfig(dataType, blockSize, specs);
     }
 
-    public DataType dataType() {
+    public PipelineDescriptor.DataType dataType() {
         return dataType;
     }
 
@@ -155,27 +149,27 @@ public final class PipelineConfig {
 
         public PipelineConfig bitPack() {
             specs.add(new StageSpec.BitPack());
-            return new PipelineConfig(DataType.LONG, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
         }
 
         public PipelineConfig zstd() {
             specs.add(new StageSpec.Zstd());
-            return new PipelineConfig(DataType.LONG, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
         }
 
         public PipelineConfig lz4() {
             specs.add(new StageSpec.Lz4());
-            return new PipelineConfig(DataType.LONG, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
         }
 
         public PipelineConfig lz4HighCompression() {
             specs.add(new StageSpec.Lz4(true));
-            return new PipelineConfig(DataType.LONG, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
         }
 
         public PipelineConfig rlePayload() {
             specs.add(new StageSpec.RlePayload());
-            return new PipelineConfig(DataType.LONG, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
         }
     }
 
@@ -273,77 +267,77 @@ public final class PipelineConfig {
 
         public PipelineConfig bitPack() {
             specs.add(new StageSpec.BitPack());
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig zstd() {
             specs.add(new StageSpec.Zstd());
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig lz4() {
             specs.add(new StageSpec.Lz4());
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig lz4HighCompression() {
             specs.add(new StageSpec.Lz4(true));
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig rlePayload() {
             specs.add(new StageSpec.RlePayload());
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig gorilla() {
             specs.add(new StageSpec.Gorilla());
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig gorilla(double maxError) {
             specs.add(new StageSpec.Gorilla(maxError));
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig alpDouble() {
             specs.add(new StageSpec.AlpDouble());
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig alpDouble(double maxError) {
             specs.add(new StageSpec.AlpDouble(maxError));
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig alpRdDouble() {
             specs.add(new StageSpec.AlpRdDouble());
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig alpRdDouble(double maxError) {
             specs.add(new StageSpec.AlpRdDouble(maxError));
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig chimp() {
             specs.add(new StageSpec.ChimpDoublePayload());
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig chimp(double maxError) {
             specs.add(new StageSpec.ChimpDoublePayload(maxError));
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig chimp128() {
             specs.add(new StageSpec.Chimp128DoublePayload());
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
         public PipelineConfig chimp128(double maxError) {
             specs.add(new StageSpec.Chimp128DoublePayload(maxError));
-            return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
     }
 
@@ -432,62 +426,62 @@ public final class PipelineConfig {
 
         public PipelineConfig bitPack() {
             specs.add(new StageSpec.BitPack());
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
         public PipelineConfig zstd() {
             specs.add(new StageSpec.Zstd());
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
         public PipelineConfig lz4() {
             specs.add(new StageSpec.Lz4());
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
         public PipelineConfig lz4HighCompression() {
             specs.add(new StageSpec.Lz4(true));
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
         public PipelineConfig rlePayload() {
             specs.add(new StageSpec.RlePayload());
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
         public PipelineConfig gorilla() {
             specs.add(new StageSpec.GorillaFloat());
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
         public PipelineConfig alpFloat() {
             specs.add(new StageSpec.AlpFloat());
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
         public PipelineConfig alpFloat(double maxError) {
             specs.add(new StageSpec.AlpFloat(maxError));
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
         public PipelineConfig alpRdFloat() {
             specs.add(new StageSpec.AlpRdFloat());
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
         public PipelineConfig alpRdFloat(double maxError) {
             specs.add(new StageSpec.AlpRdFloat(maxError));
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
         public PipelineConfig chimp() {
             specs.add(new StageSpec.ChimpFloatPayload());
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
         public PipelineConfig chimp128() {
             specs.add(new StageSpec.Chimp128FloatPayload());
-            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
     }
 }

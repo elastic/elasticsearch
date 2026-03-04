@@ -122,6 +122,9 @@ public final class PipelineDescriptor {
             throw new IllegalArgumentException("Invalid pipeline length: " + length);
         }
         byte blockShift = in.readByte();
+        if (blockShift < 0 || blockShift > 30) {
+            throw new IllegalArgumentException("Invalid block shift: " + blockShift);
+        }
         DataType dataType = DataType.fromId(in.readByte());
         byte[] stageIds = new byte[length];
         in.readBytes(stageIds, 0, length);

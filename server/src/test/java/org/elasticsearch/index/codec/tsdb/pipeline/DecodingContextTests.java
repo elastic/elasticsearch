@@ -10,8 +10,11 @@
 package org.elasticsearch.index.codec.tsdb.pipeline;
 
 import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
 
 public class DecodingContextTests extends ESTestCase {
 
@@ -76,5 +79,18 @@ public class DecodingContextTests extends ESTestCase {
         context.setDataInput(in);
         context.setPositionBitmap((short) 0b1);
         assertNotNull(context.metadata());
+    }
+
+    public void testReadIntFromDataInput() throws IOException {
+        final int value = randomInt();
+
+        final byte[] buffer = new byte[Integer.BYTES];
+        new ByteArrayDataOutput(buffer).writeInt(value);
+
+        final DecodingContext context = new DecodingContext(randomBlockSize(), 1);
+        context.setDataInput(new ByteArrayDataInput(buffer, 0, buffer.length));
+        context.setPositionBitmap((short) 0b1);
+
+        assertEquals(value, context.readInt());
     }
 }

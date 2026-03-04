@@ -76,7 +76,7 @@ public final class NumericEncodePipeline {
         final List<TransformEncoder> stages = new ArrayList<>();
         PayloadEncoder payloadStage = null;
 
-        final PipelineConfig.DataType configDataType = config.dataType();
+        final PipelineDescriptor.DataType dataType = config.dataType();
 
         for (final StageSpec spec : specs) {
             if (payloadStage != null) {
@@ -89,10 +89,10 @@ public final class NumericEncodePipeline {
             }
         }
         for (final StageSpec spec : specs) {
-            if (isDoubleOnly(spec) && configDataType == PipelineConfig.DataType.FLOAT) {
+            if (isDoubleOnly(spec) && dataType == PipelineDescriptor.DataType.FLOAT) {
                 throw new IllegalArgumentException("Double-only stage in FLOAT pipeline: " + spec);
             }
-            if (isFloatOnly(spec) && configDataType == PipelineConfig.DataType.DOUBLE) {
+            if (isFloatOnly(spec) && dataType == PipelineDescriptor.DataType.DOUBLE) {
                 throw new IllegalArgumentException("Float-only stage in DOUBLE pipeline: " + spec);
             }
         }
@@ -100,12 +100,6 @@ public final class NumericEncodePipeline {
         if (payloadStage == null) {
             throw new IllegalStateException("Pipeline must end with a payload stage");
         }
-
-        final PipelineDescriptor.DataType dataType = switch (config.dataType()) {
-            case DOUBLE -> PipelineDescriptor.DataType.DOUBLE;
-            case FLOAT -> PipelineDescriptor.DataType.FLOAT;
-            case LONG -> PipelineDescriptor.DataType.LONG;
-        };
 
         return new NumericEncodePipeline(stages.toArray(TransformEncoder[]::new), payloadStage, blockSize, dataType);
     }

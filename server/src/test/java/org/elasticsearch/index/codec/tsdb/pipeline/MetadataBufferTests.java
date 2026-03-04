@@ -261,4 +261,59 @@ public class MetadataBufferTests extends ESTestCase {
         assertEquals(vintVal, in.readVInt());
         assertEquals(longVal2, in.readLong());
     }
+
+    public void testWriteIntRoundtrip() throws IOException {
+        final MetadataBuffer buffer = new MetadataBuffer();
+        final int value = randomInt();
+
+        buffer.writeInt(value);
+
+        assertEquals(Integer.BYTES, buffer.size());
+
+        byte[] output = new byte[64];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(output);
+        buffer.writeTo(out, 0, buffer.size());
+
+        final ByteArrayDataInput in = new ByteArrayDataInput(output, 0, out.getPosition());
+        assertEquals(value, in.readInt());
+    }
+
+    public void testWriteIntBoundaryValues() throws IOException {
+        final int[] values = new int[] { 0, 1, -1, Integer.MIN_VALUE, Integer.MAX_VALUE };
+
+        for (int value : values) {
+            final MetadataBuffer buffer = new MetadataBuffer();
+            buffer.writeInt(value);
+
+            final byte[] output = new byte[64];
+            final ByteArrayDataOutput out = new ByteArrayDataOutput(output);
+            buffer.writeTo(out, 0, buffer.size());
+
+            assertEquals(
+                "Roundtrip failed for value " + Integer.toHexString(value),
+                value,
+                new ByteArrayDataInput(output, 0, out.getPosition()).readInt()
+            );
+
+            final byte[] luceneOutput = new byte[Integer.BYTES];
+            new ByteArrayDataOutput(luceneOutput).writeInt(value);
+            final byte[] bufferBytes = new byte[Integer.BYTES];
+            new ByteArrayDataOutput(bufferBytes).writeBytes(output, 0, Integer.BYTES);
+            assertArrayEquals("Byte layout mismatch for value " + Integer.toHexString(value), luceneOutput, bufferBytes);
+        }
+    }
+
+    public void testWriteIntByteLayoutMatchesLucene() throws IOException {
+        final int value = randomInt();
+
+        final byte[] luceneOutput = new byte[Integer.BYTES];
+        new ByteArrayDataOutput(luceneOutput).writeInt(value);
+
+        final MetadataBuffer buffer = new MetadataBuffer();
+        buffer.writeInt(value);
+        final byte[] bufferOutput = new byte[Integer.BYTES];
+        buffer.writeTo(new ByteArrayDataOutput(bufferOutput), 0, buffer.size());
+
+        assertArrayEquals("MetadataBuffer.writeInt byte layout must match Lucene DataOutput.writeInt", luceneOutput, bufferOutput);
+    }
 }

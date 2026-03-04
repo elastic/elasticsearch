@@ -68,11 +68,11 @@ public final class StaticPipelineResolver implements PipelineResolver {
     }
 
     @Nullable
-    private static PipelineConfig resolveGauge(final PipelineConfig.DataType dataType, final OptimizeFor hint, int blockSize) {
-        if (dataType == PipelineConfig.DataType.DOUBLE) {
+    private static PipelineConfig resolveGauge(final PipelineDescriptor.DataType dataType, final OptimizeFor hint, int blockSize) {
+        if (dataType == PipelineDescriptor.DataType.DOUBLE) {
             return resolveDoubleGauge(hint, blockSize);
         }
-        if (dataType == PipelineConfig.DataType.FLOAT) {
+        if (dataType == PipelineDescriptor.DataType.FLOAT) {
             return resolveFloatGauge(hint, blockSize);
         }
         return null;
@@ -99,11 +99,11 @@ public final class StaticPipelineResolver implements PipelineResolver {
     }
 
     @Nullable
-    private static PipelineConfig resolveCounter(final PipelineConfig.DataType dataType, final OptimizeFor hint, int blockSize) {
-        if (dataType == PipelineConfig.DataType.DOUBLE) {
+    private static PipelineConfig resolveCounter(final PipelineDescriptor.DataType dataType, final OptimizeFor hint, int blockSize) {
+        if (dataType == PipelineDescriptor.DataType.DOUBLE) {
             return resolveDoubleCounter(hint, blockSize);
         }
-        if (dataType == PipelineConfig.DataType.FLOAT) {
+        if (dataType == PipelineDescriptor.DataType.FLOAT) {
             return resolveFloatCounter(hint, blockSize);
         }
         return null;
@@ -126,10 +126,10 @@ public final class StaticPipelineResolver implements PipelineResolver {
     @Nullable
     private static PipelineConfig resolveForLogsDb(final FieldContext context) {
         final int blockSize = context.blockSize();
-        if (context.dataType() == PipelineConfig.DataType.DOUBLE) {
+        if (context.dataType() == PipelineDescriptor.DataType.DOUBLE) {
             return PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
         }
-        if (context.dataType() == PipelineConfig.DataType.FLOAT) {
+        if (context.dataType() == PipelineDescriptor.DataType.FLOAT) {
             return PipelineConfig.forFloats(blockSize).alpFloatStage().offset().gcd().bitPack();
         }
         if (context.isDateField()) {

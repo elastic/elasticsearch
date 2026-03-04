@@ -76,6 +76,11 @@ public final class DecodingContext implements MetadataReader {
     }
 
     @Override
+    public int readInt() throws IOException {
+        return dataInput.readInt();
+    }
+
+    @Override
     public int readVInt() throws IOException {
         return dataInput.readVInt();
     }

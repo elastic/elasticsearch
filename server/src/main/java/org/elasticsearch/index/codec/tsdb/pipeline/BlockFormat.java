@@ -62,10 +62,8 @@ public final class BlockFormat {
         int payloadPosition
     ) throws IOException {
         readHeader(in, context);
-        if (context.isStageApplied(payloadPosition)) {
-            return payloadStage.decode(values, in, context);
-        }
-        return 0;
+        assert context.isStageApplied(payloadPosition) : "Payload stage not applied — possible data corruption";
+        return payloadStage.decode(values, in, context);
     }
 
     static void writeHeader(final DataOutput out, final EncodingContext context) throws IOException {

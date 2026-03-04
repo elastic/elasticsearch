@@ -39,7 +39,7 @@ public interface PipelineResolver {
     record FieldContext(
         String fieldName,
         IndexMode indexMode,
-        PipelineConfig.DataType dataType,
+        PipelineDescriptor.DataType dataType,
         @Nullable OptimizeFor hint,
         @Nullable MetricType metricType,
         boolean isDateField,

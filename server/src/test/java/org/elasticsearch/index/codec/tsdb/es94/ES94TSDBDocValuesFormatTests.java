@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 import org.elasticsearch.test.ESTestCase;
 
@@ -480,7 +481,7 @@ public class ES94TSDBDocValuesFormatTests extends ESTestCase {
         return new ES94TSDBDocValuesFormat(fieldName -> {
             final PipelineConfig config = fieldPipelines.get(fieldName);
             final int blockSize = config != null ? config.blockSize() : ES94TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
-            return new PipelineResolver.FieldContext(fieldName, null, PipelineConfig.DataType.LONG, null, null, false, blockSize);
+            return new PipelineResolver.FieldContext(fieldName, null, PipelineDescriptor.DataType.LONG, null, null, false, blockSize);
         }, (ctx, sample, sampleSize, ioContext) -> {
             final PipelineConfig config = fieldPipelines.get(ctx.fieldName());
             return config != null ? config : PipelineConfig.forLongs(ctx.blockSize()).delta().offset().gcd().bitPack();

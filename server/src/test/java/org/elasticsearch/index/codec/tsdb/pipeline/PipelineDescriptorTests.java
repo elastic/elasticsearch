@@ -268,7 +268,7 @@ public class PipelineDescriptorTests extends ESTestCase {
             PipelineConfig.forFloats(blockSize).alpRdFloatStage().offset().gcd().bitPack(),
             PipelineConfig.forFloats(blockSize).alpRdFloatStage().gcd().bitPack() };
         for (PipelineConfig config : configs) {
-            assertEquals("Config " + config + " should produce FLOAT DataType", PipelineConfig.DataType.FLOAT, config.dataType());
+            assertEquals("Config " + config + " should produce FLOAT DataType", PipelineDescriptor.DataType.FLOAT, config.dataType());
         }
     }
 
@@ -278,7 +278,7 @@ public class PipelineDescriptorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> NumericEncoder.fromConfig(
                 new PipelineConfig(
-                    PipelineConfig.DataType.FLOAT,
+                    PipelineDescriptor.DataType.FLOAT,
                     blockSize,
                     java.util.List.of(new StageSpec.AlpDoubleStage(), new StageSpec.BitPack())
                 )
@@ -288,7 +288,7 @@ public class PipelineDescriptorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> NumericEncoder.fromConfig(
                 new PipelineConfig(
-                    PipelineConfig.DataType.DOUBLE,
+                    PipelineDescriptor.DataType.DOUBLE,
                     blockSize,
                     java.util.List.of(new StageSpec.AlpFloatStage(), new StageSpec.BitPack())
                 )

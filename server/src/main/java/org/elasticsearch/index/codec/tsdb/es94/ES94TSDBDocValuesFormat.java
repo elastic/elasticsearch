@@ -285,7 +285,15 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         final int blockSize = 1 << numericBlockShift;
         this.fieldContextResolver = fieldContextResolver != null
             ? fieldContextResolver
-            : fieldName -> new PipelineResolver.FieldContext(fieldName, null, PipelineConfig.DataType.LONG, null, null, false, blockSize);
+            : fieldName -> new PipelineResolver.FieldContext(
+                fieldName,
+                null,
+                PipelineDescriptor.DataType.LONG,
+                null,
+                null,
+                false,
+                blockSize
+            );
         this.pipelineResolver = pipelineResolver != null
             ? pipelineResolver
             : (ctx, sample, sampleSize, ioContext) -> PipelineConfig.of(

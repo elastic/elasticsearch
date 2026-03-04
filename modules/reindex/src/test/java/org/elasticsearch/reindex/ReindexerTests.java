@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
@@ -331,7 +332,9 @@ public class ReindexerTests extends ESTestCase {
             mock(ReindexSslConfig.class),
             null,
             transportService,
-            mock(ReindexRelocationNodePicker.class)
+            mock(ReindexRelocationNodePicker.class),
+            // Will default REINDEX_PIT_SEARCH_FEATURE to false
+            mock(FeatureService.class)
         );
     }
 
@@ -345,7 +348,9 @@ public class ReindexerTests extends ESTestCase {
             mock(ReindexSslConfig.class),
             metrics,
             mock(TransportService.class),
-            mock(ReindexRelocationNodePicker.class)
+            mock(ReindexRelocationNodePicker.class),
+            // Will default REINDEX_PIT_SEARCH_FEATURE to false
+            mock(FeatureService.class)
         );
     }
 

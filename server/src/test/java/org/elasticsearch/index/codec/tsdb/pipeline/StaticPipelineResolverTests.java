@@ -14,9 +14,9 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class StaticPipelineResolverTests extends ESTestCase {
 
@@ -24,160 +24,129 @@ public class StaticPipelineResolverTests extends ESTestCase {
     private static final int TSDB_BLOCK_SIZE = 512;
     private static final int LOGSDB_BLOCK_SIZE = 128;
 
+    private static final List<Class<? extends StageSpec>> DEFAULT_PIPELINE_STAGES = List.of(
+        StageSpec.Delta.class,
+        StageSpec.Delta.class,
+        StageSpec.Offset.class,
+        StageSpec.Gcd.class,
+        StageSpec.PatchedPFor.class,
+        StageSpec.BitPack.class
+    );
+
     private final PipelineResolver resolver = StaticPipelineResolver.INSTANCE;
 
-    public void testTsdbDoubleGaugeSelectsAlp() {
+    public void testTsdbUsesBlockSize512() {
         final PipelineResolver.FieldContext ctx = tsdbContext("cpu.usage", PipelineDescriptor.DataType.DOUBLE, MetricType.GAUGE);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertEquals(PipelineDescriptor.DataType.DOUBLE, config.dataType());
-        assertThat(config.blockSize(), greaterThan(0));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
+        assertThat(config.blockSize(), equalTo(TSDB_BLOCK_SIZE));
     }
 
-    public void testTsdbDoubleGaugeBalancedSelectsAlp() {
-        final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext(
-            "cpu.usage",
-            IndexMode.TIME_SERIES,
-            PipelineDescriptor.DataType.DOUBLE,
-            PipelineResolver.OptimizeFor.BALANCED,
-            MetricType.GAUGE,
-            false,
-            TSDB_BLOCK_SIZE
-        );
+    public void testLogsdbUsesBlockSize128() {
+        final PipelineResolver.FieldContext ctx = logsdbContext("latency", PipelineDescriptor.DataType.DOUBLE);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertEquals(PipelineDescriptor.DataType.DOUBLE, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
+        assertThat(config.blockSize(), equalTo(LOGSDB_BLOCK_SIZE));
     }
 
-    public void testTsdbFloatGaugeSelectsAlpFloat() {
-        final PipelineResolver.FieldContext ctx = tsdbContext("temperature", PipelineDescriptor.DataType.FLOAT, MetricType.GAUGE);
+    public void testStandardUsesBlockSize128() {
+        final PipelineResolver.FieldContext ctx = standardContext("value", PipelineDescriptor.DataType.LONG);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertEquals(PipelineDescriptor.DataType.FLOAT, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
+        assertThat(config.blockSize(), equalTo(LOGSDB_BLOCK_SIZE));
     }
 
-    public void testTsdbFloatGaugeBalancedSelectsAlpFloat() {
-        final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext(
-            "temperature",
-            IndexMode.TIME_SERIES,
-            PipelineDescriptor.DataType.FLOAT,
-            PipelineResolver.OptimizeFor.BALANCED,
-            MetricType.GAUGE,
-            false,
-            TSDB_BLOCK_SIZE
-        );
-        final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
-
-        assertEquals(PipelineDescriptor.DataType.FLOAT, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
-    }
-
-    public void testTsdbLongCounterReturnsBaseline() {
+    public void testPreservesLongDataType() {
         final PipelineResolver.FieldContext ctx = tsdbContext("requests.total", PipelineDescriptor.DataType.LONG, MetricType.COUNTER);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertEquals(PipelineConfig.forLongs(TSDB_BLOCK_SIZE).delta().offset().gcd().bitPack(), config);
+        assertThat(config.dataType(), equalTo(PipelineDescriptor.DataType.LONG));
+        assertDefaultPipeline(config);
     }
 
-    public void testLogsdbDoubleSelectsAlp() {
-        final PipelineResolver.FieldContext ctx = logsdbContext("latency", PipelineDescriptor.DataType.DOUBLE);
-        final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
-
-        assertEquals(PipelineDescriptor.DataType.DOUBLE, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
-    }
-
-    public void testLogsdbFloatSelectsAlpFloat() {
-        final PipelineResolver.FieldContext ctx = logsdbContext("latency", PipelineDescriptor.DataType.FLOAT);
-        final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
-
-        assertEquals(PipelineDescriptor.DataType.FLOAT, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
-    }
-
-    public void testLogsdbWithNullMetricTypeReturnsBaseline() {
-        final PipelineResolver.FieldContext ctx = logsdbContext("status_code", PipelineDescriptor.DataType.LONG);
-        final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
-
-        assertEquals(PipelineConfig.forLongs(LOGSDB_BLOCK_SIZE).delta().offset().gcd().bitPack(), config);
-    }
-
-    public void testStandardIndexReturnsBaseline() {
-        final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext(
-            "counter",
-            IndexMode.STANDARD,
-            PipelineDescriptor.DataType.LONG,
-            null,
-            MetricType.COUNTER,
-            false,
-            128
-        );
-        final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
-
-        assertEquals(PipelineConfig.forLongs(128).delta().offset().gcd().bitPack(), config);
-    }
-
-    public void testLogsdbUsesSmallBlockSize() {
-        final PipelineResolver.FieldContext ctx = logsdbContext("latency", PipelineDescriptor.DataType.DOUBLE);
-        final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
-
-        assertEquals(LOGSDB_BLOCK_SIZE, config.blockSize());
-    }
-
-    public void testTsdbUsesLargerBlockSize() {
+    public void testPreservesDoubleDataType() {
         final PipelineResolver.FieldContext ctx = tsdbContext("cpu.usage", PipelineDescriptor.DataType.DOUBLE, MetricType.GAUGE);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertEquals(TSDB_BLOCK_SIZE, config.blockSize());
+        assertThat(config.dataType(), equalTo(PipelineDescriptor.DataType.DOUBLE));
+        assertDefaultPipeline(config);
     }
 
-    public void testTsdbDateSelectsDeltaDelta() {
-        final PipelineResolver.FieldContext ctx = tsdbDateContext("@timestamp");
+    public void testPreservesFloatDataType() {
+        final PipelineResolver.FieldContext ctx = tsdbContext("temperature", PipelineDescriptor.DataType.FLOAT, MetricType.GAUGE);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertEquals(PipelineDescriptor.DataType.LONG, config.dataType());
-        assertEquals(TSDB_BLOCK_SIZE, config.blockSize());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.DeltaDelta.class)));
+        assertThat(config.dataType(), equalTo(PipelineDescriptor.DataType.FLOAT));
+        assertDefaultPipeline(config);
     }
 
-    public void testLogsdbDateSelectsDeltaDelta() {
-        final PipelineResolver.FieldContext ctx = logsdbDateContext("@timestamp");
-        final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
-
-        assertEquals(PipelineDescriptor.DataType.LONG, config.dataType());
-        assertEquals(LOGSDB_BLOCK_SIZE, config.blockSize());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.DeltaDelta.class)));
-    }
-
-    public void testStandardTimestampReturnsBaseline() {
-        final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext(
-            "@timestamp",
-            IndexMode.STANDARD,
-            PipelineDescriptor.DataType.LONG,
-            null,
-            null,
-            true,
-            128
+    public void testIgnoresMetricType() {
+        final PipelineConfig gauge = resolver.resolve(
+            tsdbContext("field", PipelineDescriptor.DataType.DOUBLE, MetricType.GAUGE),
+            EMPTY_SAMPLE,
+            0,
+            IOContext.DEFAULT
         );
-        final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
+        final PipelineConfig counter = resolver.resolve(
+            tsdbContext("field", PipelineDescriptor.DataType.DOUBLE, MetricType.COUNTER),
+            EMPTY_SAMPLE,
+            0,
+            IOContext.DEFAULT
+        );
 
-        assertEquals(PipelineConfig.forLongs(128).delta().offset().gcd().bitPack(), config);
+        assertEquals(gauge, counter);
     }
 
-    public void testResolvedPipelinesAreValidForRegistry() {
+    public void testIgnoresOptimizeForHint() {
+        final PipelineConfig noHint = resolver.resolve(
+            tsdbContext("field", PipelineDescriptor.DataType.DOUBLE, MetricType.GAUGE),
+            EMPTY_SAMPLE,
+            0,
+            IOContext.DEFAULT
+        );
+        final PipelineConfig storage = resolver.resolve(
+            new PipelineResolver.FieldContext(
+                "field",
+                IndexMode.TIME_SERIES,
+                PipelineDescriptor.DataType.DOUBLE,
+                PipelineResolver.OptimizeFor.STORAGE,
+                MetricType.GAUGE,
+                false,
+                TSDB_BLOCK_SIZE
+            ),
+            EMPTY_SAMPLE,
+            0,
+            IOContext.DEFAULT
+        );
+
+        assertEquals(noHint, storage);
+    }
+
+    public void testAlwaysReturnsDefaultPipelineForAllIndexModes() {
         final PipelineResolver.FieldContext[] contexts = {
+            tsdbContext("field", PipelineDescriptor.DataType.LONG, MetricType.COUNTER),
             tsdbContext("field", PipelineDescriptor.DataType.DOUBLE, MetricType.GAUGE),
             tsdbContext("field", PipelineDescriptor.DataType.FLOAT, MetricType.GAUGE),
+            logsdbContext("field", PipelineDescriptor.DataType.LONG),
             logsdbContext("field", PipelineDescriptor.DataType.DOUBLE),
             logsdbContext("field", PipelineDescriptor.DataType.FLOAT),
-            logsdbContext("field", PipelineDescriptor.DataType.LONG) };
+            standardContext("field", PipelineDescriptor.DataType.LONG) };
 
         for (final PipelineResolver.FieldContext ctx : contexts) {
             final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
-            assertFalse("Config should have stages", config.specs().isEmpty());
+            assertDefaultPipeline(config);
+        }
+    }
+
+    private static void assertDefaultPipeline(final PipelineConfig config) {
+        final List<StageSpec> specs = config.specs();
+        assertThat(specs.size(), equalTo(DEFAULT_PIPELINE_STAGES.size()));
+        for (int i = 0; i < specs.size(); i++) {
+            assertThat(
+                "Stage " + i + " should be " + DEFAULT_PIPELINE_STAGES.get(i).getSimpleName(),
+                specs.get(i).getClass(),
+                equalTo(DEFAULT_PIPELINE_STAGES.get(i))
+            );
         }
     }
 
@@ -189,31 +158,11 @@ public class StaticPipelineResolverTests extends ESTestCase {
         return new PipelineResolver.FieldContext(fieldName, IndexMode.TIME_SERIES, dataType, null, metricType, false, TSDB_BLOCK_SIZE);
     }
 
-    private static PipelineResolver.FieldContext tsdbDateContext(final String fieldName) {
-        return new PipelineResolver.FieldContext(
-            fieldName,
-            IndexMode.TIME_SERIES,
-            PipelineDescriptor.DataType.LONG,
-            null,
-            null,
-            true,
-            TSDB_BLOCK_SIZE
-        );
-    }
-
     private static PipelineResolver.FieldContext logsdbContext(final String fieldName, final PipelineDescriptor.DataType dataType) {
         return new PipelineResolver.FieldContext(fieldName, IndexMode.LOGSDB, dataType, null, null, false, LOGSDB_BLOCK_SIZE);
     }
 
-    private static PipelineResolver.FieldContext logsdbDateContext(final String fieldName) {
-        return new PipelineResolver.FieldContext(
-            fieldName,
-            IndexMode.LOGSDB,
-            PipelineDescriptor.DataType.LONG,
-            null,
-            null,
-            true,
-            LOGSDB_BLOCK_SIZE
-        );
+    private static PipelineResolver.FieldContext standardContext(final String fieldName, final PipelineDescriptor.DataType dataType) {
+        return new PipelineResolver.FieldContext(fieldName, IndexMode.STANDARD, dataType, null, null, false, 128);
     }
 }

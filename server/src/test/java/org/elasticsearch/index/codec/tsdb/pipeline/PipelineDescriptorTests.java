@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-
 public class PipelineDescriptorTests extends ESTestCase {
 
     public void testConstructionAndAccessors() {

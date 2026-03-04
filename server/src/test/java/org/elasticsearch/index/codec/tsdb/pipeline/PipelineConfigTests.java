@@ -194,10 +194,7 @@ public class PipelineConfigTests extends ESTestCase {
         final int tableSize = randomIntBetween(0, 2048);
         final double maxError = randomDoubleBetween(0.0, 1.0, true);
 
-        assertThat(
-            PipelineConfig.forDoubles(blockSize).fpcStage().bitPack().specs(),
-            hasItem(instanceOf(StageSpec.FpcDoubleStage.class))
-        );
+        assertThat(PipelineConfig.forDoubles(blockSize).fpcStage().bitPack().specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
         assertEquals(
             tableSize,
             ((StageSpec.FpcDoubleStage) PipelineConfig.forDoubles(blockSize).fpcStage(tableSize).bitPack().specs().getFirst()).tableSize()
@@ -221,10 +218,7 @@ public class PipelineConfigTests extends ESTestCase {
         final int tableSize = randomIntBetween(0, 2048);
         final double maxError = randomDoubleBetween(0.0, 1.0, true);
 
-        assertThat(
-            PipelineConfig.forFloats(blockSize).fpcStage().bitPack().specs(),
-            hasItem(instanceOf(StageSpec.FpcFloatStage.class))
-        );
+        assertThat(PipelineConfig.forFloats(blockSize).fpcStage().bitPack().specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
         assertEquals(
             tableSize,
             ((StageSpec.FpcFloatStage) PipelineConfig.forFloats(blockSize).fpcStage(tableSize).bitPack().specs().getFirst()).tableSize()

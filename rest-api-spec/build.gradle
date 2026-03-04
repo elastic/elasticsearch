@@ -117,4 +117,8 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.addAllowedWarningRegex("Use of the \\[max_size\\] rollover condition has been deprecated in favour of the \\[max_primary_shard_size\\] condition and will be removed in a later version")
   task.skipTest("search.vectors/42_knn_search_bbq_flat/Vector rescoring has same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
   task.skipTest("search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section", "scores have changed slightly with native implementations")
+  task.skipTest(
+    "get/100_synthetic_source/fields with ignore_malformed",
+    "Malformed values are now stored in binary doc values which sort differently than stored fields"
+  )
 })

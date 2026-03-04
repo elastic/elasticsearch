@@ -401,6 +401,7 @@ public class Constants {
         "cluster:monitor/xpack/esql/get_query",
         "cluster:monitor/xpack/esql/list_queries",
         "cluster:monitor/xpack/esql/stats/dist",
+        "cluster:monitor/xpack/gpu_vector_indexing/stats/dist",
         "cluster:monitor/xpack/inference/post",
         "cluster:monitor/xpack/inference/get",
         "cluster:monitor/xpack/inference/ccm/get",
@@ -418,6 +419,7 @@ public class Constants {
         "cluster:monitor/xpack/info/eql",
         "cluster:monitor/xpack/info/esql",
         "cluster:monitor/xpack/info/graph",
+        "cluster:monitor/xpack/info/gpu_vector_indexing",
         "cluster:monitor/xpack/info/ilm",
         "cluster:monitor/xpack/info/logsdb",
         "cluster:monitor/xpack/info/logstash",
@@ -482,6 +484,7 @@ public class Constants {
         "cluster:monitor/xpack/usage/esql",
         "cluster:monitor/xpack/usage/frozen_indices",
         "cluster:monitor/xpack/usage/graph",
+        "cluster:monitor/xpack/usage/gpu_vector_indexing",
         "cluster:monitor/xpack/usage/health_api",
         "cluster:monitor/xpack/usage/ilm",
         "cluster:monitor/xpack/usage/inference",
@@ -529,6 +532,7 @@ public class Constants {
         "indices:admin/data_stream/lifecycle/get",
         "indices:admin/data_stream/lifecycle/put",
         "indices:admin/data_stream/lifecycle/explain",
+        "indices:admin/dlm/mark_index_for_force_merge",
         "indices:admin/data_stream/options/delete",
         "indices:admin/data_stream/options/get",
         "indices:admin/data_stream/options/put",
@@ -675,12 +679,6 @@ public class Constants {
         "indices:admin/index/create_from_source",
         "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
-        "internal:admin/repository/verify/coordinate",
-        "indices:admin/sample",
-        "indices:admin/sample/config/update",
-        "indices:admin/sample/stats",
-        "indices:admin/sample/config/delete",
-        "indices:monitor/sample/config/get",
-        "indices:monitor/sample/config/get_all"
+        "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

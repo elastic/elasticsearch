@@ -30,6 +30,8 @@ public class Clusters {
             .shared(true)
             // Enable S3 repository plugin for S3 access
             .module("repository-s3")
+            // Enable GCS repository module for GCS access
+            .module("repository-gcs")
             // Basic cluster settings
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")

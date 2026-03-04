@@ -24,15 +24,27 @@ dependencies {
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
   javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
 
+  // GCS fixture infrastructure for mocking GCS operations
+  javaRestTestImplementation project(':test:fixtures:gcs-fixture')
+
   // Repository S3 module for cluster
   clusterModules project(':modules:repository-s3')
+  // Repository GCS module for cluster
+  clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
 
   // The CSV datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-csv'))
+  clusterPlugins project(xpackModule('esql-datasource-gzip'))
+  clusterPlugins project(xpackModule('esql-datasource-zstd'))
+  clusterPlugins project(xpackModule('esql-datasource-bzip2'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
   clusterPlugins project(xpackModule('esql-datasource-s3'))
+  // GCS datasource plugin for gs:// storage backend
+  clusterPlugins project(xpackModule('esql-datasource-gcs'))
+  // Azure Blob datasource plugin for wasbs:///wasb:// storage backend
+  clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
 // The CSV fixtures (employees.csv and csv-basic.csv-spec) are included
@@ -41,6 +53,7 @@ dependencies {
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
 
   // Increase timeouts for S3 operations which may take longer than standard queries
   systemProperty 'tests.rest.client_timeout', '60'

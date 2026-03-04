@@ -380,11 +380,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 if (vector != null) {
                     fieldVectors.put(asRankDoc.rank, vector);
                 }
-            } catch (IllegalArgumentException e) {
-                // since this is run within an async block inside the compound retriever builder, we
-                // cannot allow the IllegalArgumentException to bubble up, but rather we need
-                // to have the status exception thrown here.
-                throw new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e);
             } catch (IOException ioEx) {
                 throw new UncheckedIOException(ioEx);
             }
@@ -518,15 +513,6 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 List<VectorData> fieldVectors = vectorSupplier.getDenseVectorData();
                 if (fieldVectors == null || fieldVectors.isEmpty()) {
                     return null;
-                }
-
-                if (fieldVectors.getFirst().isFloat() != queryVectorData.isFloat()) {
-                    throw new IllegalArgumentException(
-                        Strings.format(
-                            "supplied query vector is incompatible with document vectors for the [%s] field.",
-                            vectorSupplier.getSupplierContentType()
-                        )
-                    );
                 }
 
                 int bestScoringVectorIndex = 0;

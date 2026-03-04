@@ -415,8 +415,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         docs.add(hits);
 
         try {
-            ElasticsearchStatusException docsWithNoValuesEx = assertThrows(
-                ElasticsearchStatusException.class,
+            IllegalArgumentException docsWithNoValuesEx = assertThrows(
+                IllegalArgumentException.class,
                 () -> retriever.combineInnerRetrieverResults(docs, false)
             );
             assertEquals(
@@ -448,15 +448,34 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         ScoreDoc[] hits = getTestVectorSupplierScoreDocuments();
         docs.add(hits);
 
+        // should not throw an exception
         try {
-            ElasticsearchStatusException docsWithNoValuesEx = assertThrows(
-                ElasticsearchStatusException.class,
-                () -> retriever.combineInnerRetrieverResults(docs, false)
-            );
-            assertEquals(
-                "supplied query vector is incompatible with document vectors for the [mock_supplier_field] field.",
-                docsWithNoValuesEx.getMessage()
-            );
+            retriever.combineInnerRetrieverResults(docs, false);
+        } finally {
+            cleanDocsAndHits(docs, hits);
+        }
+
+        retriever = new DiversifyRetrieverBuilder(
+            getInnerRetriever(),
+            ResultDiversificationType.MMR,
+            "dense_vector_field",
+            10,
+            3,
+            new VectorData(new float[] { 0.5f, 0.4f, 0.3f, 0.2f }),
+            null,
+            0.3f
+        );
+
+        // run the rewrite to set the internal diversification context
+        retriever.doRewrite(queryRewriteContext);
+
+        docs = new ArrayList<>();
+        hits = getTestVectorSupplierScoreDocumentsByteVectors();
+        docs.add(hits);
+
+        // should still not throw an exception
+        try {
+            retriever.combineInnerRetrieverResults(docs, false);
         } finally {
             cleanDocsAndHits(docs, hits);
         }
@@ -502,6 +521,14 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
             getTestVectorSupplierScoreDoc(4, 0, 1.0f, List.of(new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }))),
             getTestVectorSupplierScoreDoc(5, 1, 0.8f, List.of(new VectorData(new float[] { 0.1f, 0.9f, 0.5f, 0.9f }))),
             getTestVectorSupplierScoreDoc(6, 1, 0.8f, List.of(new VectorData(new float[] { 0.05f, 0.05f, 0.05f, 0.05f }))) };
+    }
+
+    private ScoreDoc[] getTestVectorSupplierScoreDocumentsByteVectors() {
+        return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
+            getTestVectorSupplierScoreDoc(1, 1, 2.0f, List.of(new VectorData(new float[] { 10, 20, 30, 40 }))),
+            getTestVectorSupplierScoreDoc(2, 2, 1.8f, List.of(new VectorData(new float[] { 12, 24, 36, 48 }))),
+            getTestVectorSupplierScoreDoc(3, 0, 1.8f, List.of(new VectorData(new float[] { 45, 35, 25, 15 }))),
+        };
     }
 
     private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestVectorSupplierScoreDoc(

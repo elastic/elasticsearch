@@ -29,8 +29,9 @@ The ordering of results returned from the inner retriever is preserved.
 :   (Required, string)
 
     The name of the field that will use its values for the diversification process.
-    The field type must be a `dense_vector` or a `semantic_text` field with dense vector embeddings.
-    If this is a `semantic_text` field, you must provide a `query_vector` or `query_vector_builder`.
+    The field type must be one of:
+      - `dense_vector`
+      - `semantic_text` (with dense vector embeddings). For `semantic_text` fields, you must also provide a `query_vector` or `query_vector_builder`. {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 
 `rank_window_size`
 :   (Optional, integer)

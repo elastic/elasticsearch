@@ -197,6 +197,10 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                             results.set(combineInnerRetrieverResults(topDocs, enrichResults));
                             listener.onResponse(null);
                             return;
+                        } catch (IllegalArgumentException iaEx) {
+                            retrieversWithFailures.add(getName());
+                            failures.add(iaEx);
+                            statusCode = RestStatus.BAD_REQUEST.getStatus();
                         } catch (ElasticsearchStatusException esEx) {
                             retrieversWithFailures.add(getName());
                             failures.add(esEx);

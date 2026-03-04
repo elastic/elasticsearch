@@ -345,7 +345,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .build(),
                 // Kibana logs streams
-                RoleDescriptor.IndicesPrivileges.builder().indices("logs", "logs.*").privileges("read", "manage").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs", "logs.*", "$.logs", "$.logs.*")
+                    .privileges("read", "manage")
+                    .build(),
                 // Kibana Security Solution EDR workflows team
                 // - `.endpoint-script-file*`:
                 // indexes are used internally within Kibana in support of Elastic Defend scripts library.

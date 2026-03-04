@@ -144,9 +144,6 @@ public class LuceneCountOperator extends LuceneOperator {
     }
 
     private void count(LuceneScorer scorer) throws IOException {
-        if (scorer.position() != 0) {
-            throw new IllegalStateException("count doesn't support doc-partitioning");
-        }
         PerTagsState state = tagsToState.computeIfAbsent(scorer.tags(), t -> new PerTagsState());
         Weight weight = scorer.weight();
         var leafReaderContext = scorer.leafReaderContext();

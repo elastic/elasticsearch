@@ -382,10 +382,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), "")
             .build();
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(IndexVersion.current(), settings, fieldMapping)
-        );
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(IndexVersion.current(), settings, fieldMapping));
         assertThat(e.getMessage(), containsString("[index.semantic_text.default_inference_id] must not be empty"));
     }
 

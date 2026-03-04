@@ -1623,7 +1623,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
                 getLenientIndicesOptions(),
                 useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
                 local,
-                remote
+                remote,
+                Map.of()
             )
         );
     }
@@ -1654,7 +1655,8 @@ public class CrossProjectIndexResolutionValidatorTests extends ESTestCase {
             getStrictAllowNoIndices(),
             useProjectRouting ? "_alias:*" : null,  // a redundant project routing has no impact
             local,
-            remote
+            remote,
+            Map.of()
         );
         assertNotNull(e);
         assertThat(e.getMessage(), equalTo("no such index [P1:logs]"));

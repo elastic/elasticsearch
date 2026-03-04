@@ -315,15 +315,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
   method: testWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/142434
-- class: org.elasticsearch.compute.operator.MMROperatorTests
-  method: testSimpleLargeInput
-  issue: https://github.com/elastic/elasticsearch/issues/142437
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
   method: testIndexPoints
   issue: https://github.com/elastic/elasticsearch/issues/142439
-- class: org.elasticsearch.compute.operator.MMROperatorTests
-  method: testSimpleSmallInput
-  issue: https://github.com/elastic/elasticsearch/issues/142436
 - class: org.elasticsearch.xpack.esql.core.util.RemoteClusterUtilsTests
   method: testQualifyAndJoinIndices
   issue: https://github.com/elastic/elasticsearch/issues/142442
@@ -372,9 +366,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
-- class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
-  method: testCliConnectionWithApiKey
-  issue: https://github.com/elastic/elasticsearch/issues/143125
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
@@ -384,9 +375,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
   method: testTSDBIndexUsesCorrectDocValuesFormat
   issue: https://github.com/elastic/elasticsearch/issues/143198
-- class: org.elasticsearch.snapshots.SnapshotStressTestsIT
-  method: testRandomActivities
-  issue: https://github.com/elastic/elasticsearch/issues/143199
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_aggregate_metric_double_implicit_casting}
   issue: https://github.com/elastic/elasticsearch/issues/143292
@@ -441,9 +429,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/TS Command grouping on text field}
   issue: https://github.com/elastic/elasticsearch/issues/142544
-- class: org.elasticsearch.xpack.logsdb.StandardToLogsDbIndexModeRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/143426
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.MvJoinKeyOnFromAfterStats}
   issue: https://github.com/elastic/elasticsearch/issues/143427
@@ -459,6 +444,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.MvJoinKeyOnTheLookupIndexAfterStats}
   issue: https://github.com/elastic/elasticsearch/issues/143434
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:lookup-join.MvJoinKeyOnTheLookupIndex}
+  issue: https://github.com/elastic/elasticsearch/issues/143442
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:lookup-join.LookupJoinWithCoalesceFilterOnRight}
+  issue: https://github.com/elastic/elasticsearch/issues/143443
+- class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
+  method: testLoadAll
+  issue: https://github.com/elastic/elasticsearch/issues/143471
 
 # Examples:
 #

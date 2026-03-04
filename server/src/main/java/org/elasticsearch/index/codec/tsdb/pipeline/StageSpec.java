@@ -148,7 +148,24 @@ public sealed interface StageSpec {
     }
 
     /** Zstandard block compression payload. */
-    record ZstdPayload() implements StageSpec {
+    record ZstdPayload(int compressionLevel) implements StageSpec {
+        static final int DEFAULT_COMPRESSION_LEVEL = 3;
+        static final int MIN_COMPRESSION_LEVEL = 1;
+        static final int MAX_COMPRESSION_LEVEL = 22;
+
+        public ZstdPayload {
+            if (compressionLevel < MIN_COMPRESSION_LEVEL || compressionLevel > MAX_COMPRESSION_LEVEL) {
+                throw new IllegalArgumentException(
+                    "compressionLevel must be between " + MIN_COMPRESSION_LEVEL + " and " + MAX_COMPRESSION_LEVEL + ", got: "
+                        + compressionLevel
+                );
+            }
+        }
+
+        public ZstdPayload() {
+            this(DEFAULT_COMPRESSION_LEVEL);
+        }
+
         @Override
         public StageId stageId() {
             return StageId.ZSTD_PAYLOAD;

@@ -157,6 +157,26 @@ public class PipelineConfigTests extends ESTestCase {
         assertThat(PipelineConfig.forFloats(blockSize).chimp128().specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
     }
 
+    public void testZstdCompressionLevel() {
+        final int blockSize = randomBlockSize();
+        final int compressionLevel = randomIntBetween(
+            StageSpec.ZstdPayload.MIN_COMPRESSION_LEVEL,
+            StageSpec.ZstdPayload.MAX_COMPRESSION_LEVEL
+        );
+        final PipelineConfig config = switch (randomIntBetween(0, 2)) {
+            case 0 -> PipelineConfig.forLongs(blockSize).delta().zstd(compressionLevel);
+            case 1 -> PipelineConfig.forDoubles(blockSize).zstd(compressionLevel);
+            default -> PipelineConfig.forFloats(blockSize).zstd(compressionLevel);
+        };
+        final StageSpec.ZstdPayload zstd = config.specs()
+            .stream()
+            .filter(s -> s instanceof StageSpec.ZstdPayload)
+            .map(s -> (StageSpec.ZstdPayload) s)
+            .findFirst()
+            .orElseThrow();
+        assertEquals(compressionLevel, zstd.compressionLevel());
+    }
+
     public void testLz4HighCompression() {
         final int blockSize = randomBlockSize();
         final PipelineConfig config = switch (randomIntBetween(0, 2)) {

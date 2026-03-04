@@ -139,6 +139,11 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
         }
 
+        public PipelineConfig zstd(final int compressionLevel) {
+            specs.add(new StageSpec.ZstdPayload(compressionLevel));
+            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
+        }
+
         public PipelineConfig lz4() {
             specs.add(new StageSpec.Lz4Payload());
             return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
@@ -224,6 +229,11 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
 
         public PipelineConfig zstd() {
             specs.add(new StageSpec.ZstdPayload());
+            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
+        }
+
+        public PipelineConfig zstd(final int compressionLevel) {
+            specs.add(new StageSpec.ZstdPayload(compressionLevel));
             return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
@@ -341,6 +351,11 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
 
         public PipelineConfig zstd() {
             specs.add(new StageSpec.ZstdPayload());
+            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
+        }
+
+        public PipelineConfig zstd(final int compressionLevel) {
+            specs.add(new StageSpec.ZstdPayload(compressionLevel));
             return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 

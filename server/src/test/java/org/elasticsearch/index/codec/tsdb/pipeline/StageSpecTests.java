@@ -72,6 +72,22 @@ public class StageSpecTests extends ESTestCase {
         assertEquals(valid, new StageSpec.FpcFloatStage(valid).tableSize());
     }
 
+    public void testCompressionLevelRejectsOutOfRange() {
+        final int tooLow = randomIntBetween(Integer.MIN_VALUE, StageSpec.ZstdPayload.MIN_COMPRESSION_LEVEL - 1);
+        final int tooHigh = randomIntBetween(StageSpec.ZstdPayload.MAX_COMPRESSION_LEVEL + 1, Integer.MAX_VALUE);
+        expectThrows(IllegalArgumentException.class, () -> new StageSpec.ZstdPayload(tooLow));
+        expectThrows(IllegalArgumentException.class, () -> new StageSpec.ZstdPayload(tooHigh));
+    }
+
+    public void testCompressionLevelAcceptsValid() {
+        final int valid = randomIntBetween(StageSpec.ZstdPayload.MIN_COMPRESSION_LEVEL, StageSpec.ZstdPayload.MAX_COMPRESSION_LEVEL);
+        assertEquals(valid, new StageSpec.ZstdPayload(valid).compressionLevel());
+    }
+
+    public void testCompressionLevelDefaultValue() {
+        assertEquals(StageSpec.ZstdPayload.DEFAULT_COMPRESSION_LEVEL, new StageSpec.ZstdPayload().compressionLevel());
+    }
+
     public void testAllStageSpecsHaveStageIds() {
         assertNotNull(new StageSpec.DeltaStage().stageId());
         assertNotNull(new StageSpec.OffsetStage().stageId());

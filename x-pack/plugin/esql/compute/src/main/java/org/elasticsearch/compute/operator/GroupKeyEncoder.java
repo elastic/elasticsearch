@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -18,6 +17,9 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.topn.DefaultUnsortableTopNEncoder;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
+import org.elasticsearch.core.Releasable;
 
 import java.util.List;
 
@@ -27,19 +29,22 @@ import java.util.List;
  * in block iteration order. This means {@code [1, 2]} and {@code [2, 1]} produce different keys.
  * Null positions are encoded as a value count of zero.
  */
-public class GroupKeyEncoder {
+public class GroupKeyEncoder implements Releasable {
+
+    private static final DefaultUnsortableTopNEncoder encoder = TopNEncoder.DEFAULT_UNSORTABLE;
 
     private final int[] groupChannels;
     private final ElementType[] elementTypes;
-    private final BytesRefBuilder scratch = new BytesRefBuilder();
+    private final BreakingBytesRefBuilder scratch;
     private final BytesRef scratchBytesRef = new BytesRef();
 
-    public GroupKeyEncoder(int[] groupChannels, List<ElementType> elementTypes) {
+    public GroupKeyEncoder(int[] groupChannels, List<ElementType> elementTypes, BreakingBytesRefBuilder scratch) {
         this.groupChannels = groupChannels;
         this.elementTypes = new ElementType[groupChannels.length];
         for (int i = 0; i < groupChannels.length; i++) {
             this.elementTypes[i] = elementTypes.get(groupChannels[i]);
         }
+        this.scratch = scratch;
     }
 
     /**
@@ -52,54 +57,53 @@ public class GroupKeyEncoder {
             Block block = page.getBlock(groupChannels[i]);
             encodeBlock(block, elementTypes[i], position);
         }
-        return scratch.get();
+        return scratch.bytesRefView();
     }
 
     private void encodeBlock(Block block, ElementType type, int position) {
         if (block.isNull(position)) {
-            writeVInt(0);
+            encoder.encodeVInt(0, scratch);
             return;
         }
         int firstValueIndex = block.getFirstValueIndex(position);
         int valueCount = block.getValueCount(position);
-        writeVInt(valueCount);
+        encoder.encodeVInt(valueCount, scratch);
         switch (type) {
             case INT -> {
                 IntBlock b = (IntBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    writeInt(b.getInt(firstValueIndex + v));
+                    encoder.encodeInt(b.getInt(firstValueIndex + v), scratch);
                 }
             }
             case LONG -> {
                 LongBlock b = (LongBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    writeLong(b.getLong(firstValueIndex + v));
+                    encoder.encodeLong(b.getLong(firstValueIndex + v), scratch);
                 }
             }
             case DOUBLE -> {
                 DoubleBlock b = (DoubleBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    writeLong(Double.doubleToLongBits(b.getDouble(firstValueIndex + v)));
+                    encoder.encodeDouble(b.getDouble(firstValueIndex + v), scratch);
                 }
             }
             case FLOAT -> {
                 FloatBlock b = (FloatBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    writeInt(Float.floatToIntBits(b.getFloat(firstValueIndex + v)));
+                    encoder.encodeFloat(b.getFloat(firstValueIndex + v), scratch);
                 }
             }
             case BOOLEAN -> {
                 BooleanBlock b = (BooleanBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    scratch.append((byte) (b.getBoolean(firstValueIndex + v) ? 1 : 0));
+                    encoder.encodeBoolean(b.getBoolean(firstValueIndex + v), scratch);
                 }
             }
             case BYTES_REF -> {
                 BytesRefBlock b = (BytesRefBlock) block;
                 for (int v = 0; v < valueCount; v++) {
                     BytesRef ref = b.getBytesRef(firstValueIndex + v, scratchBytesRef);
-                    writeVInt(ref.length);
-                    scratch.append(ref.bytes, ref.offset, ref.length);
+                    encoder.encodeBytesRef(ref, scratch);
                 }
             }
             case NULL -> {
@@ -109,39 +113,8 @@ public class GroupKeyEncoder {
         }
     }
 
-    /**
-     * Appends a non-negative int using variable-length encoding (1–5 bytes).
-     * Each byte stores 7 data bits in the low bits; the high bit is set to 1
-     * to indicate that more bytes follow, and 0 for the final byte. Values
-     * below 128 are encoded in a single byte, making this compact for the
-     * small numbers typical of value counts and byte-array lengths.
-     */
-    private void writeVInt(int value) {
-        while ((value & ~0x7F) != 0) {
-            scratch.append((byte) ((value & 0x7F) | 0x80));
-            value >>>= 7;
-        }
-        scratch.append((byte) value);
-    }
-
-    /**
-     * Appends an int as exactly 4 bytes in big-endian (most-significant byte
-     * first) order. Fixed-width encoding preserves the natural sort order of
-     * the original values and avoids the need for a length prefix.
-     */
-    private void writeInt(int value) {
-        scratch.append((byte) (value >> 24));
-        scratch.append((byte) (value >> 16));
-        scratch.append((byte) (value >> 8));
-        scratch.append((byte) value);
-    }
-
-    /**
-     * Appends a long as exactly 8 bytes in big-endian order by writing the
-     * upper 32 bits followed by the lower 32 bits, each via {@link #writeInt}.
-     */
-    private void writeLong(long value) {
-        writeInt((int) (value >> 32));
-        writeInt((int) value);
+    @Override
+    public void close() {
+        scratch.close();
     }
 }

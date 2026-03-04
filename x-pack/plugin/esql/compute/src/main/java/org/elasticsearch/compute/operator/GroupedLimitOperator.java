@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -34,6 +33,29 @@ import java.util.Objects;
  * Group keys use list semantics for multivalues: {@code [1,2]} and {@code [2,1]} are different groups.
  */
 public class GroupedLimitOperator implements Operator {
+    public static final class Factory implements Operator.OperatorFactory {
+        private final int limitPerGroup;
+        private final int[] groupChannels;
+        private final List<ElementType> elementTypes;
+
+        public Factory(int limitPerGroup, List<Integer> groupChannels, List<ElementType> elementTypes) {
+            this.limitPerGroup = limitPerGroup;
+            this.groupChannels = groupChannels.stream().mapToInt(Integer::intValue).toArray();
+            this.elementTypes = elementTypes;
+        }
+
+        @Override
+        public GroupedLimitOperator get(DriverContext driverContext) {
+            BlockFactory blockFactory = driverContext.blockFactory();
+            var scratch = new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder");
+            return new GroupedLimitOperator(limitPerGroup, new GroupKeyEncoder(groupChannels, elementTypes, scratch), blockFactory);
+        }
+
+        @Override
+        public String describe() {
+            return "GroupedLimitOperator[limit = " + limitPerGroup + "]";
+        }
+    }
 
     private final int limitPerGroup;
     private final GroupKeyEncoder keyEncoder;
@@ -61,32 +83,18 @@ public class GroupedLimitOperator implements Operator {
     private boolean finished;
 
     public GroupedLimitOperator(int limitPerGroup, GroupKeyEncoder keyEncoder, BlockFactory blockFactory) {
-        this.limitPerGroup = limitPerGroup;
-        this.keyEncoder = keyEncoder;
-        this.bigArrays = blockFactory.bigArrays();
-        this.seenKeys = HashImplFactory.newBytesRefHash(blockFactory);
-        this.counts = bigArrays.newIntArray(16, false);
-    }
-
-    public static final class Factory implements Operator.OperatorFactory {
-        private final int limitPerGroup;
-        private final int[] groupChannels;
-        private final List<ElementType> elementTypes;
-
-        public Factory(int limitPerGroup, List<Integer> groupChannels, List<ElementType> elementTypes) {
+        boolean success = false;
+        try {
             this.limitPerGroup = limitPerGroup;
-            this.groupChannels = groupChannels.stream().mapToInt(Integer::intValue).toArray();
-            this.elementTypes = elementTypes;
-        }
-
-        @Override
-        public GroupedLimitOperator get(DriverContext driverContext) {
-            return new GroupedLimitOperator(limitPerGroup, new GroupKeyEncoder(groupChannels, elementTypes), driverContext.blockFactory());
-        }
-
-        @Override
-        public String describe() {
-            return "GroupedLimitOperator[limit = " + limitPerGroup + "]";
+            this.keyEncoder = keyEncoder;
+            this.bigArrays = blockFactory.bigArrays();
+            this.seenKeys = HashImplFactory.newBytesRefHash(blockFactory);
+            this.counts = bigArrays.newIntArray(16, false);
+            success = true;
+        } finally {
+            if (success == false) {
+                keyEncoder.close();
+            }
         }
     }
 
@@ -148,26 +156,8 @@ public class GroupedLimitOperator implements Operator {
         } else {
             int[] positions = new int[acceptedCount];
             System.arraycopy(accepted, 0, positions, 0, acceptedCount);
-            lastOutput = filterPage(page, positions);
+            lastOutput = page.filter(false, positions);
         }
-    }
-
-    private static Page filterPage(Page page, int[] positions) {
-        Block[] blocks = new Block[page.getBlockCount()];
-        Page result = null;
-        try {
-            for (int b = 0; b < blocks.length; b++) {
-                blocks[b] = page.getBlock(b).filter(false, positions);
-            }
-            result = new Page(blocks);
-        } finally {
-            if (result == null) {
-                Releasables.closeExpectNoException(page::releaseBlocks, Releasables.wrap(blocks));
-            } else {
-                page.releaseBlocks();
-            }
-        }
-        return result;
     }
 
     @Override
@@ -204,7 +194,7 @@ public class GroupedLimitOperator implements Operator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(lastOutput == null ? () -> {} : lastOutput::releaseBlocks, seenKeys, counts);
+        Releasables.closeExpectNoException(lastOutput == null ? () -> {} : lastOutput::releaseBlocks, seenKeys, counts, keyEncoder);
     }
 
     @Override

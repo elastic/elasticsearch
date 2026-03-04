@@ -107,7 +107,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 2,
-                new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
+                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
                 blockFactory
             )
         ) {
@@ -137,7 +137,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 2,
-                new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
+                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
                 blockFactory
             )
         ) {
@@ -173,7 +173,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 1,
-                new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
+                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
                 blockFactory
             )
         ) {
@@ -198,7 +198,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 10,
-                new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
+                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
                 blockFactory
             )
         ) {
@@ -223,7 +223,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 0,
-                new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG)),
+                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
                 blockFactory
             )
         ) {
@@ -253,7 +253,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         try (
             GroupedLimitOperator op = new GroupedLimitOperator(
                 1,
-                new GroupKeyEncoder(new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.LONG)),
+                groupKeyEncoder(blockFactory, new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.LONG)),
                 blockFactory
             )
         ) {
@@ -277,6 +277,141 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
                 output.releaseBlocks();
             }
         }
+    }
+
+    /**
+     * A multivalue {@code [1,2]} and a single value {@code 1} are different groups.
+     */
+    public void testMultivalueAndSingleValueAreDifferentGroups() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (var builder = blockFactory.newLongBlockBuilder(2)) {
+            builder.beginPositionEntry();
+            builder.appendLong(1);
+            builder.appendLong(2);
+            builder.endPositionEntry();
+            builder.appendLong(1);
+
+            try (
+                GroupedLimitOperator op = new GroupedLimitOperator(
+                    1,
+                    groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
+                    blockFactory
+                )
+            ) {
+                op.addInput(new Page(builder.build()));
+                Page output = op.getOutput();
+                try {
+                    assertThat(output.getPositionCount(), equalTo(2));
+                } finally {
+                    output.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /**
+     * A null position and a multivalue {@code [1,2]} are different groups.
+     */
+    public void testNullAndMultivalueAreDifferentGroups() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (var builder = blockFactory.newLongBlockBuilder(2)) {
+            builder.appendNull();
+            builder.beginPositionEntry();
+            builder.appendLong(1);
+            builder.appendLong(2);
+            builder.endPositionEntry();
+
+            try (
+                GroupedLimitOperator op = new GroupedLimitOperator(
+                    1,
+                    groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
+                    blockFactory
+                )
+            ) {
+                op.addInput(new Page(builder.build()));
+                Page output = op.getOutput();
+                try {
+                    assertThat(output.getPositionCount(), equalTo(2));
+                } finally {
+                    output.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /**
+     * Two identical multivalues {@code [1,2]} belong to the same group.
+     */
+    public void testIdenticalMultivaluesAreSameGroup() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (var builder = blockFactory.newLongBlockBuilder(2)) {
+            builder.beginPositionEntry();
+            builder.appendLong(1);
+            builder.appendLong(2);
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendLong(1);
+            builder.appendLong(2);
+            builder.endPositionEntry();
+
+            try (
+                GroupedLimitOperator op = new GroupedLimitOperator(
+                    1,
+                    groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
+                    blockFactory
+                )
+            ) {
+                op.addInput(new Page(builder.build()));
+                Page output = op.getOutput();
+                try {
+                    assertThat(output.getPositionCount(), equalTo(1));
+                } finally {
+                    output.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    /**
+     * {@code [1,2]} and {@code [2,1]} are different groups because
+     * multivalues use order-sensitive list semantics.
+     */
+    public void testMultivaluesWithDifferentOrderAreDifferentGroups() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        try (var builder = blockFactory.newLongBlockBuilder(2)) {
+            builder.beginPositionEntry();
+            builder.appendLong(1);
+            builder.appendLong(2);
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendLong(2);
+            builder.appendLong(1);
+            builder.endPositionEntry();
+
+            try (
+                GroupedLimitOperator op = new GroupedLimitOperator(
+                    1,
+                    groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
+                    blockFactory
+                )
+            ) {
+                op.addInput(new Page(builder.build()));
+                Page output = op.getOutput();
+                try {
+                    assertThat(output.getPositionCount(), equalTo(2));
+                } finally {
+                    output.releaseBlocks();
+                }
+            }
+        }
+    }
+
+    private static GroupKeyEncoder groupKeyEncoder(BlockFactory blockFactory, int[] groupChannels, List<ElementType> elementTypes) {
+        return new GroupKeyEncoder(groupChannels, elementTypes, new BreakingBytesRefBuilder(blockFactory.breaker(), "group-key-encoder"));
     }
 
     @Override

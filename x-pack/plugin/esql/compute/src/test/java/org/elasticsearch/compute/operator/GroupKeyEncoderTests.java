@@ -17,11 +17,16 @@ import java.util.List;
 
 public class GroupKeyEncoderTests extends ComputeTestCase {
 
+    private GroupKeyEncoder encoder(int[] groupChannels, List<ElementType> elementTypes) {
+        BlockFactory bf = blockFactory();
+        var scratch = new BreakingBytesRefBuilder(bf.breaker(), "group-key-encoder-test");
+        return new GroupKeyEncoder(groupChannels, elementTypes, scratch);
+    }
+
     public void testSameIntValuesSameKey() {
         BlockFactory bf = blockFactory();
         Page page = new Page(bf.newIntArrayVector(new int[] { 7, 7 }, 2).asBlock());
-        try {
-            GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.INT));
+        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.INT))) {
             assertEquals(copy(encoder.encode(page, 0)), copy(encoder.encode(page, 1)));
         } finally {
             page.releaseBlocks();
@@ -31,8 +36,7 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
     public void testDifferentIntValuesDifferentKeys() {
         BlockFactory bf = blockFactory();
         Page page = new Page(bf.newIntArrayVector(new int[] { 1, 2 }, 2).asBlock());
-        try {
-            GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.INT));
+        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.INT))) {
             assertNotEquals(copy(encoder.encode(page, 0)), copy(encoder.encode(page, 1)));
         } finally {
             page.releaseBlocks();
@@ -42,8 +46,7 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
     public void testLongType() {
         BlockFactory bf = blockFactory();
         Page page = new Page(bf.newLongArrayVector(new long[] { 100, 200, 100 }, 3).asBlock());
-        try {
-            GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG));
+        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG))) {
             BytesRef key0 = copy(encoder.encode(page, 0));
             BytesRef key1 = copy(encoder.encode(page, 1));
             BytesRef key2 = copy(encoder.encode(page, 2));
@@ -57,8 +60,7 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
     public void testDoubleType() {
         BlockFactory bf = blockFactory();
         Page page = new Page(bf.newDoubleArrayVector(new double[] { 1.5, 2.5, 1.5 }, 3).asBlock());
-        try {
-            GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.DOUBLE));
+        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.DOUBLE))) {
             BytesRef key0 = copy(encoder.encode(page, 0));
             BytesRef key1 = copy(encoder.encode(page, 1));
             BytesRef key2 = copy(encoder.encode(page, 2));
@@ -72,8 +74,7 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
     public void testFloatType() {
         BlockFactory bf = blockFactory();
         Page page = new Page(bf.newFloatArrayVector(new float[] { 1.5f, 2.5f, 1.5f }, 3).asBlock());
-        try {
-            GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.FLOAT));
+        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.FLOAT))) {
             BytesRef key0 = copy(encoder.encode(page, 0));
             BytesRef key1 = copy(encoder.encode(page, 1));
             BytesRef key2 = copy(encoder.encode(page, 2));
@@ -91,8 +92,7 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendBoolean(false);
             builder.appendBoolean(true);
             Page page = new Page(builder.build());
-            try {
-                GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.BOOLEAN));
+            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.BOOLEAN))) {
                 BytesRef keyTrue = copy(encoder.encode(page, 0));
                 BytesRef keyFalse = copy(encoder.encode(page, 1));
                 BytesRef keyTrue2 = copy(encoder.encode(page, 2));
@@ -111,8 +111,7 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendBytesRef(new BytesRef("world"));
             builder.appendBytesRef(new BytesRef("hello"));
             Page page = new Page(builder.build());
-            try {
-                GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.BYTES_REF));
+            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.BYTES_REF))) {
                 BytesRef key0 = copy(encoder.encode(page, 0));
                 BytesRef key1 = copy(encoder.encode(page, 1));
                 BytesRef key2 = copy(encoder.encode(page, 2));
@@ -134,8 +133,7 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendNull();
             builder.appendLong(0);
             Page page = new Page(builder.build());
-            try {
-                GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG));
+            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG))) {
                 assertNotEquals(copy(encoder.encode(page, 0)), copy(encoder.encode(page, 1)));
             } finally {
                 page.releaseBlocks();
@@ -159,8 +157,7 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendLong(1);
             builder.endPositionEntry();
             Page page = new Page(builder.build());
-            try {
-                GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG));
+            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG))) {
                 assertNotEquals(copy(encoder.encode(page, 0)), copy(encoder.encode(page, 1)));
             } finally {
                 page.releaseBlocks();
@@ -184,8 +181,7 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendLong(2);
             builder.endPositionEntry();
             Page page = new Page(builder.build());
-            try {
-                GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG));
+            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG))) {
                 assertEquals(copy(encoder.encode(page, 0)), copy(encoder.encode(page, 1)));
             } finally {
                 page.releaseBlocks();
@@ -206,8 +202,7 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             bytesBuilder.appendBytesRef(new BytesRef("b"));
             bytesBuilder.appendBytesRef(new BytesRef("a"));
             Page page = new Page(longBuilder.build(), bytesBuilder.build());
-            try {
-                GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.BYTES_REF));
+            try (GroupKeyEncoder encoder = encoder(new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.BYTES_REF))) {
                 BytesRef key0 = copy(encoder.encode(page, 0));
                 BytesRef key1 = copy(encoder.encode(page, 1));
                 BytesRef key2 = copy(encoder.encode(page, 2));
@@ -232,8 +227,7 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendLong(42);
             builder.endPositionEntry();
             Page page = new Page(builder.build());
-            try {
-                GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.LONG));
+            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG))) {
                 assertEquals(copy(encoder.encode(page, 0)), copy(encoder.encode(page, 1)));
             } finally {
                 page.releaseBlocks();

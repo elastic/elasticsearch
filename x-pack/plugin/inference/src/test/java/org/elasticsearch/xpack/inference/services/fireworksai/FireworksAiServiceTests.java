@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.fireworksai;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
@@ -403,84 +404,86 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
 
     public void testGetConfiguration() throws Exception {
         try (var service = createService()) {
-            String content = XContentHelper.stripWhitespace(
-                """
-                    {
-                         "service": "fireworksai",
-                         "name": "Fireworks AI",
-                         "task_types": [
-                             "text_embedding",
-                             "completion",
-                             "chat_completion"
-                         ],
-                         "configurations": {
-                             "api_key": {
-                                 "description": "API Key for the provider you're connecting to.",
-                                 "label": "API Key",
-                                 "required": true,
-                                 "sensitive": true,
-                                 "updatable": true,
-                                 "type": "str",
-                                 "supported_task_types": [
-                                     "text_embedding",
-                                     "completion",
-                                     "chat_completion"
-                                 ]
-                             },
-                             "rate_limit.requests_per_minute": {
-                                 "description": "Minimize the number of rate limit errors.",
-                                 "label": "Rate Limit",
-                                 "required": false,
-                                 "sensitive": false,
-                                 "updatable": false,
-                                 "type": "int",
-                                 "supported_task_types": [
-                                     "text_embedding",
-                                     "completion",
-                                     "chat_completion"
-                                 ]
-                             },
-                             "model_id": {
-                                 "description": "The model ID to use for FireworksAI requests.",
-                                 "label": "Model ID",
-                                 "required": true,
-                                 "sensitive": false,
-                                 "updatable": false,
-                                 "type": "str",
-                                 "supported_task_types": [
-                                     "text_embedding",
-                                     "completion",
-                                     "chat_completion"
-                                 ]
-                             },
-                             "url": {
-                                 "description": "The URL of the FireworksAI endpoint. Useful for on-demand deployments.",
-                                 "label": "URL",
-                                 "required": false,
-                                 "sensitive": false,
-                                 "updatable": false,
-                                 "type": "str",
-                                 "supported_task_types": [
-                                     "text_embedding",
-                                     "completion",
-                                     "chat_completion"
-                                 ]
-                             },
-                             "dimensions": {
-                                 "description": "The number of dimensions the resulting output embeddings should have. Only supported by some models. For more information refer to https://docs.fireworks.ai/guides/querying-embeddings-models.",
-                                 "label": "Dimensions",
-                                 "required": false,
-                                 "sensitive": false,
-                                 "updatable": false,
-                                 "type": "int",
-                                 "supported_task_types": [
-                                     "text_embedding"
-                                 ]
-                             }
+
+            var dimensionsDescription =
+                "The number of dimensions the resulting output embeddings should have. Only supported by some models. "
+                    + "For more information refer to https://docs.fireworks.ai/guides/querying-embeddings-models.";
+            String content = XContentHelper.stripWhitespace(Strings.format("""
+                {
+                     "service": "fireworksai",
+                     "name": "Fireworks AI",
+                     "task_types": [
+                         "text_embedding",
+                         "completion",
+                         "chat_completion"
+                     ],
+                     "configurations": {
+                         "api_key": {
+                             "description": "API Key for the provider you're connecting to.",
+                             "label": "API Key",
+                             "required": true,
+                             "sensitive": true,
+                             "updatable": true,
+                             "type": "str",
+                             "supported_task_types": [
+                                 "text_embedding",
+                                 "completion",
+                                 "chat_completion"
+                             ]
+                         },
+                         "rate_limit.requests_per_minute": {
+                             "description": "Minimize the number of rate limit errors.",
+                             "label": "Rate Limit",
+                             "required": false,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "int",
+                             "supported_task_types": [
+                                 "text_embedding",
+                                 "completion",
+                                 "chat_completion"
+                             ]
+                         },
+                         "model_id": {
+                             "description": "The model ID to use for FireworksAI requests.",
+                             "label": "Model ID",
+                             "required": true,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "str",
+                             "supported_task_types": [
+                                 "text_embedding",
+                                 "completion",
+                                 "chat_completion"
+                             ]
+                         },
+                         "url": {
+                             "description": "The URL of the FireworksAI endpoint. Useful for on-demand deployments.",
+                             "label": "URL",
+                             "required": false,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "str",
+                             "supported_task_types": [
+                                 "text_embedding",
+                                 "completion",
+                                 "chat_completion"
+                             ]
+                         },
+                         "dimensions": {
+                             "description": "%s",
+                             "label": "Dimensions",
+                             "required": false,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "int",
+                             "supported_task_types": [
+                                 "text_embedding"
+                             ]
                          }
                      }
-                    """
-            );
+                 }
+                """, dimensionsDescription));
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON

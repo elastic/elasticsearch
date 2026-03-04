@@ -358,7 +358,7 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
         }
     }
 
-    private String startTask(String taskName) throws Exception {
+    private static String startTask(String taskName) throws Exception {
         final var persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         final var future = new PlainActionFuture<PersistentTask<TestShutdownParams>>();
         String taskId = UUIDs.base64UUID();
@@ -367,7 +367,7 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
         return taskId;
     }
 
-    private PersistentTask<?> awaitClusterStateHasTaskAssigned(String taskId, String taskName) throws Exception {
+    private static PersistentTask<?> awaitClusterStateHasTaskAssigned(String taskId, String taskName) {
         awaitClusterState(state -> {
             final var tasks = findTasks(state, taskName);
             return tasks.size() == 1
@@ -377,7 +377,7 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
         return assertClusterStateHasTask(taskId, taskName);
     }
 
-    private void awaitClusterStateHasTaskUnassigned(String taskId, String taskName) throws Exception {
+    private static void awaitClusterStateHasTaskUnassigned(String taskId, String taskName) {
         awaitClusterState(state -> {
             final var tasks = findTasks(state, taskName);
             return tasks.size() == 1
@@ -395,7 +395,7 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
         return task;
     }
 
-    private void cancelTask(String taskName) {
+    private static void cancelTask(String taskName) {
         final var tasks = clusterAdmin().prepareListTasks().setActions(taskName + "[c]").get().getTasks();
         if (tasks.isEmpty()) {
             return;

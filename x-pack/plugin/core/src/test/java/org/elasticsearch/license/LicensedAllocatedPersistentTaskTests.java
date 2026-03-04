@@ -28,10 +28,12 @@ import static org.mockito.Mockito.when;
 
 public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
 
+    private static final String TASK_NAME = "licensed-allocated-persistent-task-tests-action";
+
     @BeforeClass
     public static void registerTaskExecutor() {
         PersistentTasksExecutor<?> mockExecutor = mock(PersistentTasksExecutor.class);
-        when(mockExecutor.getTaskName()).thenReturn("action");
+        when(mockExecutor.getTaskName()).thenReturn(TASK_NAME);
         new PersistentTasksExecutorRegistry(List.of(mockExecutor));
     }
 
@@ -41,7 +43,7 @@ public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
         var task = new LicensedAllocatedPersistentTask(
             0,
             "type",
-            "action[c]",
+            TASK_NAME + "[c]",
             "description",
             TaskId.EMPTY_TASK_ID,
             Map.of(),
@@ -84,7 +86,7 @@ public class LicensedAllocatedPersistentTaskTests extends ESTestCase {
         var task = new LicensedAllocatedPersistentTask(
             0,
             "type",
-            "action",
+            TASK_NAME + "[c]",
             "description",
             TaskId.EMPTY_TASK_ID,
             Map.of(),

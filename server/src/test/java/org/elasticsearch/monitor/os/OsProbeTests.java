@@ -324,8 +324,8 @@ public class OsProbeTests extends ESTestCase {
     }
 
     public void testGetActualFreePhysicalMemory() {
+        assumeTrue("meminfo parsing is Linux-specific", Constants.LINUX);
         int cgroupsVersion = 1;
-
         var meminfoLines = Arrays.asList(
             "MemFree:         8467692 kB",
             "MemAvailable:   39646240 kB",

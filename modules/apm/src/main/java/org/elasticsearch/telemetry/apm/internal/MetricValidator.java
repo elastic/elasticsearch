@@ -72,9 +72,11 @@ public class MetricValidator {
         "system.cpu.*",
         "system.memory.*",
         "system.process.*",
+        "jvm.fd.*",
         "jvm.file_descriptor.*",
         "jvm.gc.*",
-        "jvm.memory.*"
+        "jvm.memory.*",
+        "jvm.thread.*"
     );
 
     /**
@@ -251,7 +253,13 @@ public class MetricValidator {
             Map.entry("es.tsdb.downsample.latency.total.histogram", DOWNSAMPLE_ATTRIBUTES),
             // APM Java agent-compatible metrics (see https://www.elastic.co/docs/reference/apm/agents/java/metrics#metrics-jvm)
             Map.entry("jvm.gc.count", Set.of("name")),
-            Map.entry("jvm.gc.time", Set.of("name"))
+            Map.entry("jvm.gc.time", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.used", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.committed", Set.of("name")),
+            Map.entry("jvm.memory.heap.pool.max", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.used", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.committed", Set.of("name")),
+            Map.entry("jvm.memory.non_heap.pool.max", Set.of("name"))
         );
 
         // forbidden attributes known to cause issues due to mapping conflicts or high cardinality

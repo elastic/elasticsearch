@@ -15,6 +15,7 @@ import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporterBuilder
 import io.opentelemetry.instrumentation.runtimemetrics.java17.RuntimeMetrics;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.resources.Resource;
 
@@ -23,11 +24,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
 import java.time.Duration;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
-public class OTelSdkMeterSupplier implements Supplier<Meter>, AutoCloseable {
+public class OTelSdkMeterSupplier implements MeterSupplier {
     private final Settings settings;
     private volatile SdkMeterProvider meterProvider;
     private volatile RuntimeMetrics runtimeMetrics;
@@ -62,7 +62,9 @@ public class OTelSdkMeterSupplier implements Supplier<Meter>, AutoCloseable {
                 OTEL_METRICS_ENABLED_SYSTEM_PROPERTY + "=true requires telemetry.otel.metrics.endpoint to be configured"
             );
         }
-        OtlpHttpMetricExporterBuilder builder = OtlpHttpMetricExporter.builder().setEndpoint(endpoint);
+        OtlpHttpMetricExporterBuilder builder = OtlpHttpMetricExporter.builder()
+            .setEndpoint(endpoint)
+            .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred());
         String authHeader = getAuthorizationHeader();
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);

@@ -109,9 +109,9 @@ public class OsProbe {
     /**
      * Returns the amount of actual free physical memory in bytes.
      * <p>
-     * This prefers {@code MemAvailable} from {@code /proc/meminfo} when available, and otherwise falls back to
-     * {@code MemFree + Buffers + Cached}. When {@code /proc/meminfo} can't be read or parsed, this falls back to
-     * {@link #getFreePhysicalMemorySize()}.
+     * This method accounts for memory that can be reclaimed under pressure, reading {@code MemAvailable} from {@code /proc/meminfo}
+     * when available, or otherwise falling back to {@code MemFree + Buffers + Cached}.
+     * When {@code /proc/meminfo} can't be read or parsed, this falls back to {@link #getFreePhysicalMemorySize()}.
      */
     public long getActualFreePhysicalMemorySize() {
         if (Constants.LINUX == false) {
@@ -120,13 +120,13 @@ public class OsProbe {
         try {
             List<String> meminfoLines = readProcMeminfo();
             long available = parseMeminfoKbToBytes(meminfoLines, "MemAvailable:");
-            if (available > 0) {
+            if (available >= 0) {
                 return available;
             }
             long free = parseMeminfoKbToBytes(meminfoLines, "MemFree:");
             long buffers = parseMeminfoKbToBytes(meminfoLines, "Buffers:");
             long cached = parseMeminfoKbToBytes(meminfoLines, "Cached:");
-            if (free > 0 && buffers > 0 && cached > 0) {
+            if (free >= 0 && buffers >= 0 && cached >= 0) {
                 return free + buffers + cached;
             }
         } catch (Exception e) {
@@ -140,16 +140,11 @@ public class OsProbe {
             if (line.startsWith(prefix) == false) {
                 continue;
             }
-            try {
-                int end = line.lastIndexOf(" kB");
-                String number = line.substring(prefix.length(), end).trim();
-                return Long.parseLong(number) * 1024;
-            } catch (NumberFormatException | IndexOutOfBoundsException e) {
-                logger.warn("Unable to retrieve {} from meminfo line [{}]", prefix, line);
-                return 0;
-            }
+            int end = line.lastIndexOf(" kB");
+            String number = line.substring(prefix.length(), end).trim();
+            return Long.parseLong(number) * 1024;
         }
-        return 0;
+        return -1;
     }
 
     /**
@@ -964,7 +959,7 @@ public class OsProbe {
      */
     long getTotalMemFromProcMeminfo() throws IOException {
         List<String> meminfoLines = readProcMeminfo();
-        return parseMeminfoKbToBytes(meminfoLines, "MemTotal:");
+        return Math.max(0, parseMeminfoKbToBytes(meminfoLines, "MemTotal:"));
     }
 
     boolean isDebian8() throws IOException {

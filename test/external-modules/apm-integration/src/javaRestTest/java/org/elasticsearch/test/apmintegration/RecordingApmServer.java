@@ -10,7 +10,10 @@
 package org.elasticsearch.test.apmintegration;
 
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+import io.opentelemetry.proto.common.v1.KeyValue;
+import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
+import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 
@@ -19,7 +22,10 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.rules.ExternalResource;
 
 import java.io.BufferedReader;
@@ -115,15 +121,68 @@ public class RecordingApmServer extends ExternalResource {
         }
     }
 
+    /**
+     * Parses OTLP protobuf metrics and normalizes them into the same JSON shape that the APM agent produces.
+     */
     private void parseOtlpMetrics(InputStream input) throws IOException {
         ExportMetricsServiceRequest request = ExportMetricsServiceRequest.parseFrom(input);
         for (ResourceMetrics resourceMetrics : request.getResourceMetricsList()) {
             for (ScopeMetrics scopeMetrics : resourceMetrics.getScopeMetricsList()) {
+                String scopeName = scopeMetrics.getScope().getName();
                 for (Metric metric : scopeMetrics.getMetricsList()) {
-                    received.offer(metric.getName());
+                    switch (metric.getDataCase()) {
+                        case SUM, GAUGE -> {
+                            var dataPoints = metric.getDataCase() == Metric.DataCase.SUM
+                                ? metric.getSum().getDataPointsList()
+                                : metric.getGauge().getDataPointsList();
+                            for (NumberDataPoint dp : dataPoints) {
+                                var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
+                                writeTags(builder, scopeName, dp.getAttributesList());
+                                builder.startObject("samples").startObject(metric.getName());
+                                switch (dp.getValueCase()) {
+                                    case AS_DOUBLE -> builder.field("value", dp.getAsDouble());
+                                    case AS_INT -> builder.field("value", dp.getAsInt());
+                                }
+                                builder.endObject().endObject();
+                                received.offer(Strings.toString(builder.endObject().endObject()));
+                            }
+                        }
+                        case HISTOGRAM -> {
+                            for (HistogramDataPoint dp : metric.getHistogram().getDataPointsList()) {
+                                var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
+                                writeTags(builder, scopeName, dp.getAttributesList());
+                                builder.startObject("samples").startObject(metric.getName());
+                                builder.field("counts", dp.getBucketCountsList());
+                                builder.endObject().endObject();
+                                received.offer(Strings.toString(builder.endObject().endObject()));
+                            }
+                        }
+                        default -> {
+                            var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
+                            writeTags(builder, scopeName, List.of());
+                            builder.startObject("samples").startObject(metric.getName()).endObject().endObject();
+                            received.offer(Strings.toString(builder.endObject().endObject()));
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private static void writeTags(XContentBuilder builder, String scopeName, List<KeyValue> attributes) throws IOException {
+        builder.startObject("tags");
+        builder.field("otel_instrumentation_scope_name", scopeName);
+        for (KeyValue kv : attributes) {
+            switch (kv.getValue().getValueCase()) {
+                case STRING_VALUE -> builder.field(kv.getKey(), kv.getValue().getStringValue());
+                case INT_VALUE -> builder.field(kv.getKey(), kv.getValue().getIntValue());
+                case DOUBLE_VALUE -> builder.field(kv.getKey(), kv.getValue().getDoubleValue());
+                case BOOL_VALUE -> builder.field(kv.getKey(), kv.getValue().getBoolValue());
+                default -> {
+                }
+            }
+        }
+        builder.endObject();
     }
 
     private List<String> readJsonMessages(InputStream input) {

@@ -78,7 +78,7 @@ public class SunThreadInfo {
         }
 
         try {
-            return (long[]) getAllThreadAllocatedBytes.invoke(threadMXBean, validIds);
+            return (long[]) getAllThreadAllocatedBytes.invoke(threadMXBean, (Object) validIds);
         } catch (Exception e) {
             logger.warn("exception retrieving all threads allocated memory", e);
             return new long[0];

@@ -2,6 +2,9 @@
 # claude
 .claude
 
+# cursor
+.cursorrules
+
 # JetBrainsAI/Junie
 .junie/
 
@@ -87,3 +90,6 @@ server/src/main/resources/transport/definitions/manifest.txt
 
 # JEnv
 .java-version
+
+# Vector data files
+qa/vector/.data

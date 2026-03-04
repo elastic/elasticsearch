@@ -364,4 +364,44 @@ final class FastMath {
         }
         return StrictMath.copySign(temp, value);
     }
+
+    /**
+     * @param value A double value.
+     * @return Inverse hyperbolic tangent of value.
+     */
+    public static double atanh(double value) {
+        // This algorithm is a java version of golang math package implementation:
+        // https://github.com/golang/go/blob/master/src/math/atanh.go
+
+        // For values NOT CLOSE to the atanh domain boundaries, use:
+        // atanh(x):
+        // (1) := sign(x)*0.5*log1p(2x/(1-x)) if 0.5 <= abs(x) < 1 (stable formula)
+        //
+        // For values CLOSE to 0.0, use:
+        // atanh(x):
+        // (2) := sign(x)*0.5*log1p(2x+2x*x/(1-x)) if abs(x) < 0.5 (avoids precision loss near zero)
+        // (3) := x if abs(x) < HYPERBOLIC_NEAR_ZERO (Taylor approximation)
+
+        if (value < -1 || value > 1 || Double.isNaN(value)) {
+            return Double.NaN;
+        }
+        if (value == 1.0) {
+            return Double.POSITIVE_INFINITY;
+        }
+        if (value == -1.0) {
+            return Double.NEGATIVE_INFINITY;
+        }
+
+        final double abs = StrictMath.abs(value);
+        final double temp;
+        if (abs < HYPERBOLIC_NEAR_ZERO) {
+            temp = abs;
+        } else if (abs < 0.5) {
+            final double t = abs + abs;
+            temp = 0.5 * StrictMath.log1p(t + t * abs / (1.0 - abs));
+        } else {
+            temp = 0.5 * StrictMath.log1p((abs + abs) / (1.0 - abs));
+        }
+        return StrictMath.copySign(temp, value);
+    }
 }

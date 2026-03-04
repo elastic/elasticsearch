@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -43,7 +45,9 @@ public class ToTDigest extends AbstractConvertFunction {
     @FunctionInfo(
         returnType = "tdigest",
         description = "Converts an untyped histogram to a TDigest, assuming the values are centroids.",
-        examples = { @Example(file = "histogram", tag = "to_tdigest"), }
+        examples = { @Example(file = "histogram", tag = "to_tdigest") },
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public ToTDigest(
         Source source,

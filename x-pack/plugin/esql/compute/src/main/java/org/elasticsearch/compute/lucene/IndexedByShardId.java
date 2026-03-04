@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
+
 import java.util.function.Function;
 
 /**
@@ -16,7 +18,7 @@ import java.util.function.Function;
  * DataNodeComputeHandler and with the help of the ComputeSearchContextByShardId subclass, which is the main production implementation.
  *
  * When you see this class, it will usually be parameterized by {@link ShardContext}, its super classes, or one of its variants,
- * e.g., {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator.ShardConfig}.
+ * e.g., {@link LuceneQueryEvaluator.ShardConfig}.
  * These shard IDs are sliced up by DataNodeComputeHandler, and depend on the MAX_CONCURRENT_SHARDS_PER_NODE setting.
  */
 public interface IndexedByShardId<T> {

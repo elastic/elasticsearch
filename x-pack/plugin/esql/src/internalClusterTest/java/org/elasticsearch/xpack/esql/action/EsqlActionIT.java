@@ -32,6 +32,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.OperatorStatus;
@@ -1351,7 +1352,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     /**
      * This test covers the scenarios where Lucene is throwing a {@link org.apache.lucene.search.CollectionTerminatedException} when
      * it's signaling that it could stop collecting hits early. For example, in the case the index is sorted in the same order as the query.
-     * The {@link org.elasticsearch.compute.lucene.LuceneTopNSourceOperator#getOutput()} is handling this exception by
+     * The {@link LuceneTopNSourceOperator#getOutput()} is handling this exception by
      * ignoring it (which is the right thing to do) and sort of cleaning up and moving to the next docs collection.
      */
     public void testTopNPushedToLuceneOnSortedIndex() {
@@ -2068,6 +2069,35 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(hashOperator, hasSize(1));
             HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
             assertThat(partialAgg.emitCount(), equalTo(1L));
+        }
+    }
+
+    public void testLookupJoin() {
+        Settings lookupSettings = Settings.builder().put("index.number_of_shards", 1).put("index.mode", "lookup").build();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("color_names")
+                .setSettings(lookupSettings)
+                .setMapping("color", "type=keyword", "color_name", "type=keyword")
+        );
+        Map<String, String> expectedColorNames = Map.of("red", "Crimson", "blue", "Azure", "green", "Emerald");
+        for (var entry : expectedColorNames.entrySet()) {
+            prepareIndex("color_names").setSource("color", entry.getKey(), "color_name", entry.getValue()).get();
+        }
+        client().admin().indices().prepareRefresh("color_names").get();
+
+        try (EsqlQueryResponse results = run("FROM test | LOOKUP JOIN color_names ON color | KEEP color, color_name")) {
+            assertThat(results.columns(), hasSize(2));
+            List<List<Object>> rows = getValuesList(results);
+            assertThat(rows.size(), equalTo(40));
+            int colorIdx = results.columns().indexOf(new ColumnInfoImpl("color", "keyword", null));
+            int colorNameIdx = results.columns().indexOf(new ColumnInfoImpl("color_name", "keyword", null));
+            for (List<Object> row : rows) {
+                String color = (String) row.get(colorIdx);
+                String colorName = (String) row.get(colorNameIdx);
+                assertThat("wrong color_name for color=" + color, colorName, equalTo(expectedColorNames.get(color)));
+            }
         }
     }
 

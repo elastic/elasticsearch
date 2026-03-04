@@ -1,7 +1,7 @@
 LimitExec[1000[INTEGER],null]
-\_AggregateExec[[x{r}],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*), x{r}],FINAL,[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],null]
-  \_ExchangeExec[[x{r}, $$count(*)$count{r}, $$count(*)$seen{r}],true]
-    \_FilterExec[$$count(*)$count{r} > 0[LONG]]
+\_AggregateExec[[x{r}#0],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS count(*)#1, x{r}#0],FINAL,[x{r}#0, $$count(*)$count{r}#2, $$count(*)$seen{r}#3],null]
+  \_ExchangeExec[[x{r}#0, $$count(*)$count{r}#2, $$count(*)$seen{r}#3],true]
+    \_FilterExec[$$count(*)$count{r}#4 > 0[LONG]]
       \_EsStatsQueryExec[all_types], statsByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "byte",
@@ -68,4 +68,4 @@ LimitExec[1000[INTEGER],null]
     ],
     "boost" : 1.0
   }
-}, tags=[null]]]}], query[][x{r}, $$count(*)$count{r}, $$count(*)$seen{r}], limit[], 
+}, tags=[null]]]}], query[][x{r}#0, $$count(*)$count{r}#4, $$count(*)$seen{r}#5], limit[], 

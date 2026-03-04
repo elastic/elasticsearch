@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -62,6 +63,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -3301,6 +3303,141 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var row = as(evalDne1.child(), Row.class);
         assertThat(row.fields(), hasSize(1));
         assertThat(Expressions.name(row.fields().getFirst()), is("x"));
+    }
+
+    public void testFailMetadataFieldInKeep() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | KEEP " + field;
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldInEval() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | EVAL x = " + field;
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldInWhere() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | WHERE " + field + " IS NOT NULL";
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldInSort() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | SORT " + field;
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldInStats() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | STATS x = COUNT(" + field + ")";
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldInRename() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | RENAME " + field + " AS renamed";
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldAfterStats() {
+        var query = """
+            FROM test
+            | STATS c = COUNT(*)
+            | KEEP _score
+            """;
+        var failure = "Unknown column [_score]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
+    public void testFailMetadataFieldInFork() {
+        var query = """
+            FROM test
+            | FORK (WHERE _score > 1)
+                   (WHERE salary > 50000)
+            """;
+        var failure = "Unknown column [_score]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
+    public void testFailMetadataFieldInSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        var query = """
+            FROM
+                (FROM test
+                 | WHERE _score > 1)
+            """;
+        var failure = "Unknown column [_score]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[_score{m}#5]]
+     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, ...]
+     */
+    public void testMetadataFieldDeclaredNullify() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var plan = analyzeStatement(setUnmappedNullify("FROM test METADATA " + field + " | KEEP " + field));
+
+            var limit = as(plan, Limit.class);
+            assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+            var project = as(limit.child(), Project.class);
+            assertThat(project.projections(), hasSize(1));
+            assertThat(Expressions.name(project.projections().getFirst()), is(field));
+            assertThat(project.projections().getFirst(), instanceOf(MetadataAttribute.class));
+
+            // No Eval(NULL) — the field was resolved via METADATA, not nullified
+            var relation = as(project.child(), EsRelation.class);
+            assertThat(relation.indexPattern(), is("test"));
+        }
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[_score{m}#5]]
+     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, ...]
+     */
+    public void testMetadataFieldDeclaredLoad() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var plan = analyzeStatement(setUnmappedLoad("FROM test METADATA " + field + " | KEEP " + field));
+
+            var limit = as(plan, Limit.class);
+            assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+            var project = as(limit.child(), Project.class);
+            assertThat(project.projections(), hasSize(1));
+            assertThat(Expressions.name(project.projections().getFirst()), is(field));
+            assertThat(project.projections().getFirst(), instanceOf(MetadataAttribute.class));
+
+            // The field was resolved via METADATA, not loaded as an unmapped field into EsRelation
+            var relation = as(project.child(), EsRelation.class);
+            assertThat(relation.indexPattern(), is("test"));
+        }
     }
 
     public void testChangedTimestmapFieldWithRate() {

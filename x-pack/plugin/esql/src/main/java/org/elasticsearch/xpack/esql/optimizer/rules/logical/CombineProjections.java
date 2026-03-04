@@ -127,7 +127,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
 
                         Alias renameAgainstDuplication = new Alias(
                             coreAttribute.source(),
-                            TemporaryNameUtils.locallyUniqueTemporaryName(coreAttribute.name()),
+                            TemporaryNameGenerator.locallyUniqueTemporaryName(coreAttribute.name()),
                             coreAttribute
                         );
                         aliasesAgainstDuplication.add(renameAgainstDuplication);

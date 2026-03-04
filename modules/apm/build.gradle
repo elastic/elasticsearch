@@ -13,13 +13,14 @@ esplugin {
   classname ='org.elasticsearch.telemetry.apm.APM'
 }
 
-def otelVersion = '1.31.0'
+def otelVersion = '1.57.0'
 def otelSemconvVersion = '1.21.0-alpha'
 
 dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-semconv:${otelSemconvVersion}"
+  runtimeOnly    "io.opentelemetry:opentelemetry-common:${otelVersion}"
   runtimeOnly    "co.elastic.apm:elastic-apm-agent-java8:1.55.0"
 
   javaRestTestImplementation project(':modules:apm')

@@ -89,6 +89,8 @@ dependencies {
     exclude group: 'commons-codec', module: 'commons-codec'
     exclude group: 'org.slf4j', module: 'slf4j-api'
     exclude group: 'org.checkerframework', module: 'checker-qual'
+    // Exclude Arrow transitive deps - provided at runtime by x-pack-esql's arrow module
+    exclude group: 'org.apache.arrow'
     // Exclude Jackson to avoid jar hell - x-pack-esql already provides Jackson 2.15.0
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
@@ -109,11 +111,10 @@ dependencies {
   implementation('org.apache.hadoop:hadoop-client-api:3.4.2')
   implementation('org.apache.hadoop:hadoop-client-runtime:3.4.2')
   
-  // Arrow dependencies (needed for Iceberg Vectorized Reader integration)
-  implementation("org.apache.arrow:arrow-vector:${versions.arrow}")
-  implementation("org.apache.arrow:arrow-memory-core:${versions.arrow}")
-  implementation("org.apache.arrow:arrow-memory-unsafe:${versions.arrow}")
-  
+  // Arrow dependencies for compile time - provided at runtime by x-pack-esql's arrow module
+  compileOnly("org.apache.arrow:arrow-vector:${versions.arrow}")
+  compileOnly("org.apache.arrow:arrow-memory-core:${versions.arrow}")
+
   // Checker-qual is needed at compile time for Arrow annotations
   // Use compileOnly to avoid jar hell at runtime - x-pack-esql already provides it
   compileOnly "org.checkerframework:checker-qual:${versions.checker_qual}"
@@ -174,7 +175,6 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /iceberg-.*/, to: 'iceberg'
   mapping from: /parquet-.*/, to: 'parquet'
   mapping from: /hadoop-.*/, to: 'hadoop'
-  mapping from: /arrow-.*/, to: 'arrow'
   mapping from: /log4j-.*/, to: 'log4j'
 }
 
@@ -275,9 +275,6 @@ tasks.named("thirdPartyAudit").configure {
     'com.github.benmanes.caffeine.cache.StripedBuffer',
     'com.github.benmanes.caffeine.cache.UnsafeAccess',
     'com.github.benmanes.caffeine.cache.UnsafeRefArrayAccess',
-    // Arrow memory uses sun.misc.Unsafe
-    'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1',
     // Hadoop internal uses sun.misc.Unsafe
     'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
     'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',

@@ -15,6 +15,7 @@ import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -43,7 +44,7 @@ public class PathInstrumentation implements InstrumentationConfig {
                             }
                         }
                         return Policies.fileReadWithLinks(path, followLinks);
-                    }, new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy())
+                    }, new DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy(e -> new IOException(e)))
                 );
 
                 registry.registerRule(
@@ -57,7 +58,7 @@ public class PathInstrumentation implements InstrumentationConfig {
                             Path path = (Path) args[0];
                             return Policies.fileRead(path);
                         },
-                        new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
+                        new DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy(e -> new IOException(e))
                     )
                 );
             });
@@ -69,7 +70,7 @@ public class PathInstrumentation implements InstrumentationConfig {
                     Path path = (Path) args[0];
                     return Policies.fileRead(path);
                 },
-                new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
+                new DeniedEntitlementStrategy.ExceptionDeniedEntitlementStrategy(e -> new IOException(e))
             )
         );
     }

@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -194,7 +193,6 @@ public class MetadataCreateIndexService {
     private volatile TimeValue maxMasterNodeTimeout;
     private volatile int maxIndicesPerProject;
     private volatile boolean maxIndicesPerProjectEnabled;
-    private volatile CharacterRunAutomaton associatedIndicesAutomaton;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -224,7 +222,6 @@ public class MetadataCreateIndexService {
         this.threadPool = threadPool;
         this.blocksTransformerUponIndexCreation = createClusterBlocksTransformerForIndexCreation(settings);
         this.clusterStateUpdateTaskPriority = CREATE_INDEX_PRIORITY_SETTING.get(settings);
-        this.associatedIndicesAutomaton = systemIndices.buildAssociatedIndicesAutomaton();
 
         if (clusterService.getClusterSettings().isDynamicSetting(CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey())) {
             // setting only registered in some tests today
@@ -256,14 +253,14 @@ public class MetadataCreateIndexService {
             return;
         }
 
-        if (associatedIndicesAutomaton.run(request.index())) {
+        if (systemIndices.isFeatureAssociatedIndex(request.index())) {
             return;
         }
 
         var totalUserIndices = projectMetadata.stream()
             .filter(
                 indexMetadata -> indexMetadata.isSystem() == false
-                    && associatedIndicesAutomaton.run(indexMetadata.getIndex().getName()) == false
+                    && systemIndices.isFeatureAssociatedIndex(indexMetadata.getIndex().getName()) == false
             )
             .count();
         if (totalUserIndices >= maxIndicesPerProject) {

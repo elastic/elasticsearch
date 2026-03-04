@@ -9,10 +9,10 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
@@ -21,7 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.indices.SystemIndices.Feature.cleanUpFeature;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 import static org.hamcrest.Matchers.allOf;
@@ -350,35 +349,30 @@ public class SystemIndicesTests extends ESTestCase {
             .toList();
         SystemIndices systemIndices = new SystemIndices(features);
 
-        CharacterRunAutomaton characterRunAutomaton = systemIndices.buildAssociatedIndicesAutomaton();
-
         for (int i = 0; i < randomIntBetween(20, 30); i++) {
-            assertThat(characterRunAutomaton.run(randomFrom(models) + randomIndexName()), equalTo(true));
+            assertThat(systemIndices.isFeatureAssociatedIndex(randomFrom(models) + randomIndexName()), equalTo(true));
             // with prefix "index-"
-            assertThat(characterRunAutomaton.run(randomIndexName()), equalTo(false));
+            assertThat(systemIndices.isFeatureAssociatedIndex(randomIndexName()), equalTo(false));
         }
     }
 
     public static SystemIndices.Feature newFeature(List<AssociatedIndexDescriptor> associatedIndexDescriptors) {
-        return new SystemIndices.Feature(
-            randomIdentifier(),
-            "Silicone",
-            Collections.emptyList(),
-            Collections.emptyList(),
-            associatedIndexDescriptors,
-            (clusterService, projectResolver, client, masterNodeTimeout, listener) -> cleanUpFeature(
-                Collections.emptyList(),
-                Collections.emptyList(),
-                "Model",
-                clusterService,
-                projectResolver,
-                client,
-                masterNodeTimeout,
-                listener
-            ),
-            SystemIndices.Feature::noopPreMigrationFunction,
-            SystemIndices.Feature::noopPostMigrationFunction
-        );
+        return SystemIndices.Feature.fromSystemIndexPlugin(new SystemIndexPlugin() {
+            @Override
+            public String getFeatureName() {
+                return randomIdentifier();
+            }
+
+            @Override
+            public String getFeatureDescription() {
+                return "Silicone";
+            }
+
+            @Override
+            public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+                return associatedIndexDescriptors;
+            }
+        }, Settings.EMPTY);
     }
 
 }

@@ -161,6 +161,7 @@ public class SystemIndices {
     private final CharacterRunAutomaton netNewSystemIndexAutomaton;
     private final CharacterRunAutomaton systemNameRunAutomaton;
     private final CharacterRunAutomaton systemIndexRunAutomaton;
+    private final CharacterRunAutomaton systemAssociatedIndicesAutomaton;
     private final CharacterRunAutomaton systemDataStreamIndicesRunAutomaton;
     private final Predicate<String> systemDataStreamPredicate;
     private final SystemIndexDescriptor[] indexDescriptors;
@@ -190,6 +191,7 @@ public class SystemIndices {
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
         Automaton systemIndexAutomata = buildIndexAutomaton(featureDescriptors);
         this.systemIndexRunAutomaton = new CharacterRunAutomaton(systemIndexAutomata);
+        this.systemAssociatedIndicesAutomaton = buildAssociatedIndicesAutomaton(featureDescriptors);
         Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
         this.systemDataStreamIndicesRunAutomaton = new CharacterRunAutomaton(systemDataStreamIndicesAutomata);
         this.systemDataStreamPredicate = buildDataStreamNamePredicate(featureDescriptors);
@@ -444,6 +446,25 @@ public class SystemIndices {
             .map(SystemIndices::featureToIndexAutomaton)
             .reduce(Operations::union);
         return Operations.determinize(automaton.orElse(EMPTY), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+    }
+
+    /**
+     * Builds a single automaton that matches any index name that fits the patterns of the features' associated index descriptors.
+     * @return determinized automaton matching any of the descriptors' patterns, or an empty automaton if the collection is empty
+     */
+    private static CharacterRunAutomaton buildAssociatedIndicesAutomaton(Map<String, Feature> featureDescriptors) {
+        List<Automaton> automata = featureDescriptors.values()
+            .stream()
+            .map(SystemIndices.Feature::getAssociatedIndexDescriptors)
+            .flatMap(Collection::stream)
+            .map(AssociatedIndexDescriptor::getIndexPatternAutomaton)
+            .toList();
+
+        if (automata.isEmpty()) {
+            return new CharacterRunAutomaton(Automata.makeEmpty());
+        }
+
+        return new CharacterRunAutomaton(Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
     private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
@@ -745,23 +766,8 @@ public class SystemIndices {
         }
     }
 
-    /**
-     * Builds a single automaton that matches any index name that fits the patterns of the features' associated index descriptors.
-     * @return determinized automaton matching any of the descriptors' patterns, or an empty automaton if the collection is empty
-     */
-    public CharacterRunAutomaton buildAssociatedIndicesAutomaton() {
-        List<Automaton> automata = this.getFeatures()
-            .stream()
-            .map(SystemIndices.Feature::getAssociatedIndexDescriptors)
-            .flatMap(Collection::stream)
-            .map(AssociatedIndexDescriptor::getIndexPatternAutomaton)
-            .toList();
-
-        if (automata.isEmpty()) {
-            return new CharacterRunAutomaton(Automata.makeEmpty());
-        }
-
-        return new CharacterRunAutomaton(Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
+    public boolean isFeatureAssociatedIndex(String name) {
+        return this.systemAssociatedIndicesAutomaton.run(name);
     }
 
     /**
@@ -1034,15 +1040,17 @@ public class SystemIndices {
             }
         }
 
-        // Visible for testing
         // No-op pre-migration function to be used as the default in case none are provided.
-        static void noopPreMigrationFunction(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
+        private static void noopPreMigrationFunction(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
             listener.onResponse(Collections.emptyMap());
         }
 
-        // Visible for testing
         // No-op pre-migration function to be used as the default in case none are provided.
-        static void noopPostMigrationFunction(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener) {
+        private static void noopPostMigrationFunction(
+            Map<String, Object> preUpgradeMetadata,
+            Client client,
+            ActionListener<Boolean> listener
+        ) {
             listener.onResponse(true);
         }
 

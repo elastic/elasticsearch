@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -306,7 +307,9 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .build();
 
         final var state = ClusterStateCreationUtils.state(2, new String[] { indexName }, 4);
-        final var balancedShardsAllocator = new BalancedShardsAllocator(settings);
+        final var balancedShardsAllocator = randomBoolean()
+            ? new BalancedShardsAllocator(settings)
+            : new PreDesiredBalanceShardsAllocator(settings);
         final var overloadedNode = randomFrom(state.nodes().getAllNodes());
         final var otherNode = state.nodes().stream().filter(node -> node != overloadedNode).findFirst().orElseThrow();
         final var clusterInfo = ClusterInfo.builder()

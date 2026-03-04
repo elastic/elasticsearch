@@ -27,7 +27,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.THRESHOLD_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings.THRESHOLD_SETTING;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,

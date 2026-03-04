@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
@@ -418,7 +419,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         AllocationService strategy = new MockAllocationService(
             allocationDeciders,
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
+            randomBoolean() ? new BalancedShardsAllocator(Settings.EMPTY) : new PreDesiredBalanceShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
@@ -478,7 +479,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         AllocationService strategy = new MockAllocationService(
             allocationDeciders,
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
+            randomBoolean() ? new BalancedShardsAllocator(Settings.EMPTY) : new PreDesiredBalanceShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             () -> new SnapshotShardSizeInfo(snapshotShardSizes),
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -996,7 +997,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         final MockAllocationService allocationService = new MockAllocationService(
             new AllocationDeciders(deciders),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(settings),
+            randomBoolean() ? new BalancedShardsAllocator(settings) : new PreDesiredBalanceShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY

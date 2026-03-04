@@ -284,13 +284,13 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "eis": "embed/text/dense",
                 "elasticsearch": "text_embedding"
               },
-              "status": "ga",
+              "status": "beta",
               "properties": [
                 "multilingual"
               ],
               "release_date": "2024-05-01",
               "configuration": {
-                "similarity": "dot_product",
+                "similarity": "cosine",
                 "dimensions": 1024,
                 "element_type": "float",
                 "chunking_settings": {
@@ -624,12 +624,12 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             JINA_EMBED_V5_ENDPOINT_ID,
             JINA_EMBED_V5_MODEL_NAME,
             createTaskTypeObject(EIS_TEXT_EMBED_PATH, "text_embedding"),
-            "ga",
+            "beta",
             List.of("multilingual"),
             RELEASE_DATE_STRING,
             null,
             new ElasticInferenceServiceAuthorizationResponseEntity.Configuration(
-                "dot_product",
+                "cosine",
                 1024,
                 "float",
                 Map.of("strategy", "sentence", "max_chunk_size", 250, "sentence_overlap", 1)
@@ -643,11 +643,11 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             JINA_EMBED_V5_ENDPOINT_ID,
             TaskType.TEXT_EMBEDDING,
-            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_EMBED_V5_MODEL_NAME, SimilarityMeasure.DOT_PRODUCT, 1024, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_EMBED_V5_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
             new ElasticInferenceServiceComponents(url),
             new SentenceBoundaryChunkingSettings(250, 1),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
+                new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("beta"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(JINA_EMBED_V5_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display(JINA_EMBED_V5_DISPLAY_NAME)
             )

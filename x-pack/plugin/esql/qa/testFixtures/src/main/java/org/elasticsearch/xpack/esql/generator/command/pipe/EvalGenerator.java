@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.generator.FunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -21,6 +20,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.unquote;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isUnmappedFieldsEnabled;
 
 public class EvalGenerator implements CommandGenerator {
 
@@ -90,7 +90,7 @@ public class EvalGenerator implements CommandGenerator {
         List<String> expectedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
         List<String> resultColNames = columns.stream().map(Column::name).toList();
         List<String> lastColumns = resultColNames.subList(resultColNames.size() - expectedColumns.size(), resultColNames.size());
-        if (FunctionGenerator.isUnmappedFieldsEnabled(previousCommands) == false
+        if (isUnmappedFieldsEnabled(previousCommands) == false
             && (columns.size() < expectedColumns.size() || lastColumns.equals(expectedColumns) == false)) {
             return new ValidationResult(
                 false,

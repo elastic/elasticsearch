@@ -210,6 +210,22 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         return ENTRY.name;
     }
 
+    Expression value() {
+        return value;
+    }
+
+    Expression origin() {
+        return origin;
+    }
+
+    Expression scale() {
+        return scale;
+    }
+
+    Expression options() {
+        return options;
+    }
+
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {

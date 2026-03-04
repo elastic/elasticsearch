@@ -57,6 +57,7 @@ public class TransportEmbeddingAction extends BaseTransportInferenceAction<Embed
 
     @Override
     protected boolean isInvalidTaskTypeForInferenceEndpoint(EmbeddingAction.Request request, Model model) {
+        assert request.getTaskType().isAnyOrSame(TaskType.EMBEDDING);
         return model.getTaskType() != TaskType.EMBEDDING;
     }
 

@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllLastBooleanByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllLastBytesRefByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllLastDoubleByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllLastFloatByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllLastIntByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllLastLongByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastBooleanByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastBytesRefByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastDoubleByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastFloatByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastIntByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllLastLongByLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -161,12 +161,12 @@ public class Last extends AggregateFunction implements ToAggregator {
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG, DATETIME, DATE_NANOS -> new AllLastLongByTimestampAggregatorFunctionSupplier();
-            case INTEGER -> new AllLastIntByTimestampAggregatorFunctionSupplier();
-            case DOUBLE -> new AllLastDoubleByTimestampAggregatorFunctionSupplier();
-            case FLOAT -> new AllLastFloatByTimestampAggregatorFunctionSupplier();
-            case KEYWORD, TEXT, IP -> new AllLastBytesRefByTimestampAggregatorFunctionSupplier();
-            case BOOLEAN -> new AllLastBooleanByTimestampAggregatorFunctionSupplier();
+            case LONG, DATETIME, DATE_NANOS -> new AllLastLongByLongAggregatorFunctionSupplier();
+            case INTEGER -> new AllLastIntByLongAggregatorFunctionSupplier();
+            case DOUBLE -> new AllLastDoubleByLongAggregatorFunctionSupplier();
+            case FLOAT -> new AllLastFloatByLongAggregatorFunctionSupplier();
+            case KEYWORD, TEXT, IP -> new AllLastBytesRefByLongAggregatorFunctionSupplier();
+            case BOOLEAN -> new AllLastBooleanByLongAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

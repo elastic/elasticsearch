@@ -255,6 +255,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             settings.add(IndexSettings.SYNTHETIC_ID);
             settings.add(IndexSettings.BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED);
         }
+        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
+            settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
+        }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };

@@ -167,6 +167,28 @@ public class HivePartitionDetectorTests extends ESTestCase {
         assertTrue(result.partitionColumns().containsKey("year"));
     }
 
+    public void testImplementsPartitionDetector() {
+        HivePartitionDetector detector = HivePartitionDetector.INSTANCE;
+        assertEquals("hive", detector.name());
+
+        List<StorageEntry> files = List.of(
+            entry("s3://bucket/data/year=2024/file1.parquet"),
+            entry("s3://bucket/data/year=2023/file2.parquet")
+        );
+
+        PartitionMetadata result = detector.detect(files, Map.of());
+        assertFalse(result.isEmpty());
+        assertEquals(DataType.INTEGER, result.partitionColumns().get("year"));
+    }
+
+    public void testDetectViaInterfaceIgnoresConfig() {
+        PartitionDetector detector = HivePartitionDetector.INSTANCE;
+        List<StorageEntry> files = List.of(entry("s3://bucket/data/year=2024/file.parquet"));
+
+        PartitionMetadata result = detector.detect(files, Map.of("irrelevant", "value"));
+        assertFalse(result.isEmpty());
+    }
+
     private static StorageEntry entry(String path) {
         return new StorageEntry(StoragePath.of(path), 100, Instant.EPOCH);
     }

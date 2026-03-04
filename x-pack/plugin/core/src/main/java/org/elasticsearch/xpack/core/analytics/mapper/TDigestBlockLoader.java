@@ -39,12 +39,12 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        AllReader encodedDigestReader = null;
-        AllReader minimaReader = null;
-        AllReader maximaReader = null;
-        AllReader sumsReader = null;
-        AllReader valueCountsReader = null;
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        ColumnAtATimeReader encodedDigestReader = null;
+        ColumnAtATimeReader minimaReader = null;
+        ColumnAtATimeReader maximaReader = null;
+        ColumnAtATimeReader sumsReader = null;
+        ColumnAtATimeReader valueCountsReader = null;
         try {
             encodedDigestReader = encodedDigestLoader.reader(breaker, context);
             minimaReader = minimaLoader.reader(breaker, context);
@@ -65,20 +65,20 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
         return factory.tdigestBlockBuilder(expectedCount);
     }
 
-    static class TDigestReader implements AllReader {
+    static class TDigestReader implements ColumnAtATimeReader {
 
-        private final AllReader encodedDigestReader;
-        private final AllReader minimaReader;
-        private final AllReader maximaReader;
-        private final AllReader sumsReader;
-        private final AllReader valueCountsReader;
+        private final ColumnAtATimeReader encodedDigestReader;
+        private final ColumnAtATimeReader minimaReader;
+        private final ColumnAtATimeReader maximaReader;
+        private final ColumnAtATimeReader sumsReader;
+        private final ColumnAtATimeReader valueCountsReader;
 
         TDigestReader(
-            AllReader encodedDigestReader,
-            AllReader minimaReader,
-            AllReader maximaReader,
-            AllReader sumsReader,
-            AllReader valueCountsReader
+            ColumnAtATimeReader encodedDigestReader,
+            ColumnAtATimeReader minimaReader,
+            ColumnAtATimeReader maximaReader,
+            ColumnAtATimeReader sumsReader,
+            ColumnAtATimeReader valueCountsReader
         ) {
             this.encodedDigestReader = encodedDigestReader;
             this.minimaReader = minimaReader;
@@ -120,16 +120,6 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
                 }
             }
             return result;
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            TDigestBuilder histogramBuilder = (TDigestBuilder) builder;
-            minimaReader.read(docId, storedFields, histogramBuilder.minima());
-            maximaReader.read(docId, storedFields, histogramBuilder.maxima());
-            sumsReader.read(docId, storedFields, histogramBuilder.sums());
-            valueCountsReader.read(docId, storedFields, histogramBuilder.valueCounts());
-            encodedDigestReader.read(docId, storedFields, histogramBuilder.encodedDigests());
         }
 
         @Override

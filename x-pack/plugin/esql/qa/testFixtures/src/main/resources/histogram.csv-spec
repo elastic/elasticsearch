@@ -185,7 +185,6 @@ instance-2       | 2.2E-4    | 5E-4..7.8E-4    | 0.033..0.052 | 2.744054
 
 Percentile Aggregation on Empty Histogram
 required_capability: histogram_release_version
-required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index 
  | WHERE instance == "hand-rolled-empty"
@@ -245,7 +244,6 @@ instance-2       | null       | null       | null         | null             | 0
 
 Core supported aggs on histogram with non-existant filter group
 required_capability: histogram_release_version
-required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index 
  | STATS min = MIN(to_tdigest(responseTime)) WHERE instance == "idontexist" ,

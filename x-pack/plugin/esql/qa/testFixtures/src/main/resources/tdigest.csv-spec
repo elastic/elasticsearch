@@ -208,7 +208,6 @@ instance-2       | 2.2E-4    | 5E-4..7.8E-4    | 0.033..0.052 | 2.744054
 
 percentileOnEmptyTDigest
 required_capability: tdigest_time_series_metric
-required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE instance == "hand-rolled-empty"
@@ -396,7 +395,6 @@ result:tdigest
 
 allAggsGroupedEmptyGroups
 required_capability: tdigest_time_series_metric
-required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | STATS min = MIN(responseTime) WHERE instance == "idontexist" ,

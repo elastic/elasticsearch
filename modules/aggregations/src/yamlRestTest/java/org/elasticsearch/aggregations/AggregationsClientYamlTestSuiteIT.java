@@ -23,7 +23,11 @@ public class AggregationsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     public static ElasticsearchCluster cluster = makeCluster();
 
     private static ElasticsearchCluster makeCluster() {
-        var cluster = ElasticsearchCluster.local().module("aggregations").module("lang-painless").feature(FeatureFlag.TIME_SERIES_MODE);
+        var cluster = ElasticsearchCluster.local()
+            .module("codecs-common")
+            .module("aggregations")
+            .module("lang-painless")
+            .feature(FeatureFlag.TIME_SERIES_MODE);
 
         // On Serverless, we want to disallow scripted metrics aggs per default.
         // The following override allows us to still run the scripted metrics agg tests without breaking bwc.

@@ -26,6 +26,7 @@ public class DownsampleWithSecurityRestIT extends ESClientYamlSuiteTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("x-pack-downsample")
         .module("x-pack-analytics")     // for histogram
+        .module("codecs-common")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .user(USERNAME, PASSWORD)

@@ -18,6 +18,7 @@ esplugin {
 
 dependencies {
   api "com.github.spullara.mustache.java:compiler:0.9.14"
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

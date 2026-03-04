@@ -45,6 +45,7 @@ dependencies {
   yamlRestTestImplementation project(':test:fixtures:geoip-fixture')
 
   clusterModules project(':modules:reindex')
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

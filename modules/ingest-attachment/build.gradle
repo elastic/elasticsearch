@@ -112,6 +112,7 @@ dependencies {
   api "org.apache.commons:commons-math3:${versions.commonsMath3}"
   // POIs dependency
   api "com.zaxxer:SparseBitSet:${versions.sparsebitset}"
+  clusterModules project(':modules:codecs-common')
 }
 
 restResources {

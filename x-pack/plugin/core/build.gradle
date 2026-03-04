@@ -86,6 +86,7 @@ dependencies {
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:analysis-common')
+  testImplementation project(path: ':modules:codecs-common')
   testImplementation project(path: ':modules:rest-root')
   testImplementation project(path: ':modules:health-shards-availability')
   // Needed for Fips140ProviderVerificationTests

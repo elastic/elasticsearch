@@ -1112,9 +1112,12 @@ public class GetActionIT extends ESIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             )
         );
-        client().prepareIndex(index).setId("1").setSource("field", "value").get();
+        client().prepareIndex(index).setId("1")
+            .setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()))
+            .setSource("field", "value")
+            .get();
 
-        GetResponse getResponse = client().prepareGet(index, "1").get();
+        GetResponse getResponse = client().prepareGet(index, "1").setRealtime(randomBoolean()).get();
         assertTrue(getResponse.isExists());
         assertThat(getResponse.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
         assertThat(getResponse.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));

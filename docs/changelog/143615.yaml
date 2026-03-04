@@ -1,0 +1,9 @@
+pr: 143615
+summary: Fix ESQL division error message to distinguish overflow from division by zero
+area: Analytics
+type: bugfix
+issues:
+  - 138798
+ impactful: false
+security: false
+breaking: false

@@ -125,17 +125,37 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
     @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
-        double value = lhs / rhs;
-        if (Double.isNaN(value) || Double.isInfinite(value)) {
+        if (rhs == 0.0) {
             throw new ArithmeticException("/ by zero");
+        }
+        double value = lhs / rhs;
+        if (Double.isNaN(value)) {
+            throw new ArithmeticException("invalid operation: result is NaN");
+        }
+        if (Double.isInfinite(value)) {
+            if (value > 0) {
+                throw new ArithmeticException("overflow: result is too large");
+            } else {
+                throw new ArithmeticException("overflow: result is too small");
+            }
         }
         return value;
     }
 
     private static float divDenseVectorElements(float lhs, float rhs) {
-        float value = lhs / rhs;
-        if (Float.isNaN(value) || Float.isInfinite(value)) {
+        if (rhs == 0.0f) {
             throw new ArithmeticException("/ by zero");
+        }
+        float value = lhs / rhs;
+        if (Float.isNaN(value)) {
+            throw new ArithmeticException("invalid operation: result is NaN");
+        }
+        if (Float.isInfinite(value)) {
+            if (value > 0) {
+                throw new ArithmeticException("overflow: result is too large");
+            } else {
+                throw new ArithmeticException("overflow: result is too small");
+            }
         }
         return value;
     }

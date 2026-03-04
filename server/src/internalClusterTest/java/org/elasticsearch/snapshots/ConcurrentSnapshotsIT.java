@@ -2452,15 +2452,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final SnapshotInfo cloneInfo = cloneInfoRef.get();
         assertThat(cloneInfo.snapshotId().getName(), equalTo(targetSnapshot));
         assertThat(cloneInfo.shardFailures(), is(not(empty())));
-        expectThrows(SnapshotException.class, cloneFuture);
-
-        // TODO: Snapshot deletion is stuck because removing clone entry directly from cluster state skips finalization and
-        // does not kick off the next operation. Therefore, we trigger an external change to kick off the next operation.
-        // See also https://github.com/elastic/elasticsearch/issues/142919
-        putShutdownForRemovalMetadata(masterName, clusterService);
+        safeGet(cloneFuture);
         safeGet(deletionFuture);
         awaitNoMoreRunningOperations();
-        clearShutdownMetadata(clusterService);
         snapshotInfoRetrievingThread.join();
     }
 

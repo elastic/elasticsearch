@@ -85,10 +85,6 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     private final String value;
     private final TimeValue timeout;
 
-    public EmbeddingQueryVectorBuilder(DataType type, String value) {
-        this(null, type, null, value, null);
-    }
-
     public EmbeddingQueryVectorBuilder(
         @Nullable String inferenceId,
         DataType type,

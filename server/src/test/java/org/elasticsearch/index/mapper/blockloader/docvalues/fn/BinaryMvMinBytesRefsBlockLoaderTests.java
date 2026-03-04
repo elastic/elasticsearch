@@ -108,10 +108,6 @@ public class BinaryMvMinBytesRefsBlockLoaderTests extends AbstractBlockLoaderTes
         return hasToString("BlockDocValuesReader.Bytes");
     }
 
-    private TestBlock read(BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
-        return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
-    }
-
     private void checkBlocks(TestBlock strings, TestBlock mvMin) {
         for (int i = 0; i < strings.size(); i++) {
             Object str = strings.get(i);

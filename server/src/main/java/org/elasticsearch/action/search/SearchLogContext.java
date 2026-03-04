@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import joptsimple.internal.Strings;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.core.Nullable;
@@ -65,10 +66,17 @@ public class SearchLogContext extends ActivityLoggerContext {
     }
 
     long getHits() {
-        if (response == null || response.getHits() == null || response.getHits().getTotalHits() == null) {
+        if (response == null || response.getHits() == null || response.getHits().getHits() == null) {
             return 0;
         }
-        return response.getHits().getTotalHits().value();
+        return response.getHits().getHits().length;
+    }
+
+    TotalHits getTotalHits() {
+        if (response == null || response.getHits() == null) {
+            return null;
+        }
+        return response.getHits().getTotalHits();
     }
 
     String[] getIndexNames() {

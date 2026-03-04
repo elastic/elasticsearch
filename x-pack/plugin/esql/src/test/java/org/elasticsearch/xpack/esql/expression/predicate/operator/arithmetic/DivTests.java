@@ -21,7 +21,6 @@ import org.hamcrest.Matcher;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -222,20 +221,10 @@ public class DivTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
+        suppliers = anyNullIsNull(true, suppliers);
 
         // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
-    }
-
-    private static String divErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "numeric or dense_vector");
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is from the combination
-            return "[/] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
-
-        }
     }
 
     @Override

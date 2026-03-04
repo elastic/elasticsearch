@@ -803,8 +803,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     context.path().add(fieldName);
                 }
             } else {
-                context.addDynamicMapper(builder, fullPath());
-                return builder.build(context.createDynamicMapperBuilderContext());
+                return (SemanticTextFieldMapper) context.getDynamicMapper(builder);
             }
         } finally {
             context.path().add(leafName());

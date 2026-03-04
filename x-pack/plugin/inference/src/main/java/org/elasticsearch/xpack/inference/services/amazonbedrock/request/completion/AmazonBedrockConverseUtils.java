@@ -19,7 +19,10 @@ import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlock;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.Content;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
+import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -60,7 +63,7 @@ public final class AmazonBedrockConverseUtils {
     public record TranslatedMessages(List<Message> messages, List<SystemContentBlock> systemContent) {}
 
     public static TranslatedMessages convertChatCompletionMessagesToConverse(
-        List<UnifiedCompletionRequest.Message> messages,
+        List<org.elasticsearch.inference.completion.Message> messages,
         boolean toolsEnabled
     ) {
         var systemContent = new ArrayList<SystemContentBlock>();
@@ -163,30 +166,28 @@ public final class AmazonBedrockConverseUtils {
         return false;
     }
 
-    private static List<SystemContentBlock> getSystemContentBlock(UnifiedCompletionRequest.Content content) {
+    private static List<SystemContentBlock> getSystemContentBlock(Content content) {
         return switch (content) {
-            case UnifiedCompletionRequest.ContentString stringContent -> convertContentString(
+            case ContentString stringContent -> convertContentString(
                 stringContent.content(),
                 (text) -> SystemContentBlock.builder().text(text).build()
             );
-            case UnifiedCompletionRequest.ContentObjects objectsContent -> objectsContent.contentObjects()
+            case ContentObjects objectsContent -> objectsContent.contentObjects()
                 .stream()
-                .filter(anObject -> anObject instanceof UnifiedCompletionRequest.ContentObjectText obj && obj.text().isEmpty() == false)
-                .map(UnifiedCompletionRequest.ContentObjectText.class::cast)
+                .filter(anObject -> anObject instanceof ContentObjectText obj && obj.text().isEmpty() == false)
+                .map(ContentObjectText.class::cast)
                 .map(obj -> SystemContentBlock.builder().text(obj.text()).build())
                 .toList();
         };
     }
 
-    private static Message convertToolResultMessage(UnifiedCompletionRequest.Message requestMessage) {
+    private static Message convertToolResultMessage(org.elasticsearch.inference.completion.Message requestMessage) {
         // Bedrock allows empty tool result string content but not empty tool result object content
         var convertedToolResultContentBlock = switch (requestMessage.content()) {
-            case UnifiedCompletionRequest.ContentString stringContent -> List.of(
-                ToolResultContentBlock.builder().text(stringContent.content()).build()
-            );
-            case UnifiedCompletionRequest.ContentObjects objectsContent -> objectsContent.contentObjects()
+            case ContentString stringContent -> List.of(ToolResultContentBlock.builder().text(stringContent.content()).build());
+            case ContentObjects objectsContent -> objectsContent.contentObjects()
                 .stream()
-                .map(UnifiedCompletionRequest.ContentObjectText.class::cast)
+                .map(ContentObjectText.class::cast)
                 .map(obj -> ToolResultContentBlock.builder().text(obj.text()).build())
                 .toList();
         };
@@ -207,7 +208,7 @@ public final class AmazonBedrockConverseUtils {
             .build();
     }
 
-    private static Message convertAssistantMessage(UnifiedCompletionRequest.Message requestMessage, boolean toolsEnabled) {
+    private static Message convertAssistantMessage(org.elasticsearch.inference.completion.Message requestMessage, boolean toolsEnabled) {
         var blocks = convertContentToBlocks(requestMessage.content());
 
         // Only assistant messages can contain potential ToolCalls
@@ -233,16 +234,16 @@ public final class AmazonBedrockConverseUtils {
         return Message.builder().role(ConversationRole.ASSISTANT).content(blocks).build();
     }
 
-    private static List<ContentBlock> convertContentToBlocks(UnifiedCompletionRequest.Content content) {
+    private static List<ContentBlock> convertContentToBlocks(Content content) {
         var blocks = switch (content) {
-            case UnifiedCompletionRequest.ContentString stringContent -> convertContentString(
+            case ContentString stringContent -> convertContentString(
                 stringContent.content(),
                 (text) -> ContentBlock.builder().text(text).build()
             );
-            case UnifiedCompletionRequest.ContentObjects objectsContent -> objectsContent.contentObjects()
+            case ContentObjects objectsContent -> objectsContent.contentObjects()
                 .stream()
-                .filter(anObject -> anObject instanceof UnifiedCompletionRequest.ContentObjectText obj && obj.text().isEmpty() == false)
-                .map(UnifiedCompletionRequest.ContentObjectText.class::cast)
+                .filter(anObject -> anObject instanceof ContentObjectText obj && obj.text().isEmpty() == false)
+                .map(ContentObjectText.class::cast)
                 .map(obj -> ContentBlock.builder().text(obj.text()).build())
                 .toList();
         };
@@ -295,7 +296,7 @@ public final class AmazonBedrockConverseUtils {
         };
     }
 
-    private static Message convertUserMessage(UnifiedCompletionRequest.Message requestMessage) {
+    private static Message convertUserMessage(org.elasticsearch.inference.completion.Message requestMessage) {
         return Message.builder().role(ConversationRole.USER).content(convertContentToBlocks(requestMessage.content())).build();
     }
 

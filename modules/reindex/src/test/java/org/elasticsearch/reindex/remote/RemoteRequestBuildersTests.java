@@ -277,6 +277,21 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("Unexpected end-of-input"));
     }
 
+    public void testInitialSearchProjectRouting() throws IOException {
+        Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
+        String query = "{\"match_all\":{}}";
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
+        String projectRouting = "_alias:linked";
+        searchRequest.setProjectRouting(projectRouting);
+        String body = Streams.copyToString(
+            new InputStreamReader(
+                initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity().getContent(),
+                StandardCharsets.UTF_8
+            )
+        );
+        assertThat(body, containsString("\"project_routing\":\"" + projectRouting + "\""));
+    }
+
     public void testScrollParams() {
         String scroll = randomAlphaOfLength(30);
         Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));

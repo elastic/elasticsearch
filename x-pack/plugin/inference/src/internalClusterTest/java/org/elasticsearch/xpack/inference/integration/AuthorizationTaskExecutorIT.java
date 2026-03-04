@@ -373,7 +373,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
 
         resetWebServerQueues();
         String endpointId = randomAlphaOfLength(10);
-        AuthorizedEndpoint originalEndpoint = createAuthorizedEndpoint(
+        AuthorizedEndpoint originalAuthEndpoint = createAuthorizedEndpoint(
             endpointId,
             randomFrom(
                 TaskType.CHAT_COMPLETION,
@@ -385,37 +385,38 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
             ),
             () -> originalFingerprint
         );
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(toJsonWrappedInInferenceEndpointsList(originalEndpoint)));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(toJsonWrappedInInferenceEndpointsList(originalAuthEndpoint)));
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
 
-        assertBusy(() -> { assertThat(getEisEndpoints(modelRegistry).size(), is(1)); });
+        assertBusy(() -> assertThat(getEisEndpoints(modelRegistry).size(), is(1)));
 
         var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints.size(), is(1));
         var endpoint = eisEndpoints.get(0);
-        assertThat(endpoint.inferenceEntityId(), is(originalEndpoint.id()));
+        assertThat(endpoint.inferenceEntityId(), is(originalAuthEndpoint.id()));
         assertThat(endpoint.endpointMetadata().internal().fingerprint(), is(originalFingerprint));
 
         resetWebServerQueues();
         // Simulate the fingerprint has now been set
-        AuthorizedEndpoint updatedEndpoint = createAuthorizedEndpoint(
-            endpoint.inferenceEntityId(),
+        AuthorizedEndpoint updatedAuthEndpoint = createAuthorizedEndpoint(
+            originalAuthEndpoint.id(),
             endpoint.taskType(),
             () -> updatedFingerprint
         );
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(toJsonWrappedInInferenceEndpointsList(updatedEndpoint)));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(toJsonWrappedInInferenceEndpointsList(updatedAuthEndpoint)));
 
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
 
-        assertBusy(() -> { assertThat(getEisEndpoints(modelRegistry).size(), is(1)); });
+        assertBusy(() -> {
+            var postUpdateEndpoints = getEisEndpoints(modelRegistry);
+            assertThat(postUpdateEndpoints.size(), is(1));
+            var updated = postUpdateEndpoints.get(0);
+            assertThat(updated.inferenceEntityId(), is(updatedAuthEndpoint.id()));
+            assertThat(updated.endpointMetadata().internal().fingerprint(), is(updatedFingerprint));
+        });
 
-        eisEndpoints = getEisEndpoints(modelRegistry);
-        assertThat(eisEndpoints.size(), is(1));
-        endpoint = eisEndpoints.get(0);
-        assertThat(endpoint.inferenceEntityId(), is(updatedEndpoint.id()));
-        assertThat(endpoint.endpointMetadata().internal().fingerprint(), is(updatedFingerprint));
     }
 
     public void testRestartsTaskAfterAbort() throws Exception {

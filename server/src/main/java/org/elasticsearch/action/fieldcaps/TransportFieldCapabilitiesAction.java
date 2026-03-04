@@ -293,10 +293,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             indexResponses.clear();
             indexMappingHashToResponses.clear();
         };
-        Map<String, ResolvedIndexExpressions.Builder> resolvedRemotelyBuilder = new ConcurrentHashMap<>();
-        for (String clusterAlias : remoteClusterIndices.keySet()) {
-            resolvedRemotelyBuilder.put(clusterAlias, ResolvedIndexExpressions.builder());
-        }
+        Map<String, ResolvedIndexExpressions> resolvedRemotely = new ConcurrentHashMap<>();
+        Map<String, Exception> remoteExceptions = new ConcurrentHashMap<>();
         final Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse = resp -> {
             if (fieldCapTask.isCancelled()) {
                 releaseResourcesOnCancel.run();
@@ -358,9 +356,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             if (fieldCapTask.notifyIfCancelled(listener)) {
                 releaseResourcesOnCancel.run();
             } else {
-                Map<String, ResolvedIndexExpressions> resolvedRemotely = resolvedRemotelyBuilder.entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().build()));
                 ResolvedIndexExpressions resolvedLocally = new ResolvedIndexExpressions(resolvedLocallyList);
                 if (resolveCrossProject) {
                     final Exception ex = CrossProjectIndexResolutionValidator.validate(
@@ -368,7 +363,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         request.getProjectRouting(),
                         resolvedLocally,
                         resolvedRemotely,
-                        Map.of()
+                        remoteExceptions
                     );
                     if (ex != null) {
                         listener.onFailure(ex);
@@ -423,12 +418,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         ResolvedIndexExpressions resolvedOnRemoteProject = response.getResolvedLocally();
                         // for bwc we need to check that resolvedOnRemoteProject Exists in the response
                         if (resolvedOnRemoteProject != null) {
-                            for (ResolvedIndexExpression remoteResolvedExpression : resolvedOnRemoteProject.expressions()) {
-                                resolvedRemotelyBuilder.computeIfPresent(clusterAlias, (k, v) -> {
-                                    v.addExpression(remoteResolvedExpression);
-                                    return v;
-                                });
-                            }
+                            resolvedRemotely.put(clusterAlias, resolvedOnRemoteProject);
                         }
 
                     }
@@ -450,19 +440,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         for (String index : failure.getIndices()) {
                             handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                             if (request.includeResolvedTo()) {
-                                ResolvedIndexExpression err = new ResolvedIndexExpression(
-                                    index,
-                                    new ResolvedIndexExpression.LocalExpressions(
-                                        Set.of(),
-                                        ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                                        null
-                                    ),
-                                    Set.of()
-                                );
-                                resolvedRemotelyBuilder.computeIfPresent(clusterAlias, (k, v) -> {
-                                    v.addExpression(err);
-                                    return v;
-                                });
+                                remoteExceptions.put(clusterAlias, ex);
                             }
                         }
                     }
@@ -476,19 +454,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     for (String index : originalIndices.indices()) {
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                         if (request.includeResolvedTo()) {
-                            ResolvedIndexExpression err = new ResolvedIndexExpression(
-                                index,
-                                new ResolvedIndexExpression.LocalExpressions(
-                                    Set.of(),
-                                    ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE,
-                                    null
-                                ),
-                                Set.of()
-                            );
-                            resolvedRemotelyBuilder.computeIfPresent(clusterAlias, (k, v) -> {
-                                v.addExpression(err);
-                                return v;
-                            });
+                            remoteExceptions.put(clusterAlias, ex);
                         }
                     }
                 });

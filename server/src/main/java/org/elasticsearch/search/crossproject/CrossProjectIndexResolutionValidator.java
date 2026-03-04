@@ -330,7 +330,11 @@ public class CrossProjectIndexResolutionValidator {
             if (remoteExceptions.containsKey(projectAlias)) {
                 return new IndexNotFoundException(remoteExpression);
             } else {
-                return null;
+                return checkResolutionFailure(
+                    new ResolvedIndexExpression.LocalExpressions(Set.of(), SUCCESS, null),
+                    remoteExpression,
+                    indicesOptions
+                );
             }
         }
 

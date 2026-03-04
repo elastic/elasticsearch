@@ -67,7 +67,6 @@ import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBu
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilderTests;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
@@ -676,8 +675,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         var sorts = new ArrayList<>(SortBuilderTests.randomSortBuilderList(false));
         ShardSearchRequest req = new ShardSearchRequest(
             OriginalIndices.NONE,
-            new SearchRequest().allowPartialSearchResults(randomBoolean())
-                .source(new SearchSourceBuilder().sort(sorts)),
+            new SearchRequest().allowPartialSearchResults(randomBoolean()).source(new SearchSourceBuilder().sort(sorts)),
             indexShard.shardId(),
             0,
             1,

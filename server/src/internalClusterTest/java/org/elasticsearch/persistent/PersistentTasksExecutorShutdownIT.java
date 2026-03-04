@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.hasSize;
  * depending on the {@link PersistentTasksExecutor#automaticReassignmentOnShutdown()} flag value.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
-public class PersistentTasksExecutorNodeShutdownIT extends ESIntegTestCase {
+public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
 
     static class TestShutdownParams implements PersistentTaskParams {
 

@@ -731,19 +731,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             );
         }
 
-        // Shortcut for tests that don't need index mode filtering
-        static void resolveIndices(
-            String[] names,
-            IndicesOptions indicesOptions,
-            ProjectState projectState,
-            IndexNameExpressionResolver resolver,
-            List<ResolvedIndex> indices,
-            List<ResolvedAlias> aliases,
-            List<ResolvedDataStream> dataStreams
-        ) {
-            resolveIndices(names, indicesOptions, projectState, resolver, indices, aliases, dataStreams, Collections.emptySet());
-        }
-
         /**
          * Resolves the specified names and/or wildcard expressions to index abstractions. Returns results in the supplied lists.
          *

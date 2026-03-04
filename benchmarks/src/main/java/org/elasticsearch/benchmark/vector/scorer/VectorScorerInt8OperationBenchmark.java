@@ -9,6 +9,7 @@
 package org.elasticsearch.benchmark.vector.scorer;
 
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -44,7 +45,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 public class VectorScorerInt8OperationBenchmark {
 
     static {
-        BenchmarkUtils.configureBenchmarkLogging();
+        Utils.configureBenchmarkLogging();
     }
 
     byte[] bytesA;

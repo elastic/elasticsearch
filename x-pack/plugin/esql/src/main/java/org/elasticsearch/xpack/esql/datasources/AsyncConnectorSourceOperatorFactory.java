@@ -71,12 +71,11 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             executor.execute(() -> {
                 try {
                     ExternalSplit split;
-                    // TODO: pass ExternalSplit to connector once Connector.execute() supports it
                     while ((split = sliceQueue.nextSplit()) != null) {
                         if (buffer.noMoreInputs()) {
                             break;
                         }
-                        try (ResultCursor cursor = connector.execute(request, Split.SINGLE)) {
+                        try (ResultCursor cursor = connector.execute(request, split)) {
                             ExternalSourceDrainUtils.drainPages(cursor, buffer);
                         }
                     }

@@ -49,6 +49,8 @@ FROM partial_mapping_sample_data
 
 doesNotLoadUnmappedFieldsInlineStatsNoGrouping
 required_capability: optional_fields_v2
+
+FROM partial_mapping_sample_data
 | INLINE STATS max_duration = MAX(event_duration)
 | SORT @timestamp DESC
 | LIMIT 3

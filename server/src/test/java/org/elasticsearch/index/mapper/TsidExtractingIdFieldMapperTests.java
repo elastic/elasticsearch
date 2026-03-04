@@ -1620,7 +1620,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
      */
     private static int getRoutingHash(byte[] bytes, boolean syntheticId) {
         if (syntheticId) {
-            return ByteUtils.readIntBE(bytes, bytes.length - Integer.BYTES);
+            return TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(new BytesRef(bytes));
         } else {
             return ByteUtils.readIntLE(bytes, 0);
         }
@@ -1723,22 +1723,22 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
             : IndexVersions.TIME_SERIES_ID_HASHING;
         IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(minimalVersion);
         assertThat(
-            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, false)),
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, true)),
             equalTo("a time series document")
         );
         ParsedDocument d = parse(mapperService(false, testCase.syntheticId, version), testCase.randomSource());
         IndexableField timestamp = d.rootDoc().getField(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         assertThat(
-            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, false, timestamp)),
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, true, timestamp)),
             equalTo("a time series document at [" + testCase.expectedTimestamp + "]")
         );
         IndexableField tsid = d.rootDoc().getField(TimeSeriesIdFieldMapper.NAME);
         assertThat(
-            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, false, tsid)),
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, true, tsid)),
             equalTo("a time series document with tsid " + testCase.expectedTsidWithRoutingPath)
         );
         assertThat(
-            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, false, tsid, timestamp)),
+            TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, true, tsid, timestamp)),
             equalTo("a time series document with tsid " + testCase.expectedTsidWithRoutingPath + " at [" + testCase.expectedTimestamp + "]")
         );
     }

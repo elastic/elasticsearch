@@ -48,7 +48,6 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.MinimalServiceSettings;
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -1167,11 +1166,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         };
         doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
 
-        Answer<Model> modelAnswer = invocationOnMock -> {
-            String inferenceId = (String) invocationOnMock.getArguments()[0];
-            return modelMap.get(inferenceId);
-        };
-        doAnswer(modelAnswer).when(inferenceService).parsePersistedConfigWithSecrets(any(), any(), any(), any());
+        doAnswer(invocationOnMock -> {
+            UnparsedModel unparsedModel = invocationOnMock.getArgument(0);
+            return modelMap.get(unparsedModel.inferenceEntityId());
+        }).when(inferenceService).parsePersistedConfig(any(UnparsedModel.class));
 
         InferenceServiceRegistry inferenceServiceRegistry = mock(InferenceServiceRegistry.class);
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));

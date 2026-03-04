@@ -208,7 +208,7 @@ public final class CsvTestUtils {
 
         CsvColumn[] columns = null;
 
-        var blockFactory = BlockFactory.getInstance(new NoopCircuitBreaker("test-noop"), BigArrays.NON_RECYCLING_INSTANCE);
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
         try (BufferedReader reader = reader(source)) {
             String line;
             int lineNumber = 1;

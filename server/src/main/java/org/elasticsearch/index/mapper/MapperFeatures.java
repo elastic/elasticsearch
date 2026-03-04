@@ -74,6 +74,9 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature MV_MIN_FUNCTION_FUSE_TO_LOAD = new NodeFeature("mapper.keyword.mv_min_function_fuse_to_load");
     static final NodeFeature TDIGEST_TYPE = new NodeFeature("mapper.tdigest_type");
     public static final NodeFeature TEXT_FIELD_DOC_VALUES = new NodeFeature("mapper.text.doc_values");
+    static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX = new NodeFeature(
+        "mapper.dense_vector.dynamic_template_dotted_field_fix"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -127,7 +130,8 @@ public class MapperFeatures implements FeatureSpecification {
             HIGH_CARDINALITY_LENGTH_FUNCTION_FUSE_TO_LOAD,
             MV_MIN_FUNCTION_FUSE_TO_LOAD,
             TDIGEST_TYPE,
-            TEXT_FIELD_DOC_VALUES
+            TEXT_FIELD_DOC_VALUES,
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX
         );
     }
 }

@@ -8,6 +8,7 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -33,15 +35,19 @@ public final class HistogramPercentileTDigestEvaluator implements EvalOperator.E
 
   private final EvalOperator.ExpressionEvaluator percentile;
 
+  private final MemoryTrackingTDigestArrays tdigestArrays;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public HistogramPercentileTDigestEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      EvalOperator.ExpressionEvaluator percentile, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator percentile, MemoryTrackingTDigestArrays tdigestArrays,
+      DriverContext driverContext) {
     this.source = source;
     this.value = value;
     this.percentile = percentile;
+    this.tdigestArrays = tdigestArrays;
     this.driverContext = driverContext;
   }
 
@@ -91,7 +97,7 @@ public final class HistogramPercentileTDigestEvaluator implements EvalOperator.E
         TDigestHolder value = valueBlock.getTDigestHolder(valueBlock.getFirstValueIndex(p), valueScratch);
         double percentile = percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p));
         try {
-          HistogramPercentile.process(result, value, percentile);
+          HistogramPercentile.process(result, value, percentile, this.tdigestArrays);
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -103,7 +109,7 @@ public final class HistogramPercentileTDigestEvaluator implements EvalOperator.E
 
   @Override
   public String toString() {
-    return "HistogramPercentileTDigestEvaluator[" + "value=" + value + ", percentile=" + percentile + "]";
+    return "HistogramPercentileTDigestEvaluator[" + "value=" + value + ", percentile=" + percentile + ", tdigestArrays=" + tdigestArrays + "]";
   }
 
   @Override
@@ -125,21 +131,25 @@ public final class HistogramPercentileTDigestEvaluator implements EvalOperator.E
 
     private final EvalOperator.ExpressionEvaluator.Factory percentile;
 
+    private final Function<DriverContext, MemoryTrackingTDigestArrays> tdigestArrays;
+
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
-        EvalOperator.ExpressionEvaluator.Factory percentile) {
+        EvalOperator.ExpressionEvaluator.Factory percentile,
+        Function<DriverContext, MemoryTrackingTDigestArrays> tdigestArrays) {
       this.source = source;
       this.value = value;
       this.percentile = percentile;
+      this.tdigestArrays = tdigestArrays;
     }
 
     @Override
     public HistogramPercentileTDigestEvaluator get(DriverContext context) {
-      return new HistogramPercentileTDigestEvaluator(source, value.get(context), percentile.get(context), context);
+      return new HistogramPercentileTDigestEvaluator(source, value.get(context), percentile.get(context), tdigestArrays.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "HistogramPercentileTDigestEvaluator[" + "value=" + value + ", percentile=" + percentile + "]";
+      return "HistogramPercentileTDigestEvaluator[" + "value=" + value + ", percentile=" + percentile + ", tdigestArrays=" + tdigestArrays + "]";
     }
   }
 }

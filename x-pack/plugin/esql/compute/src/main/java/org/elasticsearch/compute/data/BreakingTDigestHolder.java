@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.tdigest.ReadableTDigest;
+import org.elasticsearch.tdigest.TDigestReadView;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ public class BreakingTDigestHolder implements Releasable, Accountable {
         this.breaker = breaker;
     }
 
-    public void set(ReadableTDigest tdigest, double sum, double min, double max) {
+    public void set(TDigestReadView tdigest, double sum, double min, double max) {
         encodedDigestBuffer.clear();
         try {
             EncodedTDigest.encodeCentroids(tdigest.centroids(), encodedDigestBuffer);

@@ -48,6 +48,9 @@ public class TDigestTestUtils {
             }
         }
 
+        TDigest mergedAsTDigest = TDigest.createMergingDigest(NOOP_ARRAYS, TDigestStates.COMPRESSION);
+        mergedAsTDigest.add(merged);
+
         if (anyValuesNonNull == false) {
             return merged == null;
         }
@@ -86,10 +89,10 @@ public class TDigestTestUtils {
             return false;
         }
         if (tDigestTotalCount > 0) {
-            if (Math.abs(merged.quantile(0.01) - reference.quantile(0.01)) > 0.1) {
+            if (Math.abs(mergedAsTDigest.quantile(0.01) - reference.quantile(0.01)) > 0.1) {
                 return false;
             }
-            if (Math.abs(merged.quantile(0.99) - reference.quantile(0.99)) > 0.1) {
+            if (Math.abs(mergedAsTDigest.quantile(0.99) - reference.quantile(0.99)) > 0.1) {
                 return false;
             }
         }

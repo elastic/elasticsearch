@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tdigest.Centroid;
-import org.elasticsearch.tdigest.ReadableTDigest;
+import org.elasticsearch.tdigest.TDigestReadView;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
@@ -26,14 +26,14 @@ import java.util.Collection;
 import java.util.Objects;
 
 /**
- * This is a {@ReadableTDigest} annotated with some extra information: The sum, min and max of all observations.
+ * This is a {@link TDigestReadView} annotated with some extra information: The sum, min and max of all observations.
  * The TDigest is represented a list of centroids and their counts, encoded in a byte array.
  * This class does not own the underlying memory used to store the digest, it is merely a pointer/accessor for e.g.
  * a single value in a {@link TDigestBlock} or in {@link BreakingTDigestHolder}.
  * <br>
  * This class supports serialization, but this is only intended for use in ES|QL Literals, as it uses untracked memory on deserialization.
  */
-public class TDigestHolder implements GenericNamedWriteable, ReadableTDigest {
+public class TDigestHolder implements GenericNamedWriteable, TDigestReadView {
 
     /**
      * This size of a single TDigestHolder instance in bytes, excluding the underlying encoded digest bytes array.
@@ -131,16 +131,6 @@ public class TDigestHolder implements GenericNamedWriteable, ReadableTDigest {
     @Override
     public long size() {
         return valueCount;
-    }
-
-    @Override
-    public double cdf(double x) {
-        return encodedDigest.cdf(x);
-    }
-
-    @Override
-    public double quantile(double q) {
-        return encodedDigest.quantile(q);
     }
 
     @Override

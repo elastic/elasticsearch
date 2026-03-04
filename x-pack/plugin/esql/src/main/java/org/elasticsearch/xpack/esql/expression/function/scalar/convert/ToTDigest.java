@@ -14,7 +14,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.TDigestHolder;
-import org.elasticsearch.tdigest.AbstractCentroidBackedTDigest;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -106,7 +105,7 @@ public class ToTDigest extends AbstractConvertFunction {
         double max = Double.MIN_VALUE;
         double sum = 0;
         long totalCount = 0;
-        AbstractCentroidBackedTDigest.CentroidIterator it = decoder.centroidIterator();
+        EncodedTDigest.CentroidIterator it = decoder.centroidIterator();
         while (it.next()) {
             long count = it.currentCount();
             double value = it.currentMean();

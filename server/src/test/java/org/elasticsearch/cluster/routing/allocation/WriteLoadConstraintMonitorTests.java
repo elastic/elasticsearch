@@ -122,7 +122,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                         () -> randomFrom(WriteLoadConstraintSettings.WriteLoadDeciderStatus.values())
                     ),
                     testState.latencyThresholdMillis,
-                    testState.highUtilizationThresholdPercent
+                    testState.hotspotUtilizationThresholdPercent
                 )
             ),
             testState.currentTimeSupplier,
@@ -174,7 +174,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     testState.clusterState,
                     0,
                     testState.latencyThresholdMillis,
-                    testState.highUtilizationThresholdPercent
+                    testState.hotspotUtilizationThresholdPercent
                 )
             );
             mockLog.assertAllExpectationsMatched();
@@ -215,7 +215,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                     testState.clusterState,
                     numberOfIndexNodes,
                     testState.latencyThresholdMillis,
-                    testState.highUtilizationThresholdPercent
+                    testState.hotspotUtilizationThresholdPercent
                 )
             );
             mockLog.assertAllExpectationsMatched();
@@ -676,11 +676,11 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     ) {
         assert numberOfHotSpottingNodes <= numberOfIndexNodes;
         final long queueLatencyThresholdMillis = randomLongBetween(1000, 5000);
-        final int highUtilizationThresholdPercent = randomIntBetween(70, 100);
+        final int hotspotUtilizationThresholdPercent = randomIntBetween(70, 100);
         final ClusterSettings clusterSettings = createClusterSettings(
             WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED,
             queueLatencyThresholdMillis,
-            highUtilizationThresholdPercent
+            hotspotUtilizationThresholdPercent
         );
         final ClusterState state = ClusterStateCreationUtils.buildServerlessRoleNodes(
             randomIdentifier(), // index name
@@ -705,11 +705,11 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             state,
             hotspotNodes,
             queueLatencyThresholdMillis,
-            highUtilizationThresholdPercent
+            hotspotUtilizationThresholdPercent
         );
         return new TestState(
             queueLatencyThresholdMillis,
-            highUtilizationThresholdPercent,
+            hotspotUtilizationThresholdPercent,
             numberOfIndexNodes,
             hotspotNodes,
             clusterSettings,
@@ -731,7 +731,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     private static ClusterSettings createClusterSettings(
         WriteLoadConstraintSettings.WriteLoadDeciderStatus status,
         long queueLatencyThresholdMillis,
-        int highUtilizationThresholdPercent
+        int hotspotUtilizationThresholdPercent
     ) {
         return ClusterSettings.createBuiltInClusterSettings(
             Settings.builder()
@@ -742,7 +742,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 )
                 .put(
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING.getKey(),
-                    highUtilizationThresholdPercent + "%"
+                    hotspotUtilizationThresholdPercent + "%"
                 )
                 .put(
                     WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING.getKey(),
@@ -761,14 +761,14 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
      * @param state The cluster state
      * @param numberOfNodesHotSpotting The number of nodes that should be hot-spotting
      * @param queueLatencyThresholdMillis The latency threshold in milliseconds
-     * @param highUtilizationThresholdPercent The high utilization threshold as a percentage
+     * @param hotspotUtilizationThresholdPercent The high utilization threshold as a percentage
      * @return a ClusterInfo with the given parameters
      */
     private static ClusterInfo createClusterInfoWithHotSpots(
         ClusterState state,
         int numberOfNodesHotSpotting,
         long queueLatencyThresholdMillis,
-        int highUtilizationThresholdPercent
+        int hotspotUtilizationThresholdPercent
     ) {
         Set<String> nodeIds = indexNodeIds(state);
         assert numberOfNodesHotSpotting <= nodeIds.size()
@@ -779,19 +779,19 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 + " nodes in the cluster";
 
         final Set<String> hotspotNodes = new HashSet<>(randomSubsetOf(numberOfNodesHotSpotting, nodeIds));
-        return createClusterInfoWithHotSpots(state, hotspotNodes, queueLatencyThresholdMillis, highUtilizationThresholdPercent);
+        return createClusterInfoWithHotSpots(state, hotspotNodes, queueLatencyThresholdMillis, hotspotUtilizationThresholdPercent);
     }
 
     private static ClusterInfo createClusterInfoWithHotSpots(
         ClusterState state,
         Set<String> hotspotNodes,
         long queueLatencyThresholdMillis,
-        int highUtilizationThresholdPercent
+        int hotspotUtilizationThresholdPercent
     ) {
         assert queueLatencyThresholdMillis > 0 : "queue latency threshold must be positive";
         final Set<String> hotspotNodesSet = new HashSet<>(hotspotNodes);
-        final float maxRatioForUnderUtilised = (highUtilizationThresholdPercent - 1) / 100.0f;
-        final float minRatioForHotspot = highUtilizationThresholdPercent / 100.0f;
+        final float maxRatioForUnderUtilised = (hotspotUtilizationThresholdPercent - 1) / 100.0f;
+        final float minRatioForHotspot = hotspotUtilizationThresholdPercent / 100.0f;
         ClusterInfo clusterInfo = ClusterInfo.builder()
             .nodeUsageStatsForThreadPools(state.nodes().stream().collect(Collectors.toMap(DiscoveryNode::getId, node -> {
                 if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE) || node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
@@ -834,7 +834,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
     private record TestState(
         long latencyThresholdMillis,
-        int highUtilizationThresholdPercent,
+        int hotspotUtilizationThresholdPercent,
         int numberOfNodes,
         Set<String> hotspotNodeIds,
         ClusterSettings clusterSettings,
@@ -850,14 +850,14 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
             return new TestState(
                 latencyThresholdMillis,
-                highUtilizationThresholdPercent,
+                hotspotUtilizationThresholdPercent,
                 numberOfNodes,
                 newHotspotNodeIds,
                 clusterSettings,
                 currentTimeSupplier,
                 clusterState,
                 mockRerouteService,
-                createClusterInfoWithHotSpots(clusterState, newHotspotNodeIds, latencyThresholdMillis, highUtilizationThresholdPercent)
+                createClusterInfoWithHotSpots(clusterState, newHotspotNodeIds, latencyThresholdMillis, hotspotUtilizationThresholdPercent)
             );
         }
 
@@ -867,14 +867,14 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
             return new TestState(
                 latencyThresholdMillis,
-                highUtilizationThresholdPercent,
+                hotspotUtilizationThresholdPercent,
                 numberOfNodes,
                 newHotspotNodeIds,
                 clusterSettings,
                 currentTimeSupplier,
                 clusterState,
                 mockRerouteService,
-                createClusterInfoWithHotSpots(clusterState, newHotspotNodeIds, latencyThresholdMillis, highUtilizationThresholdPercent)
+                createClusterInfoWithHotSpots(clusterState, newHotspotNodeIds, latencyThresholdMillis, hotspotUtilizationThresholdPercent)
             );
         }
 
@@ -892,7 +892,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
             return new TestState(
                 latencyThresholdMillis,
-                highUtilizationThresholdPercent,
+                hotspotUtilizationThresholdPercent,
                 numberOfNodes,
                 hotspotNodeIds,
                 clusterSettings,
@@ -913,14 +913,19 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
             return new TestState(
                 latencyThresholdMillis,
-                highUtilizationThresholdPercent,
+                hotspotUtilizationThresholdPercent,
                 numberOfNodes - 1,
                 newHotspotNodeIds,
                 clusterSettings,
                 currentTimeSupplier,
                 newClusterState,
                 mockRerouteService,
-                createClusterInfoWithHotSpots(newClusterState, newHotspotNodeIds, latencyThresholdMillis, highUtilizationThresholdPercent)
+                createClusterInfoWithHotSpots(
+                    newClusterState,
+                    newHotspotNodeIds,
+                    latencyThresholdMillis,
+                    hotspotUtilizationThresholdPercent
+                )
             );
         }
 
@@ -937,14 +942,19 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
             return new TestState(
                 latencyThresholdMillis,
-                highUtilizationThresholdPercent,
+                hotspotUtilizationThresholdPercent,
                 numberOfNodes - 1,
                 newHotspotNodeIds,
                 clusterSettings,
                 currentTimeSupplier,
                 newClusterState,
                 mockRerouteService,
-                createClusterInfoWithHotSpots(oldClusterState, newHotspotNodeIds, latencyThresholdMillis, highUtilizationThresholdPercent)
+                createClusterInfoWithHotSpots(
+                    oldClusterState,
+                    newHotspotNodeIds,
+                    latencyThresholdMillis,
+                    hotspotUtilizationThresholdPercent
+                )
             );
         }
     }

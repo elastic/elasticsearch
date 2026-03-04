@@ -35,6 +35,8 @@ public final class MetadataBuffer implements MetadataWriter {
     }
 
     public void writeTo(final DataOutput out, int offset, int length) throws IOException {
+        assert offset >= 0 && length >= 0 && offset + length <= dataSize
+            : "Invalid slice [offset=" + offset + ", length=" + length + ", size=" + dataSize + "]";
         if (length > 0) {
             out.writeBytes(data, offset, length);
         }
@@ -59,12 +61,14 @@ public final class MetadataBuffer implements MetadataWriter {
 
     @Override
     public MetadataWriter writeZInt(int value) {
-        return writeVInt((value >> 31) ^ (value << 1));
+        encodeVInt((value >> 31) ^ (value << 1));
+        return this;
     }
 
     @Override
     public MetadataWriter writeZLong(long value) {
-        return writeVLong((value >> 63) ^ (value << 1));
+        encodeVLong((value >> 63) ^ (value << 1));
+        return this;
     }
 
     @Override
@@ -97,28 +101,38 @@ public final class MetadataBuffer implements MetadataWriter {
         return this;
     }
 
-    // Parameter mutated by encoding loop — cannot be final.
     @Override
     public MetadataWriter writeVInt(int value) {
+        assert value >= 0 : "writeVInt requires non-negative value: " + value;
+        encodeVInt(value);
+        return this;
+    }
+
+    @Override
+    public MetadataWriter writeVLong(long value) {
+        assert value >= 0 : "writeVLong requires non-negative value: " + value;
+        encodeVLong(value);
+        return this;
+    }
+
+    // Parameter mutated by encoding loop — cannot be final.
+    private void encodeVInt(int value) {
         ensureCapacity(5);
         while ((value & ~0x7F) != 0) {
             data[dataSize++] = (byte) ((value & 0x7F) | 0x80);
             value >>>= 7;
         }
         data[dataSize++] = (byte) value;
-        return this;
     }
 
     // Parameter mutated by encoding loop — cannot be final.
-    @Override
-    public MetadataWriter writeVLong(long value) {
+    private void encodeVLong(long value) {
         ensureCapacity(10);
         for (int i = 0; i < 9 && (value & ~0x7FL) != 0; i++) {
             data[dataSize++] = (byte) ((value & 0x7FL) | 0x80L);
             value >>>= 7;
         }
         data[dataSize++] = (byte) value;
-        return this;
     }
 
     @Override

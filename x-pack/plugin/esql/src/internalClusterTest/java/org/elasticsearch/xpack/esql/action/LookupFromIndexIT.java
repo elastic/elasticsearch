@@ -503,7 +503,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
      */
     protected final DriverContext driverContext() {
         var breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()), null);
+        return new DriverContext(bigArrays(), BlockFactory.builder(bigArrays()).breaker(breaker).build(), null);
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

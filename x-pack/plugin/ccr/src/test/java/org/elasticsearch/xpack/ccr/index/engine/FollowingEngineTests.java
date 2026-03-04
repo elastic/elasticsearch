@@ -65,6 +65,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -807,7 +808,11 @@ public class FollowingEngineTests extends ESTestCase {
         List<Engine.Operation> operations = new ArrayList<>(numOps);
         for (int i = 0; i < numOps; i++) {
             String docId = useSyntheticId
-                ? TsidExtractingIdFieldMapper.createSyntheticId(new BytesRef(Integer.toString(i)), i + 10, randomIntBetween(1, 100))
+                ? TsidExtractingIdFieldMapper.createSyntheticId(
+                    new BytesRef(Integer.toString(i)),
+                    Instant.now().toEpochMilli(),
+                    randomNonNegativeInt()
+                )
                 : Integer.toString(i);
             ParsedDocument doc = randomBoolean() || useSyntheticId
                 ? EngineTestCase.createParsedDoc(docId, null, false, useSyntheticId)

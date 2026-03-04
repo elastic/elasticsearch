@@ -12,11 +12,7 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -24,11 +20,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.NodeShutdownTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -39,13 +35,13 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.ESTestCase.safeAwait;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Integration tests verifying the behavior of task reassignment on node shutdown depending on
@@ -111,12 +107,7 @@ public class PersistentTasksExecutorNodeShutdownIT extends ESIntegTestCase {
 
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, TestNodeShutdownParams params, PersistentTaskState state) {
-            try {
-                assertBusy(() -> assertTrue(task.isCancelled()), 45, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                task.markAsFailed(e);
-                return;
-            }
+            safeAwait(l -> task.addListener(() -> l.onResponse(null)));
             task.markAsCompleted();
         }
     }
@@ -199,20 +190,25 @@ public class PersistentTasksExecutorNodeShutdownIT extends ESIntegTestCase {
         final var originalNodeId = task.getAssignment().getExecutorNode();
         assertNotNull("task should be assigned before shutdown", originalNodeId);
 
-        applyShutdownMetadata(originalNodeId);
+        NodeShutdownTestUtils.putShutdownMetadata(
+            originalNodeId,
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            EnumSet.of(
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                SingleNodeShutdownMetadata.Type.RESTART,
+                SingleNodeShutdownMetadata.Type.SIGTERM
+            )
+        );
         try {
-            assertBusy(() -> {
-                final var updatedTask = assertClusterStateHasTask(taskId, taskName);
-                assertThat(updatedTask.getAssignment().getExecutorNode(), notNullValue());
-                assertNotEquals(
-                    "task should have moved off the shutting-down node",
-                    originalNodeId,
-                    updatedTask.getAssignment().getExecutorNode()
-                );
+            awaitClusterState(state -> {
+                final var tasks = findTasks(state, taskName);
+                assertTrue(tasks.size() == 1 && taskId.equals(tasks.getFirst().getId()));
+                final var executorNode = tasks.getFirst().getAssignment().getExecutorNode();
+                return executorNode != null && originalNodeId.equals(executorNode) == false;
             });
             waitForTaskToStart(taskName);
         } finally {
-            removeShutdownMetadata(originalNodeId);
+            NodeShutdownTestUtils.clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));
             cancelTask(taskName);
         }
     }
@@ -230,7 +226,15 @@ public class PersistentTasksExecutorNodeShutdownIT extends ESIntegTestCase {
         final var originalNodeId = task.getAssignment().getExecutorNode();
         assertNotNull("task should be assigned before shutdown", originalNodeId);
 
-        applyShutdownMetadata(originalNodeId);
+        NodeShutdownTestUtils.putShutdownMetadata(
+            originalNodeId,
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            EnumSet.of(
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                SingleNodeShutdownMetadata.Type.RESTART,
+                SingleNodeShutdownMetadata.Type.SIGTERM
+            )
+        );
         try {
             waitNoPendingTasksOnAll();
             final var taskAfterShutdown = assertClusterStateHasTask(taskId, taskName);
@@ -240,7 +244,7 @@ public class PersistentTasksExecutorNodeShutdownIT extends ESIntegTestCase {
                 equalTo(originalNodeId)
             );
         } finally {
-            removeShutdownMetadata(originalNodeId);
+            NodeShutdownTestUtils.clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));
             cancelTask(taskName);
         }
     }
@@ -265,72 +269,6 @@ public class PersistentTasksExecutorNodeShutdownIT extends ESIntegTestCase {
         final PersistentTask<?> task = tasks.iterator().next();
         assertThat(task.getId(), equalTo(taskId));
         return task;
-    }
-
-    private void applyShutdownMetadata(String nodeId) throws Exception {
-        final var node = internalCluster().clusterService().state().nodes().get(nodeId);
-        final var shutdownType = randomFrom(
-            SingleNodeShutdownMetadata.Type.REMOVE,
-            SingleNodeShutdownMetadata.Type.RESTART,
-            SingleNodeShutdownMetadata.Type.SIGTERM
-        );
-        final var metadataBuilder = SingleNodeShutdownMetadata.builder()
-            .setNodeId(nodeId)
-            .setNodeEphemeralId(node.getEphemeralId())
-            .setType(shutdownType)
-            .setReason("test node shutdown")
-            .setStartedAtMillis(System.currentTimeMillis());
-        if (shutdownType == SingleNodeShutdownMetadata.Type.SIGTERM) {
-            metadataBuilder.setGracePeriod(TimeValue.timeValueSeconds(30));
-        }
-
-        final var future = new PlainActionFuture<Void>();
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-            .submitUnbatchedStateUpdateTask("test-put-node-shutdown", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    final var updatedMetadata = currentState.metadata().nodeShutdowns().putSingleNodeMetadata(metadataBuilder.build());
-                    return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.metadata()).putCustom(NodesShutdownMetadata.TYPE, updatedMetadata))
-                        .build();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    future.onFailure(e);
-                }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    future.onResponse(null);
-                }
-            });
-        future.get();
-    }
-
-    private void removeShutdownMetadata(String nodeId) throws Exception {
-        final var future = new PlainActionFuture<Void>();
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-            .submitUnbatchedStateUpdateTask("test-remove-node-shutdown", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    final var updatedMetadata = currentState.metadata().nodeShutdowns().removeSingleNodeMetadata(nodeId);
-                    return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.metadata()).putCustom(NodesShutdownMetadata.TYPE, updatedMetadata))
-                        .build();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    future.onFailure(e);
-                }
-
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    future.onResponse(null);
-                }
-            });
-        future.get();
     }
 
     private void cancelTask(String taskName) {

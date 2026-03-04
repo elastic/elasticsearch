@@ -29,10 +29,10 @@ public class PersistentTasksExecutorRegistry {
     private static final Set<String> CLUSTER_SCOPED_TASKS = ConcurrentCollections.newConcurrentSet();
 
     /**
-     * Set of task names whose executor has {@link PersistentTasksExecutor#automaticReassignmentOnShutdown()}
-     * set to {@code false}.
+     * Set of task names that will not be proactively reassigned when their executing node is shutting-down.
+     * (i.e. {@link PersistentTasksExecutor#automaticReassignmentOnShutdown()} returns {@code false}).
      */
-    private static final Set<String> NO_AUTOMATIC_REASSIGNMENT_ON_SHUTDOWN_TASKS = ConcurrentCollections.newConcurrentSet();
+    private static final Set<String> TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED = ConcurrentCollections.newConcurrentSet();
 
     private final Map<String, PersistentTasksExecutor<?>> taskExecutors;
 
@@ -54,7 +54,7 @@ public class PersistentTasksExecutorRegistry {
                 CLUSTER_SCOPED_TASKS.add(executor.getTaskName());
             }
             if (executor.automaticReassignmentOnShutdown() == false) {
-                NO_AUTOMATIC_REASSIGNMENT_ON_SHUTDOWN_TASKS.add(executor.getTaskName());
+                TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED.add(executor.getTaskName());
             }
         }
         this.taskExecutors = Collections.unmodifiableMap(map);
@@ -81,12 +81,12 @@ public class PersistentTasksExecutorRegistry {
 
     /**
      * Returns {@code true} if the given task executor has the
-     * {@link PersistentTasksExecutor#automaticReassignmentOnShutdown()} flag set to {@code true}.
+     * {@link PersistentTasksExecutor#automaticReassignmentOnShutdown()} flag set to {@code false}.
      * Using a precomputed set avoids repeated registry lookups during reassignment checks.
      *
      * @param taskName the name of the persistent task to check
      */
-    public static boolean taskIsAutomaticallyReassignedOnShutdown(String taskName) {
-        return NO_AUTOMATIC_REASSIGNMENT_ON_SHUTDOWN_TASKS.contains(taskName) == false;
+    public static boolean taskHasReassignmentOnShutdownDisabled(String taskName) {
+        return TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED.contains(taskName);
     }
 }

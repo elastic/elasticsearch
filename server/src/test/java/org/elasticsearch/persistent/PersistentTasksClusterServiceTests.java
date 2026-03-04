@@ -680,7 +680,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             SingleNodeShutdownMetadata.Type.SIGTERM
         )) {
             // Use a unique task name per iteration: PersistentTasksExecutorRegistry's static
-            // NO_AUTOMATIC_REASSIGNMENT_ON_SHUTDOWN_TASKS set persists task name across registry instances.
+            // TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED set persists task name across registry instances.
             final var taskName = TestPersistentTasksExecutor.NAME + "_" + randomIdentifier();
             final var taskParams = new PersistentTaskParams() {
                 @Override
@@ -764,7 +764,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             SingleNodeShutdownMetadata.Type.SIGTERM
         )) {
             // Use a unique task name per iteration: PersistentTasksExecutorRegistry's static
-            // NO_AUTOMATIC_REASSIGNMENT_ON_SHUTDOWN_TASKS set persists task name across registry instances.
+            // TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED set persists task name across registry instances.
             final var taskName = TestPersistentTasksExecutor.NAME + "_" + randomIdentifier();
             final var taskParams = new PersistentTaskParams() {
                 @Override

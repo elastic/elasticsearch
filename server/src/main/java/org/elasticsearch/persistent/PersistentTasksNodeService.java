@@ -249,6 +249,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
 
         @Override
         public boolean automaticReassignmentOnShutdown() {
+            assert false : "placeholder task: automaticReassignmentOnShutdown should never be called";
             return false;
         }
 

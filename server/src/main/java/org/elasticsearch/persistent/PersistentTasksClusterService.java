@@ -56,7 +56,7 @@ import static org.elasticsearch.persistent.PersistentTasks.getAllTasks;
 import static org.elasticsearch.persistent.PersistentTasks.taskTypeString;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.assertAllocationIdsConsistencyForOnePersistentTasks;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getNonZeroAllocationIds;
-import static org.elasticsearch.persistent.PersistentTasksExecutorRegistry.taskIsAutomaticallyReassignedOnShutdown;
+import static org.elasticsearch.persistent.PersistentTasksExecutorRegistry.taskHasReassignmentOnShutdownDisabled;
 
 /**
  * Component that runs only on the master node and is responsible for assigning running tasks to nodes
@@ -687,7 +687,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
         if (isUnassignedOrMisassigned(task.getAssignment(), nodes)) {
             return true;
         }
-        if (taskIsAutomaticallyReassignedOnShutdown(task.getTaskName()) == false) {
+        if (taskHasReassignmentOnShutdownDisabled(task.getTaskName())) {
             return false;
         }
         return metadata != null && metadata.nodeShutdowns().contains(task.getAssignment().getExecutorNode());

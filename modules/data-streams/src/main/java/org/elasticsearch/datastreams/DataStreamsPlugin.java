@@ -67,6 +67,7 @@ import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.steps.ForceMergeStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.steps.SnapshotStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.steps.TransportMarkIndexForDLMForceMergeAction;
 import org.elasticsearch.datastreams.options.action.DeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.GetDataStreamOptionsAction;
@@ -106,6 +107,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG;
 
 public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlugin {
 
@@ -191,7 +193,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING);
-        pluginSettings.add(ForceMergeStep.DLM_FORCE_MERGE_COMPLETE_SETTING);
+        if (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
+            pluginSettings.add(ForceMergeStep.DLM_FORCE_MERGE_COMPLETE_SETTING);
+            pluginSettings.add(SnapshotStep.DLM_SNAPSHOT_COMPLETED_SETTING);
+        }
         return pluginSettings;
     }
 

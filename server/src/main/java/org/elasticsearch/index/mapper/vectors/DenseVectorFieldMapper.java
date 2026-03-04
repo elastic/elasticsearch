@@ -1836,9 +1836,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (indexVersion.onOrAfter(DISK_BBQ_QUANTIZE_BITS) && experimentalFeaturesEnabled) {
                     Object quantizeBitsNode = indexOptionsMap.remove("bits");
                     quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, DEFAULT_BBQ_IVF_QUANTIZE_BITS);
-                    if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 4) == false) {
+                    if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 4 || quantizeBits == 7) == false) {
                         throw new IllegalArgumentException(
-                            "'bits' must be 1, 2 or 4, got: " + quantizeBits + " for field [" + fieldName + "]"
+                            "'bits' must be 1, 2, 4 or 7, got: " + quantizeBits + " for field [" + fieldName + "]"
                         );
                     }
                 } else {
@@ -2652,6 +2652,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public boolean doPrecondition() {
             return doPrecondition;
+        }
+
+        public int getBits() {
+            return bits;
         }
     }
 

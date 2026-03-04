@@ -37,16 +37,17 @@ public class GroupedLimitOperator implements Operator {
 
     private final int limitPerGroup;
     private final GroupKeyEncoder keyEncoder;
-    /*
-    BlockHash unrolls multivalues (i.e. for each unique element of a multivalue [1,2,2,1] it would create
-    a new key).
-
-    In contrast, in this operator we consider every multivalue as a key. Two multivalues are equal if they hold
-    the same values in the exact same order. That's why we need to use:
-
-      - a ref hash table. Every time we add a new key it gives a monotonically increasing integer that we will
-        use to index in the counts array, Ordinal(key))
-      - a counts array to keep track of the number of times we have seen each Ordinal(key)
+    /**
+     * BlockHash unrolls multivalues (i.e. for each unique element of a multivalue [1,2,2,1] it would create
+     * a new key).
+     *
+     * <p>In contrast, in this operator we consider every multivalue as a key. Two multivalues are equal if they hold
+     * the same values in the exact same order. That's why we need to use:
+     * <ul>
+     *   <li>a ref hash table. Every time we add a new key it gives a monotonically increasing integer that we will
+     *       use to index in the counts array, {@code Ordinal(key)}</li>
+     *   <li>a counts array to keep track of the number of times we have seen each {@code Ordinal(key)}</li>
+     * </ul>
      */
     private final BytesRefHashTable seenKeys;
     private final BigArrays bigArrays;

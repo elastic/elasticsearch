@@ -132,13 +132,11 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         }
     }
 
-    private final ReasoningDetailType type;
     private final String format;
     private final String id;
     private final Long index;
 
-    protected ReasoningDetail(ReasoningDetailType type, @Nullable String format, @Nullable String id, @Nullable Long index) {
-        this.type = Objects.requireNonNull(type);
+    protected ReasoningDetail(@Nullable String format, @Nullable String id, @Nullable Long index) {
         this.format = format;
         this.id = id;
         this.index = index;
@@ -146,22 +144,16 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(type);
         out.writeOptionalString(format);
         out.writeOptionalString(id);
         out.writeOptionalVLong(index);
     }
 
-    public static ReasoningDetail fromStream(StreamInput in) throws IOException {
-        return switch (in.readEnum(ReasoningDetailType.class)) {
-            case ENCRYPTED -> new EncryptedReasoningDetail(in);
-            case SUMMARY -> new SummaryReasoningDetail(in);
-            case TEXT -> new TextReasoningDetail(in);
-        };
+    protected ReasoningDetail(StreamInput in) throws IOException {
+        this(in.readOptionalString(), in.readOptionalString(), in.readOptionalVLong());
     }
 
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field(TYPE_FIELD, type);
         if (format != null) {
             builder.field(FORMAT_FIELD, format);
         }
@@ -176,16 +168,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(
-            chunk((b, p) -> b.field(TYPE_FIELD, type())),
-            optionalField(FORMAT_FIELD, format()),
-            optionalField(ID_FIELD, id()),
-            optionalField(INDEX_FIELD, index())
-        );
-    }
-
-    protected ReasoningDetailType type() {
-        return type;
+        return Iterators.concat(optionalField(FORMAT_FIELD, format()), optionalField(ID_FIELD, id()), optionalField(INDEX_FIELD, index()));
     }
 
     protected String format() {
@@ -205,15 +188,12 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ReasoningDetail that = (ReasoningDetail) o;
-        return Objects.equals(type, that.type)
-            && Objects.equals(format, that.format)
-            && Objects.equals(id, that.id)
-            && Objects.equals(index, that.index);
+        return Objects.equals(format, that.format) && Objects.equals(id, that.id) && Objects.equals(index, that.index);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, format, id, index);
+        return Objects.hash(format, id, index);
     }
 
     /**
@@ -238,12 +218,13 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         private final String data;
 
         public EncryptedReasoningDetail(@Nullable String format, @Nullable String id, @Nullable Long index, String data) {
-            super(ReasoningDetailType.ENCRYPTED, format, id, index);
+            super(format, id, index);
             this.data = Objects.requireNonNull(data);
         }
 
         public EncryptedReasoningDetail(StreamInput in) throws IOException {
-            this(in.readOptionalString(), in.readOptionalString(), in.readOptionalVLong(), in.readString());
+            super(in);
+            this.data = in.readString();
         }
 
         @Override
@@ -268,6 +249,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
+            builder.field(TYPE_FIELD, ReasoningDetailType.ENCRYPTED.value);
             super.toXContent(builder, params);
             builder.field(DATA_FIELD, data);
             builder.endObject();
@@ -291,14 +273,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
         @Override
         public String toString() {
-            return Strings.format(
-                "EncryptedReasoningDetail{data='%s', type=%s, format='%s', id='%s', index=%d}",
-                data,
-                type(),
-                format(),
-                id(),
-                index()
-            );
+            return Strings.format("EncryptedReasoningDetail{data='%s', format='%s', id='%s', index=%d}", data, format(), id(), index());
         }
     }
 
@@ -312,12 +287,13 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         private final String summary;
 
         public SummaryReasoningDetail(@Nullable String format, @Nullable String id, @Nullable Long index, String summary) {
-            super(ReasoningDetailType.SUMMARY, format, id, index);
+            super(format, id, index);
             this.summary = Objects.requireNonNull(summary);
         }
 
         public SummaryReasoningDetail(StreamInput in) throws IOException {
-            this(in.readOptionalString(), in.readOptionalString(), in.readOptionalVLong(), in.readString());
+            super(in);
+            this.summary = in.readString();
         }
 
         @Override
@@ -329,6 +305,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field(TYPE_FIELD, ReasoningDetailType.SUMMARY.value);
             super.toXContent(builder, params);
             builder.field(SUMMARY_FIELD, summary);
             builder.endObject();
@@ -365,14 +342,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
 
         @Override
         public String toString() {
-            return Strings.format(
-                "SummaryReasoningDetail{summary='%s', type=%s, format='%s', id='%s', index=%d}",
-                summary,
-                type(),
-                format(),
-                id(),
-                index()
-            );
+            return Strings.format("SummaryReasoningDetail{summary='%s', format='%s', id='%s', index=%d}", summary, format(), id(), index());
         }
     }
 
@@ -394,7 +364,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
             @Nullable String text,
             @Nullable String signature
         ) {
-            super(ReasoningDetailType.TEXT, format, id, index);
+            super(format, id, index);
             this.text = text;
             this.signature = signature;
             validate();
@@ -413,13 +383,9 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         }
 
         public TextReasoningDetail(StreamInput in) throws IOException {
-            this(
-                in.readOptionalString(),
-                in.readOptionalString(),
-                in.readOptionalVLong(),
-                in.readOptionalString(),
-                in.readOptionalString()
-            );
+            super(in);
+            this.text = in.readOptionalString();
+            this.signature = in.readOptionalString();
         }
 
         @Override
@@ -475,10 +441,9 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         @Override
         public String toString() {
             return Strings.format(
-                "TextReasoningDetail{text='%s', signature='%s', type=%s, format='%s', id='%s', index=%d}",
+                "TextReasoningDetail{text='%s', signature='%s', format='%s', id='%s', index=%d}",
                 text,
                 signature,
-                type(),
                 format(),
                 id(),
                 index()

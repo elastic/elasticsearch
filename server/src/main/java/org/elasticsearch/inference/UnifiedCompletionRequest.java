@@ -183,16 +183,20 @@ public record UnifiedCompletionRequest(
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new),
             new NamedWriteableRegistry.Entry(Reasoning.class, Reasoning.NAME, Reasoning::new),
             new NamedWriteableRegistry.Entry(
-                ReasoningDetail.class,
+                ReasoningDetail.EncryptedReasoningDetail.class,
                 ReasoningDetail.EncryptedReasoningDetail.NAME,
-                ReasoningDetail::fromStream
+                ReasoningDetail.EncryptedReasoningDetail::new
             ),
             new NamedWriteableRegistry.Entry(
-                ReasoningDetail.class,
+                ReasoningDetail.SummaryReasoningDetail.class,
                 ReasoningDetail.SummaryReasoningDetail.NAME,
-                ReasoningDetail::fromStream
+                ReasoningDetail.SummaryReasoningDetail::new
             ),
-            new NamedWriteableRegistry.Entry(ReasoningDetail.class, ReasoningDetail.TextReasoningDetail.NAME, ReasoningDetail::fromStream)
+            new NamedWriteableRegistry.Entry(
+                ReasoningDetail.TextReasoningDetail.class,
+                ReasoningDetail.TextReasoningDetail.NAME,
+                ReasoningDetail.TextReasoningDetail::new
+            )
         );
     }
 
@@ -266,6 +270,10 @@ public record UnifiedCompletionRequest(
 
     public boolean containsMultimodalContent() {
         return messages().stream().anyMatch(m -> m.content().containsMultimodalContent());
+    }
+
+    public boolean containsChatCompletionReasoning() {
+        return reasoning() != null || messages().stream().anyMatch(m -> m.reasoning() != null || m.reasoningDetails() != null);
     }
 
     private static ToolChoice parseToolChoice(XContentParser parser) throws IOException {

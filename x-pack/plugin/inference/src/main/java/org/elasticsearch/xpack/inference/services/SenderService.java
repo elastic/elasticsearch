@@ -46,6 +46,7 @@ import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMu
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedMultimodalUnifiedCompletionOperation;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedReasoningUnifiedCompletionOperation;
 
 public abstract class SenderService implements InferenceService {
     protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
@@ -136,15 +137,21 @@ public abstract class SenderService implements InferenceService {
         ActionListener<InferenceServiceResults> listener
     ) {
         SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((completionInferListener) -> {
-            if (supportsMultimodalCompletions() || request.containsMultimodalContent() == false) {
-                doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
-            } else {
+            if (supportsMultimodalCompletions() == false && request.containsMultimodalContent()) {
                 throwUnsupportedMultimodalUnifiedCompletionOperation(name());
             }
+            if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
+                throwUnsupportedReasoningUnifiedCompletionOperation(name());
+            }
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), timeout, completionInferListener);
         }).addListener(listener);
     }
 
     protected boolean supportsMultimodalCompletions() {
+        return false;
+    }
+
+    protected boolean supportsChatCompletionReasoning() {
         return false;
     }
 

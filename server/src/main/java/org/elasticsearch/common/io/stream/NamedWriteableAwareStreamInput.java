@@ -49,6 +49,12 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
     }
 
     @Override
+    public <T extends NamedWriteable> List<T> readOptionalNamedWriteableCollectionAsList(Class<T> categoryClass) throws IOException {
+        final boolean isPresent = readBoolean();
+        return isPresent ? readNamedWriteableCollectionAsList(categoryClass) : null;
+    }
+
+    @Override
     public <C extends NamedWriteable> C readNamedWriteable(
         @SuppressWarnings("unused") Class<C> categoryClass,
         @SuppressWarnings("unused") String name

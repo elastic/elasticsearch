@@ -272,7 +272,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                         in.readOptionalCollectionAsList(ToolCall::new),
                         in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) ? in.readOptionalString() : null,
                         in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
-                            ? in.readOptionalCollectionAsList(ReasoningDetail::fromStream)
+                            ? in.readOptionalNamedWriteableCollectionAsList(ReasoningDetail.class)
                             : null
                     );
                 }

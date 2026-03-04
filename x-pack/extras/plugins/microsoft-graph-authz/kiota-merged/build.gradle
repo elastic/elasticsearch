@@ -13,13 +13,13 @@ apply plugin: 'com.gradleup.shadow'
 // because each of these declares a module `com.microsoft.kiota`, the plugin will crash at runtime; we work around this by building a shadow "uber jar"
 //  so that there is only one `com.microsoft.kiota` module
 dependencies {
-  implementation "com.microsoft.kiota:microsoft-kiota-abstractions:1.8.4"
-  implementation "com.microsoft.kiota:microsoft-kiota-authentication-azure:1.8.4"
-  implementation "com.microsoft.kiota:microsoft-kiota-http-okHttp:1.8.4"
-  implementation "com.microsoft.kiota:microsoft-kiota-serialization-json:1.8.4"
-  implementation "com.microsoft.kiota:microsoft-kiota-serialization-text:1.8.4"
-  implementation "com.microsoft.kiota:microsoft-kiota-serialization-form:1.8.4"
-  implementation "com.microsoft.kiota:microsoft-kiota-serialization-multipart:1.8.4"
+  implementation "com.microsoft.kiota:microsoft-kiota-abstractions:1.9.1"
+  implementation "com.microsoft.kiota:microsoft-kiota-authentication-azure:1.9.1"
+  implementation "com.microsoft.kiota:microsoft-kiota-http-okHttp:1.9.1"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-json:1.9.1"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-text:1.9.1"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-form:1.9.1"
+  implementation "com.microsoft.kiota:microsoft-kiota-serialization-multipart:1.9.1"
 }
 
 tasks.named('shadowJar').configure {

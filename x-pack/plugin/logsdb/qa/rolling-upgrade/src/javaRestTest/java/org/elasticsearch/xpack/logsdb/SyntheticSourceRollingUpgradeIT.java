@@ -82,8 +82,9 @@ public class SyntheticSourceRollingUpgradeIT extends AbstractLogsdbRollingUpgrad
         search(dataStreamName);
         query(dataStreamName);
 
-        for (int nodeIndex : searchFirstUpgradeOrder()) {
-            upgradeNode(nodeIndex);
+        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
+        for (int i = 0; i < numNodes; i++) {
+            upgradeNode(i);
             time = time.plusNanos(60 * 30);
             bulkIndex(dataStreamName, 4, 1024, time, SyntheticSourceRollingUpgradeIT::docSupplier);
             search(dataStreamName);

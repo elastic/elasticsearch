@@ -338,10 +338,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                             StoredFields storedFields = reader.storedFields();
                             for (int i = 0; i < reader.maxDoc(); i++) {
                                 Document document = storedFields.document(i);
-                                Set<String> collect = document.getFields()
-                                    .stream()
-                                    .map(IndexableField::name)
-                                    .collect(Collectors.toSet());
+                                Set<String> collect = document.getFields().stream().map(IndexableField::name).collect(Collectors.toSet());
                                 assertTrue(collect.contains("source"));
                                 assertThat(collect.contains("extra_source"), equalTo(syntheticRecoverySource == false));
                                 assertEquals(i, extra_source.nextDoc());

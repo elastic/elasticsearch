@@ -957,7 +957,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testSyntheticIdCorrectSettings() {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT,
             IndexVersion.current()
         );
         IndexMode mode = IndexMode.TIME_SERIES;
@@ -977,7 +977,7 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testSyntheticIdBadVersion() {
-        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
+        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
         IndexMode mode = IndexMode.TIME_SERIES;
         String codec = CodecService.DEFAULT_CODEC;
 
@@ -997,7 +997,7 @@ public class IndexSettingsTests extends ESTestCase {
                     Locale.ROOT,
                     "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
                     IndexSettings.SYNTHETIC_ID.getKey(),
-                    IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+                    IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT,
                     badVersion
                 )
             )
@@ -1006,7 +1006,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testSyntheticIdBadCodec() {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT,
             IndexVersion.current()
         );
         IndexMode mode = IndexMode.TIME_SERIES;
@@ -1043,7 +1043,7 @@ public class IndexSettingsTests extends ESTestCase {
 
     public void testSyntheticIdBadMode() {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT,
             IndexVersion.current()
         );
         IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));

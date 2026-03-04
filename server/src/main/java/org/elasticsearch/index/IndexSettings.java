@@ -713,7 +713,7 @@ public final class IndexSettings {
         String codec = INDEX_CODEC_SETTING.get(settings);
         return IndexMode.TIME_SERIES.equals(indexMode)
             && CodecService.DEFAULT_CODEC.equalsIgnoreCase(codec)
-            && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
+            && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT) ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
     }, new Setting.Validator<>() {
         @Override
         public void validate(Boolean enabled) {}
@@ -751,7 +751,7 @@ public final class IndexSettings {
                 }
 
                 var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
-                if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) == false
+                if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT) == false
                     && indexVersion.equals(IndexVersions.ZERO) == false) {
                     // We validate settings in different places before a real indexVersion has been assigned or
                     // is missing for other reasons. In those cases IndexVersion.ZERO is used as fallback value,
@@ -762,7 +762,7 @@ public final class IndexSettings {
                             Locale.ROOT,
                             "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
                             SYNTHETIC_ID.getKey(),
-                            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+                            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT,
                             indexVersion
                         )
                     );

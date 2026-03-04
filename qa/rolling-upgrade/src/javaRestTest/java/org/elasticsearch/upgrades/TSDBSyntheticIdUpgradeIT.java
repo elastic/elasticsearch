@@ -147,7 +147,7 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
             Locale.ROOT,
             "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
             setting,
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT,
             oldClusterIndexVersion
         );
 
@@ -193,6 +193,6 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     private boolean hasSupportForSyntheticId(IndexVersion indexVersion) {
-        return indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
+        return indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT);
     }
 }

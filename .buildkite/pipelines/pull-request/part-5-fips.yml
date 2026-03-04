@@ -1,10 +1,9 @@
 config:
   allow-labels:
-    - Team:Security
     - test-fips
 steps:
   - label: part-5-fips
-    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart5
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true -Dtests.fips.mode=140-2 checkPart5
     timeout_in_minutes: 300
     agents:
       provider: gcp

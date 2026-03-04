@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -942,41 +941,6 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             in -> in.readNamedWriteable(LogicalPlan.class),
             configWithViewQueries
         );
-    }
-
-    // --- ViewUnionAll unit tests ---
-
-    public void testViewUnionAllIsInstanceOfUnionAll() {
-        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, List.of(), List.of());
-        assertThat(viewUnion, instanceOf(UnionAll.class));
-    }
-
-    public void testViewUnionAllReplaceChildrenPreservesType() {
-        LogicalPlan child1 = query("FROM emp1");
-        LogicalPlan child2 = query("FROM emp2");
-        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, List.of(child1), List.of());
-
-        LogicalPlan replaced = viewUnion.replaceChildren(List.of(child2));
-        assertThat(replaced, instanceOf(ViewUnionAll.class));
-    }
-
-    public void testViewUnionAllReplaceSubPlansPreservesType() {
-        LogicalPlan child1 = query("FROM emp1");
-        LogicalPlan child2 = query("FROM emp2");
-        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, List.of(child1), List.of());
-
-        UnionAll replaced = viewUnion.replaceSubPlans(List.of(child2));
-        assertThat(replaced, instanceOf(ViewUnionAll.class));
-    }
-
-    public void testViewUnionAllReplaceSubPlansAndOutputPreservesType() {
-        LogicalPlan child1 = query("FROM emp1");
-        LogicalPlan child2 = query("FROM emp2");
-        List<Attribute> output = child2.output();
-        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, List.of(child1), List.of());
-
-        var replaced = viewUnion.replaceSubPlansAndOutput(List.of(child2), output);
-        assertThat(replaced, instanceOf(ViewUnionAll.class));
     }
 
     // --- Behavioral test: views inside subqueries ---

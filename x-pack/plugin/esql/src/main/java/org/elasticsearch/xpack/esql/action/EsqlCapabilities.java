@@ -2172,6 +2172,12 @@ public class EsqlCapabilities {
         TDIGEST_MEDIAN,
 
         /**
+         * A bugfix we applied to the HISTOGRAM_PERCENTILE algorithm on the tdigest type.
+         * We previously were using hybrid-digests by accident and now use a merging digest.
+         */
+        TDIGEST_PERCENTILES_USE_MERGING_DIGEST,
+
+        /**
          * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
          */
         TS_COMMAND_GROUP_ON_ALIASES,

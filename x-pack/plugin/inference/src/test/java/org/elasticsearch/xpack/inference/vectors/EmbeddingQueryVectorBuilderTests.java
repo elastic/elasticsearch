@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.inference.InferencePlugin;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ml.vectors.EmbeddingQueryVectorBuilder.DEFAULT_TIMEOUT;
+import static org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder.DEFAULT_TIMEOUT;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 

@@ -105,7 +105,6 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
 import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED;
 import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.closePit;
 import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.openPit;
-import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE;
 
 public class Reindexer {
 

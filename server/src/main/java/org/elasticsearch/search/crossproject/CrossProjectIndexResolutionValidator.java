@@ -77,6 +77,7 @@ public class CrossProjectIndexResolutionValidator {
      * @param projectRouting            The project routing string from the request, can be null if request does not specify it
      * @param localResolvedExpressions  Resolution results from the origin project
      * @param remoteResolvedExpressions Resolution results from linked projects
+     * @param remoteExceptions          Connection exceptions, etc., from linked projects, should be empty when all remote requests succeed
      * @return a {@link ElasticsearchException} if validation fails, null if validation passes
      */
     public static ElasticsearchException validate(

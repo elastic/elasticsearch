@@ -36,7 +36,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 
-import java.time.Clock;
 import java.util.List;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
@@ -66,15 +65,6 @@ public class SnapshotStep implements DlmStep {
 
     static final TimeValue SNAPSHOT_TIMEOUT = TimeValue.timeValueHours(12);
     static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
-
-    private final Clock clock;
-
-    /**
-     * @param clock supplies current time for timeout comparisons
-     */
-    public SnapshotStep(Clock clock) {
-        this.clock = clock;
-    }
 
     @Override
     public boolean stepCompleted(Index index, ProjectState projectState) {
@@ -113,7 +103,7 @@ public class SnapshotStep implements DlmStep {
     private void handleInProgressSnapshot(DlmStepContext stepContext, String repositoryName, String snapshotName, long snapshotStartTime) {
         String indexName = stepContext.indexName();
 
-        if ((clock.millis() - snapshotStartTime) > SNAPSHOT_TIMEOUT.millis()) {
+        if ((stepContext.clock().millis() - snapshotStartTime) > SNAPSHOT_TIMEOUT.millis()) {
             logger.warn(
                 "DLM snapshot [{}] for index [{}] has been running for over [{}], cancelling and restarting",
                 snapshotName,

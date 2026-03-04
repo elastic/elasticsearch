@@ -117,19 +117,19 @@ public class SnapshotStepTests extends ESTestCase {
 
     public void testStepCompletedWhenSettingIsPresent() {
         ProjectState projectState = createProjectStateWithSnapshotComplete();
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
         assertTrue(step.stepCompleted(index, projectState));
     }
 
     public void testStepNotCompletedWhenSettingIsAbsent() {
         ProjectState projectState = createProjectState();
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
         assertFalse(step.stepCompleted(index, projectState));
     }
 
     public void testStepNotCompletedWhenIndexMissing() {
         ProjectState projectState = createProjectState();
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
         Index unknownIndex = new Index("unknown-index", "unknown-uuid");
         assertFalse(step.stepCompleted(unknownIndex, projectState));
     }
@@ -137,7 +137,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testExecuteStartsSnapshotWhenNoPriorSnapshotExists() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -161,7 +161,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testExecuteMarksCompleteWhenValidOrphanedSnapshotExists() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -195,7 +195,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testExecuteDeletesInvalidOrphanedSnapshotAndRecreates() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -240,7 +240,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testExecuteHandlesGetSnapshotFailure() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -255,7 +255,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testExecuteHandlesSnapshotMissingExceptionOnGet() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -269,7 +269,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testExecuteHandlesSnapshotMissingExceptionOnDelete() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -291,7 +291,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testExecuteHandlesDeleteFailure() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -313,7 +313,7 @@ public class SnapshotStepTests extends ESTestCase {
         long snapshotStartTime = currentTime - TimeValue.timeValueHours(1).millis();
         ProjectState projectState = createProjectStateWithSnapshotInProgress(snapshotStartTime);
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -325,7 +325,7 @@ public class SnapshotStepTests extends ESTestCase {
         long snapshotStartTime = currentTime - TimeValue.timeValueHours(13).millis();
         ProjectState projectState = createProjectStateWithSnapshotInProgress(snapshotStartTime);
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -340,7 +340,7 @@ public class SnapshotStepTests extends ESTestCase {
                 .put(SnapshotStep.DLM_SNAPSHOT_COMPLETED_KEY, false)
                 .build()
         );
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
         assertFalse(step.stepCompleted(index, projectState));
     }
 
@@ -348,7 +348,7 @@ public class SnapshotStepTests extends ESTestCase {
         long snapshotStartTime = currentTime - TimeValue.timeValueHours(13).millis();
         ProjectState projectState = createProjectStateWithSnapshotInProgress(snapshotStartTime);
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -376,14 +376,14 @@ public class SnapshotStepTests extends ESTestCase {
     }
 
     public void testStepName() {
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
         assertThat(step.stepName(), is("Snapshot Index"));
     }
 
     public void testSuccessfulSnapshotMarksSettingComplete() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -421,7 +421,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testSnapshotWithFailedShardsRecordsError() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -460,7 +460,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testSnapshotCreationFailureRecordsError() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -479,7 +479,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testUpdateSettingsFailureRecordsError() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -519,7 +519,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testUpdateSettingsNotAcknowledgedRecordsError() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -557,7 +557,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testSnapshotWithNullSnapshotInfoRecordsError() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -576,7 +576,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testSuccessfulSnapshotAcknowledgedCompletes() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -615,7 +615,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testOrphanedSnapshotMarkCompleteSuccessClearsError() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         errorStore.recordError(projectId, indexName, new ElasticsearchException("previous error"));
         assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
@@ -653,7 +653,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testOrphanedSnapshotMarkCompleteFailureRecordsError() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -689,7 +689,7 @@ public class SnapshotStepTests extends ESTestCase {
     public void testOrphanedSnapshotMarkCompleteNotAcknowledgedRecordsError() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
-        SnapshotStep step = createStep(Clock.fixed(Instant.ofEpochMilli(currentTime), ZoneOffset.UTC));
+        SnapshotStep step = createStep();
 
         step.execute(stepContext);
 
@@ -722,8 +722,8 @@ public class SnapshotStepTests extends ESTestCase {
         assertThat(errorStore.getError(projectId, indexName).error(), containsString("not acknowledged"));
     }
 
-    private SnapshotStep createStep(Clock clock) {
-        return new SnapshotStep(clock);
+    private SnapshotStep createStep() {
+        return new SnapshotStep();
     }
 
     private ProjectState createProjectState() {

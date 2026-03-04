@@ -196,16 +196,9 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         return Objects.hash(format, id, index);
     }
 
-    /**
-     * Overridden to return value from super method,
-     * as both {@link ToXContentObject} and {@link ChunkedToXContentObject} have default implementations of this method returning false.
-     * This is done to ensure that {@link ReasoningDetail} can implement both interfaces without ambiguity,
-     * and to explicitly indicate that a {@link ReasoningDetail} is not a fragment and should be rendered as a complete object in XContent.
-     * @return super method value, which is false.
-     */
     @Override
     public boolean isFragment() {
-        return ToXContentObject.super.isFragment();
+        return false;
     }
 
     /**

@@ -117,6 +117,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 null,
                 false
             ),
+            threadPool.executor(ThreadPool.Names.GET),
             rewriteListener
         );
     }

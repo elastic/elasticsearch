@@ -216,7 +216,7 @@ setup:
           query: 'FROM test | WHERE animal == "dog"'
 
   - do:
-      catch: /Invalid index name \[myview\], already exists as an ESQL view/
+      catch: /Invalid index name \[myview\], already exists as an ESQL view|is not available when running in serverless mode/
       indices.create:
         index: myview
 
@@ -225,13 +225,13 @@ setup:
         index: myindex
 
   - do:
-      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias/
+      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias|is not available when running in serverless mode/
       indices.put_alias:
         index: myindex
         name: myview
 
   - do:
-      catch: /Invalid index name \[myview\], already exists as an ESQL view/
+      catch: /Invalid index name \[myview\], already exists as an ESQL view|is not available when running in serverless mode/
       indices.clone:
         index: myindex
         target: myview
@@ -246,7 +246,7 @@ setup:
           data_stream: {}
 
   - do:
-      catch: /data_stream \[myview\] already exists as an ESQL view/
+      catch: /data_stream \[myview\] already exists as an ESQL view|is not available when running in serverless mode/
       indices.create_data_stream:
         name: myview
 
@@ -255,7 +255,7 @@ setup:
         name: myviewds
 
   - do:
-      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias/
+      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias|is not available when running in serverless mode/
       indices.put_alias:
         index: myviewds
         name: myview
@@ -301,3 +301,182 @@ setup:
         body: { query: { match_all: {} } }
 
   - length: { hits.hits: 1 }
+
+---
+"query-from-view":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM dogs | SORT id | KEEP id, color | LIMIT 10'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "color" }
+  - length: { values: 4 }
+  - match: { values.0: [2, "brown"] }
+  - match: { values.1: [3, "white"] }
+  - match: { values.2: [4, "brown"] }
+  - match: { values.3: [6, "brown"] }
+
+---
+"query-from-multiple-views":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.put_view:
+        name: cats
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM dogs, cats | SORT id | KEEP id, animal | LIMIT 10'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "animal" }
+  - length: { values: 5 }
+  - match: { values.0: [2, "dog"] }
+  - match: { values.1: [3, "dog"] }
+  - match: { values.2: [4, "dog"] }
+  - match: { values.3: [5, "cat"] }
+  - match: { values.4: [6, "dog"] }
+
+---
+"query-from-nested-views":
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.put_view:
+        name: brown_dogs
+        body:
+          query: 'FROM dogs | WHERE color == "brown"'
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM brown_dogs | SORT id | KEEP id, color, animal | LIMIT 10'
+
+  - match: { columns.0.name: "id" }
+  - match: { columns.1.name: "color" }
+  - match: { columns.2.name: "animal" }
+  - length: { values: 3 }
+  - match: { values.0: [2, "brown", "dog"] }
+  - match: { values.1: [4, "brown", "dog"] }
+  - match: { values.2: [6, "brown", "dog"] }
+
+---
+"cyclic-view-self-reference":
+  - do:
+      esql.put_view:
+        name: cyclic_view
+        body:
+          query: 'FROM cyclic_view'
+
+  - do:
+      catch: /circular view reference 'cyclic_view'/
+      esql.query:
+        body:
+          query: 'FROM cyclic_view | LIMIT 10'
+
+---
+"cyclic-view-mutual-reference":
+  - do:
+      esql.put_view:
+        name: view_a
+        body:
+          query: 'FROM view_b'
+
+  - do:
+      esql.put_view:
+        name: view_b
+        body:
+          query: 'FROM view_a'
+
+  - do:
+      catch: /circular view reference 'view_a'.*view_a -> view_b/
+      esql.query:
+        body:
+          query: 'FROM view_a | LIMIT 10'
+
+---
+"cyclic-view-chain":
+  - do:
+      esql.put_view:
+        name: chain_a
+        body:
+          query: 'FROM chain_b'
+
+  - do:
+      esql.put_view:
+        name: chain_b
+        body:
+          query: 'FROM chain_c'
+
+  - do:
+      esql.put_view:
+        name: chain_c
+        body:
+          query: 'FROM chain_a'
+
+  - do:
+      catch: /circular view reference 'chain_a'.*chain_a -> chain_b -> chain_c/
+      esql.query:
+        body:
+          query: 'FROM chain_a | LIMIT 10'
+
+---
+"view-refers-to-nonexistent-index":
+  - do:
+      esql.put_view:
+        name: bad_view
+        body:
+          query: 'FROM nonexistent_index'
+
+  - do:
+      catch: /Unknown index \[nonexistent_index\]/
+      esql.query:
+        body:
+          query: 'FROM bad_view | LIMIT 10'
+
+---
+"view-with-wildcard-matching-view":
+  - skip:
+      features: warnings
+
+  - do:
+      esql.put_view:
+        name: v_dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.put_view:
+        name: v_cats
+        body:
+          query: 'FROM test | WHERE animal == "cat"'
+
+  # Wildcard FROM v_* should match views v_dogs and v_cats
+  - do:
+      warnings:
+        - "No limit defined, adding default limit of [1000]"
+      esql.query:
+        body:
+          query: 'FROM v_* | STATS count = COUNT() BY animal | SORT animal'
+
+  - length: { values: 2 }
+  - match: { values.0: [1, "cat"] }
+  - match: { values.1: [4, "dog"] }

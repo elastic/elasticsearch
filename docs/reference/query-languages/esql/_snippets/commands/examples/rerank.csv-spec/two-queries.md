@@ -6,13 +6,12 @@ FROM books METADATA _score
 | SORT _score DESC
 | LIMIT 100
 | RERANK rerank_score = "hobbit" ON description, author WITH { "inference_id" : "test_reranker" }
-| SORT rerank_score
+| SORT rerank_score DESC, book_no DESC
 | LIMIT 3
-| KEEP title, _score, rerank_score
 ```
 
 | title:text | _score:double | rerank_score:double |
 | --- | --- | --- |
-| Return of the Shadow | 3.4218082427978516 | 5.740527994930744E-4 |
-| Return of the King Being the Third Part of The Lord of the Rings | 2.8398752212524414 | 9.000900317914784E-4 |
-| The Lays of Beleriand | 1.5629040002822876 | 9.36329597607255E-4 |
+| The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 0.7976278066635132 | 0.125 |
+| A Middle English Reader and Vocabulary | 1.043297290802002 | 0.07692307978868484 |
+| FINAL WITNESS | 1.4058171510696411 | 0.07692307978868484 |

@@ -39,12 +39,12 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
 
         List<AggregateMetricDoubleBlock> blocks = List.of(
             blockFactory.newAggregateMetricDoubleBlockBuilder(0).build(),
-            blockFactory.newAggregateMetricDoubleBlockBuilder(0).appendNull().build().filter(),
-            partialMetricBuilder.build().filter(),
+            blockFactory.newAggregateMetricDoubleBlockBuilder(0).appendNull().build().filter(false),
+            partialMetricBuilder.build().filter(false),
             blockFactory.newConstantAggregateMetricDoubleBlock(
                 new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(0.0, 0.0, 0.0, 0),
                 0
-            ).filter(),
+            ).filter(false),
             (ConstantNullBlock) blockFactory.newConstantNullBlock(0)
         );
 
@@ -75,8 +75,8 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
 
         List<AggregateMetricDoubleBlock> blocks = List.of(
             builder1.build(),
-            builder2.build().filter(0, 2, 5),
-            builder3.build().filter(2, 3, 4)
+            builder2.build().filter(false, 0, 2, 5),
+            builder3.build().filter(false, 2, 3, 4)
         );
         assertAllEquals(blocks);
     }
@@ -119,13 +119,13 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
 
         List<AggregateMetricDoubleBlock> moreBlocks = List.of(
             builder1.build(),
-            builder2.build().filter(0, 2),
+            builder2.build().filter(false, 0, 2),
             AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock1),
-            AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock2).filter(2, 3),
+            AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock2).filter(false, 2, 3),
             blockFactory.newConstantAggregateMetricDoubleBlock(
                 new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(12.3, 987.6, 4821.3, 6),
                 4
-            ).filter(1, 3),
+            ).filter(false, 1, 3),
             blockFactory.newConstantAggregateMetricDoubleBlock(
                 new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(12.3, 987.6, 4821.3, 6),
                 2
@@ -162,7 +162,7 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
         builder2.sum().appendNull();
         builder2.count().appendInt(1000);
 
-        List<AggregateMetricDoubleBlock> evenMoreBlocks = List.of(builder1.build(), builder2.build().filter(2, 3, 5));
+        List<AggregateMetricDoubleBlock> evenMoreBlocks = List.of(builder1.build(), builder2.build().filter(false, 2, 3, 5));
         assertAllEquals(evenMoreBlocks);
     }
 

@@ -27,8 +27,7 @@ import java.util.Objects;
 public abstract class SearchProgressListener {
     private static final Logger logger = LogManager.getLogger(SearchProgressListener.class);
 
-    public static final SearchProgressListener NOOP = new SearchProgressListener() {
-    };
+    public static final SearchProgressListener NOOP = new SearchProgressListener() {};
 
     private List<SearchShard> shards;
 

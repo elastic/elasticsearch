@@ -86,7 +86,7 @@ public class XPackLicenseState {
         );
         messages.put(XPackField.REDACT_PROCESSOR, new String[] { "Executing a redact processor in an ingest pipeline will fail." });
         messages.put(XPackField.INFERENCE, new String[] { "The Inference API is disabled" });
-        messages.put(XPackField.GPU_INDEXING, new String[] { "Indexing using a GPU is disabled." });
+        messages.put(XPackField.GPU_VECTOR_INDEXING, new String[] { "Indexing using a GPU is disabled." });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -110,7 +110,7 @@ public class XPackLicenseState {
         messages.put(XPackField.REDACT_PROCESSOR, XPackLicenseState::redactProcessorAcknowledgementMessages);
         messages.put(XPackField.ESQL, XPackLicenseState::esqlAcknowledgementMessages);
         messages.put(XPackField.INFERENCE, XPackLicenseState::inferenceApiAcknowledgementMessages);
-        messages.put(XPackField.GPU_INDEXING, XPackLicenseState::gpuIndexingAcknowledgementMessages);
+        messages.put(XPackField.GPU_VECTOR_INDEXING, XPackLicenseState::gpuVectorIndexingAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -378,7 +378,7 @@ public class XPackLicenseState {
         return Strings.EMPTY_ARRAY;
     }
 
-    private static String[] gpuIndexingAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+    private static String[] gpuVectorIndexingAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
             case BASIC:
             case STANDARD:

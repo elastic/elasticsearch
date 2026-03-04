@@ -347,8 +347,11 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Wraps a given listener and returns a new listener which makes sure {@link #onResponse(Object)}
-     * and {@link #onFailure(Exception)} of the provided listener will be called at most once.
+     * Wraps a given listener and returns a new listener which makes sure {@link #onResponse(Object)} and {@link #onFailure(Exception)} of
+     * the provided listener will be called at most once.
+     * <p>
+     * Crucially, this drops the reference to the provided listener as soon as it is complete, allowing it and its dependencies to be GCd
+     * even though the small {@code notifyOnce()} wrapper might remain reachable in a collection of pending listeners somewhere.
      */
     static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> delegate) {
         return new ActionListenerImplementations.NotifyOnceActionListener<>(delegate);

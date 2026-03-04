@@ -6,9 +6,6 @@ dependencies {
   javaRestTestImplementation project(path: xpackModule('inference'))
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
-  // Allow javaRestTest to see unit-test classes from x-pack:plugin:inference so we can import some variables
-  javaRestTestImplementation(testArtifact(project(xpackModule('inference'))))
-
   // Added this to have access to MockWebServer within the tests
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 

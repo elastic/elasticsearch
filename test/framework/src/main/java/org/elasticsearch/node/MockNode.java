@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -237,15 +238,24 @@ public class MockNode extends Node {
         protected ClusterInfoService newClusterInfoService(
             PluginsService pluginsService,
             Settings settings,
+            WriteLoadConstraintSettings writeLoadConstraintSettings,
             ClusterService clusterService,
             ThreadPool threadPool,
             NodeClient client
         ) {
             if (pluginsService.filterPlugins(MockInternalClusterInfoService.TestPlugin.class).findAny().isEmpty()) {
-                return super.newClusterInfoService(pluginsService, settings, clusterService, threadPool, client);
+                return super.newClusterInfoService(
+                    pluginsService,
+                    settings,
+                    writeLoadConstraintSettings,
+                    clusterService,
+                    threadPool,
+                    client
+                );
             } else {
                 final MockInternalClusterInfoService service = new MockInternalClusterInfoService(
                     settings,
+                    writeLoadConstraintSettings,
                     clusterService,
                     threadPool,
                     client

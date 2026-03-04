@@ -1175,6 +1175,27 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getField(mapper.fieldType().syntheticSourceFallbackFieldName()), Matchers.notNullValue());
     }
 
+    /**
+     * Verifies that a lack of values that don't exceed ignore_above doesn't break anything.
+     */
+    public void testSyntheticSourceWhenAllValuesExceedIgnoreAbove() throws IOException {
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            b.field("type", "keyword");
+            b.field("ignore_above", 5);
+            b.endObject();
+        }));
+
+        String longValue1 = "this value is long";
+        String longValue2 = "this value is long too";
+
+        // long values should be present in synthetic source regardless
+        assertEquals(
+            "{\"field\":[\"" + longValue1 + "\",\"" + longValue2 + "\"]}",
+            syntheticSource(mapperService.documentMapper(), b -> b.array("field", longValue1, longValue2))
+        );
+    }
+
     public void testValueIsNotStoredWhenItExceedsIgnoreAboveAndFieldIsAMultiField() throws IOException {
         // given
         MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {

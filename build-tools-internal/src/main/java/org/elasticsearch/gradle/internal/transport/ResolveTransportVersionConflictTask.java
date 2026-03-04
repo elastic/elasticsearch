@@ -17,17 +17,29 @@ import java.util.Set;
 public abstract class ResolveTransportVersionConflictTask extends AbstractGenerateTransportVersionDefinitionTask {
 
     @Override
-    protected void runGeneration(TransportVersionResourcesService resources, List<TransportVersionUpperBound> upstreamUpperBounds)
-        throws IOException {
+    protected void runGeneration(
+        TransportVersionResourcesService resources,
+        List<TransportVersionUpperBound> upstreamUpperBounds,
+        boolean onReleaseBranch
+    ) throws IOException {
 
-        Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
-        if (changedDefinitionNames.isEmpty()) {
-            getLogger().lifecycle("No transport version changes detected, skipping transport version re-generation");
-            return;
+        if (onReleaseBranch) {
+            if (resources.hasCherryPickConflicts()) {
+                getLogger().lifecycle("Resolving transport version conflicts by accepting upstream changes...");
+                resources.checkoutOriginalChange();
+            } else {
+                getLogger().lifecycle("No transport version merge conflicts detected");
+            }
+        } else {
+            Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
+            if (changedDefinitionNames.isEmpty()) {
+                getLogger().lifecycle("No transport version changes detected, skipping transport version re-generation");
+                return;
+            }
+            String targetDefinitionName = changedDefinitionNames.iterator().next();
+
+            generateTransportVersionDefinition(resources, targetDefinitionName, upstreamUpperBounds, resources.getIdsByBase());
         }
-        String targetDefinitionName = changedDefinitionNames.iterator().next();
-
-        generateTransportVersionDefinition(resources, targetDefinitionName, upstreamUpperBounds, resources.getIdsByBase());
     }
 
     @Override
@@ -57,6 +69,6 @@ public abstract class ResolveTransportVersionConflictTask extends AbstractGenera
     @Override
     protected void writeUpperBound(TransportVersionResourcesService resources, TransportVersionUpperBound newUpperBound)
         throws IOException {
-        resources.writeUpperBound(newUpperBound, true);
+        resources.writeUpperBound(newUpperBound);
     }
 }

@@ -29,7 +29,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     public void testDevelopmentMMRCommand() throws Exception {
-        parse("row dense_embeddings = [0.2,0.3,0.4,0.5] | mmr dense_embeddings limit 5", "mmr");
+        parse("row dense_embeddings = [0.2,0.3,0.4,0.5] | mmr on dense_embeddings limit 5", "mmr");
     }
 
     void parse(String query, String errorMessage) {

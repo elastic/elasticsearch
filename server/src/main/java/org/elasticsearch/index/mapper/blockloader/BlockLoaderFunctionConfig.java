@@ -50,6 +50,7 @@ public interface BlockLoaderFunctionConfig {
         AMD_MAX,
         AMD_MIN,
         AMD_SUM,
+        BYTE_LENGTH,
         MV_MAX,
         MV_MIN,
         LENGTH,
@@ -58,6 +59,7 @@ public interface BlockLoaderFunctionConfig {
         V_HAMMING,
         V_L1NORM,
         V_L2NORM,
-        TIME_SERIES_DIMENSIONS
+        TIME_SERIES_DIMENSIONS,
+        TIME_SERIES_METRICS_AND_DIMENSIONS
     }
 }

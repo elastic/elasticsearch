@@ -80,7 +80,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
 
                     // UnionAll with unsupported types should not be allowed, otherwise runtime couldn't handle it
                     // Verifier checkUnresolvedAttributes should have caught it already, this check is similar to Fork
-                    if (expected == DataType.UNSUPPORTED) {
+                    if (expected == null || expected == DataType.UNSUPPORTED) {
                         continue;
                     }
 

@@ -19,258 +19,129 @@ import java.lang.invoke.MethodHandle;
  * the method handles will, by definition, require access to MemorySegment.
  */
 public interface VectorSimilarityFunctions {
-    /**
-     * Produces a method handle returning the dot product of byte (unsigned int7) vectors.
-     *
-     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
-     *
-     * <p> The type of the method handle will have {@code int} as return type, The type of
-     * its first and second arguments will be {@code MemorySegment}, whose contents is the
-     * vector data bytes. The third argument is the length of the vector data.
-     */
-    MethodHandle dotProductHandle7u();
+
+    enum Function {
+        /**
+         * Cosine distance (byte vectors only)
+         */
+        COSINE,
+        /**
+         * Dot product distance
+         */
+        DOT_PRODUCT,
+        /**
+         * Squared Euclidean distance
+         */
+        SQUARE_DISTANCE
+    }
+
+    enum DataType {
+        /**
+         * Unsigned int7. Single vector score returns results as an int.
+         */
+        INT7U(Byte.BYTES),
+        /**
+         * 1-byte int. Single vector score returns results as an int.
+         */
+        INT8(Byte.BYTES),
+        /**
+         * 4-byte float. Single vector score returns results as a float.
+         */
+        FLOAT32(Float.BYTES);
+
+        private final int bytes;
+
+        DataType(int bytes) {
+            this.bytes = bytes;
+        }
+
+        public int bytes() {
+            return bytes;
+        }
+    }
 
     /**
-     * Produces a method handle which computes the dot product of several byte (unsigned
-     * int7) vectors. This bulk operation can be used to compute the dot product between a
-     * single query vector and a number of other vectors.
-     *
-     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
-     *
-     * <p> The type of the method handle will have {@code void} as return type. The type of
-     * its first and second arguments will be {@code MemorySegment}, the former contains the
-     * vector data bytes for several vectors, while the latter just a single vector. The
-     * type of the third argument is an int, representing the dimensions of each vector. The
-     * type of the fourth argument is an int, representing the number of vectors in the
-     * first argument. The type of the final argument is a MemorySegment, into which the
-     * computed dot product float values will be stored.
+     * The various flavors of BBQ indices. Single vector score returns results as a long.
      */
-    MethodHandle dotProductHandle7uBulk();
+    enum BBQType {
+        /**
+         * 1-bit data, 4-bit queries
+         */
+        D1Q4((byte) 1),
+        /**
+         * 2-bit data, 4-bit queries
+         */
+        D2Q4((byte) 2),
+        /**
+         * 4-bit data, 4-bit queries
+         */
+        D4Q4((byte) 4);
 
-    /**
-     * Produces a method handle which computes the dot product of several byte (unsigned
-     * int7) vectors. This bulk operation can be used to compute the dot product between a
-     * single query vector and a subset of vectors from a dataset (array of vectors). Each
-     * vector to include in the operation is identified by an offset inside the dataset.
-     *
-     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
-     *
-     * <p> The type of the method handle will have {@code void} as return type. The type of
-     * its arguments will be:
-     * <ol>
-     *     <li>a {@code MemorySegment} containing the vector data bytes for several vectors;
-     *     in other words, a contiguous array of vectors</li>
-     *     <li>a {@code MemorySegment} containing the vector data bytes for a single ("query") vector</li>
-     *     <li>an {@code int}, representing the dimensions of each vector</li>
-     *     <li>an {@code int}, representing the width (in bytes) of each vector. Or, in other words,
-     *     the distance in bytes between two vectors inside the first param's {@code MemorySegment}</li>
-     *     <li>a {@code MemorySegment} containing the indices of the vectors inside the first param's array
-     *     on which we'll compute the dot product</li>
-     *     <li>an {@code int}, representing the number of vectors for which we'll compute the dot product
-     *     (which is equal to the size - in number of elements - of the 5th and 7th {@code MemorySegment}s)</li>
-     *     <li>a {@code MemorySegment}, into which the computed dot product float values will be stored</li>
-     * </ol>
-     */
-    MethodHandle dotProductHandle7uBulkWithOffsets();
+        private final byte dataBits;
 
-    /**
-     * Produces a method handle returning the dot product of an int4 (half-byte) vector and
-     * a bit vector (one bit per element)
-     *
-     * <p> The type of the method handle will have {@code long} as return type, The type of
-     * its first and second arguments will be {@code MemorySegment}, whose contents is the
-     * vector data bytes. The third argument is the length of the vector data.
-     */
-    MethodHandle dotProductHandleI1I4();
+        BBQType(byte dataBits) {
+            this.dataBits = dataBits;
+        }
 
-    /**
-     * Produces a method handle which computes the dot product of several vectors.
-     * This bulk operation can be used to compute the dot product between a
-     * single int4 query vector and a number of bit vectors (one bit per element),
-     *
-     * <p> The type of the method handle will have {@code void} as return type. The type of
-     * its first and second arguments will be {@code MemorySegment}, the former contains the
-     * vector data bytes for several vectors, while the latter just a single vector. The
-     * type of the third argument is an int, representing the dimensions of each vector. The
-     * type of the fourth argument is an int, representing the number of vectors in the
-     * first argument. The type of the final argument is a MemorySegment, into which the
-     * computed dot product float values will be stored.
-     */
-    MethodHandle dotProductHandleI1I4Bulk();
+        public byte dataBits() {
+            return dataBits;
+        }
 
-    /**
-     * Produces a method handle which computes the dot product of several vectors.
-     * This bulk operation can be used to compute the dot product between a single int4 query
-     * vector and a subset of vectors from a dataset (array of 1-bit vectors). Each
-     * vector to include in the operation is identified by an offset inside the dataset.
-     *
-     * <p> The type of the method handle will have {@code void} as return type. The type of
-     * its arguments will be:
-     * <ol>
-     *     <li>a {@code MemorySegment} containing the vector data bytes for several vectors;
-     *     in other words, a contiguous array of vectors</li>
-     *     <li>a {@code MemorySegment} containing the vector data bytes for a single ("query") vector</li>
-     *     <li>an {@code int}, representing the dimensions of each vector</li>
-     *     <li>an {@code int}, representing the width (in bytes) of each vector. Or, in other words,
-     *     the distance in bytes between two vectors inside the first param's {@code MemorySegment}</li>
-     *     <li>a {@code MemorySegment} containing the indices of the vectors inside the first param's array
-     *     on which we'll compute the dot product</li>
-     *     <li>an {@code int}, representing the number of vectors for which we'll compute the dot product
-     *     (which is equal to the size - in number of elements - of the 5th and 7th {@code MemorySegment}s)</li>
-     *     <li>a {@code MemorySegment}, into which the computed dot product float values will be stored</li>
-     * </ol>
-     */
-    MethodHandle dotProductHandleI1I4BulkWithOffsets();
+        public byte queryBits() {
+            return 4;
+        }
+    }
 
-    /**
-     * Produces a method handle returning the square distance of byte (unsigned int7) vectors.
-     *
-     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
-     *
-     * <p> The type of the method handle will have {@code int} as return type, The type of
-     * its first and second arguments will be {@code MemorySegment}, whose contents is the
-     * vector data bytes. The third argument is the length of the vector data.
-     */
-    MethodHandle squareDistanceHandle7u();
+    enum Operation {
+        /**
+         * Scores a single vector against another.
+         * <p>
+         * Method handle takes arguments {@code (MemorySegment, MemorySegment, int)}:
+         * <ol>
+         *     <li>First vector</li>
+         *     <li>Second vector</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
+         * </ol>
+         * Return value type is determined by the {@link DataType}.
+         */
+        SINGLE,
+        /**
+         * Scores multiple vectors against a single vector.
+         * <p>
+         * Method handle takes arguments {@code (MemorySegment, MemorySegment, int, int, MemorySegment}:
+         * <ol>
+         *     <li>Multiple vectors to score {@code a}</li>
+         *     <li>Single vector to score against</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
+         *     <li>Number of vectors in {@code a}</li>
+         *     <li>Score results, as 4-byte floats</li>
+         * </ol>
+         */
+        BULK,
+        /**
+         * Scores multiple vectors against a single vector, with an offset array to determine the vectors to score.
+         * <p>
+         * Method handle takes arguments {@code (MemorySegment, MemorySegment, int, int, MemorySegment, int, MemorySegment}:
+         * <ol>
+         *     <li>Multiple vectors to score</li>
+         *     <li>Single vector to score against</li>
+         *     <li>Number of dimensions, or for bbq, the number of index bytes</li>
+         *     <li>Number of bytes between the start of one vector and the start of the next vector in {@code a}</li>
+         *     <li>Array of 4-byte ints containing indices of vectors to score in {@code a}</li>
+         *     <li>Number of vectors to score</li>
+         *     <li>Score results, as 4-byte floats, in order of iteration through the offset array</li>
+         * </ol>
+         */
+        BULK_OFFSETS
+    }
 
-    /**
-     * Produces a method handle returning the square distance of several byte (unsigned int7) vectors.
-     * This bulk operation can be used to compute the square distance between a
-     * single query vector and a number of other vectors.
-     *
-     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
-     *
-     * <p> The type of the method handle will have {@code void} as return type. The type of
-     * its first and second arguments will be {@code MemorySegment}, the former contains the
-     * vector data bytes for several vectors, while the latter just a single vector. The
-     * type of the third argument is an int, representing the dimensions of each vector. The
-     * type of the fourth argument is an int, representing the number of vectors in the
-     * first argument. The type of the final argument is a MemorySegment, into which the
-     * computed square distance float values will be stored.
-     */
-    MethodHandle squareDistanceHandle7uBulk();
+    MethodHandle getHandle(Function function, DataType dataType, Operation operation);
 
-    /**
-     * Produces a method handle returning the square distance of several byte (unsigned int7) vectors.
-     * This bulk operation can be used to compute the square distance between a
-     * single query vector and a subset of vectors from a dataset (array of vectors). Each
-     * vector to include in the operation is identified by an offset inside the dataset.
-     *
-     * <p> Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
-     *
-     * <p> The type of the method handle will have {@code void} as return type. The type of
-     * its arguments will be:
-     * <ol>
-     *     <li>a {@code MemorySegment} containing the vector data bytes for several vectors;
-     *     in other words, a contiguous array of vectors</li>
-     *     <li>a {@code MemorySegment} containing the vector data bytes for a single ("query") vector</li>
-     *     <li>an {@code int}, representing the dimensions of each vector</li>
-     *     <li>an {@code int}, representing the width (in bytes) of each vector. Or, in other words,
-     *     the distance in bytes between two vectors inside the first param's {@code MemorySegment}</li>
-     *     <li>a {@code MemorySegment} containing the indices of the vectors inside the first param's array
-     *     on which we'll compute the square distance</li>
-     *     <li>an {@code int}, representing the number of vectors for which we'll compute the square distance
-     *     (which is equal to the size - in number of elements - of the 5th and 7th {@code MemorySegment}s)</li>
-     *     <li>a {@code MemorySegment}, into which the computed square distance float values will be stored</li>
-     * </ol>
-     */
-    MethodHandle squareDistanceHandle7uBulkWithOffsets();
+    MethodHandle getHandle(Function function, BBQType bbqType, Operation operation);
 
-    /**
-     * Produces a method handle returning the dot product of float32 vectors.
-     *
-     * <p> The type of the method handle will have {@code float} as return type, The type of
-     * its first and second arguments will be {@code MemorySegment}, whose contents is the
-     * vector data floats. The third argument is the length of the vector data - number of
-     * 4-byte float32 elements.
-     */
-    MethodHandle dotProductHandleFloat32();
+    MethodHandle applyCorrectionsEuclideanBulk();
 
-    /**
-     * Produces a method handle which computes the dot product of several float vectors.
-     * This bulk operation can be used to compute the dot product between a
-     * single query vector and a number of other vectors.
-     *
-     * <p> The type of the method handle will have {@code void} as return type. The type of
-     * its first and second arguments will be {@code MemorySegment}, the former contains the
-     * vector data floats for several vectors, while the latter just a single vector. The
-     * type of the third argument is an int, representing the dimensions of each vector. The
-     * type of the fourth argument is an int, representing the number of vectors in the
-     * first argument. The type of the final argument is a MemorySegment, into which the
-     * computed dot product float values will be stored.
-     */
-    MethodHandle dotProductHandleFloat32Bulk();
+    MethodHandle applyCorrectionsMaxInnerProductBulk();
 
-    /**
-     * Produces a method handle which computes the dot product of several float vectors.
-     * This bulk operation can be used to compute the dot product between a
-     * single query vector and a subset of vectors from a dataset (array of vectors). Each
-     * vector to include in the operation is identified by an offset inside the dataset.
-     *
-     * <p> The type of the method handle will have {@code void} as return type. The type of
-     * its arguments will be:
-     * <ol>
-     *     <li>a {@code MemorySegment} containing the vector data floats for several vectors;
-     *     in other words, a contiguous array of vectors</li>
-     *     <li>a {@code MemorySegment} containing the vector data floats for a single ("query") vector</li>
-     *     <li>an {@code int}, representing the dimensions of each vector</li>
-     *     <li>an {@code int}, representing the width (in bytes) of each vector. Or, in other words,
-     *     the distance in bytes between two vectors inside the first param's {@code MemorySegment}</li>
-     *     <li>a {@code MemorySegment} containing the indices of the vectors inside the first param's array
-     *     on which we'll compute the dot product</li>
-     *     <li>an {@code int}, representing the number of vectors for which we'll compute the dot product
-     *     (which is equal to the size - in number of elements - of the 5th and 7th {@code MemorySegment}s)</li>
-     *     <li>a {@code MemorySegment}, into which the computed dot product float values will be stored</li>
-     * </ol>
-     */
-    MethodHandle dotProductHandleFloat32BulkWithOffsets();
-
-    /**
-     * Produces a method handle returning the square distance of float32 vectors.
-     *
-     * <p> The type of the method handle will have {@code float} as return type, The type of
-     * its first and second arguments will be {@code MemorySegment}, whose contents is the
-     * vector data floats. The third argument is the length of the vector data - number of
-     * 4-byte float32 elements.
-     */
-    MethodHandle squareDistanceHandleFloat32();
-
-    /**
-     * Produces a method handle returning the square distance of several float vectors.
-     * This bulk operation can be used to compute the square distance between a
-     * single query vector and a number of other vectors.
-     *
-     * <p> The type of the method handle will have {@code void} as return type. The type of
-     * its first and second arguments will be {@code MemorySegment}, the former contains the
-     * vector data floats for several vectors, while the latter just a single vector. The
-     * type of the third argument is an int, representing the dimensions of each vector. The
-     * type of the fourth argument is an int, representing the number of vectors in the
-     * first argument. The type of the final argument is a MemorySegment, into which the
-     * computed square distance float values will be stored.
-     */
-    MethodHandle squareDistanceHandleFloat32Bulk();
-
-    /**
-     * Produces a method handle returning the square distance of several float vectors.
-     * This bulk operation can be used to compute the square distance between a
-     * single query vector and a subset of vectors from a dataset (array of vectors). Each
-     * vector to include in the operation is identified by an offset inside the dataset.
-     *
-     * <p> The type of the method handle will have {@code void} as return type. The type of
-     * its arguments will be:
-     * <ol>
-     *     <li>a {@code MemorySegment} containing the vector data floats for several vectors;
-     *     in other words, a contiguous array of vectors</li>
-     *     <li>a {@code MemorySegment} containing the vector data floats for a single ("query") vector</li>
-     *     <li>an {@code int}, representing the dimensions of each vector</li>
-     *     <li>an {@code int}, representing the width (in bytes) of each vector. Or, in other words,
-     *     the distance in bytes between two vectors inside the first param's {@code MemorySegment}</li>
-     *     <li>a {@code MemorySegment} containing the indices of the vectors inside the first param's array
-     *     on which we'll compute the square distance</li>
-     *     <li>an {@code int}, representing the number of vectors for which we'll compute the square distance
-     *     (which is equal to the size - in number of elements - of the 5th and 7th {@code MemorySegment}s)</li>
-     *     <li>a {@code MemorySegment}, into which the computed square distance float values will be stored</li>
-     * </ol>
-     */
-    MethodHandle squareDistanceHandleFloat32BulkWithOffsets();
+    MethodHandle applyCorrectionsDotProductBulk();
 }

@@ -1,0 +1,6 @@
+area: Allocation
+issues:
+ - 142424
+pr: 142575
+summary: Handle not preferred in replica shards allocator
+type: bug

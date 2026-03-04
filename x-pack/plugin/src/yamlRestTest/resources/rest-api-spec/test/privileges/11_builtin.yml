@@ -16,4 +16,4 @@ setup:
   # I would much prefer we could just check that specific entries are in the array, but we don't have
   # an assertion for that
   - length: { "cluster" : 63 }
-  - length: { "index" : 24 }
+  - length: { "index" : 28 }

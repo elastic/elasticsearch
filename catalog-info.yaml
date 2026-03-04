@@ -406,7 +406,9 @@ spec:
         ELASTIC_PR_COMMENTS_ENABLED: "true"
         ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "true"
         SLACK_NOTIFICATIONS_CHANNEL: "#es-perf-build"
-        SLACK_NOTIFICATIONS_ALL_BRANCHES: "false" # TODO: change to true later
+        SLACK_NOTIFICATIONS_ALL_BRANCHES: "true"
+      cancel_intermediate_builds: false
+      skip_intermediate_builds: false
       teams:
         elasticsearch-team: {}
         ml-core: {}

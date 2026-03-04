@@ -50,6 +50,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class TestDenseInferenceServiceExtension implements InferenceServiceExtension {
     @Override
@@ -124,6 +125,10 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
+            if (Objects.equals((((TestTaskSettings) model.getTaskSettings()).shouldFailValidation()), Boolean.TRUE)) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, TEXT_EMBEDDING, EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();

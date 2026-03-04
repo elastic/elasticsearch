@@ -41,7 +41,7 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
     }
 
     @Override
-    public FloatVector filter(int... positions) {
+    public FloatVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantFloatVector(value, positions.length);
     }
 

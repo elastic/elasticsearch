@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -16,7 +17,7 @@ import org.elasticsearch.core.Releasable;
  * of primitive long type. The id's start at 0, and increment monotonically as
  * unique keys are added.
  */
-public interface LongLongHashTable extends Releasable {
+public interface LongLongHashTable extends Releasable, Accountable {
 
     /** Gets the first key from the given id value. */
     long getKey1(long id);

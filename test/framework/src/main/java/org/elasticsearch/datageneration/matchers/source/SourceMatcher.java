@@ -24,7 +24,7 @@ import static org.elasticsearch.datageneration.matchers.Messages.formatErrorMess
 import static org.elasticsearch.datageneration.matchers.Messages.prettyPrintCollections;
 
 public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>>> {
-    private final Map<String, Map<String, Object>> mappingLookup;
+    protected final Map<String, Map<String, Object>> mappingLookup;
 
     private final Map<String, MappingTransforms.FieldMapping> actualNormalizedMapping;
     private final Map<String, MappingTransforms.FieldMapping> expectedNormalizedMapping;
@@ -95,7 +95,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         return MatchResult.match();
     }
 
-    private MatchResult compareSource(Map<String, List<Object>> actual, Map<String, List<Object>> expected) {
+    protected MatchResult compareSource(Map<String, List<Object>> actual, Map<String, List<Object>> expected) {
         for (var expectedFieldEntry : expected.entrySet()) {
             var name = expectedFieldEntry.getKey();
 

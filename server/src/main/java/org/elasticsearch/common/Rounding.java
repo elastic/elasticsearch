@@ -308,6 +308,11 @@ public abstract class Rounding implements Writeable {
          * is {@code null}.
          */
         long[] fixedRoundingPoints();
+
+        /**
+         * @return the original {@link Rounding} that created this instance.
+         */
+        Rounding getUnprepared();
     }
 
     /**
@@ -716,6 +721,11 @@ public abstract class Rounding implements Writeable {
                         return (double) unit.ratio / timeUnit.ratio;
                     }
                 }
+            }
+
+            @Override
+            public Rounding getUnprepared() {
+                return TimeUnitRounding.this;
             }
 
             @Override
@@ -1135,6 +1145,11 @@ public abstract class Rounding implements Writeable {
             }
 
             @Override
+            public Rounding getUnprepared() {
+                return TimeIntervalRounding.this;
+            }
+
+            @Override
             public abstract String toString();
         }
 
@@ -1445,6 +1460,11 @@ public abstract class Rounding implements Writeable {
                     // TODO we can likely translate here
                     return null;
                 }
+
+                @Override
+                public Rounding getUnprepared() {
+                    return delegatePrepared.getUnprepared();
+                }
             };
         }
 
@@ -1532,6 +1552,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public long[] fixedRoundingPoints() {
             return Arrays.copyOf(values, max);
+        }
+
+        @Override
+        public Rounding getUnprepared() {
+            return delegate.getUnprepared();
         }
     }
 }

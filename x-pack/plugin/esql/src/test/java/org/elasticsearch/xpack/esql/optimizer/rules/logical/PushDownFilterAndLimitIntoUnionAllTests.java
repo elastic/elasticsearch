@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -1104,21 +1103,59 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
     }
 
     /*
-     * Unbounded SORT inside subquery is not supported yet. Keep this as is for now.
-     * TODO  Consider appending a Limit into a subquery with unbounded SORT, similar to knn case.
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38,
+     *                    languages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{r}#42, language_code{r}#43, language_name{r}#44]]
+     *   |_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
+     *                    languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11, language_code{r}#19, language_name{r}#20]]
+     *   | \_Eval[[null[INTEGER] AS language_code#19, null[KEYWORD] AS language_name#20]]
+     *   |   \_Subquery[]
+     *   |     \_TopN[[Order[last_name{f}#10,ASC,LAST]],10000[INTEGER],false]
+     *   |       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     *   \_Project[[_meta_field{r}#21, emp_no{r}#22, first_name{r}#23, gender{r}#24, hire_date{r}#25, job{r}#26, job.raw{r}#27,
+     *                    languages{r}#28, last_name{r}#29, long_noidx{r}#30, salary{r}#31, language_code{f}#17, language_name{f}#18]]
+     *     \_Eval[[null[KEYWORD] AS _meta_field#21, null[INTEGER] AS emp_no#22, null[KEYWORD] AS first_name#23,
+     *                 null[TEXT] AS gender#24, null[DATETIME] AS hire_date#25, null[TEXT] AS job#26, null[KEYWORD] AS job.raw#27,
+     *                 null[INTEGER] AS languages#28, null[KEYWORD] AS last_name#29, null[LONG] AS long_noidx#30,
+     *                 null[INTEGER] AS salary#31]]
+     *       \_Subquery[]
+     *         \_TopN[[Order[language_name{f}#18,ASC,LAST]],10000[INTEGER],false]
+     *           \_Filter[language_code{f}#17 > 0[INTEGER]]
+     *             \_EsRelation[languages][language_code{f}#17, language_name{f}#18]
      */
-    public void testUnboundedSortInSubquery() {
-        VerificationException e = expectThrows(VerificationException.class, () -> planSubquery("""
-            FROM test, (FROM languages
-                                 | WHERE language_code > 0
-                                 | SORT language_name
-                                 )
-            """));
-        assertTrue(e.getMessage().startsWith("Found "));
-        final String header = "Found 1 problem\nline ";
-        assertEquals(
-            "3:24: Unbounded SORT not supported yet [SORT language_name] please add a LIMIT",
-            e.getMessage().substring(header.length())
-        );
+    public void testSortInSubquery() {
+        var plan = planSubquery("""
+            FROM
+                (FROM test
+                 | SORT last_name),
+                (FROM languages
+                 | WHERE language_code > 0
+                 | SORT language_name
+                )
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        Project project = as(unionAll.children().get(0), Project.class);
+        Eval eval = as(project.child(), Eval.class);
+        Subquery subquery = as(eval.child(), Subquery.class);
+        TopN topN = as(subquery.child(), TopN.class);
+        EsRelation relation = as(topN.child(), EsRelation.class);
+        assertEquals("test", relation.indexPattern());
+
+        project = as(unionAll.children().get(1), Project.class);
+        eval = as(project.child(), Eval.class);
+        subquery = as(eval.child(), Subquery.class);
+        topN = as(subquery.child(), TopN.class);
+        Filter filter = as(topN.child(), Filter.class);
+        GreaterThan greaterThan = as(filter.condition(), GreaterThan.class);
+        FieldAttribute language_code = as(greaterThan.left(), FieldAttribute.class);
+        assertEquals("language_code", language_code.name());
+        Literal right = as(greaterThan.right(), Literal.class);
+        assertEquals(0, right.value());
+        relation = as(filter.child(), EsRelation.class);
+        assertEquals("languages", relation.indexPattern());
     }
 }

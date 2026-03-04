@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
@@ -76,6 +75,7 @@ import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.results.ModelStoreResponse;
 import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
+import org.elasticsearch.xpack.inference.parser.EndpointMetadataParser;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 
@@ -137,8 +137,9 @@ public class ModelRegistry implements ClusterStateListener {
         String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
         String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
         TaskType taskType = TaskType.fromString(taskTypeStr);
+        var endpointMetadata = EndpointMetadataParser.fromMap(modelConfigMap.config());
 
-        return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());
+        return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets(), endpointMetadata);
     }
 
     private static final String TASK_TYPE_FIELD = "task_type";
@@ -151,7 +152,7 @@ public class ModelRegistry implements ClusterStateListener {
     private final OriginSettingClient client;
     private final Map<String, InferenceService.DefaultConfigId> defaultConfigIds;
 
-    private final MasterServiceTaskQueue<MetadataTask> metadataTaskQueue;
+    private final MasterServiceTaskQueue<ModelRegistryMetadataTask.MetadataTask> metadataTaskQueue;
     private final AtomicBoolean upgradeMetadataInProgress = new AtomicBoolean(false);
     private final Set<String> preventDeletionLock = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final ClusterService clusterService;
@@ -161,12 +162,16 @@ public class ModelRegistry implements ClusterStateListener {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
         this.defaultConfigIds = new ConcurrentHashMap<>();
-        var executor = new SimpleBatchedAckListenerTaskExecutor<MetadataTask>() {
+        var executor = new SimpleBatchedAckListenerTaskExecutor<ModelRegistryMetadataTask.MetadataTask>() {
             @Override
-            public Tuple<ClusterState, ClusterStateAckListener> executeTask(MetadataTask task, ClusterState clusterState) throws Exception {
+            public Tuple<ClusterState, ClusterStateAckListener> executeTask(
+                ModelRegistryMetadataTask.MetadataTask task,
+                ClusterState clusterState
+            ) throws Exception {
                 var projectMetadata = clusterState.metadata().getProject(task.getProjectId());
-                var updated = task.executeTask(ModelRegistryMetadata.fromState(projectMetadata));
-                var newProjectMetadata = ProjectMetadata.builder(projectMetadata).putCustom(ModelRegistryMetadata.TYPE, updated);
+                var updated = task.executeTask(ModelRegistryClusterStateMetadata.fromState(projectMetadata));
+                var newProjectMetadata = ProjectMetadata.builder(projectMetadata)
+                    .putCustom(ModelRegistryClusterStateMetadata.TYPE, updated);
                 return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(newProjectMetadata).build(), task);
             }
         };
@@ -190,7 +195,7 @@ public class ModelRegistry implements ClusterStateListener {
         // This checks the cluster state for EIS preconfigured endpoints
         if (lastMetadata.get() != null) {
             var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
-            var state = ModelRegistryMetadata.fromState(project);
+            var state = ModelRegistryClusterStateMetadata.fromState(project);
             var eisEndpoints = state.getServiceInferenceIds(ElasticInferenceService.NAME);
             return eisEndpoints.contains(inferenceEntityId) && inferenceEntityId.startsWith(EIS_PRECONFIGURED_ENDPOINT_ID_PREFIX);
         }
@@ -257,7 +262,7 @@ public class ModelRegistry implements ClusterStateListener {
             return config.settings();
         }
         var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
-        var state = ModelRegistryMetadata.fromState(project);
+        var state = ModelRegistryClusterStateMetadata.fromState(project);
         var existing = state.getMinimalServiceSettings(inferenceEntityId);
         if (state.isUpgraded() && existing == null) {
             throw new ResourceNotFoundException(inferenceEntityId + " does not exist in this cluster.");
@@ -269,7 +274,7 @@ public class ModelRegistry implements ClusterStateListener {
         Set<String> metadataInferenceIds = Set.of();
         if (lastMetadata.get() != null) {
             var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
-            var state = ModelRegistryMetadata.fromState(project);
+            var state = ModelRegistryClusterStateMetadata.fromState(project);
             metadataInferenceIds = state.getInferenceIds();
         }
 
@@ -590,7 +595,7 @@ public class ModelRegistry implements ClusterStateListener {
             if (configResponse.hasFailures()) {
                 // if storing the model configurations failed, it won't throw an exception, we need to check the BulkResponse and handle the
                 // exceptions ourselves.
-                logger.error(
+                logger.warn(
                     format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId, configResponse.buildFailureMessage())
                 );
                 preventDeletionLock.remove(inferenceEntityId);
@@ -639,7 +644,7 @@ public class ModelRegistry implements ClusterStateListener {
                     client
                 );
 
-                logger.error(
+                logger.warn(
                     "Failed to update inference endpoint secrets [{}], attempting rolling back to previous state",
                     inferenceEntityId
                 );
@@ -953,11 +958,16 @@ public class ModelRegistry implements ClusterStateListener {
 
                 metadataTaskQueue.submitTask(
                     format("add model metadata for %s", inferenceIdsSet),
-                    new AddModelMetadataTask(
+                    new ModelRegistryMetadataTask.AddModelMetadataTask(
                         ProjectId.DEFAULT,
                         responseInfo.successfullyStoredModels()
                             .stream()
-                            .map(model -> new ModelAndSettings(model.getInferenceEntityId(), new MinimalServiceSettings(model)))
+                            .map(
+                                model -> new ModelRegistryMetadataTask.ModelAndSettings(
+                                    model.getInferenceEntityId(),
+                                    new MinimalServiceSettings(model)
+                                )
+                            )
                             .toList(),
                         cleanupListener
                     ),
@@ -994,13 +1004,13 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         var fixOutOfSyncListener = ActionListener.<GetInferenceModelAction.Response>wrap((response) -> {
-            var outOfSyncEndpoints = new ArrayList<ModelAndSettings>();
+            var outOfSyncEndpoints = new ArrayList<ModelRegistryMetadataTask.ModelAndSettings>();
 
             for (var model : response.getEndpoints()) {
                 // If the inference id can't be found in the in memory hash map or the cluster state, then it is out of sync
                 if (containsInferenceEndpointId(model.getInferenceEntityId()) == false) {
                     outOfSyncEndpoints.add(
-                        new ModelAndSettings(
+                        new ModelRegistryMetadataTask.ModelAndSettings(
                             model.getInferenceEntityId(),
                             new MinimalServiceSettings(
                                 model.getService(),
@@ -1051,7 +1061,7 @@ public class ModelRegistry implements ClusterStateListener {
         // This checks the cluster state for user created endpoints as well as EIS preconfigured endpoints
         if (lastMetadata.get() != null) {
             var project = lastMetadata.get().getProject(ProjectId.DEFAULT);
-            var state = ModelRegistryMetadata.fromState(project);
+            var state = ModelRegistryClusterStateMetadata.fromState(project);
             var allInferenceIds = state.getInferenceIds();
             return allInferenceIds.contains(inferenceEntityId);
         }
@@ -1060,16 +1070,23 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     private void submitEndpointMetadataToClusterState(
-        ArrayList<ModelAndSettings> endpoints,
+        ArrayList<ModelRegistryMetadataTask.ModelAndSettings> endpoints,
         ActionListener<Void> listener,
         TimeValue timeout
     ) {
         metadataTaskQueue.submitTask(
-            format("adding out of sync endpoint metadata for %s", endpoints.stream().map(ModelAndSettings::inferenceEntityId).toList()),
-            new AddModelMetadataTask(ProjectId.DEFAULT, endpoints, ActionListener.wrap((result) -> listener.onResponse(null), e -> {
-                logger.atWarn().withThrowable(e).log("Failed while submitting task to fix out of sync endpoints");
-                listener.onResponse(null);
-            })),
+            format(
+                "adding out of sync endpoint metadata for %s",
+                endpoints.stream().map(ModelRegistryMetadataTask.ModelAndSettings::inferenceEntityId).toList()
+            ),
+            new ModelRegistryMetadataTask.AddModelMetadataTask(
+                ProjectId.DEFAULT,
+                endpoints,
+                ActionListener.wrap((result) -> listener.onResponse(null), e -> {
+                    logger.atWarn().withThrowable(e).log("Failed while submitting task to fix out of sync endpoints");
+                    listener.onResponse(null);
+                })
+            ),
             timeout
         );
     }
@@ -1171,7 +1188,7 @@ public class ModelRegistry implements ClusterStateListener {
                 try {
                     metadataTaskQueue.submitTask(
                         "delete models [" + inferenceEntityIds + "]",
-                        new DeleteModelMetadataTask(ProjectId.DEFAULT, inferenceEntityIds, clusterStateListener),
+                        new ModelRegistryMetadataTask.DeleteModelMetadataTask(ProjectId.DEFAULT, inferenceEntityIds, clusterStateListener),
                         null
                     );
                 } catch (Exception exc) {
@@ -1292,7 +1309,7 @@ public class ModelRegistry implements ClusterStateListener {
             return;
         }
 
-        var state = ModelRegistryMetadata.fromState(event.state().projectState().metadata());
+        var state = ModelRegistryClusterStateMetadata.fromState(event.state().projectState().metadata());
         if (state.isUpgraded()) {
             return;
         }
@@ -1326,7 +1343,7 @@ public class ModelRegistry implements ClusterStateListener {
                     }
                     metadataTaskQueue.submitTask(
                         "model registry auto upgrade",
-                        new UpgradeModelsMetadataTask(
+                        new ModelRegistryMetadataTask.UpgradeModelsMetadataTask(
                             ProjectId.DEFAULT,
                             map,
                             ActionListener.running(() -> upgradeMetadataInProgress.set(false))
@@ -1341,68 +1358,5 @@ public class ModelRegistry implements ClusterStateListener {
                 }
             }
         );
-    }
-
-    private abstract static class MetadataTask extends AckedBatchedClusterStateUpdateTask {
-        private final ProjectId projectId;
-
-        MetadataTask(ProjectId projectId, ActionListener<AcknowledgedResponse> listener) {
-            super(TimeValue.THIRTY_SECONDS, listener);
-            this.projectId = projectId;
-        }
-
-        abstract ModelRegistryMetadata executeTask(ModelRegistryMetadata current);
-
-        public ProjectId getProjectId() {
-            return projectId;
-        }
-    }
-
-    private static class UpgradeModelsMetadataTask extends MetadataTask {
-        private final Map<String, MinimalServiceSettings> fromIndex;
-
-        UpgradeModelsMetadataTask(
-            ProjectId projectId,
-            Map<String, MinimalServiceSettings> fromIndex,
-            ActionListener<AcknowledgedResponse> listener
-        ) {
-            super(projectId, listener);
-            this.fromIndex = fromIndex;
-        }
-
-        @Override
-        ModelRegistryMetadata executeTask(ModelRegistryMetadata current) {
-            return current.withUpgradedModels(fromIndex);
-        }
-    }
-
-    public record ModelAndSettings(String inferenceEntityId, MinimalServiceSettings settings) {}
-
-    private static class AddModelMetadataTask extends MetadataTask {
-        private final List<ModelAndSettings> models = new ArrayList<>();
-
-        AddModelMetadataTask(ProjectId projectId, List<ModelAndSettings> models, ActionListener<AcknowledgedResponse> listener) {
-            super(projectId, listener);
-            this.models.addAll(models);
-        }
-
-        @Override
-        ModelRegistryMetadata executeTask(ModelRegistryMetadata current) {
-            return current.withAddedModels(models);
-        }
-    }
-
-    private static class DeleteModelMetadataTask extends MetadataTask {
-        private final Set<String> inferenceEntityIds;
-
-        DeleteModelMetadataTask(ProjectId projectId, Set<String> inferenceEntityId, ActionListener<AcknowledgedResponse> listener) {
-            super(projectId, listener);
-            this.inferenceEntityIds = inferenceEntityId;
-        }
-
-        @Override
-        ModelRegistryMetadata executeTask(ModelRegistryMetadata current) {
-            return current.withRemovedModel(inferenceEntityIds);
-        }
     }
 }

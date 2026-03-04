@@ -510,6 +510,15 @@ public class BlockTestUtils {
         return returnValue;
     }
 
+    public static Block asBlock(BlockFactory blockFactory, ElementType elementType, List<Object> values) {
+        try (var wrapper = BlockUtils.wrapperFor(blockFactory, elementType, values.size())) {
+            for (Object value : values) {
+                wrapper.accept(value);
+            }
+            return wrapper.builder().build();
+        }
+    }
+
     private static int dedupe(Map<BytesRef, Integer> dedupe, BytesRefVector.Builder bytes, BytesRef v) {
         Integer current = dedupe.get(v);
         if (current != null) {

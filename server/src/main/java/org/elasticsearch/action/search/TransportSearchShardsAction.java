@@ -142,6 +142,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                 null,
                 null
             ),
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
                 final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
@@ -159,7 +160,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     searchRequest,
                     searchShardsRequest.clusterAlias(),
                     indicesAndAliases,
-                    concreteIndexNames
+                    concreteIndexNames,
+                    true
                 );
                 CollectionUtil.timSort(shardIts);
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {

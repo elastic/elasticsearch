@@ -87,6 +87,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -349,6 +350,27 @@ public class TopHitsIT extends ESIntegTestCase {
                 }
             }
         );
+    }
+
+    public void testMixedSortFieldTypes() {
+        assertAcked(
+            prepareCreate("top_hits_float").setMapping("brand_id", "type=float"),
+            prepareCreate("top_hits_long").setMapping("brand_id", "type=long")
+        );
+
+        prepareIndex("top_hits_float").setId("1").setSource("brand_id", 1.5).get();
+        prepareIndex("top_hits_long").setId("1").setSource("brand_id", 1).get();
+        refresh("top_hits_float", "top_hits_long");
+
+        SearchPhaseExecutionException exc = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> prepareSearch("top_hits_float", "top_hits_long").setSize(0)
+                .addAggregation(topHits("hits").sort(SortBuilders.fieldSort("brand_id").order(SortOrder.ASC)).size(1))
+                .get()
+        );
+
+        assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(exc.getCause().getMessage(), containsString("Can't sort on field [brand_id]; the field has incompatible sort types"));
     }
 
     public void testIssue11119() throws Exception {

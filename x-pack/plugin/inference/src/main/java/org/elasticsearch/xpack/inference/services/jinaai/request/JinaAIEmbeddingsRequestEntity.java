@@ -7,22 +7,24 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.request;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkerUtils;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
+import static org.elasticsearch.inference.InputType.INTERNAL_SEARCH;
+import static org.elasticsearch.inference.InputType.SEARCH;
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 
-public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, InputType inputType, JinaAIEmbeddingsModel model)
+public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, @Nullable InputType inputType, JinaAIEmbeddingsModel model)
     implements
         ToXContentObject {
 
@@ -41,6 +43,7 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, In
     // Late chunking models have a token limit of 8000 or ~6000 words (using a rough 1 token:0.75 words ratio). We set the maximum word
     // count with a bit of extra room to 5500 words.
     static final int MAX_WORD_COUNT_FOR_LATE_CHUNKING = 5500;
+    public static final String JINA_CLIP_V_2_MODEL_NAME = "jina-clip-v2";
 
     public JinaAIEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -55,12 +58,21 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, In
 
         builder.field(EMBEDDING_TYPE_FIELD, model.getServiceSettings().getEmbeddingType().toRequestString());
 
-        // prefer the root level inputType over task settings input type
-        JinaAIEmbeddingsTaskSettings taskSettings = model.getTaskSettings();
+        // Prefer the root level inputType over task settings input type.
+        var taskSettings = model.getTaskSettings();
+        InputType inputTypeToUse = null;
         if (InputType.isSpecified(inputType)) {
-            builder.field(TASK_TYPE_FIELD, convertInputType(inputType));
-        } else if (InputType.isSpecified(taskSettings.getInputType())) {
-            builder.field(TASK_TYPE_FIELD, convertInputType(taskSettings.getInputType()));
+            inputTypeToUse = inputType;
+        } else {
+            var taskSettingsInputType = taskSettings.getInputType();
+            if (InputType.isSpecified(taskSettingsInputType)) {
+                inputTypeToUse = taskSettingsInputType;
+            }
+        }
+
+        // Do not specify the "task" field if the provided input type is null or not supported by the model
+        if (shouldWriteInputType(model, inputTypeToUse)) {
+            builder.field(TASK_TYPE_FIELD, convertInputType(inputTypeToUse));
         }
 
         if (taskSettings.getLateChunking() != null) {
@@ -121,5 +133,16 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, In
         }
 
         return wordCount;
+    }
+
+    private static boolean shouldWriteInputType(JinaAIEmbeddingsModel model, @Nullable InputType inputType) {
+        if (inputType == null) {
+            return false;
+        }
+        if (JINA_CLIP_V_2_MODEL_NAME.equalsIgnoreCase(model.getServiceSettings().modelId())) {
+            // jina-clip-v2 only accepts "retrieval.query" for the "task" field
+            return SEARCH.equals(inputType) || INTERNAL_SEARCH.equals(inputType);
+        }
+        return true;
     }
 }

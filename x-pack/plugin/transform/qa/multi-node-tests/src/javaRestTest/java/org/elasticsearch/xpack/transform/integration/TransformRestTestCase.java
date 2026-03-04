@@ -354,7 +354,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
     ) {
         return TransformConfig.builder()
             .setId(id)
-            .setSource(new SourceConfig(sourceIndices, queryConfig, Collections.emptyMap()))
+            .setSource(new SourceConfig(sourceIndices, queryConfig, Collections.emptyMap(), null))
             .setDest(new DestConfig(destinationIndex, null, null))
             .setFrequency(TimeValue.timeValueSeconds(10))
             .setDescription("Test transform config id: " + id);

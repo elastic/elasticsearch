@@ -57,19 +57,6 @@ public final class AnalyzerRules {
         }
     }
 
-    public abstract static class BaseAnalyzerRule extends AnalyzerRule<LogicalPlan> {
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan.childrenResolved() == false) {
-                return plan;
-            }
-            return doRule(plan);
-        }
-
-        protected abstract LogicalPlan doRule(LogicalPlan plan);
-    }
-
     public static List<Attribute> maybeResolveAgainstList(
         UnresolvedAttribute u,
         Collection<Attribute> attrList,

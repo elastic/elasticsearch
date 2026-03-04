@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -27,7 +28,6 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
@@ -136,8 +136,8 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    public void testValidate_Approximate() {
-        var def = QuerySettings.APPROXIMATE;
+    public void testValidate_Approximation() {
+        var def = QuerySettings.APPROXIMATION;
         assertDefault(def, is(nullValue()));
         {
             QuerySetting setting = new QuerySetting(
@@ -146,7 +146,7 @@ public class QuerySettingsTests extends ESTestCase {
             );
             EsqlStatement statement = new EsqlStatement(null, List.of(setting));
             QuerySettings.validate(statement, SNAPSHOT_CTX_WITH_CPS_DISABLED);
-            assertThat(statement.setting(def), is(Map.of()));
+            assertThat(statement.setting(def), is(ApproximationSettings.DEFAULT));
         }
         {
             QuerySetting setting = new QuerySetting(
@@ -158,37 +158,53 @@ public class QuerySettingsTests extends ESTestCase {
             assertThat(statement.setting(def), is(nullValue()));
         }
 
-        assertValid(def, new MapExpression(Source.EMPTY, List.of()), equalTo(Map.of()));
+        assertValid(def, new MapExpression(Source.EMPTY, List.of()), equalTo(ApproximationSettings.DEFAULT));
         assertValid(
             def,
             new MapExpression(
                 Source.EMPTY,
                 List.of(
-                    Literal.keyword(Source.EMPTY, "num_rows"),
-                    Literal.integer(Source.EMPTY, 10),
+                    Literal.keyword(Source.EMPTY, "rows"),
+                    Literal.integer(Source.EMPTY, 10000),
                     Literal.keyword(Source.EMPTY, "confidence_level"),
-                    Literal.fromDouble(Source.EMPTY, 10.0d)
+                    Literal.fromDouble(Source.EMPTY, 0.9)
                 )
             ),
-            equalTo(Map.of("num_rows", 10, "confidence_level", 10.0d))
+            equalTo(new ApproximationSettings(10000, 0.9))
+        );
+
+        assertInvalid(
+            def.name(),
+            new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, "rows"), Literal.integer(Source.EMPTY, 9999))),
+            "line -1:-1: Error validating setting [approximation]: Approximation configuration [rows] must be at least 10000"
+        );
+
+        assertInvalid(
+            def.name(),
+            new MapExpression(
+                Source.EMPTY,
+                List.of(Literal.keyword(Source.EMPTY, "confidence_level"), Literal.fromDouble(Source.EMPTY, 0.999))
+            ),
+            "line -1:-1: Error validating setting [approximation]: "
+                + "Approximation configuration [confidence_level] must be between 0.5 and 0.95"
         );
 
         assertInvalid(
             def.name(),
             Literal.integer(Source.EMPTY, 12),
-            "line -1:-1: Error validating setting [approximate]: Invalid approximate configuration [12]"
+            "line -1:-1: Error validating setting [approximation]: Invalid approximation configuration [12]"
         );
 
         assertInvalid(
             def.name(),
             Literal.keyword(Source.EMPTY, "foo"),
-            "line -1:-1: Error validating setting [approximate]: Invalid approximate configuration [foo]"
+            "line -1:-1: Error validating setting [approximation]: Invalid approximation configuration [foo]"
         );
 
         assertInvalid(
             def.name(),
             new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, "foo"), Literal.integer(Source.EMPTY, 10))),
-            "line -1:-1: Error validating setting [approximate]: Approximate configuration contains unknown key [foo]"
+            "line -1:-1: Error validating setting [approximation]: Approximation configuration contains unknown key [foo]"
         );
     }
 
@@ -243,8 +259,6 @@ public class QuerySettingsTests extends ESTestCase {
             .stream()
             // TODO this is non-snapshot, but we don't want to expose it yet
             .filter(def -> def != QuerySettings.PROJECT_ROUTING)
-            // TODO: This filter wil be removed in the next PR adding all the docs for time_zone
-            .filter(def -> def != QuerySettings.TIME_ZONE)
             .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))
             .toList();
 
@@ -256,6 +270,14 @@ public class QuerySettingsTests extends ESTestCase {
             );
             settingsDocsSupport.renderDocs();
         }
+
+        // TODO remote this when project routing is public
+        // we only want the Kibana JSON for now
+        new DocsV3Support.SettingsDocsSupport(
+            QuerySettings.PROJECT_ROUTING,
+            QuerySettingsTests.class,
+            DocsV3Support.callbacksFromSystemProperty()
+        ).renderKibanaCommandDefinition();
 
         DocsV3Support.SettingsTocDocsSupport toc = new DocsV3Support.SettingsTocDocsSupport(
             settings,

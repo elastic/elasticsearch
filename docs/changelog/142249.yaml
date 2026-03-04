@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 142249
+summary: Use opaque random session IDs for ESQL compute sessions
+type: enhancement

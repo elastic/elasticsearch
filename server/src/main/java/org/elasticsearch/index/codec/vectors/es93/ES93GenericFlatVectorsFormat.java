@@ -22,6 +22,11 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * A generic flat format that can use several different underlying vector storage formats.
+ * <p>
+ * This format is not meant to be used directly; it should be used as part of another vector format implementation.
+ */
 public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
 
     static final String NAME = "ES93GenericFlatVectorsFormat";
@@ -39,7 +44,7 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     );
 
     private static final DirectIOCapableFlatVectorsFormat defaultVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+        ES93FlatVectorScorer.INSTANCE
     );
     private static final DirectIOCapableFlatVectorsFormat bitVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93FlatBitVectorScorer.INSTANCE

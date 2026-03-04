@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 
@@ -31,20 +30,20 @@ class KMeansLocalSerial extends KMeansLocal {
 
     @Override
     protected boolean stepLloyd(
-        FloatVectorValues vectors,
-        IntToIntFunction translateOrd,
+        ClusteringFloatVectorValues vectors,
+        IntToIntFunction ordTranslator,
         float[][] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
         NeighborHood[] neighborHoods
     ) throws IOException {
         assert centroidChangedSlices.length == 1;
-        return stepLloydSlice(vectors, translateOrd, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
+        return stepLloydSlice(vectors, ordTranslator, centroids, centroidChangedSlices[0], assignments, neighborHoods, 0, vectors.size());
     }
 
     @Override
     protected void assignSpilled(
-        FloatVectorValues vectors,
+        ClusteringFloatVectorValues vectors,
         KMeansIntermediate kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda

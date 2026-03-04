@@ -9,11 +9,8 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.azure.core.exception.HttpResponseException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -26,8 +23,6 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -67,20 +62,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             // stream to it.
             throw new NoSuchFileException("Blob [" + blobKey + "] not found");
         }
-        try {
-            return blobStore.getInputStream(purpose, blobKey, position, length);
-        } catch (Exception e) {
-            if (ExceptionsHelper.unwrap(e, HttpResponseException.class) instanceof HttpResponseException httpResponseException) {
-                final var httpStatusCode = httpResponseException.getResponse().getStatusCode();
-                if (httpStatusCode == RestStatus.NOT_FOUND.getStatus()) {
-                    throw new NoSuchFileException("Blob [" + blobKey + "] not found");
-                }
-                if (httpStatusCode == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
-                    throw new RequestedRangeNotSatisfiedException(blobKey, position, length == null ? -1 : length, e);
-                }
-            }
-            throw new IOException("Unable to get input stream for blob [" + blobKey + "]", e);
-        }
+        return new AzureRetryingInputStream(blobStore, purpose, blobKey, position, length);
     }
 
     @Override

@@ -34,6 +34,17 @@ java {
   sourceCompatibility = versions.get("minimumRuntimeJava")
 }
 
+sourceSets {
+  integTest {
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath
+  }
+}
+
+tasks.named("pluginUnderTestMetadata").configure {
+  getPluginClasspath().from(sourceSets.testFixtures.runtimeClasspath)
+}
+
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes
     // with the java-gradle-plugin
@@ -94,13 +105,6 @@ tasks.named("processResources").configure {
     }
 }
 
-sourceSets {
-    integTest {
-        compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
-        runtimeClasspath += output + compileClasspath
-    }
-}
-
 // we do not publish the test fixtures of build-tools
 components.java.withVariantsFromConfiguration(configurations.testFixturesApiElements) { skip() }
 components.java.withVariantsFromConfiguration(configurations.testFixturesRuntimeElements) { skip() }
@@ -140,6 +144,7 @@ dependencies {
     implementation buildLibs.jackson.core
     implementation buildLibs.jackson.databind
 
+    testFixturesApi buildLibs.commmons.io
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
     testFixturesApi buildLibs.junit
@@ -176,6 +181,7 @@ tasks.withType(JavaCompile).configureEach {
 tasks.named('test').configure {
     useJUnitPlatform()
 }
+
 tasks.register("integTest", Test) {
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath

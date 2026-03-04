@@ -11,7 +11,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -103,7 +103,7 @@ public class Preconditioner {
     }
 
     private static float[][][] generateRandomOrthogonalMatrix(int dim, int blockDim, Random random) {
-        blockDim = Math.min(dim, blockDim);
+        assert blockDim <= dim;
         int nBlocks = dim / blockDim;
         int rem = dim % blockDim;
 
@@ -127,12 +127,12 @@ public class Preconditioner {
     }
 
     private static void matrixVectorMultiply(float[][] m, float[] x, float[] out) {
-        assert m.length == x.length;
         assert m.length == out.length;
+        assert m.length > 0 && m[0].length == x.length;
         int dim = out.length;
         // TODO: write Panama version of this to do all multiplications in one pass
         for (int i = 0; i < dim; i++) {
-            out[i] = VectorUtil.dotProduct(m[i], x);
+            out[i] = ESVectorUtil.dotProduct(m[i], x);
         }
     }
 
@@ -190,6 +190,10 @@ public class Preconditioner {
         }
     }
 
+    // TODO: cache these preconditioners based on vectorDimension and blockDimension
+    // need something thread safe and a way to clear the cache when done indexing (after flush or merge ... but that defeats the point)
+    // maybe not possible or we limit it to a fixed number of cached preconditioners
+    // maybe use setExpireAfterAccess in CacheBuilder; to be fair this code is not a hot path though
     public static Preconditioner createPreconditioner(int vectorDimension, int blockDimension) {
         if (blockDimension <= 0) {
             throw new IllegalArgumentException("block dimension must be positive but was [" + blockDimension + "]");
@@ -198,6 +202,7 @@ public class Preconditioner {
             throw new IllegalArgumentException("vector dimension must be positive but was [" + vectorDimension + "]");
         }
         Random random = new Random(42L);
+        blockDimension = Math.min(vectorDimension, blockDimension);
         float[][][] blocks = Preconditioner.generateRandomOrthogonalMatrix(vectorDimension, blockDimension, random);
         int[] dimBlocks = new int[blocks.length];
         for (int i = 0; i < blocks.length; i++) {
@@ -232,5 +237,4 @@ public class Preconditioner {
 
         return new Preconditioner(blockDim, permutationMatrix, blocks);
     }
-
 }

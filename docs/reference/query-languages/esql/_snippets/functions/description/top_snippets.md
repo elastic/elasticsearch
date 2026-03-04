@@ -4,6 +4,6 @@
 
 Use `TOP_SNIPPETS` to extract the best snippets for a given query string from a text field.
 
-`TOP_SNIPPETS` can be used on fields from the text famiy like [text](/reference/elasticsearch/mapping-reference/text.md) and [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md).
+`TOP_SNIPPETS` can be used on fields from the text family like [text](/reference/elasticsearch/mapping-reference/text.md) and [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md).
     `TOP_SNIPPETS` will extract the best snippets for a given query string.
 

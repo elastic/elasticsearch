@@ -71,8 +71,8 @@ public class GroupedLimitOperator implements Operator {
      *   <li>a counts array to keep track of the number of times we have seen each {@code Ordinal(key)}</li>
      * </ul>
      */
-    private final BytesRefHashTable seenKeys;
-    private final BigArrays bigArrays;
+    private BytesRefHashTable seenKeys;
+    private BigArrays bigArrays;
     private IntArray counts;
 
     private int pagesProcessed;
@@ -93,7 +93,7 @@ public class GroupedLimitOperator implements Operator {
             success = true;
         } finally {
             if (success == false) {
-                keyEncoder.close();
+                Releasables.closeExpectNoException(keyEncoder, seenKeys);
             }
         }
     }

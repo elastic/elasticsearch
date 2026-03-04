@@ -11,10 +11,12 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.hamcrest.Matcher;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.LongStream;
@@ -66,7 +68,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
             assertThat(status.rowsReceived(), equalTo(0L));
             assertThat(status.rowsEmitted(), equalTo(0L));
 
-            Page p = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 1 }, 3).asBlock());
+            Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 1L)));
             op.addInput(p);
             Page output = op.getOutput();
             try {
@@ -87,7 +89,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
         BlockFactory blockFactory = ctx.blockFactory();
         try (GroupedLimitOperator op = simple(SimpleOptions.DEFAULT).get(ctx)) {
             assertTrue(op.needsInput());
-            Page p = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock());
+            Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 3L)));
             op.addInput(p);
             assertFalse(op.needsInput());
             op.getOutput().releaseBlocks();
@@ -111,7 +113,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
                 blockFactory
             )
         ) {
-            Page p = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 1, 1, 2 }, 5).asBlock());
+            Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 1L, 1L, 2L)));
             op.addInput(p);
             Page output = op.getOutput();
             try {
@@ -141,7 +143,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
                 blockFactory
             )
         ) {
-            Page p1 = new Page(blockFactory.newLongArrayVector(new long[] { 1, 1, 2 }, 3).asBlock());
+            Page p1 = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 1L, 2L)));
             op.addInput(p1);
             Page out1 = op.getOutput();
             try {
@@ -150,7 +152,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
                 out1.releaseBlocks();
             }
 
-            Page p2 = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 2 }, 3).asBlock());
+            Page p2 = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 2L)));
             op.addInput(p2);
             Page out2 = op.getOutput();
             try {
@@ -177,7 +179,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
                 blockFactory
             )
         ) {
-            Page p1 = new Page(blockFactory.newLongArrayVector(new long[] { 1 }, 1).asBlock());
+            Page p1 = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L)));
             op.addInput(p1);
             Page out1 = op.getOutput();
             try {
@@ -186,7 +188,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
                 out1.releaseBlocks();
             }
 
-            Page p2 = new Page(blockFactory.newLongArrayVector(new long[] { 1, 1, 1 }, 3).asBlock());
+            Page p2 = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 1L, 1L)));
             op.addInput(p2);
             assertThat(op.getOutput(), nullValue());
         }
@@ -202,7 +204,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
                 blockFactory
             )
         ) {
-            Page p = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock());
+            Page p = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 3L)));
             op.addInput(p);
             Page output = op.getOutput();
             try {
@@ -227,11 +229,11 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
                 blockFactory
             )
         ) {
-            Page p1 = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3 }, 3).asBlock());
+            Page p1 = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 2L, 3L)));
             op.addInput(p1);
             assertThat(op.getOutput(), nullValue());
 
-            Page p2 = new Page(blockFactory.newLongArrayVector(new long[] { 1, 1, 2 }, 3).asBlock());
+            Page p2 = new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 1L, 2L)));
             op.addInput(p2);
             assertThat(op.getOutput(), nullValue());
 
@@ -258,8 +260,8 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
             )
         ) {
             Page p = new Page(
-                blockFactory.newLongArrayVector(new long[] { 1, 1, 1, 2 }, 4).asBlock(),
-                blockFactory.newLongArrayVector(new long[] { 10, 20, 10, 10 }, 4).asBlock()
+                BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(1L, 1L, 1L, 2L)),
+                BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(10L, 20L, 10L, 10L))
             );
             op.addInput(p);
             Page output = op.getOutput();
@@ -283,21 +285,21 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
      * A multivalue {@code [1,2]} and a single value {@code 1} are different groups.
      */
     public void testMultivalueAndSingleValueAreDifferentGroups() {
-        assertDistinctGroups(2, new long[] { 1, 2 }, new long[] { 1 });
+        assertDistinctGroups(2, List.of(1L, 2L), 1L);
     }
 
     /**
      * A null position and a multivalue {@code [1,2]} are different groups.
      */
     public void testNullAndMultivalueAreDifferentGroups() {
-        assertDistinctGroups(2, null, new long[] { 1, 2 });
+        assertDistinctGroups(2, null, List.of(1L, 2L));
     }
 
     /**
      * Two identical multivalues {@code [1,2]} belong to the same group.
      */
     public void testIdenticalMultivaluesAreSameGroup() {
-        assertDistinctGroups(1, new long[] { 1, 2 }, new long[] { 1, 2 });
+        assertDistinctGroups(1, List.of(1L, 2L), List.of(1L, 2L));
     }
 
     /**
@@ -305,7 +307,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
      * multivalues use order-sensitive list semantics.
      */
     public void testMultivaluesWithDifferentOrderAreDifferentGroups() {
-        assertDistinctGroups(2, new long[] { 1, 2 }, new long[] { 2, 1 });
+        assertDistinctGroups(2, List.of(1L, 2L), List.of(2L, 1L));
     }
 
     /**
@@ -313,7 +315,7 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
      * same group because the block representation is identical (valueCount=1).
      */
     public void testSingleElementMultivalueAndScalarAreSameGroup() {
-        assertDistinctGroups(1, new long[] { 1 }, new long[] { 1 });
+        assertDistinctGroups(1, 1L, 1L);
     }
 
     /**
@@ -321,14 +323,14 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
      * are different groups because the value count differs.
      */
     public void testMultivalueWithDuplicatesAndSingleValueAreDifferentGroups() {
-        assertDistinctGroups(2, new long[] { 1, 1 }, new long[] { 1 });
+        assertDistinctGroups(2, List.of(1L, 1L), 1L);
     }
 
     /**
      * Two identical multivalues with duplicates {@code [1,1]} are the same group.
      */
     public void testIdenticalMultivaluesWithDuplicatesAreSameGroup() {
-        assertDistinctGroups(1, new long[] { 1, 1 }, new long[] { 1, 1 });
+        assertDistinctGroups(1, List.of(1L, 1L), List.of(1L, 1L));
     }
 
     /**
@@ -336,45 +338,37 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
      * {@code [1,2,3]} vs {@code [1,2]}.
      */
     public void testDifferentLengthMultivaluesAreDifferentGroups() {
-        assertDistinctGroups(2, new long[] { 1, 2, 3 }, new long[] { 1, 2 });
+        assertDistinctGroups(2, List.of(1L, 2L, 3L), List.of(1L, 2L));
     }
 
     /**
      * Multivalue semantics apply within composite keys: {@code ([1,2], 10)},
-     * {@code ([1,2], 20)}, and {@code ([2,1], 10)} are three distinct groups.
+     * {@code ([1,2], 20)}, {@code ([2,1], 10)} and {@code ([2,1], 10)} are three distinct groups.
      */
     public void testMultivalueInCompositeKey() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (var mvBuilder = blockFactory.newLongBlockBuilder(3)) {
-            mvBuilder.beginPositionEntry();
-            mvBuilder.appendLong(1);
-            mvBuilder.appendLong(2);
-            mvBuilder.endPositionEntry();
-            mvBuilder.beginPositionEntry();
-            mvBuilder.appendLong(1);
-            mvBuilder.appendLong(2);
-            mvBuilder.endPositionEntry();
-            mvBuilder.beginPositionEntry();
-            mvBuilder.appendLong(2);
-            mvBuilder.appendLong(1);
-            mvBuilder.endPositionEntry();
-
-            Page p = new Page(mvBuilder.build(), blockFactory.newLongArrayVector(new long[] { 10, 20, 10 }, 3).asBlock());
-            try (
-                GroupedLimitOperator op = new GroupedLimitOperator(
-                    1,
-                    groupKeyEncoder(blockFactory, new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.LONG)),
-                    blockFactory
-                )
-            ) {
-                op.addInput(p);
-                Page output = op.getOutput();
-                try {
-                    assertThat(output.getPositionCount(), equalTo(3));
-                } finally {
-                    output.releaseBlocks();
-                }
+        Page p = new Page(
+            BlockTestUtils.asBlock(
+                blockFactory,
+                ElementType.LONG,
+                List.of(List.of(1L, 2L), List.of(1L, 2L), List.of(2L, 1L), List.of(2L, 1L))
+            ),
+            BlockTestUtils.asBlock(blockFactory, ElementType.LONG, List.of(10L, 20L, 10L, 10L))
+        );
+        try (
+            GroupedLimitOperator op = new GroupedLimitOperator(
+                1,
+                groupKeyEncoder(blockFactory, new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.LONG)),
+                blockFactory
+            )
+        ) {
+            op.addInput(p);
+            Page output = op.getOutput();
+            try {
+                assertThat(output.getPositionCount(), equalTo(3));
+            } finally {
+                output.releaseBlocks();
             }
         }
     }
@@ -389,41 +383,25 @@ public class GroupedLimitOperatorTests extends OperatorTestCase {
     /**
      * Feeds the given values through a {@code limit=1} single-channel operator
      * and asserts the number of output positions (i.e. distinct groups).
-     * Each {@code long[]} entry represents one position: {@code null} for a null
-     * position, a single-element array for a scalar, and a multi-element array
-     * for a multivalue.
+     * Each entry can be: {@code null} for a null position, a {@code Long} scalar,
+     * or a {@code List<Long>} for a multivalue.
      */
-    private void assertDistinctGroups(int expectedGroups, long[]... values) {
+    private void assertDistinctGroups(int expectedGroups, Object... values) {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
-        try (var builder = blockFactory.newLongBlockBuilder(values.length)) {
-            for (long[] value : values) {
-                if (value == null) {
-                    builder.appendNull();
-                } else if (value.length == 1) {
-                    builder.appendLong(value[0]);
-                } else {
-                    builder.beginPositionEntry();
-                    for (long val : value) {
-                        builder.appendLong(val);
-                    }
-                    builder.endPositionEntry();
-                }
-            }
-            try (
-                GroupedLimitOperator op = new GroupedLimitOperator(
-                    1,
-                    groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
-                    blockFactory
-                )
-            ) {
-                op.addInput(new Page(builder.build()));
-                Page output = op.getOutput();
-                try {
-                    assertThat(output.getPositionCount(), equalTo(expectedGroups));
-                } finally {
-                    output.releaseBlocks();
-                }
+        try (
+            GroupedLimitOperator op = new GroupedLimitOperator(
+                1,
+                groupKeyEncoder(blockFactory, new int[] { 0 }, List.of(ElementType.LONG)),
+                blockFactory
+            )
+        ) {
+            op.addInput(new Page(BlockTestUtils.asBlock(blockFactory, ElementType.LONG, Arrays.asList(values))));
+            Page output = op.getOutput();
+            try {
+                assertThat(output.getPositionCount(), equalTo(expectedGroups));
+            } finally {
+                output.releaseBlocks();
             }
         }
     }

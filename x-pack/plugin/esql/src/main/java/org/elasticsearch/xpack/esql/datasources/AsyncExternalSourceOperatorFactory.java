@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -215,23 +216,28 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     if (buffer.noMoreInputs()) {
                         break;
                     }
-                    if (split instanceof FileSplit fileSplit) {
-                        VirtualColumnInjector injector = null;
-                        if (partitionColumnNames.isEmpty() == false) {
-                            injector = new VirtualColumnInjector(
-                                attributes,
-                                partitionColumnNames,
-                                fileSplit.partitionValues(),
-                                driverContext.blockFactory()
-                            );
+                    for (ExternalSplit leaf : flattenToLeaves(split)) {
+                        if (buffer.noMoreInputs()) {
+                            break;
                         }
-                        List<String> cols = projectedColumns(injector);
-                        StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                        try (CloseableIterator<Page> pages = formatReader.read(obj, cols, batchSize)) {
-                            drainPages(pages, buffer, injector);
+                        if (leaf instanceof FileSplit fileSplit) {
+                            VirtualColumnInjector injector = null;
+                            if (partitionColumnNames.isEmpty() == false) {
+                                injector = new VirtualColumnInjector(
+                                    attributes,
+                                    partitionColumnNames,
+                                    fileSplit.partitionValues(),
+                                    driverContext.blockFactory()
+                                );
+                            }
+                            List<String> cols = projectedColumns(injector);
+                            StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
+                            try (CloseableIterator<Page> pages = formatReader.read(obj, cols, batchSize)) {
+                                drainPages(pages, buffer, injector);
+                            }
+                        } else {
+                            throw new IllegalArgumentException("Unsupported split type: " + leaf.getClass().getName());
                         }
-                    } else {
-                        throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
                     }
                 }
                 buffer.finish(false);
@@ -359,6 +365,27 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         public void close() throws IOException {
             delegate.close();
         }
+    }
+
+    private static List<ExternalSplit> flattenToLeaves(ExternalSplit split) {
+        if (split instanceof CoalescedSplit coalesced == false) {
+            return List.of(split);
+        }
+        List<ExternalSplit> leaves = new ArrayList<>();
+        ArrayDeque<ExternalSplit> stack = new ArrayDeque<>();
+        stack.push(split);
+        while (stack.isEmpty() == false) {
+            ExternalSplit current = stack.pop();
+            if (current instanceof CoalescedSplit nested) {
+                List<ExternalSplit> children = nested.children();
+                for (int i = children.size() - 1; i >= 0; i--) {
+                    stack.push(children.get(i));
+                }
+            } else {
+                leaves.add(current);
+            }
+        }
+        return leaves;
     }
 
     /**

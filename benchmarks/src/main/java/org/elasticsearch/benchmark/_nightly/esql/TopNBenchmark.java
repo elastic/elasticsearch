@@ -58,10 +58,9 @@ import java.util.stream.Stream;
 @Fork(1)
 public class TopNBenchmark {
 
-    private static final BlockFactory blockFactory = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     private static final int BLOCK_LENGTH = 4 * 1024;
 

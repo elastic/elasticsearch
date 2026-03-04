@@ -29,6 +29,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
@@ -128,13 +129,21 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         }));
     }
 
-    public void testParsePersistedConfigWithSecrets() {
-        sageMakerService.parsePersistedConfigWithSecrets("modelId", TaskType.ANY, Map.of(), Map.of());
-        verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(Map.of()));
+    public void testParsePersistedConfig_WithSecrets() {
+        sageMakerService.parsePersistedConfig(
+            new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), Map.of("key", "value"))
+        );
+        verify(modelBuilder, only()).fromStorage(
+            eq("modelId"),
+            eq(TaskType.ANY),
+            eq(SageMakerService.NAME),
+            eq(Map.of()),
+            eq(Map.of("key", "value"))
+        );
     }
 
-    public void testParsePersistedConfig() {
-        sageMakerService.parsePersistedConfig("modelId", TaskType.ANY, Map.of());
+    public void testParsePersistedConfig_WithoutSecrets() {
+        sageMakerService.parsePersistedConfig(new UnparsedModel("modelId", TaskType.ANY, SageMakerService.NAME, Map.of(), null));
         verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(null));
     }
 

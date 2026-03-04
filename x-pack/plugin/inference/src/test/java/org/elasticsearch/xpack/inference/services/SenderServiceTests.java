@@ -26,6 +26,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentObjects;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
@@ -361,9 +362,9 @@ public class SenderServiceTests extends ESTestCase {
         return sender;
     }
 
-    private static class TestSenderService extends SenderService {
+    private static class TestSenderService extends SenderService<Model> {
         TestSenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-            super(factory, serviceComponents, clusterService);
+            super(factory, serviceComponents, clusterService, Map.of());
         }
 
         @Override
@@ -416,22 +417,12 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
-        public Model parsePersistedConfigWithSecrets(
-            String inferenceEntityId,
-            TaskType taskType,
-            Map<String, Object> config,
-            Map<String, Object> secrets
-        ) {
-            return null;
-        }
-
-        @Override
         public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
             return null;
         }
 
         @Override
-        public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+        public Model parsePersistedConfig(UnparsedModel unparsedModel) {
             return null;
         }
 

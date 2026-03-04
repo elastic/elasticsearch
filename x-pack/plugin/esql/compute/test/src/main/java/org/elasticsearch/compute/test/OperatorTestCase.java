@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.test;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -123,8 +122,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     private void runWithLimit(Operator.OperatorFactory factory, List<Page> input, ByteSizeValue limit) {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+        MockBlockFactory blockFactory = new MockBlockFactory(BlockFactory.builder(bigArrays));
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory, null);
         List<Page> localInput = CannedSourceOperator.deepCopyOf(blockFactory, input);
         boolean driverStarted = false;
@@ -138,7 +136,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(localInput.iterator(), p -> p::releaseBlocks)));
             }
             blockFactory.ensureAllBlocksAreReleased();
-            assertThat(breaker.getUsed(), equalTo(0L));
+            assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
     }
 

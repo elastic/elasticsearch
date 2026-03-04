@@ -15,6 +15,7 @@ import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.Ticket;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
@@ -45,11 +46,15 @@ class FlightConnector implements Connector {
 
     FlightConnector(String endpoint) {
         URI uri = URI.create(endpoint);
+        String host = uri.getHost();
+        if (host == null || host.isBlank()) {
+            throw new IllegalArgumentException("Invalid endpoint URI: missing host: " + endpoint);
+        }
         int port = uri.getPort() > 0 ? uri.getPort() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
-        Location location = Location.forGrpcInsecure(uri.getHost(), port);
+        Location location = Location.forGrpcInsecure(host, port);
         this.allocator = new RootAllocator();
         this.defaultClient = FlightClient.builder(allocator, location).build();
-        this.defaultEndpoint = uri.getHost() + ":" + port;
+        this.defaultEndpoint = host + ":" + port;
     }
 
     @Override
@@ -114,7 +119,7 @@ class FlightConnector implements Connector {
         locationClients.clear();
         toClose.add(asCloseable(defaultClient));
         try {
-            org.elasticsearch.core.IOUtils.close(toClose);
+            IOUtils.close(toClose);
         } finally {
             allocator.close();
         }

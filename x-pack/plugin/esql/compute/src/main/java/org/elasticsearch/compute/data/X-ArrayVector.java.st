@@ -199,21 +199,6 @@ $endif$
 
 $if(BytesRef)$
     /**
-     * Estimates the RAM usage using default overestimate settings.
-     * See {@link BlockFactory#DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD} and
-     * {@link BlockFactory#DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR}.
-     */
-$endif$
-    public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
-$if(BytesRef)$
-        return ramBytesEstimated(
-            values,
-            BlockFactory.DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
-            BlockFactory.DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR
-        );
-    }
-
-    /**
      * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
      * underlying byte data exceeds {@code overestimateThreshold}. This compensates for heap
      * overhead that {@link RamUsageEstimator} does not track, such as page-level waste in
@@ -225,11 +210,14 @@ $if(BytesRef)$
             valuesSize = Math.round(valuesSize * overestimateFactor);
         }
         return BASE_RAM_BYTES_USED + valuesSize;
-$else$
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
-$endif$
     }
 
+$else$
+    public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+$endif$
 $if(int)$
     /**
      * The minimum value in the block.

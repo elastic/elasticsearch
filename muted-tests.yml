@@ -303,9 +303,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
-- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
-  method: testWithNulls
-  issue: https://github.com/elastic/elasticsearch/issues/142434
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
   method: testIndexPoints
   issue: https://github.com/elastic/elasticsearch/issues/142439
@@ -399,6 +396,18 @@ tests:
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/143551
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
+  issue: https://github.com/elastic/elasticsearch/issues/143609
+- class: org.elasticsearch.index.query.PrefixQueryBuilderTests
+  method: testPrefixCircuitBreakerTripsWithLowLimit
+  issue: https://github.com/elastic/elasticsearch/issues/143548
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_of_ratio_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/143616
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_of_ratio}
+  issue: https://github.com/elastic/elasticsearch/issues/143617
 
 # Examples:
 #

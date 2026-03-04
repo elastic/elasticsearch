@@ -1700,6 +1700,12 @@ public class EsqlCapabilities {
         FIX_NO_COLUMNS,
 
         /**
+         * Fix LimitOperator truncation with zero columns
+         * https://github.com/elastic/elasticsearch/issues/142473
+         */
+        FIX_LIMIT_TRUNCATION_WITH_ZERO_COLUMNS,
+
+        /**
          * Support for dots in FUSE attributes
          */
         DOTS_IN_FUSE,
@@ -2164,6 +2170,12 @@ public class EsqlCapabilities {
          * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
          */
         TDIGEST_MEDIAN,
+
+        /**
+         * A bugfix we applied to the HISTOGRAM_PERCENTILE algorithm on the tdigest type.
+         * We previously were using hybrid-digests by accident and now use a merging digest.
+         */
+        TDIGEST_PERCENTILES_USE_MERGING_DIGEST,
 
         /**
          * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)

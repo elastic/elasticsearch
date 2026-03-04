@@ -1,11 +1,11 @@
-ExchangeSinkExec[[_doc{f}, emp_no{f}, languages{f}, language_code{r}, language_name{f}],false]
-\_ProjectExec[[_doc{f}, emp_no{f}, languages{f}, language_code{r}, language_name{f}]]
-  \_TopNExec[[Order[emp_no{f},ASC,LAST]],20[INTEGER],82]
-    \_FieldExtractExec[emp_no{f}]<[],[]>
-      \_LookupJoinExec[[language_code{r}],[language_code{f}],[language_name{f}],null]
-        |_EvalExec[[languages{f} AS language_code]]
-        | \_FieldExtractExec[languages{f}]<[],[]>
-        |   \_EsQueryExec[employees], indexMode[standard], [_doc{f}], limit[], sort[] estimatedRowSize[66] queryBuilderAndTags [[QueryBuilderAndTags[query={
+ExchangeSinkExec[[_doc{f}#0, emp_no{f}#1, languages{f}#2, language_code{r}#3, language_name{f}#4],false]
+\_ProjectExec[[_doc{f}#0, emp_no{f}#1, languages{f}#2, language_code{r}#3, language_name{f}#4]]
+  \_TopNExec[[Order[emp_no{f}#1,ASC,LAST]],20[INTEGER],82]
+    \_FieldExtractExec[emp_no{f}#1]<[],[]>
+      \_LookupJoinExec[[language_code{r}#3],[language_code{f}#5],[language_name{f}#4],null]
+        |_EvalExec[[languages{f}#2 AS language_code#3]]
+        | \_FieldExtractExec[languages{f}#2]<[],[]>
+        |   \_EsQueryExec[employees], indexMode[standard], [_doc{f}#0], limit[], sort[] estimatedRowSize[66] queryBuilderAndTags [[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "emp_no",
     "next" : {
@@ -22,4 +22,4 @@ ExchangeSinkExec[[_doc{f}, emp_no{f}, languages{f}, language_code{r}, language_n
   }
 }, tags=[]]]]
         \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
-EsRelation[languages_lookup][LOOKUP][language_code{f}, language_name{f}]<>]]
+EsRelation[languages_lookup][LOOKUP][language_code{f}#5, language_name{f}#4]<>]]

@@ -131,7 +131,7 @@ public class MapXContentParserTests extends ESTestCase {
         }
     }
 
-    public void testLocationReturnsUndefined() throws IOException {
+    public void testLocationReturnsInvalid() throws IOException {
         try (
             MapXContentParser parser = new MapXContentParser(
                 xContentRegistry(),
@@ -141,8 +141,8 @@ public class MapXContentParserTests extends ESTestCase {
             )
         ) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentLocation.UNDEFINED, parser.getTokenLocation());
-            assertEquals(XContentLocation.UNDEFINED, parser.getCurrentLocation());
+            assertEquals(XContentLocation.INVALID, parser.getTokenLocation());
+            assertEquals(XContentLocation.INVALID, parser.getCurrentLocation());
         }
     }
 

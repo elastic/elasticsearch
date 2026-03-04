@@ -28,7 +28,7 @@ public record XContentLocation(int lineNumber, int columnNumber, long byteOffset
      * Sentinel for parsers that have no underlying stream (e.g. {@code MapXContentParser}).
      * Line and column are zero (outside the valid 1-based range), byte offset is {@code -1}.
      */
-    public static final XContentLocation UNDEFINED = new XContentLocation(0, 0, -1L);
+    public static final XContentLocation INVALID = new XContentLocation(0, 0, -1L);
 
     /**
      * Backward-compatible constructor that sets {@code byteOffset} to {@code -1}

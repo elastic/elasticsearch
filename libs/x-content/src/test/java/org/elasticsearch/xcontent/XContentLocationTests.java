@@ -42,10 +42,10 @@ public class XContentLocationTests extends ESTestCase {
         assertEquals(a.hashCode(), c.hashCode());
     }
 
-    public void testUndefinedHasZeroLineColumnAndMinusOneByteOffset() {
-        assertEquals(0, XContentLocation.UNDEFINED.lineNumber());
-        assertEquals(0, XContentLocation.UNDEFINED.columnNumber());
-        assertEquals(-1L, XContentLocation.UNDEFINED.byteOffset());
+    public void testInvalidHasZeroLineColumnAndMinusOneByteOffset() {
+        assertEquals(0, XContentLocation.INVALID.lineNumber());
+        assertEquals(0, XContentLocation.INVALID.columnNumber());
+        assertEquals(-1L, XContentLocation.INVALID.byteOffset());
     }
 
     public void testToStringOmitsByteOffset() {

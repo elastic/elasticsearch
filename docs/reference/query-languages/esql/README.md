@@ -33,9 +33,8 @@ To add a new processing command called `<my_command>`:
    - Write the command's content here
    - See existing files in that directory for examples
    - Add version metadata: see [Add version metadata](#add-version-metadata)
-2. Add the command to [`_snippets/lists/processing-commands.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/lists/processing-commands.md)
+2. Add the command to [`_snippets/lists/processing-commands.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/lists/processing-commands.md) or [`_snippets/lists/source-commands.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/lists/source-commands.md)
    - Link to the new standalone page path
-   - Use [`_snippets/lists/source-commands.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/lists/source-commands.md) instead if it's a source command
    - Add [version tags](#update-list-files)
 3. Create the standalone wrapper page `commands/<my-command>.md`
    - Add frontmatter with `navigation_title`
@@ -122,6 +121,9 @@ The following example shows the detection of a step change:
 Each function has its own standalone page under `functions-operators/<group>/` that includes a generated layout snippet from [`_snippets/functions/layout/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/functions/layout).
 
 To add a new function called `<my_func>` to the `<group>` group (e.g. `string-functions`):
+
+> [!TIP]
+> For a full walkthrough of the Java implementation, see the [guide in `package-info.java`](https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/esql/src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/package-info.java).
 
 1. Implement the function's Java class
    - Add `@FunctionInfo` and `@Param` annotations

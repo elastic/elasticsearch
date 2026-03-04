@@ -10,7 +10,10 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
@@ -50,6 +53,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -59,6 +63,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -1171,6 +1176,190 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
 
         assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+    }
+
+    public void testSeqNoFieldsPrunedDuringMerge() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+        assumeTrue("Test requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(
+            dataStreamName,
+            1,
+            0,
+            Settings.builder()
+                .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                .build()
+        );
+
+        final var docsIndexByIds = new ConcurrentHashMap<String, String>();
+        var timestamp = Instant.now();
+        logger.info("--> timestamp is {} (epoch: {})", timestamp, timestamp.toEpochMilli());
+
+        final int nbBulks = randomIntBetween(12, 20);
+        final int nbDocs = randomIntBetween(100, 1_000);
+
+        for (int i = 0; i < nbBulks; i++) {
+            var client = client();
+            var bulkRequest = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int j = 0; j < nbDocs; j++) {
+                bulkRequest.add(
+                    client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(String.format(Locale.ROOT, """
+                        {"@timestamp": "%s", "hostname": "%s", "metric": {"field": "metric_%d", "value": %d}}
+                        """, timestamp, "vm-test-" + randomIntBetween(0, 4), randomIntBetween(0, 1), randomInt()), XContentType.JSON)
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+            for (var result : bulkResponse.getItems()) {
+                assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                assertThat(result.getVersion(), equalTo(1L));
+                docsIndexByIds.put(result.getId(), result.getIndex());
+            }
+        }
+
+        var indices = new HashSet<>(docsIndexByIds.values());
+
+        // Delete some random docs, keeping a mapping of deleted doc id -> index for later assertions
+        var deletedDocIndices = new HashMap<String, String>();
+        var deletedDocs = deleteRandomDocuments(new HashMap<>(docsIndexByIds));
+        for (var docId : deletedDocs) {
+            deletedDocIndices.put(docId, docsIndexByIds.remove(docId));
+        }
+
+        refresh(dataStreamName);
+
+        // Before merge: _seq_no doc values should be present at the Lucene level
+        assertShardsHaveSeqNoFieldOnDisk(indices);
+
+        for (var index : indices) {
+            long segmentsCount = indicesAdmin().prepareStats(index).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
+            assertThat("index [" + index + "] has " + segmentsCount + " segments", segmentsCount, greaterThan(1L));
+        }
+
+        flush(dataStreamName);
+
+        // Wait for the peer recovery retention leases to advance past all indexed documents.
+        // Until these leases advance, the soft-deletes retention query matches all docs and
+        // prevents the merge policy from pruning _seq_no doc values.
+        final long expectedRetainingSeqNo = (long) nbBulks * nbDocs + deletedDocs.size();
+        assertBusy(() -> {
+            for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
+                for (var indexService : indicesServices) {
+                    if (indices.contains(indexService.index().getName())) {
+                        for (var indexShard : indexService) {
+                            for (RetentionLease lease : indexShard.getRetentionLeases().leases()) {
+                                assertThat(
+                                    "retention lease [" + lease.id() + "] should have advanced",
+                                    lease.retainingSequenceNumber(),
+                                    equalTo(expectedRetainingSeqNo)
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        var forceMerge = indicesAdmin().prepareForceMerge(indices.toArray(String[]::new)).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getFailedShards(), equalTo(0));
+
+        for (var index : indices) {
+            long segmentsCount = indicesAdmin().prepareStats(index).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
+            assertThat("index [" + index + "] has " + segmentsCount + " segments", segmentsCount, equalTo(1L));
+        }
+
+        refresh(dataStreamName);
+
+        // After merge: documents should still be accessible via GET
+        var randomDocsAfter = randomSubsetOf(randomIntBetween(1, Math.min(10, docsIndexByIds.size())), docsIndexByIds.keySet());
+        for (var docId : randomDocsAfter) {
+            var getResponse = client().prepareGet(docsIndexByIds.get(docId), docId).setRealtime(false).get();
+            assertThat("Doc [" + docId + "] should still exist after merge", getResponse.isExists(), equalTo(true));
+        }
+
+        // After merge: documents should still be accessible via search
+        assertHitCount(client().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), docsIndexByIds.size());
+
+        // Deleted docs should not be found
+        for (var docId : randomSubsetOf(randomIntBetween(1, Math.min(5, deletedDocs.size())), deletedDocs)) {
+            var getResponse = client().prepareGet(deletedDocIndices.get(docId), docId).setRealtime(false).get();
+            assertThat("Deleted doc [" + docId + "] should not exist", getResponse.isExists(), equalTo(false));
+        }
+
+        // After merge: _seq_no doc values and points should be absent at the Lucene level
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+        assertShardsHaveNoSeqNoFieldOnDisk(indices);
+    }
+
+    private static void assertShardsHaveNoSeqNoFieldOnDisk(Set<String> indices) {
+        int nbVisitedShards = 0;
+        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesServices) {
+                if (indices.contains(indexService.index().getName())) {
+                    for (var indexShard : indexService) {
+                        indexShard.withEngineOrNull(engine -> {
+                            if (engine != null) {
+                                try (var searcher = engine.acquireSearcher("assert_no_seq_no_field")) {
+                                    for (var leaf : searcher.getLeafContexts()) {
+                                        var leafReader = leaf.reader();
+
+                                        NumericDocValues seqNoDV = leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                                        if (seqNoDV != null) {
+                                            assertThat(
+                                                "_seq_no doc values should be empty after merge",
+                                                seqNoDV.nextDoc(),
+                                                equalTo(DocIdSetIterator.NO_MORE_DOCS)
+                                            );
+                                        }
+
+                                        PointValues seqNoPoints = leafReader.getPointValues(SeqNoFieldMapper.NAME);
+                                        assertThat("_seq_no point values should be null after merge", seqNoPoints, nullValue());
+                                    }
+                                } catch (IOException ioe) {
+                                    throw new AssertionError(ioe);
+                                }
+                            }
+                            return null;
+                        });
+                        nbVisitedShards++;
+                    }
+                }
+            }
+        }
+        assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
+    }
+
+    private static void assertShardsHaveSeqNoFieldOnDisk(Set<String> indices) {
+        int nbVisitedShards = 0;
+        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesServices) {
+                if (indices.contains(indexService.index().getName())) {
+                    for (var indexShard : indexService) {
+                        indexShard.withEngineOrNull(engine -> {
+                            if (engine != null) {
+                                try (var searcher = engine.acquireSearcher("assert_has_seq_no_field")) {
+                                    for (var leaf : searcher.getLeafContexts()) {
+                                        var leafReader = leaf.reader();
+                                        NumericDocValues seqNoDV = leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                                        assertThat("_seq_no doc values should be present before merge", seqNoDV, notNullValue());
+                                        assertThat(seqNoDV.nextDoc(), not(equalTo(DocIdSetIterator.NO_MORE_DOCS)));
+                                    }
+                                } catch (IOException ioe) {
+                                    throw new AssertionError(ioe);
+                                }
+                            }
+                            return null;
+                        });
+                        nbVisitedShards++;
+                    }
+                }
+            }
+        }
+        assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
     }
 
     private static long documentCount(String dataStreamName) {

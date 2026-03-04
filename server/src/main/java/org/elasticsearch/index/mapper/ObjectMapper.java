@@ -936,9 +936,14 @@ public class ObjectMapper extends Mapper {
     }
 
     private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper) {
+        // We need to include _ignored_source because it holds the actual document values
+        if (mapper instanceof IgnoredSourceFieldMapper ignoredSourceFieldMapper) {
+            return ignoredSourceFieldMapper.syntheticFieldLoader();
+        }
         if ((filter == null || filter.requiresMetadata()) && mapper instanceof MetadataFieldMapper metaMapper) {
             return metaMapper.syntheticFieldLoader();
         }
+
         if (filter != null && filter.isPathFiltered(mapper.fullPath(), mapper instanceof ObjectMapper)) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }

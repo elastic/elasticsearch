@@ -293,7 +293,15 @@ EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
 }
 
 EXPORT void vec_cosi8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<identity_mapper, cosi8_inner, cosi8_scalar, vec_cosi8, 2, sizeof(__m128i)>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<identity_mapper, cosi8_inner, cosi8_scalar, vec_cosi8, 2, sizeof(__m128i)>(
+        a,
+        b,
+        dims,
+        dims,
+        NULL,
+        count,
+        results
+    );
 }
 
 EXPORT void vec_cosi8_bulk_offsets(
@@ -304,7 +312,15 @@ EXPORT void vec_cosi8_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<array_mapper, cosi8_inner, cosi8_scalar, vec_cosi8, 2, sizeof(__m128i)>(a, b, dims, pitch, offsets, count, results);
+    call_i8_bulk<array_mapper, cosi8_inner, cosi8_scalar, vec_cosi8, 2, sizeof(__m128i)>(
+        a,
+        b,
+        dims,
+        pitch,
+        offsets,
+        count,
+        results
+    );
 }
 
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -346,7 +362,15 @@ EXPORT f32_t vec_doti8(const int8_t* a, const int8_t* b, const int32_t dims) {
 }
 
 EXPORT void vec_doti8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<identity_mapper, doti8_inner, doti7u_scalar, vec_doti8>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<identity_mapper, doti8_inner, doti7u_scalar, vec_doti8, 2, sizeof(__m128i)>(
+        a,
+        b,
+        dims,
+        dims,
+        NULL,
+        count,
+        results
+    );
 }
 
 EXPORT void vec_doti8_bulk_offsets(
@@ -357,7 +381,15 @@ EXPORT void vec_doti8_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<array_mapper, doti8_inner, doti7u_scalar, vec_doti8>(a, b, dims, pitch, offsets, count, results);
+    call_i8_bulk<array_mapper, doti8_inner, doti7u_scalar, vec_doti8, 2, sizeof(__m128i)>(
+        a,
+        b,
+        dims,
+        pitch,
+        offsets,
+        count,
+        results
+    );
 }
 
 static inline int32_t sqri8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -399,7 +431,15 @@ EXPORT f32_t vec_sqri8(const int8_t* a, const int8_t* b, const int32_t dims) {
 }
 
 EXPORT void vec_sqri8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<identity_mapper, sqri8_inner, sqri7u_scalar, vec_sqri8>(a, b, dims, dims, NULL, count, results);
+    call_i8_bulk<identity_mapper, sqri8_inner, sqri7u_scalar, vec_sqri8, 2, sizeof(__m128i)>(
+        a,
+        b,
+        dims,
+        dims,
+        NULL,
+        count,
+        results
+    );
 }
 
 EXPORT void vec_sqri8_bulk_offsets(
@@ -410,7 +450,15 @@ EXPORT void vec_sqri8_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<array_mapper, sqri8_inner, sqri7u_scalar, vec_sqri8>(a, b, dims, pitch, offsets, count, results);
+    call_i8_bulk<array_mapper, sqri8_inner, sqri7u_scalar, vec_sqri8, 2, sizeof(__m128i)>(
+        a,
+        b,
+        dims,
+        pitch,
+        offsets,
+        count,
+        results
+    );
 }
 
 // --- single precision floats

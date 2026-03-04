@@ -75,7 +75,7 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
         }
 
         @Override
-        public SourceLoader newSourceLoader(Set<String> sourcePaths) {
+        public SourceLoader newSourceLoader(Set<String> sourcePaths, boolean requiresMetadata) {
             throw new UnsupportedOperationException();
         }
 

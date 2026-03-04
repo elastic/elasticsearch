@@ -313,7 +313,7 @@ public class ValuesSourceReaderBenchmark {
             new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null),
             ByteSizeValue.ofMb(1).getBytes(),
             fields,
-            new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
+            new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths, requiresMetadata) -> {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             reuseColumnLoaders,

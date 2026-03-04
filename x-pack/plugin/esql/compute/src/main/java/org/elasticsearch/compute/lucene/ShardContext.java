@@ -52,7 +52,7 @@ public interface ShardContext extends RefCounted {
     /**
      * Build something to load source {@code _source}.
      */
-    SourceLoader newSourceLoader(Set<String> sourcePaths);
+    SourceLoader newSourceLoader(Set<String> sourcePaths, boolean requiresMetadata);
 
     /**
      * Returns something to load values from this field into a {@link Block}.

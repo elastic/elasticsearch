@@ -42,15 +42,26 @@ public final class SourceFilter {
     private final boolean empty;
     private final String[] includes;
     private final String[] excludes;
+    private final boolean requiresMetadata;
     private CharacterRunAutomaton includeAut;
     private CharacterRunAutomaton excludeAut;
+
+    /**
+     * Construct a new filter based on a list of includes and excludes, including metadata
+     * @param includes  an array of fields to include (may be null)
+     * @param excludes  an array of fields to exclude (may be null)
+     */
+    public SourceFilter(String[] includes, String[] excludes) {
+        this(includes, excludes, true);
+    }
 
     /**
      * Construct a new filter based on a list of includes and excludes
      * @param includes  an array of fields to include (may be null)
      * @param excludes  an array of fields to exclude (may be null)
+     * @param requiresMetadata if true, metadata fields will also be included
      */
-    public SourceFilter(String[] includes, String[] excludes) {
+    public SourceFilter(String[] includes, String[] excludes, boolean requiresMetadata) {
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
         // TODO: Remove this once we upgrade to Jackson 2.14. There is currently a bug
@@ -58,6 +69,7 @@ public final class SourceFilter {
         // see https://github.com/FasterXML/jackson-core/pull/729
         this.canFilterBytes = CollectionUtils.isEmpty(excludes) || Arrays.stream(excludes).noneMatch(field -> field.contains("*"));
         this.empty = CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes);
+        this.requiresMetadata = requiresMetadata;
     }
 
     public String[] getIncludes() {
@@ -66,6 +78,10 @@ public final class SourceFilter {
 
     public String[] getExcludes() {
         return excludes;
+    }
+
+    public boolean requiresMetadata() {
+        return requiresMetadata;
     }
 
     /**

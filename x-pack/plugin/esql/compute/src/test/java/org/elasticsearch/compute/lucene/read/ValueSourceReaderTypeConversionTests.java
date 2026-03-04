@@ -187,7 +187,13 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     private List<ValuesSourceReaderOperator.ShardContext> initShardContexts() {
         return INDICES.keySet()
             .stream()
-            .map(index -> new ValuesSourceReaderOperator.ShardContext(reader(index), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2))
+            .map(
+                index -> new ValuesSourceReaderOperator.ShardContext(
+                    reader(index),
+                    (sourcePaths, requiresMetadata) -> SourceLoader.FROM_STORED_SOURCE,
+                    0.2
+                )
+            )
             .toList();
     }
 
@@ -837,7 +843,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         );
         var vsShardContext = new ValuesSourceReaderOperator.ShardContext(
             reader(indexKey),
-            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+            (sourcePaths, requiresMetadata) -> SourceLoader.FROM_STORED_SOURCE,
             0.2
         );
         try (
@@ -964,7 +970,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             ByteSizeValue.ofGb(1),
             cases.stream().map(c -> c.info()).toList(),
             new IndexedByShardIdFromSingleton<>(
-                new ValuesSourceReaderOperator.ShardContext(reader(indexKey), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)
+                new ValuesSourceReaderOperator.ShardContext(
+                    reader(indexKey),
+                    (sourcePaths, requiresMetadata) -> SourceLoader.FROM_STORED_SOURCE,
+                    0.2
+                )
             ),
             randomBoolean(),
             0,
@@ -996,7 +1006,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             for (int s = 0; s < shardCount; s++) {
                 contexts.add(new LuceneSourceOperatorTests.MockShardContext(readers[s], s));
                 readerShardContexts.add(
-                    new ValuesSourceReaderOperator.ShardContext(readers[s], (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)
+                    new ValuesSourceReaderOperator.ShardContext(
+                        readers[s],
+                        (sourcePaths, requiresMetadata) -> SourceLoader.FROM_STORED_SOURCE,
+                        0.2
+                    )
                 );
             }
             var luceneFactory = new LuceneSourceOperator.Factory(

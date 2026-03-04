@@ -1,0 +1,6 @@
+pr: 140982
+summary: "ESQL: Prune unused regex extract nodes in optimizer"
+area: ES|QL
+type: enhancement
+issues:
+  - 132437

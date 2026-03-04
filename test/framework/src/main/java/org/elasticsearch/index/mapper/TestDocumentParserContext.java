@@ -52,6 +52,10 @@ public class TestDocumentParserContext extends DocumentParserContext {
         this(mappingLookup, source, null, Settings.EMPTY, IndexVersion.current());
     }
 
+    public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, XContentParser parser) {
+        this(mappingLookup, source, parser, Settings.EMPTY, IndexVersion.current());
+    }
+
     public TestDocumentParserContext(MappingLookup mappingLookup, SourceToParse source, IndexVersion version) {
         this(mappingLookup, source, null, Settings.EMPTY, version);
     }

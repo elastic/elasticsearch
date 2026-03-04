@@ -1504,9 +1504,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return confidenceInterval;
         }
 
-         public RescoreVector rescoreVector() {
+        public RescoreVector rescoreVector() {
             return rescoreVector;
-         }
+        }
     }
 
     public enum VectorIndexType {
@@ -3544,7 +3544,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         if (confidenceIntervalNode == null) {
             return null;
         }
-        float confidenceInterval = (float)XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
+        float confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
         boolean shouldWarn = indexVersion.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_4_0);
         if (shouldWarn) {
             deprecationLogger.warn(

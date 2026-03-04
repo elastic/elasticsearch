@@ -25,14 +25,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rank.FieldBasedRerankerIT;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -50,6 +53,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchMetricsBytesReadIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(FieldBasedRerankerIT.FieldBasedRerankerPlugin.class);
+    }
 
     @Before
     public void ensureDirectoryMetricsEnabled() {
@@ -90,6 +98,7 @@ public class SearchMetricsBytesReadIT extends ESIntegTestCase {
         assertThat(biggerIndexBytesRead, greaterThan(smallerIndexBytesRead));
     }
 
+    // TODO still fails at a 1% rate
     public void testMultiShardWithPreference() throws InterruptedException {
         // running a search with a preference should always be less than running the total search
         int numDocs = atLeast(200);
@@ -285,6 +294,7 @@ public class SearchMetricsBytesReadIT extends ESIntegTestCase {
         }
     }
 
+    // TODO still fails at a 1% rate
     public void testPit() throws InterruptedException {
         String indexName = randomIndexName();
         createIndex(indexName, 1, 0);
@@ -392,6 +402,32 @@ public class SearchMetricsBytesReadIT extends ESIntegTestCase {
         long bytesReadBothIndices = assertBytesReadHeader(new SearchRequest(firstIndexName, secondIndexName).source(searchSourceBuilder));
 
         assertThat(bytesReadFirstIndex, equalTo(bytesReadBothIndices));
+    }
+
+    public void testRankFeaturePhase() throws InterruptedException {
+        String indexName = randomIndexName();
+        createIndex(indexName, 1, 0);
+        int numDocs = atLeast(200);
+        List<IndexRequestBuilder> builders = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            builders.add(prepareIndex(indexName).setSource("rank_feature_field", (float) i / numDocs, "search_field", "value value" + i));
+        }
+        indexRandom(true, false, true, false, builders);
+        flushAndRefresh(indexName);
+
+        // warmup
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("search_field", "value"));
+        assertBytesReadHeader(
+            new SearchRequest(indexName).source(searchSourceBuilder)
+        );
+
+        long bytesReadWithoutRank = assertBytesReadHeader(new SearchRequest(indexName).source(searchSourceBuilder));
+
+        SearchSourceBuilder rankedSearch = new SearchSourceBuilder().query(QueryBuilders.termQuery("search_field", "value"))
+            .rankBuilder(new FieldBasedRerankerIT.FieldBasedRankBuilder(10, "rank_feature_field"));
+        long bytesReadWithRank = assertBytesReadHeader(new SearchRequest(indexName).source(rankedSearch));
+
+        assertThat(bytesReadWithRank, greaterThan(bytesReadWithoutRank));
     }
 
     private long assertBytesReadHeader(SearchRequest searchRequest) throws InterruptedException {

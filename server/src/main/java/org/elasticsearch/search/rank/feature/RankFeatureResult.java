@@ -41,6 +41,9 @@ public class RankFeatureResult extends SearchPhaseResult {
         rankShardResult = in.readOptionalWriteable(RankFeatureShardResult::new);
         setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
         setSearchShardTarget(in.readOptionalWriteable(SearchShardTarget::new));
+        if (in.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            setBytesRead(in.readVLong());
+        }
     }
 
     @Override
@@ -50,6 +53,9 @@ public class RankFeatureResult extends SearchPhaseResult {
         out.writeOptionalWriteable(rankShardResult);
         out.writeOptionalWriteable(getShardSearchRequest());
         out.writeOptionalWriteable(getSearchShardTarget());
+        if (out.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            out.writeVLong(getBytesRead());
+        }
     }
 
     @Override

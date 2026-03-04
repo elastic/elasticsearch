@@ -16,6 +16,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -46,6 +47,10 @@ public class ReindexRemoteIT extends ESRestTestCase {
     }
 
     public void testGetReindexDescriptionStripsRemoteInfoSensitiveFields() throws Exception {
+        assumeTrue(
+            "reindex resilience endpoints available",
+            clusterHasCapability("GET", "/_reindex/{task_id}", List.of(), List.of("reindex_management_api")).orElse(false)
+        );
         Request indexRequest = new Request("POST", "/remote_src/_doc");
         indexRequest.addParameter("refresh", "true");
         indexRequest.setJsonEntity("{\"field\": \"value\"}");

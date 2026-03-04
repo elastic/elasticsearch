@@ -101,6 +101,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+@SuppressForbidden(reason = "use a http server")
 public class ReindexerTests extends ESTestCase {
 
     public void testWrapWithMetricsSuccess() {

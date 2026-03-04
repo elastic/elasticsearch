@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex.remote;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
@@ -77,11 +79,11 @@ public class RemoteResponseParsersTests extends ESTestCase {
     public void testOpenPitParserMissingId() throws IOException {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
         try (XContentParser parser = createParser(builder)) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON)
+            Exception e = expectThrows(Exception.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            assertThat(
+                ExceptionsHelper.unwrapCause(e).getMessage(),
+                Matchers.containsString("Failed to build [open_pit_response] after last required field arrived")
             );
-            assertThat(e.getMessage(), Matchers.containsString("open point-in-time response must contain [id] field"));
         }
     }
 
@@ -91,11 +93,8 @@ public class RemoteResponseParsersTests extends ESTestCase {
     public void testOpenPitParserEmptyId() throws IOException {
         XContentBuilder builder = jsonBuilder().startObject().field("id", "").endObject();
         try (XContentParser parser = createParser(builder)) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON)
-            );
-            assertThat(e.getMessage(), Matchers.containsString("open point-in-time response must contain [id] field"));
+            Exception e = expectThrows(Exception.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), Matchers.containsString("failed to parse field [id]"));
         }
     }
 
@@ -105,11 +104,44 @@ public class RemoteResponseParsersTests extends ESTestCase {
     public void testOpenPitParserNotAnObject() throws IOException {
         XContentBuilder builder = jsonBuilder().startArray().value("a").endArray();
         try (XContentParser parser = createParser(builder)) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON)
+            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            assertThat(e.getMessage(), Matchers.containsString("Expected START_OBJECT"));
+        }
+    }
+
+    /**
+     * Verifies that OPEN_PIT_PARSER throws when the response is a primitive value rather than an object.
+     */
+    public void testOpenPitParserNotAnObjectWithPrimitive() throws IOException {
+        XContentBuilder builder = randomFrom(jsonBuilder().value("bare_string"), jsonBuilder().value(42), jsonBuilder().value(true));
+        try (XContentParser parser = createParser(builder)) {
+            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            assertThat(e.getMessage(), Matchers.containsString("Expected START_OBJECT"));
+        }
+    }
+
+    /**
+     * Verifies that OPEN_PIT_PARSER throws when the id field has the wrong type (e.g. number instead of string).
+     */
+    public void testOpenPitParserIdWrongType() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject().field("id", 12345).endObject();
+        try (XContentParser parser = createParser(builder)) {
+            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            assertThat(e.getMessage(), Matchers.anyOf(Matchers.containsString("id doesn't support values of type")));
+        }
+    }
+
+    /**
+     * Verifies that OPEN_PIT_PARSER throws when the id field is explicitly null.
+     */
+    public void testOpenPitParserNullId() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject().nullField("id").endObject();
+        try (XContentParser parser = createParser(builder)) {
+            Exception e = expectThrows(Exception.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            assertThat(
+                ExceptionsHelper.unwrapCause(e).getMessage(),
+                Matchers.containsString("id doesn't support values of type: VALUE_NULL")
             );
-            assertThat(e.getMessage(), Matchers.containsString("open point-in-time response must be an object"));
         }
     }
 
@@ -120,7 +152,8 @@ public class RemoteResponseParsersTests extends ESTestCase {
         String invalidBase64 = randomAlphaOfLength(between(1, 20)) + "!!!";
         XContentBuilder builder = jsonBuilder().startObject().field("id", invalidBase64).endObject();
         try (XContentParser parser = createParser(builder)) {
-            expectThrows(IllegalArgumentException.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            XContentParseException e = expectThrows(XContentParseException.class, () -> OPEN_PIT_PARSER.apply(parser, XContentType.JSON));
+            assertThat(e.getMessage(), Matchers.containsString("failed to parse field [id]"));
         }
     }
 }

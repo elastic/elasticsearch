@@ -274,27 +274,20 @@ final class RemoteResponseParsers {
     /**
      * Parser for the open point-in-time response. Returns the PIT id as {@link BytesReference}.
      */
-    public static final BiFunction<XContentParser, XContentType, BytesReference> OPEN_PIT_PARSER = (p, xContentType) -> {
-        try {
-            String id = null;
-            if (p.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new IllegalArgumentException("open point-in-time response must be an object");
-            }
-            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                if (p.currentToken() == XContentParser.Token.FIELD_NAME && "id".equals(p.currentName())) {
-                    p.nextToken();
-                    id = p.text();
-                    break;
-                }
-            }
+    public static final ConstructingObjectParser<BytesReference, XContentType> OPEN_PIT_PARSER = new ConstructingObjectParser<>(
+        "open_pit_response",
+        true,
+        a -> {
+            String id = (String) a[0];
             if (id == null || id.isEmpty()) {
                 throw new IllegalArgumentException("open point-in-time response must contain [id] field");
             }
             return new BytesArray(Base64.getUrlDecoder().decode(id));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to parse open point-in-time response", e);
         }
-    };
+    );
+    static {
+        OPEN_PIT_PARSER.declareString(optionalConstructorArg(), new ParseField("id"));
+    }
 
     /**
      * Parses the main action to return just the {@linkplain Version} that it returns. We throw everything else out.

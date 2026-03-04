@@ -62,6 +62,17 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
 
     private static final Logger logger = LogManager.getLogger(RemoteReindexingUtilsTests.class);
 
+    private static String getAllExceptionMessages(Throwable t) {
+        StringBuilder sb = new StringBuilder();
+        while (t != null) {
+            if (t.getMessage() != null) {
+                sb.append(t.getMessage()).append(" ");
+            }
+            t = t.getCause();
+        }
+        return sb.toString();
+    }
+
     private ThreadPool threadPool;
     private RestClient client;
 
@@ -545,8 +556,8 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             new String[] { randomAlphaOfLength(between(1, 10)) },
             randomPositiveTimeValue(),
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
-                assertTrue(e instanceof IllegalArgumentException);
-                assertThat(e.getMessage(), containsString("open point-in-time response must contain [id] field"));
+                assertTrue(e instanceof ElasticsearchException);
+                assertThat(getAllExceptionMessages(e), containsString("open point-in-time response must contain [id] field"));
                 failed.set(true);
             }, e -> fail("unexpected rejection")),
             threadPool,

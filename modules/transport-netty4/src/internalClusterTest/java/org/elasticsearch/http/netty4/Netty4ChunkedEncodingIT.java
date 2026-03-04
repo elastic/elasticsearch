@@ -26,7 +26,6 @@ import io.netty.handler.codec.http.HttpVersion;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -222,10 +221,7 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
     private static Releasable withResourceTracker() {
         assertNull(refs);
         final var latch = new CountDownLatch(1);
-        refs = AbstractRefCounted.of(() -> {
-            logger.info("--> refs all released", new ElasticsearchException("stack trace"));
-            latch.countDown();
-        });
+        refs = AbstractRefCounted.of(latch::countDown);
         return () -> {
             refs.decRef();
             try {

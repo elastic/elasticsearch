@@ -192,32 +192,32 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return this;
         }
 
-        public DoubleBuilder alpDoubleStage() {
+        public DoubleBuilder alp() {
             specs.add(new StageSpec.AlpDoubleStage());
             return this;
         }
 
-        public DoubleBuilder alpDoubleStage(double maxError) {
+        public DoubleBuilder alp(double maxError) {
             specs.add(new StageSpec.AlpDoubleStage(maxError));
             return this;
         }
 
-        public DoubleBuilder fpcStage() {
+        public DoubleBuilder fpc() {
             specs.add(new StageSpec.FpcDoubleStage());
             return this;
         }
 
-        public DoubleBuilder fpcStage(int tableSize) {
+        public DoubleBuilder fpc(int tableSize) {
             specs.add(new StageSpec.FpcDoubleStage(tableSize));
             return this;
         }
 
-        public DoubleBuilder fpcStage(double maxError) {
+        public DoubleBuilder fpc(double maxError) {
             specs.add(new StageSpec.FpcDoubleStage(0, maxError));
             return this;
         }
 
-        public DoubleBuilder fpcStage(int tableSize, double maxError) {
+        public DoubleBuilder fpc(int tableSize, double maxError) {
             specs.add(new StageSpec.FpcDoubleStage(tableSize, maxError));
             return this;
         }
@@ -314,32 +314,32 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return this;
         }
 
-        public FloatBuilder alpFloatStage() {
+        public FloatBuilder alp() {
             specs.add(new StageSpec.AlpFloatStage());
             return this;
         }
 
-        public FloatBuilder alpFloatStage(double maxError) {
+        public FloatBuilder alp(double maxError) {
             specs.add(new StageSpec.AlpFloatStage(maxError));
             return this;
         }
 
-        public FloatBuilder fpcStage() {
+        public FloatBuilder fpc() {
             specs.add(new StageSpec.FpcFloatStage());
             return this;
         }
 
-        public FloatBuilder fpcStage(int tableSize) {
+        public FloatBuilder fpc(int tableSize) {
             specs.add(new StageSpec.FpcFloatStage(tableSize));
             return this;
         }
 
-        public FloatBuilder fpcStage(double maxError) {
+        public FloatBuilder fpc(double maxError) {
             specs.add(new StageSpec.FpcFloatStage(0, maxError));
             return this;
         }
 
-        public FloatBuilder fpcStage(int tableSize, double maxError) {
+        public FloatBuilder fpc(int tableSize, double maxError) {
             specs.add(new StageSpec.FpcFloatStage(tableSize, maxError));
             return this;
         }

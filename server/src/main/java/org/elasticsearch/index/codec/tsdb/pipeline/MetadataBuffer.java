@@ -26,6 +26,8 @@ import java.io.IOException;
 public final class MetadataBuffer implements MetadataWriter {
 
     private static final int DEFAULT_CAPACITY = 64;
+    private static final int MAX_VINT_BYTES = 5;
+    private static final int MAX_VLONG_BYTES = 10;
 
     private byte[] data;
     private int dataSize;
@@ -135,7 +137,7 @@ public final class MetadataBuffer implements MetadataWriter {
     }
 
     private MetadataWriter encodeVInt(int value) {
-        ensureCapacity(5);
+        ensureCapacity(MAX_VINT_BYTES);
         while ((value & ~0x7F) != 0) {
             data[dataSize++] = (byte) ((value & 0x7F) | 0x80);
             value >>>= 7;
@@ -145,7 +147,7 @@ public final class MetadataBuffer implements MetadataWriter {
     }
 
     private MetadataWriter encodeVLong(long value) {
-        ensureCapacity(10);
+        ensureCapacity(MAX_VLONG_BYTES);
         for (int i = 0; i < 9 && (value & ~0x7FL) != 0; i++) {
             data[dataSize++] = (byte) ((value & 0x7FL) | 0x80L);
             value >>>= 7;

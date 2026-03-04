@@ -32,7 +32,7 @@ public class PipelineConfigTests extends ESTestCase {
 
     public void testDoubleBuilderFluency() {
         final int blockSize = randomBlockSize();
-        final PipelineConfig config = PipelineConfig.forDoubles(blockSize).alpDoubleStage().gorilla();
+        final PipelineConfig config = PipelineConfig.forDoubles(blockSize).alp().gorilla();
         assertEquals(PipelineDescriptor.DataType.DOUBLE, config.dataType());
         assertEquals(blockSize, config.blockSize());
         assertEquals(2, config.specs().size());
@@ -40,7 +40,7 @@ public class PipelineConfigTests extends ESTestCase {
 
     public void testFloatBuilderFluency() {
         final int blockSize = randomBlockSize();
-        final PipelineConfig config = PipelineConfig.forFloats(blockSize).alpFloatStage().gorilla();
+        final PipelineConfig config = PipelineConfig.forFloats(blockSize).alp().gorilla();
         assertEquals(PipelineDescriptor.DataType.FLOAT, config.dataType());
         assertEquals(blockSize, config.blockSize());
         assertEquals(2, config.specs().size());
@@ -49,8 +49,8 @@ public class PipelineConfigTests extends ESTestCase {
     public void testBlockSizePreserved() {
         final int blockSize = randomBlockSize();
         assertEquals(blockSize, PipelineConfig.forLongs(blockSize).delta().bitPack().blockSize());
-        assertEquals(blockSize, PipelineConfig.forDoubles(blockSize).alpDoubleStage().gorilla().blockSize());
-        assertEquals(blockSize, PipelineConfig.forFloats(blockSize).alpFloatStage().gorilla().blockSize());
+        assertEquals(blockSize, PipelineConfig.forDoubles(blockSize).alp().gorilla().blockSize());
+        assertEquals(blockSize, PipelineConfig.forFloats(blockSize).alp().gorilla().blockSize());
     }
 
     public void testEquality() {
@@ -79,8 +79,8 @@ public class PipelineConfigTests extends ESTestCase {
     public void testDataTypePreserved() {
         final int blockSize = randomBlockSize();
         assertEquals(PipelineDescriptor.DataType.LONG, PipelineConfig.forLongs(blockSize).delta().bitPack().dataType());
-        assertEquals(PipelineDescriptor.DataType.DOUBLE, PipelineConfig.forDoubles(blockSize).alpDoubleStage().gorilla().dataType());
-        assertEquals(PipelineDescriptor.DataType.FLOAT, PipelineConfig.forFloats(blockSize).alpFloatStage().gorilla().dataType());
+        assertEquals(PipelineDescriptor.DataType.DOUBLE, PipelineConfig.forDoubles(blockSize).alp().gorilla().dataType());
+        assertEquals(PipelineDescriptor.DataType.FLOAT, PipelineConfig.forFloats(blockSize).alp().gorilla().dataType());
     }
 
     public void testSpecsPreserved() {
@@ -193,39 +193,39 @@ public class PipelineConfigTests extends ESTestCase {
         assertTrue(lz4.highCompression());
     }
 
-    public void testAlpDoubleStageWithMaxError() {
+    public void testAlpDoubleWithMaxError() {
         final int blockSize = randomBlockSize();
         final double maxError = randomDoubleBetween(0.001, 1.0, true);
-        final PipelineConfig config = PipelineConfig.forDoubles(blockSize).alpDoubleStage(maxError).gorilla();
+        final PipelineConfig config = PipelineConfig.forDoubles(blockSize).alp(maxError).gorilla();
         final StageSpec.AlpDoubleStage alp = (StageSpec.AlpDoubleStage) config.specs().getFirst();
         assertEquals(maxError, alp.maxError(), 0.0);
     }
 
-    public void testAlpFloatStageWithMaxError() {
+    public void testAlpFloatWithMaxError() {
         final int blockSize = randomBlockSize();
         final double maxError = randomDoubleBetween(0.001, 1.0, true);
-        final PipelineConfig config = PipelineConfig.forFloats(blockSize).alpFloatStage(maxError).gorilla();
+        final PipelineConfig config = PipelineConfig.forFloats(blockSize).alp(maxError).gorilla();
         final StageSpec.AlpFloatStage alp = (StageSpec.AlpFloatStage) config.specs().getFirst();
         assertEquals(maxError, alp.maxError(), 0.0);
     }
 
-    public void testFpcDoubleStageVariants() {
+    public void testFpcDoubleVariants() {
         final int blockSize = randomBlockSize();
         final int tableSize = randomIntBetween(0, 2048);
         final double maxError = randomDoubleBetween(0.0, 1.0, true);
 
-        assertThat(PipelineConfig.forDoubles(blockSize).fpcStage().bitPack().specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
+        assertThat(PipelineConfig.forDoubles(blockSize).fpc().bitPack().specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
         assertEquals(
             tableSize,
-            ((StageSpec.FpcDoubleStage) PipelineConfig.forDoubles(blockSize).fpcStage(tableSize).bitPack().specs().getFirst()).tableSize()
+            ((StageSpec.FpcDoubleStage) PipelineConfig.forDoubles(blockSize).fpc(tableSize).bitPack().specs().getFirst()).tableSize()
         );
         assertEquals(
             maxError,
-            ((StageSpec.FpcDoubleStage) PipelineConfig.forDoubles(blockSize).fpcStage(maxError).bitPack().specs().getFirst()).maxError(),
+            ((StageSpec.FpcDoubleStage) PipelineConfig.forDoubles(blockSize).fpc(maxError).bitPack().specs().getFirst()).maxError(),
             0.0
         );
         final StageSpec.FpcDoubleStage fpc = (StageSpec.FpcDoubleStage) PipelineConfig.forDoubles(blockSize)
-            .fpcStage(tableSize, maxError)
+            .fpc(tableSize, maxError)
             .bitPack()
             .specs()
             .getFirst();
@@ -233,23 +233,23 @@ public class PipelineConfigTests extends ESTestCase {
         assertEquals(maxError, fpc.maxError(), 0.0);
     }
 
-    public void testFpcFloatStageVariants() {
+    public void testFpcFloatVariants() {
         final int blockSize = randomBlockSize();
         final int tableSize = randomIntBetween(0, 2048);
         final double maxError = randomDoubleBetween(0.0, 1.0, true);
 
-        assertThat(PipelineConfig.forFloats(blockSize).fpcStage().bitPack().specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
+        assertThat(PipelineConfig.forFloats(blockSize).fpc().bitPack().specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
         assertEquals(
             tableSize,
-            ((StageSpec.FpcFloatStage) PipelineConfig.forFloats(blockSize).fpcStage(tableSize).bitPack().specs().getFirst()).tableSize()
+            ((StageSpec.FpcFloatStage) PipelineConfig.forFloats(blockSize).fpc(tableSize).bitPack().specs().getFirst()).tableSize()
         );
         assertEquals(
             maxError,
-            ((StageSpec.FpcFloatStage) PipelineConfig.forFloats(blockSize).fpcStage(maxError).bitPack().specs().getFirst()).maxError(),
+            ((StageSpec.FpcFloatStage) PipelineConfig.forFloats(blockSize).fpc(maxError).bitPack().specs().getFirst()).maxError(),
             0.0
         );
         final StageSpec.FpcFloatStage fpc = (StageSpec.FpcFloatStage) PipelineConfig.forFloats(blockSize)
-            .fpcStage(tableSize, maxError)
+            .fpc(tableSize, maxError)
             .bitPack()
             .specs()
             .getFirst();

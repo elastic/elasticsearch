@@ -44,9 +44,11 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         TimeSeriesAggregate::new
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
+    public static final TransportVersion TIME_SERIES_AGGREGATE_WITHOUT = TransportVersion.fromName("time_series_aggregate_without");
 
     private final Bucket timeBucket;
     private final Expression timestamp;
+    private final TsidGroupingParams tsidGroupingParams;
 
     public TimeSeriesAggregate(
         Source source,
@@ -56,9 +58,22 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         Bucket timeBucket,
         Expression timestamp
     ) {
+        this(source, child, groupings, aggregates, timeBucket, timestamp, null);
+    }
+
+    public TimeSeriesAggregate(
+        Source source,
+        LogicalPlan child,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        Bucket timeBucket,
+        Expression timestamp,
+        TsidGroupingParams tsidGroupingParams
+    ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
         this.timestamp = timestamp;
+        this.tsidGroupingParams = tsidGroupingParams;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
@@ -71,6 +86,11 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             // Using null (when deserialized from an old node) in this case should be okay.
             this.timestamp = null;
         }
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_WITHOUT)) {
+            this.tsidGroupingParams = in.readOptionalWriteable(TsidGroupingParams::new);
+        } else {
+            this.tsidGroupingParams = null;
+        }
     }
 
     @Override
@@ -79,6 +99,9 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         out.writeOptionalWriteable(timeBucket);
         if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
             out.writeOptionalNamedWriteable(timestamp);
+        }
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_WITHOUT)) {
+            out.writeOptionalWriteable(tsidGroupingParams);
         }
     }
 
@@ -89,24 +112,24 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp, tsidGroupingParams);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp, tsidGroupingParams);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp, tsidGroupingParams);
     }
 
     public LogicalPlan withTimestamp(Expression newTimestamp) {
         if (newTimestamp.equals(timestamp)) {
             return this;
         }
-        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp);
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp, tsidGroupingParams);
     }
 
     @Override
@@ -124,9 +147,14 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         return timestamp;
     }
 
+    @Nullable
+    public TsidGroupingParams tsidGroupingParams() {
+        return tsidGroupingParams;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp, tsidGroupingParams);
     }
 
     @Override
@@ -144,7 +172,8 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child())
             && Objects.equals(timeBucket, other.timeBucket)
-            && Objects.equals(timestamp, other.timestamp);
+            && Objects.equals(timestamp, other.timestamp)
+            && Objects.equals(tsidGroupingParams, other.tsidGroupingParams);
     }
 
     @Override

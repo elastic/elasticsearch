@@ -203,7 +203,8 @@ public class MapperUtils {
                 aggMode,
                 intermediateAttributes,
                 null,
-                ts.timeBucket()
+                ts.timeBucket(),
+                ts.tsidGroupingParams()
             );
             case SampledAggregate sample -> new SampledAggregateExec(
                 sample.source(),

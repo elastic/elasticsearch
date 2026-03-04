@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValue
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
+import org.elasticsearch.xpack.esql.plan.logical.TsidGroupingParams;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -63,8 +64,10 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
 
     @Override
     public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
-        if (plan instanceof TimeSeriesAggregateExec oldAgg && oldAgg.getMode() == AggregatorMode.INITIAL) {
-            return rule(oldAgg, context);
+        if (plan instanceof TimeSeriesAggregateExec oldAgg) {
+            if (oldAgg.getMode() == AggregatorMode.INITIAL) {
+                return rule(oldAgg, context);
+            }
         }
         return plan;
     }
@@ -75,6 +78,8 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         if (sourceAttr == null) {
             return oldAgg;
         }
+        TsidGroupingParams tsidGroupingParams = oldAgg.tsidGroupingParams();
+        Set<String> excludedDimensions = tsidGroupingParams != null ? tsidGroupingParams.excludedDimensions() : Set.of();
         List<NamedExpression> newAggregates = new ArrayList<>();
         List<Attribute> dimensionFields = new ArrayList<>();
         List<Alias> aliases = new ArrayList<>();
@@ -108,7 +113,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                         EsField.TimeSeriesFieldType.DIMENSION
                                     ),
                                     DataType.KEYWORD,
-                                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false)
+                                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false, excludedDimensions)
                                 ),
                                 true
                             );

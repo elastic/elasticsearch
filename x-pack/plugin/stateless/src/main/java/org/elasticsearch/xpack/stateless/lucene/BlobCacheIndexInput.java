@@ -158,7 +158,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput imple
 
     @Override
     public void prefetch(long offset, long length) throws IOException {
-        cacheFileReader.tryPrefetch(offset, length);
+        cacheFileReader.tryPrefetch(this.offset + offset, length);
     }
 
     @Override

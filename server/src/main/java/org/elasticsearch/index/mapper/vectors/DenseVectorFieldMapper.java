@@ -1488,17 +1488,25 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     abstract static class QuantizedIndexOptions extends DenseVectorIndexOptions {
         final RescoreVector rescoreVector;
-        final Double confidenceInterval;
+        final Float confidenceInterval;
 
         QuantizedIndexOptions(VectorIndexType type, RescoreVector rescoreVector) {
             this(type, rescoreVector, null);
         }
 
-        QuantizedIndexOptions(VectorIndexType type, RescoreVector rescoreVector, Double confidenceInterval) {
+        QuantizedIndexOptions(VectorIndexType type, RescoreVector rescoreVector, Float confidenceInterval) {
             super(type);
             this.rescoreVector = rescoreVector;
             this.confidenceInterval = confidenceInterval;
         }
+
+        public Float confidenceInterval() {
+            return confidenceInterval;
+        }
+
+         public RescoreVector rescoreVector() {
+            return rescoreVector;
+         }
     }
 
     public enum VectorIndexType {
@@ -1547,7 +1555,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-                Double confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
+                Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 Object flatIndexThresholdNode = indexOptionsMap.remove("flat_index_threshold");
 
@@ -1583,7 +1591,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-                Double confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
+                Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 Object flatIndexThresholdNode = indexOptionsMap.remove("flat_index_threshold");
 
@@ -1647,7 +1655,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 boolean experimentalFeaturesEnabled
             ) {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
-                Double confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
+                Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
@@ -1679,7 +1687,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 boolean experimentalFeaturesEnabled
             ) {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
-                Double confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
+                Float confidenceInterval = parseConfidenceInterval(fieldName, indexOptionsMap, indexVersion);
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
@@ -1929,7 +1937,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             super(VectorIndexType.INT8_FLAT, rescoreVector);
         }
 
-        Int8FlatIndexOptions(RescoreVector rescoreVector, Double confidenceInterval) {
+        Int8FlatIndexOptions(RescoreVector rescoreVector, Float confidenceInterval) {
             super(VectorIndexType.INT8_FLAT, rescoreVector, confidenceInterval);
         }
 
@@ -2037,7 +2045,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean onDiskRescore,
             RescoreVector rescoreVector,
             int flatIndexThreshold,
-            Double confidenceInterval
+            Float confidenceInterval
         ) {
             super(VectorIndexType.INT4_HNSW, rescoreVector, confidenceInterval);
             this.m = m;
@@ -2144,7 +2152,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             super(VectorIndexType.INT4_FLAT, rescoreVector);
         }
 
-        Int4FlatIndexOptions(RescoreVector rescoreVector, Double confidenceInterval) {
+        Int4FlatIndexOptions(RescoreVector rescoreVector, Float confidenceInterval) {
             super(VectorIndexType.INT4_FLAT, rescoreVector, confidenceInterval);
         }
 
@@ -2219,7 +2227,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean onDiskRescore,
             RescoreVector rescoreVector,
             int flatIndexThreshold,
-            Double confidenceInterval
+            Float confidenceInterval
         ) {
             super(VectorIndexType.INT8_HNSW, rescoreVector, confidenceInterval);
             this.m = m;
@@ -2298,6 +2306,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public int flatIndexThreshold() {
             return flatIndexThreshold;
+        }
+
+        public Float confidenceInterval() {
+            return confidenceInterval;
         }
 
         @Override
@@ -3527,12 +3539,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return parsedType.parseIndexOptions(fieldName, indexOptionsMap, indexVersion, experimentalFeaturesEnabled);
     }
 
-    private static Double parseConfidenceInterval(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+    private static Float parseConfidenceInterval(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
         Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
         if (confidenceIntervalNode == null) {
             return null;
         }
-        double confidenceInterval = XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
+        float confidenceInterval = (float)XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
         boolean shouldWarn = indexVersion.onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_4_0);
         if (shouldWarn) {
             deprecationLogger.warn(

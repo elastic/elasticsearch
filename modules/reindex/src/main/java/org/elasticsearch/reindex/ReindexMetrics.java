@@ -17,6 +17,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class ReindexMetrics {
@@ -80,30 +81,20 @@ public class ReindexMetrics {
 
     public enum SlicingMode {
         // slices resolved automatically from source index shard count (e.g. ?slices=auto)
-        AUTO("auto"),
+        AUTO(),
         // reindex request specifies a fixed slice count (e.g. ?slices=4)
-        FIXED("fixed"),
+        FIXED(),
         // reindex request specifies a slice id (e.g. "slice": { "id": 0, "max": 4 })
-        MANUAL("manual"),
+        MANUAL(),
         // no slicing (e.g. ?slices=1)
-        NONE("none");
-
-        private final String value;
-
-        SlicingMode(String value) {
-            this.value = value;
-        }
-
-        public String value() {
-            return value;
-        }
+        NONE();
     }
 
     /**
      * Determines the {@link SlicingMode} from a reindex request.
      */
     public static SlicingMode resolveSlicingMode(ReindexRequest request) {
-        if (request.getSearchRequest().source() != null && request.getSearchRequest().source().slice() != null) {
+        if (request.getSearchRequest().source().slice() != null) {
             return SlicingMode.MANUAL;
         }
         int slices = request.getSlices();
@@ -118,7 +109,7 @@ public class ReindexMetrics {
     private Map<String, Object> getAttributes(boolean remote, SlicingMode slicingMode) {
         Map<String, Object> attributes = new HashMap<>();
         attributes.put(ATTRIBUTE_NAME_SOURCE, remote ? ATTRIBUTE_VALUE_SOURCE_REMOTE : ATTRIBUTE_VALUE_SOURCE_LOCAL);
-        attributes.put(ATTRIBUTE_NAME_SLICING_MODE, slicingMode.value());
+        attributes.put(ATTRIBUTE_NAME_SLICING_MODE, slicingMode.name().toLowerCase(Locale.ROOT));
 
         return attributes;
     }

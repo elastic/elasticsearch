@@ -159,6 +159,22 @@ public class ReindexerTests extends ESTestCase {
         verify(metrics).recordTookTime(anyLong(), eq(false), any());
     }
 
+    public void testWrapWithMetricsSkipsMetricsWhenRelocating() {
+        ReindexMetrics metrics = mock();
+        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        BulkByScrollTask task = createNonSlicedWorkerTask();
+
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+
+        BulkByScrollResponse response = reindexResponseWithResumeInfo();
+        wrapped.onResponse(response);
+
+        verify(listener).onResponse(response);
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
+        verify(metrics, never()).recordTookTime(anyLong(), anyBoolean(), any());
+    }
+
     // listenerWithRelocations tests
 
     public void testListenerWithRelocationsPassesThroughForWorkerWithLeaderParent() {

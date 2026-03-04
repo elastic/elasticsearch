@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE;
@@ -52,7 +53,10 @@ public class ReindexMetricsTests extends ESTestCase {
         assertEquals(1, measurements.size());
         assertEquals(secondsTaken, measurements.getFirst().getLong());
         assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
-        assertEquals(SlicingMode.NONE.value(), measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(
+            SlicingMode.NONE.name().toLowerCase(Locale.ROOT),
+            measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE)
+        );
 
         long remoteSecondsTaken = randomLongBetween(1, Long.MAX_VALUE);
         metrics.recordTookTime(remoteSecondsTaken, true, SlicingMode.AUTO);
@@ -63,7 +67,7 @@ public class ReindexMetricsTests extends ESTestCase {
         assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
         assertEquals(remoteSecondsTaken, measurements.get(1).getLong());
         assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
-        assertEquals(SlicingMode.AUTO.value(), measurements.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(SlicingMode.AUTO.name().toLowerCase(Locale.ROOT), measurements.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
     }
 
     public void testRecordSuccess() {
@@ -73,7 +77,10 @@ public class ReindexMetricsTests extends ESTestCase {
         assertEquals(1, measurements.size());
         assertEquals(1, measurements.getFirst().getLong());
         assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
-        assertEquals(SlicingMode.NONE.value(), measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(
+            SlicingMode.NONE.name().toLowerCase(Locale.ROOT),
+            measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE)
+        );
         assertNull(measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
 
         metrics.recordSuccess(true, SlicingMode.FIXED);
@@ -82,7 +89,7 @@ public class ReindexMetricsTests extends ESTestCase {
         assertEquals(2, measurements.size());
         assertEquals(1, measurements.get(1).getLong());
         assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
-        assertEquals(SlicingMode.FIXED.value(), measurements.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(SlicingMode.FIXED.name().toLowerCase(Locale.ROOT), measurements.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
         assertNull(measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
     }
 
@@ -94,7 +101,10 @@ public class ReindexMetricsTests extends ESTestCase {
         assertEquals(1, measurements.getFirst().getLong());
         assertEquals("java.lang.IllegalArgumentException", measurements.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
         assertEquals(ATTRIBUTE_VALUE_SOURCE_LOCAL, measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE));
-        assertEquals(SlicingMode.NONE.value(), measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(
+            SlicingMode.NONE.name().toLowerCase(Locale.ROOT),
+            measurements.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE)
+        );
 
         metrics.recordFailure(true, SlicingMode.AUTO, new ElasticsearchStatusException("another failure", RestStatus.BAD_REQUEST));
 
@@ -104,7 +114,7 @@ public class ReindexMetricsTests extends ESTestCase {
         assertEquals(1, measurements.get(1).getLong());
         assertEquals(RestStatus.BAD_REQUEST.name(), measurements.get(1).attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
         assertEquals(ATTRIBUTE_VALUE_SOURCE_REMOTE, measurements.get(1).attributes().get(ATTRIBUTE_NAME_SOURCE));
-        assertEquals(SlicingMode.AUTO.value(), measurements.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
+        assertEquals(SlicingMode.AUTO.name().toLowerCase(Locale.ROOT), measurements.get(1).attributes().get(ATTRIBUTE_NAME_SLICING_MODE));
     }
 
     public void testResolveSlicingModeNone() {

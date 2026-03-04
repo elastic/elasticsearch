@@ -322,43 +322,53 @@ public class Reindexer {
         final boolean isRemote = request.getRemoteInfo() != null;
         final ReindexMetrics.SlicingMode slicingMode = ReindexMetrics.resolveSlicingMode(request);
         // todo(szy): add relocation metrics
-        // add completion metrics
-        var withCompletionMetrics = new ActionListener<BulkByScrollResponse>() {
+        return new ActionListener<>() {
+            private void recordDuration() {
+                long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+                metrics.recordTookTime(elapsedTime, isRemote, slicingMode);
+            }
+
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
-                    .stream()
-                    .flatMap(List::stream)
-                    .map(PaginatedHitSource.SearchFailure::getReason)
-                    .findFirst();
-                var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
-                    .stream()
-                    .flatMap(List::stream)
-                    .map(BulkItemResponse.Failure::getCause)
-                    .findFirst();
-                if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
-                    // record only the first sample error in metric
-                    Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
-                    metrics.recordFailure(isRemote, slicingMode, e);
+                if (bulkByScrollResponse.getTaskResumeInfo().isPresent()) {
+                    // Task is being relocated; do not record metrics on the source node, the destination node will record metrics when
+                    // the relocated task completes
                     listener.onResponse(bulkByScrollResponse);
-                } else {
-                    metrics.recordSuccess(isRemote, slicingMode);
+                    return;
+                }
+                try {
+                    var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
+                        .stream()
+                        .flatMap(List::stream)
+                        .map(PaginatedHitSource.SearchFailure::getReason)
+                        .findFirst();
+                    var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
+                        .stream()
+                        .flatMap(List::stream)
+                        .map(BulkItemResponse.Failure::getCause)
+                        .findFirst();
+                    if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
+                        Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
+                        metrics.recordFailure(isRemote, slicingMode, e);
+                    } else {
+                        metrics.recordSuccess(isRemote, slicingMode);
+                    }
                     listener.onResponse(bulkByScrollResponse);
+                } finally {
+                    recordDuration();
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                metrics.recordFailure(isRemote, slicingMode, e);
-                listener.onFailure(e);
+                try {
+                    metrics.recordFailure(isRemote, slicingMode, e);
+                    listener.onFailure(e);
+                } finally {
+                    recordDuration();
+                }
             }
         };
-
-        // add duration metric
-        return ActionListener.runAfter(withCompletionMetrics, () -> {
-            long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-            metrics.recordTookTime(elapsedTime, isRemote, slicingMode);
-        });
     }
 
     /** Wraps the listener with relocation handling (if applicable). Visible for testing. */

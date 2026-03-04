@@ -28,6 +28,7 @@ import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.ReindexMetrics;
+import org.elasticsearch.reindex.ReindexMetrics.SlicingMode;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
@@ -53,6 +54,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -516,14 +518,24 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         final TestTelemetryPlugin plugin = getTelemetryPlugin(nodeName);
         plugin.collect();
         final List<Measurement> completions = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER);
-        assertThat(completions.size(), equalTo(slices));
-        for (final Measurement completion : completions) {
-            assertNull(completion.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE));
-            final String expectedSource = isRemote
-                ? ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE
-                : ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
-            assertThat(completion.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE), equalTo(expectedSource));
+        assertThat(completions.size(), equalTo(1));
+        assertNull(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE));
+        final String expectedSource = isRemote ? ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE : ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
+        assertThat(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE), equalTo(expectedSource));
+        SlicingMode slicingMode = null;
+        if (slices == 0) {
+            slicingMode = SlicingMode.AUTO;
+        } else if (slices == 1) {
+            slicingMode = SlicingMode.NONE;
+        } else if (slices > 1) {
+            slicingMode = SlicingMode.FIXED;
+        } else {
+            fail("invalid slices value: " + slices);
         }
+        assertThat(
+            completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
+            equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
+        );
     }
 
     private void assertExpectedNumberOfDocumentsInDestinationIndex() throws IOException {

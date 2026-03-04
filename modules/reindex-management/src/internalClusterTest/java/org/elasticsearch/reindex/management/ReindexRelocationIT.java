@@ -17,6 +17,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -25,6 +26,8 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.reindex.ReindexMetrics;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
@@ -33,6 +36,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -46,6 +51,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,6 +60,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -64,21 +72,29 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
- * Integration test(s) for reindex task relocation on node shutdown.
+ * Integration test(s) for testing a long-running reindex task is relocated to a suitable node on shutdown.
+ * Checks expected state at each task phase: initial running, initial relocated, relocated running, and relocated finished.
+ * <p>
+ * Each test follows this flow:
+ * 1. Create two data nodes: nodeA (hosting source and destination indices) and nodeB (hosting the reindex task)
+ * 2. Create the source index pinned to nodeA without replicas, so the scroll always lives there
+ * 3. Create the destination index pinned to nodeA without replicas, so it's available when we shutdown nodeB
+ * 4. Start a throttled reindex on nodeB (depending on test: local sliced or unsliced, or non-sliced remote)
+ * 5. Stop nodeB and observe relocation to nodeA
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class ReindexRelocationIT extends ESIntegTestCase {
 
     private static final String SOURCE_INDEX = "reindex_src";
     private static final String DEST_INDEX = "reindex_dst";
-    private static final int BULK_SIZE = 1;
-    private static final int REQUESTS_PER_SECOND = 1;
-    private static final int NUM_OF_SLICES = 1;
-    private static final int NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST = 60 * REQUESTS_PER_SECOND * BULK_SIZE;
+
+    private final int bulkSize = randomIntBetween(1, 5);
+    private final int requestsPerSecond = randomIntBetween(1, 5);
+    private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond * bulkSize;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class, MainRestPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class, MainRestPlugin.class, TestTelemetryPlugin.class);
     }
 
     @Override
@@ -94,65 +110,34 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             .build();
     }
 
-    /**
-     * Test long-running non-sliced reindex task is relocated to a suitable node by doing the following:
-     * 1. Create two data nodes: nodeA (hosting source and destination indices) and nodeB (hosting the reindex task)
-     * 2. Create the source index pinned to nodeA without replicas, so the scroll always lives there
-     * 3. Create the destination index pinned to nodeA without replicas, so it's available when we shutdown nodeB
-     * 4. Start a throttled reindex on nodeB
-     * 5. Stop nodeB and observe relocation to nodeA
-     */
-    public void testNonSlicedReindexRelocation() throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-
-        final String nodeAName = internalCluster().startNode(
-            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+    public void testLocalReindexRelocation() throws Exception {
+        final int slices = randomIntBetween(1, 10);
+        testReindexRelocation(
+            (nodeAName, nodeBName) -> startAsyncThrottledLocalReindexOnNode(nodeBName, slices),
+            localReindexDescription(),
+            slices,
+            false
         );
-        final String nodeAId = nodeIdByName(nodeAName);
-        final String nodeBName = internalCluster().startNode(
-            NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
-        );
-        final String nodeBId = nodeIdByName(nodeBName);
-        ensureStableCluster(2);
-
-        createIndexPinnedToNodeName(SOURCE_INDEX, nodeAName);
-        createIndexPinnedToNodeName(DEST_INDEX, nodeAName);
-        indexRandom(true, SOURCE_INDEX, NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST);
-        ensureGreen(SOURCE_INDEX, DEST_INDEX);
-
-        final Matcher<String> expectedTaskDescription = localReindexDescription();
-
-        // Start throttled async reindex on nodeB and check it has the expected state
-        final TaskId originalTaskId = startAsyncThrottledReindexOnNode(nodeBName);
-        final TaskResult originalReindex = getRunningReindex(originalTaskId);
-        assertThat("reindex should start on nodeB", originalReindex.getTask().taskId().getNodeId(), equalTo(nodeBId));
-        assertRunningReindexTaskExpectedState(originalReindex.getTask(), expectedTaskDescription);
-
-        shutdownNodeNameAndRelocate(nodeBName);
-
-        // Assert the original task is in .tasks index and has expected content (including relocated taskId on nodeA)
-        final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
-            originalTaskId,
-            nodeAId,
-            expectedTaskDescription
-        );
-
-        // Assert relocated reindex is running and has expected state
-        final TaskResult relocatedReindex = getRunningReindex(relocatedTaskId);
-        assertThat("relocated reindex should be on nodeA", relocatedReindex.getTask().taskId().getNodeId(), equalTo(nodeAId));
-        assertRunningReindexTaskExpectedState(relocatedReindex.getTask(), expectedTaskDescription);
-
-        // Speed up reindex post-relocation to keep the test fast
-        unthrottleReindex(relocatedTaskId);
-
-        assertRelocatedTaskExpectedEndState(relocatedTaskId, expectedTaskDescription);
-
-        // assert all documents have been reindexed
-        assertDocCount(DEST_INDEX, NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST);
     }
 
-    /** Same test as above, but for remote reindex. */
     public void testNonSlicedRemoteReindexRelocation() throws Exception {
+        final int slices = 1;
+        testReindexRelocation((nodeAName, nodeBName) -> {
+            final InetSocketAddress nodeAAddress = internalCluster().getInstance(HttpServerTransport.class, nodeAName)
+                .boundAddress()
+                .publishAddress()
+                .address();
+            return startAsyncNonSlicedThrottledRemoteReindexOnNode(nodeBName, nodeAAddress);
+        }, remoteReindexDescription(), slices, true);
+    }
+    // no test for remote sliced reindex since it's not allowed
+
+    private void testReindexRelocation(
+        final CheckedBiFunction<String, String, TaskId, Exception> startReindexGivenNodeAAndB,
+        final Matcher<String> expectedDescription,
+        final int slices,
+        final boolean isRemote
+    ) throws Exception {
         assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
 
         final String nodeAName = internalCluster().startNode(
@@ -167,20 +152,14 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         createIndexPinnedToNodeName(SOURCE_INDEX, nodeAName);
         createIndexPinnedToNodeName(DEST_INDEX, nodeAName);
-        indexRandom(true, SOURCE_INDEX, NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST);
+        indexRandom(true, SOURCE_INDEX, numberOfDocumentsThatTakes60SecondsToIngest);
         ensureGreen(SOURCE_INDEX, DEST_INDEX);
 
-        final InetSocketAddress nodeAAddress = internalCluster().getInstance(HttpServerTransport.class, nodeAName)
-            .boundAddress()
-            .publishAddress()
-            .address();
-        final Matcher<String> expectedTaskDescription = remoteReindexDescription(nodeAAddress);
-
-        // Start throttled async remote reindex on nodeB and check it has the expected state
-        final TaskId originalTaskId = startAsyncThrottledRemoteReindexOnNode(nodeBName, nodeAAddress);
+        // Start throttled async reindex on nodeB and check it has the expected state
+        final TaskId originalTaskId = startReindexGivenNodeAAndB.apply(nodeAName, nodeBName);
         final TaskResult originalReindex = getRunningReindex(originalTaskId);
         assertThat("reindex should start on nodeB", originalReindex.getTask().taskId().getNodeId(), equalTo(nodeBId));
-        assertRunningReindexTaskExpectedState(originalReindex.getTask(), expectedTaskDescription);
+        assertRunningReindexTaskExpectedState(originalReindex.getTask(), expectedDescription, slices);
 
         shutdownNodeNameAndRelocate(nodeBName);
 
@@ -188,21 +167,25 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
             originalTaskId,
             nodeAId,
-            expectedTaskDescription
+            expectedDescription,
+            slices
         );
 
         // Assert relocated reindex is running and has expected state
         final TaskResult relocatedReindex = getRunningReindex(relocatedTaskId);
         assertThat("relocated reindex should be on nodeA", relocatedReindex.getTask().taskId().getNodeId(), equalTo(nodeAId));
-        assertRunningReindexTaskExpectedState(relocatedReindex.getTask(), expectedTaskDescription);
+        assertRunningReindexTaskExpectedState(relocatedReindex.getTask(), expectedDescription, slices);
 
         // Speed up reindex post-relocation to keep the test fast
         unthrottleReindex(relocatedTaskId);
 
-        assertRelocatedTaskExpectedEndState(relocatedTaskId, expectedTaskDescription);
+        assertRelocatedTaskExpectedEndState(relocatedTaskId, expectedDescription, slices);
+
+        // Assert nodeA recorded success metrics for the relocated reindex
+        assertReindexSuccessMetricsOnNode(nodeAName, isRemote, slices);
 
         // assert all documents have been reindexed
-        assertDocCount(DEST_INDEX, NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST);
+        assertExpectedNumberOfDocumentsInDestinationIndex();
     }
 
     private void shutdownNodeNameAndRelocate(final String nodeName) throws Exception {
@@ -211,6 +194,8 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         // trigger reindex relocation
         internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
+
+        assertNoReindexMetricsOnNode(nodeName);
 
         // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
         // on nodeA is stale and can't be promoted to primary when nodeB leaves
@@ -224,7 +209,8 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         final TaskResult originalResult,
         final TaskId originalTaskId,
         final String relocatedNodeId,
-        final Matcher<String> expectedTaskDescription
+        final Matcher<String> expectedTaskDescription,
+        final int slices
     ) {
         assertThat("task completed", originalResult.isCompleted(), is(true));
 
@@ -239,19 +225,36 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         final Map<String, Object> taskStatus = ((RawTaskStatus) taskInfo.status()).toMap();
         assertThat(taskStatus.get("slice_id"), is(nullValue()));
-        assertThat((Integer) taskStatus.get("total"), lessThanOrEqualTo(NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat((Integer) taskStatus.get("total"), lessThanOrEqualTo(numberOfDocumentsThatTakes60SecondsToIngest));
         assertThat(taskStatus.get("updated"), is(0));
-        assertThat((Integer) taskStatus.get("created"), lessThan(NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat((Integer) taskStatus.get("created"), lessThan(numberOfDocumentsThatTakes60SecondsToIngest));
         assertThat(taskStatus.get("deleted"), is(0));
-        assertThat((Integer) taskStatus.get("batches"), lessThan(NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat(
+            (Integer) taskStatus.get("batches"),
+            lessThan((int) Math.floor((float) numberOfDocumentsThatTakes60SecondsToIngest / bulkSize))
+        );
         assertThat(taskStatus.get("version_conflicts"), is(0));
         assertThat(taskStatus.get("noops"), is(0));
         assertThat(ObjectPath.eval("retries.bulk", taskStatus), is(0));
         assertThat(ObjectPath.eval("retries.search", taskStatus), is(0));
         assertThat((Integer) taskStatus.get("throttled_millis"), greaterThanOrEqualTo(0));
-        assertThat(taskStatus.get("requests_per_second"), is(1.0));
+        assertThat((double) taskStatus.get("requests_per_second"), closeTo(requestsPerSecond, 0.00001));
+
         assertThat(taskStatus.get("reason_cancelled"), is(nullValue()));
         assertThat((Integer) taskStatus.get("throttled_until_millis"), greaterThanOrEqualTo(0));
+
+        if (slices >= 2) {
+            @SuppressWarnings("unchecked")
+            final List<Map<String, Object>> sliceStatuses = (List<Map<String, Object>>) taskStatus.get("slices");
+            assertThat(sliceStatuses.size(), equalTo(slices));
+            for (int i = 0; i < slices; i++) {
+                final Map<String, Object> slice = sliceStatuses.get(i);
+                assertThat(slice.get("slice_id"), is(i));
+                assertThat((double) slice.get("requests_per_second"), closeTo((double) requestsPerSecond / slices, 0.00001));
+            }
+        } else {
+            assertThat(taskStatus.containsKey("slices"), is(false));
+        }
 
         final Map<String, Object> errorMap = originalResult.getErrorAsMap();
         assertThat(errorMap, is(aMapWithSize(4)));
@@ -263,7 +266,8 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         return new TaskId(relocatedTaskId);
     }
 
-    private void assertRelocatedTaskExpectedEndState(final TaskId taskId, final Matcher<String> expectedTaskDescription) throws Exception {
+    private void assertRelocatedTaskExpectedEndState(final TaskId taskId, final Matcher<String> expectedTaskDescription, final int slices)
+        throws Exception {
         final SetOnce<TaskResult> finishedResult = new SetOnce<>();
 
         assertBusy(() -> finishedResult.set(getCompletedTaskResult(taskId)), 30, TimeUnit.SECONDS);
@@ -271,11 +275,14 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertThat("relocated task has no error", result.getError(), is(nullValue()));
         final Map<String, Object> innerResponse = result.getResponseAsMap();
         assertThat(innerResponse.get("timed_out"), is(false));
-        assertThat(innerResponse.get("total"), is(NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat(innerResponse.get("total"), is(numberOfDocumentsThatTakes60SecondsToIngest));
         assertThat(innerResponse.get("updated"), is(0));
-        assertThat(innerResponse.get("created"), is(NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat(innerResponse.get("created"), is(numberOfDocumentsThatTakes60SecondsToIngest));
         assertThat(innerResponse.get("deleted"), is(0));
-        assertThat(innerResponse.get("batches"), is(NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat(
+            (int) innerResponse.get("batches"),
+            greaterThanOrEqualTo((int) Math.ceil((float) numberOfDocumentsThatTakes60SecondsToIngest / bulkSize))
+        );
         assertThat(innerResponse.get("version_conflicts"), is(0));
         assertThat(innerResponse.get("noops"), is(0));
         assertThat((Integer) innerResponse.get("throttled_millis"), greaterThanOrEqualTo(0));
@@ -291,11 +298,14 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         final Map<String, Object> taskStatus = ((RawTaskStatus) taskInfo.status()).toMap();
         assertThat(taskStatus.get("slice_id"), is(nullValue()));
-        assertThat(taskStatus.get("total"), is(NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat(taskStatus.get("total"), is(numberOfDocumentsThatTakes60SecondsToIngest));
         assertThat(taskStatus.get("updated"), is(0));
-        assertThat(taskStatus.get("created"), is(NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat(taskStatus.get("created"), is(numberOfDocumentsThatTakes60SecondsToIngest));
         assertThat(taskStatus.get("deleted"), is(0));
-        assertThat(taskStatus.get("batches"), is(NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat(
+            (int) taskStatus.get("batches"),
+            greaterThanOrEqualTo((int) Math.ceil((float) numberOfDocumentsThatTakes60SecondsToIngest / bulkSize))
+        );
         assertThat(taskStatus.get("version_conflicts"), is(0));
         assertThat(taskStatus.get("noops"), is(0));
         assertThat(ObjectPath.eval("retries.bulk", taskStatus), is(0));
@@ -304,12 +314,27 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertThat(taskStatus.get("requests_per_second"), is(-1.0));
         assertThat(taskStatus.get("reason_cancelled"), is(nullValue()));
         assertThat((Integer) taskStatus.get("throttled_until_millis"), greaterThanOrEqualTo(0));
+
+        if (slices >= 2) {
+            @SuppressWarnings("unchecked")
+            final List<Map<String, Object>> responseSlices = (List<Map<String, Object>>) innerResponse.get("slices");
+            assertThat(responseSlices.size(), equalTo(slices));
+            int totalCreated = 0;
+            for (Map<String, Object> slice : responseSlices) {
+                assertThat(slice.get("requests_per_second"), is(-1.0));
+                totalCreated += (Integer) slice.get("created");
+            }
+            assertThat(totalCreated, equalTo(numberOfDocumentsThatTakes60SecondsToIngest));
+        } else {
+            assertThat(innerResponse.containsKey("slices"), is(false));
+        }
     }
 
     private TaskId assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(
         final TaskId taskId,
         final String relocatedNodeId,
-        final Matcher<String> expectedTaskDescription
+        final Matcher<String> expectedTaskDescription,
+        final int slices
     ) {
         ensureYellowAndNoInitializingShards(TaskResultsService.TASK_INDEX); // replicas won't be allocated
         assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
@@ -326,15 +351,15 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             throw new AssertionError("failed to parse task result from .tasks index", e);
         }
 
-        return assertOriginalTaskExpectedEndStateAndGetRelocatedTaskId(result, taskId, relocatedNodeId, expectedTaskDescription);
+        return assertOriginalTaskExpectedEndStateAndGetRelocatedTaskId(result, taskId, relocatedNodeId, expectedTaskDescription, slices);
     }
 
-    private TaskId startAsyncThrottledReindexOnNode(final String nodeName) throws Exception {
+    private TaskId startAsyncThrottledLocalReindexOnNode(final String nodeName, final int slices) throws Exception {
         try (RestClient restClient = createRestClient(nodeName)) {
             final Request request = new Request("POST", "/_reindex");
             request.addParameter("wait_for_completion", "false");
-            request.addParameter("slices", Integer.toString(NUM_OF_SLICES));
-            request.addParameter("requests_per_second", Integer.toString(REQUESTS_PER_SECOND));
+            request.addParameter("slices", Integer.toString(slices));
+            request.addParameter("requests_per_second", Integer.toString(requestsPerSecond));
             request.setJsonEntity(Strings.format("""
                 {
                   "source": {
@@ -345,7 +370,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
                     "index": "%s"
                   }
                 }
-                """, SOURCE_INDEX, BULK_SIZE, DEST_INDEX));
+                """, SOURCE_INDEX, bulkSize, DEST_INDEX));
 
             final Response response = restClient.performRequest(request);
             final String task = (String) ESRestTestCase.entityAsMap(response).get("task");
@@ -354,12 +379,13 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         }
     }
 
-    private TaskId startAsyncThrottledRemoteReindexOnNode(final String nodeName, final InetSocketAddress remoteAddress) throws Exception {
+    private TaskId startAsyncNonSlicedThrottledRemoteReindexOnNode(final String nodeName, final InetSocketAddress remoteAddress)
+        throws Exception {
         try (RestClient restClient = createRestClient(nodeName)) {
             final Request request = new Request("POST", "/_reindex");
             request.addParameter("wait_for_completion", "false");
-            request.addParameter("slices", Integer.toString(NUM_OF_SLICES));
-            request.addParameter("requests_per_second", Integer.toString(REQUESTS_PER_SECOND));
+            request.addParameter("slices", Integer.toString(1));
+            request.addParameter("requests_per_second", Integer.toString(requestsPerSecond));
             request.setJsonEntity(Strings.format("""
                 {
                   "source": {
@@ -373,7 +399,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
                     "index": "%s"
                   }
                 }
-                """, remoteAddress.getHostString(), remoteAddress.getPort(), SOURCE_INDEX, BULK_SIZE, DEST_INDEX));
+                """, remoteAddress.getHostString(), remoteAddress.getPort(), SOURCE_INDEX, bulkSize, DEST_INDEX));
 
             final Response response = restClient.performRequest(request);
             final String task = (String) ESRestTestCase.entityAsMap(response).get("task");
@@ -386,11 +412,8 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         return equalTo(Strings.format("reindex from [%s] to [%s]", SOURCE_INDEX, DEST_INDEX));
     }
 
-    private static Matcher<String> remoteReindexDescription(final InetSocketAddress remoteAddress) {
-        return allOf(
-            startsWith(Strings.format("reindex from [host=%s port=%d", remoteAddress.getHostString(), remoteAddress.getPort())),
-            endsWith(Strings.format("[%s] to [%s]", SOURCE_INDEX, DEST_INDEX))
-        );
+    private static Matcher<String> remoteReindexDescription() {
+        return allOf(startsWith("reindex from [host="), endsWith(Strings.format("[%s] to [%s]", SOURCE_INDEX, DEST_INDEX)));
     }
 
     private TaskResult getRunningReindex(final TaskId taskId) {
@@ -399,7 +422,11 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         return reindex;
     }
 
-    private void assertRunningReindexTaskExpectedState(final TaskInfo taskInfo, final Matcher<String> expectedTaskDescription) {
+    private void assertRunningReindexTaskExpectedState(
+        final TaskInfo taskInfo,
+        final Matcher<String> expectedTaskDescription,
+        final int slices
+    ) {
         assertThat(taskInfo.action(), equalTo(ReindexAction.NAME));
         assertThat(taskInfo.description(), is(expectedTaskDescription));
         assertThat(taskInfo.cancelled(), equalTo(false));
@@ -407,19 +434,27 @@ public class ReindexRelocationIT extends ESIntegTestCase {
 
         final BulkByScrollTask.Status taskStatus = ((BulkByScrollTask.Status) taskInfo.status());
         // lessThan because the initial running reindex might have "uninitialized" 0
-        assertThat(taskStatus.getTotal(), lessThanOrEqualTo((long) NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat(taskStatus.getTotal(), lessThanOrEqualTo((long) numberOfDocumentsThatTakes60SecondsToIngest));
         assertThat(taskStatus.getUpdated(), is(0L));
-        assertThat(taskStatus.getCreated(), lessThan((long) NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat(taskStatus.getCreated(), lessThan((long) numberOfDocumentsThatTakes60SecondsToIngest));
         assertThat(taskStatus.getDeleted(), is(0L));
-        assertThat(taskStatus.getBatches(), lessThan(NUMBER_OF_DOCUMENTS_THAT_TAKES_60_SECONDS_TO_INGEST));
+        assertThat(taskStatus.getBatches(), lessThan((int) Math.ceil((float) numberOfDocumentsThatTakes60SecondsToIngest / bulkSize)));
         assertThat(taskStatus.getVersionConflicts(), is(0L));
         assertThat(taskStatus.getNoops(), is(0L));
         assertThat(taskStatus.getBulkRetries(), is(0L));
         assertThat(taskStatus.getSearchRetries(), is(0L));
         assertThat(taskStatus.getThrottled(), greaterThanOrEqualTo(TimeValue.ZERO));
-        assertThat(taskStatus.getRequestsPerSecond(), is(1.0f));
+        // sliced leader only reports on completed slices, so the status is completely empty until some slices complete
+        assertThat(taskStatus.getRequestsPerSecond(), equalTo(slices >= 2 ? 0.0f : requestsPerSecond));
         assertThat(taskStatus.getReasonCancelled(), is(nullValue()));
         assertThat(taskStatus.getThrottledUntil(), greaterThanOrEqualTo(TimeValue.ZERO));
+
+        if (slices >= 2) {
+            final List<BulkByScrollTask.StatusOrException> expectedStatuses = Collections.nCopies(slices, null);
+            assertThat("running slices statuses are null", taskStatus.getSliceStatuses(), equalTo(expectedStatuses));
+        } else {
+            assertThat(taskStatus.getSliceStatuses().isEmpty(), is(true));
+        }
     }
 
     private TaskResult getCompletedTaskResult(final TaskId taskId) {
@@ -433,11 +468,11 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     private void createIndexPinnedToNodeName(final String index, final String nodeName) {
         prepareCreate(index).setSettings(
             Settings.builder()
-                .put("index.number_of_shards", 1)
+                .put("index.number_of_shards", randomIntBetween(1, 3))
                 .put("index.number_of_replicas", 0)
                 .put("index.routing.allocation.require._name", nodeName)
         ).get();
-        ensureGreen(TimeValue.timeValueSeconds(10), SOURCE_INDEX);
+        ensureGreen(TimeValue.timeValueSeconds(10), index);
     }
 
     private void unthrottleReindex(final TaskId taskId) {
@@ -463,12 +498,40 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         return nodeWithName;
     }
 
-    private void assertDocCount(final String index, final int expected) throws IOException {
-        assertNoFailures(indicesAdmin().prepareRefresh(index).get());
-        final Request request = new Request("GET", "/" + index + "/_count");
+    private TestTelemetryPlugin getTelemetryPlugin(final String nodeName) {
+        return internalCluster().getInstance(PluginsService.class, nodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+    }
+
+    private void assertNoReindexMetricsOnNode(final String nodeName) {
+        final TestTelemetryPlugin plugin = getTelemetryPlugin(nodeName);
+        plugin.collect();
+        assertThat(plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER), is(empty()));
+        assertThat(plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM), is(empty()));
+    }
+
+    private void assertReindexSuccessMetricsOnNode(final String nodeName, final boolean isRemote, final int slices) {
+        final TestTelemetryPlugin plugin = getTelemetryPlugin(nodeName);
+        plugin.collect();
+        final List<Measurement> completions = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER);
+        assertThat(completions.size(), equalTo(slices));
+        for (final Measurement completion : completions) {
+            assertNull(completion.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE));
+            final String expectedSource = isRemote
+                ? ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE
+                : ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
+            assertThat(completion.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE), equalTo(expectedSource));
+        }
+    }
+
+    private void assertExpectedNumberOfDocumentsInDestinationIndex() throws IOException {
+        assertNoFailures(indicesAdmin().prepareRefresh(DEST_INDEX).get());
+        final Request request = new Request("GET", "/" + DEST_INDEX + "/_count");
         final Response response = getRestClient().performRequest(request);
         final Map<?, ?> body = ESRestTestCase.entityAsMap(response);
         final int count = ((Number) body.get("count")).intValue();
-        assertThat(count, equalTo(expected));
+        assertThat(count, equalTo(numberOfDocumentsThatTakes60SecondsToIngest));
     }
 }

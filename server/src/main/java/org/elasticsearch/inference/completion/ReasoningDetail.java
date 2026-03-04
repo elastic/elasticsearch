@@ -10,18 +10,25 @@
 package org.elasticsearch.inference.completion;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.optionalField;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DATA_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FORMAT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
@@ -45,9 +52,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * <p>
  * The type of the reasoning detail is determined by the <code>type</code> field, which is required for all reasoning details.
  * Depending on the value of the <code>type</code> field, different fields are required or optional for the reasoning detail.
+ * Used for both request and response Chat Completion objects.
  */
-public abstract sealed class ReasoningDetail implements NamedWriteable, ToXContentObject permits ReasoningDetail.EncryptedReasoningDetail,
-    ReasoningDetail.SummaryReasoningDetail, ReasoningDetail.TextReasoningDetail {
+public abstract sealed class ReasoningDetail implements ToXContentObject, ChunkedToXContentObject, NamedWriteable permits
+    ReasoningDetail.EncryptedReasoningDetail, ReasoningDetail.SummaryReasoningDetail, ReasoningDetail.TextReasoningDetail {
 
     public static final ConstructingObjectParser<ReasoningDetail, Void> PARSER = new ConstructingObjectParser<>(
         ReasoningDetail.class.getSimpleName(),
@@ -143,8 +151,7 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
         };
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.field(TYPE_FIELD, type);
         if (format != null) {
             builder.field(FORMAT_FIELD, format);
@@ -156,6 +163,16 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
             builder.field(INDEX_FIELD, index);
         }
         return builder;
+    }
+
+    @Override
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            chunk((b, p) -> b.field(TYPE_FIELD, type())),
+            optionalField(FORMAT_FIELD, format()),
+            optionalField(ID_FIELD, id()),
+            optionalField(INDEX_FIELD, index())
+        );
     }
 
     protected ReasoningDetailType type() {
@@ -191,6 +208,18 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
     }
 
     /**
+     * Overridden to return value from super method,
+     * as both {@link ToXContentObject} and {@link ChunkedToXContentObject} have default implementations of this method returning false.
+     * This is done to ensure that {@link ReasoningDetail} can implement both interfaces without ambiguity,
+     * and to explicitly indicate that a {@link ReasoningDetail} is not a fragment and should be rendered as a complete object in XContent.
+     * @return super method value, which is false.
+     */
+    @Override
+    public boolean isFragment() {
+        return ToXContentObject.super.isFragment();
+    }
+
+    /**
      * This class represents a reasoning detail, which contains encrypted reasoning data.
      */
     public static final class EncryptedReasoningDetail extends ReasoningDetail {
@@ -215,15 +244,6 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            super.toXContent(builder, params);
-            builder.field(DATA_FIELD, data);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
         public String getWriteableName() {
             return NAME;
         }
@@ -234,6 +254,25 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
             if (o == null || getClass() != o.getClass()) return false;
             EncryptedReasoningDetail that = (EncryptedReasoningDetail) o;
             return super.equals(that) && Objects.equals(data, that.data);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject();
+            super.toXContent(builder, params);
+            builder.field(DATA_FIELD, data);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                super.toXContentChunked(params),
+                chunk((b, p) -> b.field(DATA_FIELD, data)),
+                ChunkedToXContentHelper.endObject()
+            );
         }
 
         @Override
@@ -285,6 +324,16 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
             builder.field(SUMMARY_FIELD, summary);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                super.toXContentChunked(params),
+                chunk((b, p) -> b.field(SUMMARY_FIELD, summary)),
+                ChunkedToXContentHelper.endObject()
+            );
         }
 
         @Override
@@ -383,6 +432,17 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                super.toXContentChunked(params),
+                optionalField(TEXT_FIELD, text),
+                optionalField(SIGNATURE_FIELD, signature),
+                ChunkedToXContentHelper.endObject()
+            );
         }
 
         @Override

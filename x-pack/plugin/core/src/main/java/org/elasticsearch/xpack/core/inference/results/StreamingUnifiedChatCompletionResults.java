@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.DequeUtils;
 

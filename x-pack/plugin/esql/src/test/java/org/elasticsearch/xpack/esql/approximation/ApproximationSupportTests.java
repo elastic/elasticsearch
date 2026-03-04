@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -136,6 +137,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // These require more complicated expression tree traversal.
         Fork.class,
         UnionAll.class,
+        ViewUnionAll.class,
         Join.class,
         InlineJoin.class,
         LookupJoin.class,

@@ -484,6 +484,13 @@ public class AnalyzerTests extends ESTestCase {
             line 1:13: Unknown column [c]""");
     }
 
+    public void testRowWithSelfReference() {
+        verifyUnsupported("""
+            ROW a = a
+            """, """
+            line 1:9: Unknown column [a]""");
+    }
+
     public void testUnresolvableAttribute() {
         Analyzer analyzer = analyzer(loadMapping("mapping-one-field.json", "idx"));
 

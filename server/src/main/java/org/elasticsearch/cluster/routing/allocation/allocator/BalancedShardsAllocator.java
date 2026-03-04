@@ -280,9 +280,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         final Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
+            balancerSettings.getThreshold(),
             balancingWeightsFactory.create(),
-            balancerSettings.completeEarlyOnShardAssignmentChange(),
-            logInvalidWeights
+            balancerSettings.completeEarlyOnShardAssignmentChange()
         );
 
         return new Function<ShardRouting, ShardAllocationDecision>() {

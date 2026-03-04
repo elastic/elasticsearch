@@ -107,13 +107,13 @@ public final class PipelineDescriptor {
         return new PipelineDescriptor(stageIds.clone(), blockSize, dataType);
     }
 
-    // Wire format: [VInt stageCount] [byte[] stageIds] [byte blockShift] [byte dataType]
+    // Wire format: [VInt stageCount] [byte blockShift] [byte dataType] [byte[] stageIds]
     // NOTE: Format evolution is handled by the version byte in FieldDescriptor.
     public void writeTo(DataOutput out) throws IOException {
         out.writeVInt(stageIds.length);
-        out.writeBytes(stageIds, 0, stageIds.length);
         out.writeByte(blockShift);
         out.writeByte(dataType.id);
+        out.writeBytes(stageIds, 0, stageIds.length);
     }
 
     public static PipelineDescriptor readFrom(DataInput in) throws IOException {
@@ -121,10 +121,10 @@ public final class PipelineDescriptor {
         if (length <= 0 || length > MAX_PIPELINE_LENGTH) {
             throw new IllegalArgumentException("Invalid pipeline length: " + length);
         }
-        byte[] stageIds = new byte[length];
-        in.readBytes(stageIds, 0, length);
         byte blockShift = in.readByte();
         DataType dataType = DataType.fromId(in.readByte());
+        byte[] stageIds = new byte[length];
+        in.readBytes(stageIds, 0, length);
         return new PipelineDescriptor(stageIds, blockShift, dataType);
     }
 

@@ -16,7 +16,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.hamcrest.BaseMatcher;
@@ -318,7 +321,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM view1, view2, view3");
         LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(ViewUnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
         assertThat(subqueries.size(), equalTo(3));
         assertThat(
@@ -399,7 +402,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM view*");
         LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(ViewUnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
         assertThat(subqueries.size(), equalTo(3));
         assertThat(
@@ -420,7 +423,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM view*");
         LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(ViewUnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
         assertThat(subqueries.size(), equalTo(4));
         assertThat(
@@ -514,12 +517,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM view_1_*");
         LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(ViewUnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
         assertThat(subqueries.size(), equalTo(2));
         for (LogicalPlan child : subqueries) {
             child = (child instanceof Subquery subquery) ? subquery.child() : child;
-            assertThat(child, instanceOf(UnionAll.class));
+            assertThat(child, instanceOf(ViewUnionAll.class));
             List<LogicalPlan> subchildren = child.children();
             assertThat(subchildren.size(), equalTo(2));
             assertThat(
@@ -544,13 +547,13 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM view_1_*");
         LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(ViewUnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
         assertThat(subqueries.size(), equalTo(3));
         assertThat(subqueries.getFirst(), matchesPlan(query("FROM view_1_*")));
         for (LogicalPlan child : subqueries.subList(1, 3)) {
             child = (child instanceof Subquery subquery) ? subquery.child() : child;
-            assertThat(child, instanceOf(UnionAll.class));
+            assertThat(child, instanceOf(ViewUnionAll.class));
             List<LogicalPlan> subchildren = child.children();
             assertThat(subchildren.size(), equalTo(2));
             assertThat(
@@ -578,12 +581,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
         LogicalPlan rewritten = replaceViews(plan);
         // We cannot express the expected plan easily, so we check its structure instead
-        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertThat(rewritten, instanceOf(ViewUnionAll.class));
         List<LogicalPlan> subqueries = rewritten.children();
         assertThat(subqueries.size(), equalTo(6));
         for (LogicalPlan child : subqueries) {
             child = (child instanceof Subquery subquery) ? subquery.child() : child;
-            assertThat(child, instanceOf(UnionAll.class));
+            assertThat(child, instanceOf(ViewUnionAll.class));
             List<LogicalPlan> subchildren = child.children();
             assertThat(subchildren.size(), equalTo(2));
             assertThat(
@@ -939,6 +942,64 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             in -> in.readNamedWriteable(LogicalPlan.class),
             configWithViewQueries
         );
+    }
+
+    // --- ViewUnionAll unit tests ---
+
+    public void testViewUnionAllIsInstanceOfUnionAll() {
+        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, List.of(), List.of());
+        assertThat(viewUnion, instanceOf(UnionAll.class));
+    }
+
+    public void testViewUnionAllReplaceChildrenPreservesType() {
+        LogicalPlan child1 = query("FROM emp1");
+        LogicalPlan child2 = query("FROM emp2");
+        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, List.of(child1), List.of());
+
+        LogicalPlan replaced = viewUnion.replaceChildren(List.of(child2));
+        assertThat(replaced, instanceOf(ViewUnionAll.class));
+    }
+
+    public void testViewUnionAllReplaceSubPlansPreservesType() {
+        LogicalPlan child1 = query("FROM emp1");
+        LogicalPlan child2 = query("FROM emp2");
+        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, List.of(child1), List.of());
+
+        UnionAll replaced = viewUnion.replaceSubPlans(List.of(child2));
+        assertThat(replaced, instanceOf(ViewUnionAll.class));
+    }
+
+    public void testViewUnionAllReplaceSubPlansAndOutputPreservesType() {
+        LogicalPlan child1 = query("FROM emp1");
+        LogicalPlan child2 = query("FROM emp2");
+        List<Attribute> output = child2.output();
+        ViewUnionAll viewUnion = new ViewUnionAll(Source.EMPTY, List.of(child1), List.of());
+
+        var replaced = viewUnion.replaceSubPlansAndOutput(List.of(child2), output);
+        assertThat(replaced, instanceOf(ViewUnionAll.class));
+    }
+
+    // --- Behavioral test: views inside subqueries ---
+
+    public void testViewInsideSubqueryIsResolved() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        addView("my_view", "FROM emp | WHERE emp.age > 30");
+        // Parser produces a plain UnionAll for "FROM index, (FROM subquery)" syntax
+        LogicalPlan plan = query("FROM emp2, (FROM my_view)");
+        assertThat(plan, instanceOf(UnionAll.class));
+        assertFalse("Parser should produce plain UnionAll, not ViewUnionAll", plan instanceof ViewUnionAll);
+
+        // ViewResolver should recurse into the plain UnionAll and resolve my_view
+        LogicalPlan rewritten = replaceViews(plan);
+        // The top-level UnionAll stays plain (parser-produced), but my_view inside is resolved
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        assertFalse("Top-level UnionAll should remain plain after view resolution", rewritten instanceof ViewUnionAll);
+        // After resolution, the subquery's UnresolvedRelation[my_view] should become
+        // the view definition: FROM emp | WHERE emp.age > 30
+        List<LogicalPlan> children = rewritten.children();
+        assertThat(children.size(), equalTo(2));
+        // One child should match the resolved view definition, the other should be emp2
+        assertThat(children, containsInAnyOrder(matchesPlan(query("FROM emp | WHERE emp.age > 30")), matchesPlan(query("FROM emp2"))));
     }
 
     private LogicalPlan replaceViews(LogicalPlan plan) {

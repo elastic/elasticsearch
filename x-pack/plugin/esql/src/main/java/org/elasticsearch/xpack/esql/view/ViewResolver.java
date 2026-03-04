@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -142,10 +142,11 @@ public class ViewResolver {
 
         plan.transformDown((p, planListener) -> {
             switch (p) {
-                case UnionAll union -> {
-                    // UnionAll is the result of this re-writing, so we assume rewriting is completed
-                    // TODO: This could conflicts with subquery feature, perhaps we need a new plan node type?
-                    planListener.onResponse(union);
+                case ViewUnionAll viewUnion -> {
+                    // ViewUnionAll is the result of view resolution, so we skip it.
+                    // Plain UnionAll (from user-written subqueries) matches the Fork case below
+                    // and its children are recursed into with proper seen-set scoping.
+                    planListener.onResponse(viewUnion);
                     return;
                 }
                 case Fork fork -> {
@@ -200,7 +201,7 @@ public class ViewResolver {
         }
         chain.andThenApply(updatedSubplans -> {
             if (updatedSubplans != null) {
-                return new Fork(fork.source(), updatedSubplans, fork.output());
+                return fork.replaceSubPlans(updatedSubplans);
             }
             return (LogicalPlan) fork;
         }).addListener(listener);
@@ -407,7 +408,7 @@ public class ViewResolver {
             return otherPlans.getFirst();
         }
         traceUnionAllBranches(depth, otherPlans);
-        return new UnionAll(ur.source(), otherPlans, List.of());
+        return new ViewUnionAll(ur.source(), otherPlans, List.of());
     }
 
     private void traceUnionAllBranches(int depth, List<LogicalPlan> plans) {

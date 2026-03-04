@@ -50,6 +50,9 @@ public final class EncodingContext {
     // NOTE: Internal use only - called by the encode pipeline to set the current
     // stage position before invoking each stage's encode method.
     public void setCurrentPosition(int position) {
+        if (position < 0 || position >= pipelineLength) {
+            throw new IllegalArgumentException("Position out of range: " + position);
+        }
         this.currentPosition = position;
     }
 
@@ -58,6 +61,7 @@ public final class EncodingContext {
     }
 
     public void applyStage(int position) {
+        assert position >= 0 && position < pipelineLength : "Position out of range: " + position;
         // Only record the offset on the first call for this position.
         // Subsequent calls (e.g., multiple writeLong calls from a stage)
         // should not overwrite the starting offset.
@@ -68,6 +72,7 @@ public final class EncodingContext {
     }
 
     public boolean isStageApplied(int position) {
+        assert position >= 0 && position < pipelineLength : "Position out of range: " + position;
         return (positionBitmap & (1 << position)) != 0;
     }
 

@@ -389,9 +389,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
 
-        assertBusy(() -> {
-            assertThat(getEisEndpoints(modelRegistry).size(), is(1));
-        });
+        assertBusy(() -> { assertThat(getEisEndpoints(modelRegistry).size(), is(1)); });
 
         var eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints.size(), is(1));
@@ -411,9 +409,7 @@ public class AuthorizationTaskExecutorIT extends ESSingleNodeTestCase {
         restartPollingTaskAndWaitForAuthResponse();
         assertWebServerReceivedRequest();
 
-        assertBusy(() -> {
-            assertThat(getEisEndpoints(modelRegistry).size(), is(1));
-        });
+        assertBusy(() -> { assertThat(getEisEndpoints(modelRegistry).size(), is(1)); });
 
         eisEndpoints = getEisEndpoints(modelRegistry);
         assertThat(eisEndpoints.size(), is(1));

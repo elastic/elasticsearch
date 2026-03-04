@@ -109,7 +109,7 @@ public class PipelineConfigTests extends ESTestCase {
     }
 
     public void testDescribeStagesWithEmptySpecs() {
-        assertEquals("default", PipelineConfig.of(PipelineDescriptor.DataType.LONG, randomBlockSize(), List.of()).describeStages());
+        assertEquals("empty", PipelineConfig.of(PipelineDescriptor.DataType.LONG, randomBlockSize(), List.of()).describeStages());
     }
 
     public void testOfFactoryMethod() {

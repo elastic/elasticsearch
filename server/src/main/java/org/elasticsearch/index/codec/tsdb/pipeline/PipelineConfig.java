@@ -80,7 +80,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
      */
     public String describeStages() {
         if (specs.isEmpty()) {
-            return "default";
+            return "empty";
         }
         final StringBuilder sb = new StringBuilder();
         for (int i = 0; i < specs.size(); i++) {

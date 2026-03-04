@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
@@ -113,11 +114,19 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
             return this.value;
         }
 
+        private static final Map<String, ReasoningDetailType> VALUE_MAP = Map.of(
+            ENCRYPTED.value,
+            ENCRYPTED,
+            SUMMARY.value,
+            SUMMARY,
+            TEXT.value,
+            TEXT
+        );
+
         public static ReasoningDetailType fromString(String value) {
-            for (ReasoningDetailType type : values()) {
-                if (type.value.equals(value)) {
-                    return type;
-                }
+            var type = VALUE_MAP.get(value);
+            if (type != null) {
+                return type;
             }
             throw getUnrecognizedTypeException(value, REASONING_DETAIL_TYPE_FIELD, ReasoningDetailType.class);
         }

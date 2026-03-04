@@ -22,16 +22,16 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.DATA_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.FORMAT_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.ID_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.INDEX_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.REASONING_DETAIL_TYPE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.SIGNATURE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.SUMMARY_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TEXT_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TYPE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.getUnrecognizedTypeException;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DATA_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FORMAT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INDEX_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_DETAIL_TYPE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SIGNATURE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SUMMARY_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEXT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.getUnrecognizedTypeException;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 

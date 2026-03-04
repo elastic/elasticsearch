@@ -23,12 +23,12 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.EFFORT_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.ENABLE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.EXCLUDE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MAX_TOKENS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.SUMMARY_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.getUnrecognizedTypeException;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EFFORT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ENABLE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.EXCLUDE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SUMMARY_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.getUnrecognizedTypeException;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**

@@ -28,7 +28,7 @@ import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolChoice;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
-import org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils;
+import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -41,17 +41,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MAX_COMPLETION_TOKENS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MAX_TOKENS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MESSAGES_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MODEL_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.REASONING_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.STOP_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TEMPERATURE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_CHOICE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOP_P_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_COMPLETION_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.STOP_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CHOICE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_P_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -74,8 +74,8 @@ public record UnifiedCompletionRequest(
      */
     private static final String MODEL_ID_PARAM = "model_id_value";
     /**
-     * Some providers only support the now-deprecated {@link UnifiedCompletionRequestUtils#MAX_TOKENS_FIELD}, others have migrated to
-     * {@link UnifiedCompletionRequestUtils#MAX_COMPLETION_TOKENS_FIELD}. Providers are expected to pass in their supported field name.
+     * Some providers only support the now-deprecated {@link UnifiedCompletionUtils#MAX_TOKENS_FIELD}, others have migrated to
+     * {@link UnifiedCompletionUtils#MAX_COMPLETION_TOKENS_FIELD}. Providers are expected to pass in their supported field name.
      */
     private static final String MAX_TOKENS_PARAM = "max_tokens_field";
     /**
@@ -89,8 +89,8 @@ public record UnifiedCompletionRequest(
 
     /**
      * Creates a {@link Params} that causes ToXContent to include the key values:
-     * - Key: {@link UnifiedCompletionRequestUtils#MODEL_FIELD}, Value: modelId, if modelId is not null
-     * - Key: {@link UnifiedCompletionRequestUtils#MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     * - Key: {@link UnifiedCompletionUtils#MODEL_FIELD}, Value: modelId, if modelId is not null
+     * - Key: {@link UnifiedCompletionUtils#MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
     public static Params withMaxTokens(@Nullable String modelId, Params params) {
         Map<String, String> entries = modelId != null
@@ -101,8 +101,8 @@ public record UnifiedCompletionRequest(
 
     /**
      * Creates a {@link Params} that causes ToXContent to include the key values:
-     * - Key: {@link UnifiedCompletionRequestUtils#MODEL_FIELD}, Value: modelId, if modelId is not null
-     * - Key: {@link UnifiedCompletionRequestUtils#MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     * - Key: {@link UnifiedCompletionUtils#MODEL_FIELD}, Value: modelId, if modelId is not null
+     * - Key: {@link UnifiedCompletionUtils#MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      * - Key: {@link #INCLUDE_STREAM_OPTIONS_PARAM}, Value: "false"
      */
     public static Params withMaxTokensAndSkipStreamOptionsField(@Nullable String modelId, Params params) {
@@ -121,8 +121,8 @@ public record UnifiedCompletionRequest(
 
     /**
      * Creates a {@link Params} that causes ToXContent to include the key values:
-     * - Key: {@link UnifiedCompletionRequestUtils#MODEL_FIELD}, Value: modelId
-     * - Key: {@link UnifiedCompletionRequestUtils#MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     * - Key: {@link UnifiedCompletionUtils#MODEL_FIELD}, Value: modelId
+     * - Key: {@link UnifiedCompletionUtils#MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
     public static Params withMaxCompletionTokens(String modelId, Params params) {
         return new DelegatingMapParams(
@@ -133,7 +133,7 @@ public record UnifiedCompletionRequest(
 
     /**
      * Creates a {@link Params} that causes ToXContent to include the key values:
-     * - Key: {@link UnifiedCompletionRequestUtils#MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     * - Key: {@link UnifiedCompletionUtils#MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
      */
     public static Params withMaxCompletionTokens(Params params) {
         return new DelegatingMapParams(Map.of(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD), params);

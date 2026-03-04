@@ -25,13 +25,13 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.CONTENT_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.REASONING_DETAILS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.REASONING_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.ROLE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_CALLS_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TOOL_CALL_ID_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CONTENT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_DETAILS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ROLE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CALLS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CALL_ID_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 

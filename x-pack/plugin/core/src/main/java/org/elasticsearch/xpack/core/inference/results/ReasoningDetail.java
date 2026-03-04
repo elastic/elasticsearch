@@ -22,16 +22,16 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.optionalField;
-import static org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResultsUtils.DATA_FIELD;
-import static org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResultsUtils.FORMAT_FIELD;
-import static org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResultsUtils.ID_FIELD;
-import static org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResultsUtils.INDEX_FIELD;
-import static org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResultsUtils.REASONING_DETAIL_TYPE_FIELD;
-import static org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResultsUtils.SIGNATURE_FIELD;
-import static org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResultsUtils.SUMMARY_FIELD;
-import static org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResultsUtils.TEXT_FIELD;
-import static org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResultsUtils.TYPE_FIELD;
-import static org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResultsUtils.getUnrecognizedTypeException;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DATA_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FORMAT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.ID_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.INDEX_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_DETAIL_TYPE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SIGNATURE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.SUMMARY_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEXT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.getUnrecognizedTypeException;
 
 /**
  * This class represents the reasoning detail for a delta. It is a sealed class that has three implementations:

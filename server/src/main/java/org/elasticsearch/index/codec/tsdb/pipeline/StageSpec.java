@@ -156,7 +156,11 @@ public sealed interface StageSpec {
         public ZstdPayload {
             if (compressionLevel < MIN_COMPRESSION_LEVEL || compressionLevel > MAX_COMPRESSION_LEVEL) {
                 throw new IllegalArgumentException(
-                    "compressionLevel must be between " + MIN_COMPRESSION_LEVEL + " and " + MAX_COMPRESSION_LEVEL + ", got: "
+                    "compressionLevel must be between "
+                        + MIN_COMPRESSION_LEVEL
+                        + " and "
+                        + MAX_COMPRESSION_LEVEL
+                        + ", got: "
                         + compressionLevel
                 );
             }

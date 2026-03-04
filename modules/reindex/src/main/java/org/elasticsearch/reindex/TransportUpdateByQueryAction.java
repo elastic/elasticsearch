@@ -82,7 +82,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         long startTime = System.nanoTime();
         ClusterState state = clusterService.state();
         ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
-        boolean useOCC = BulkByScrollOCCResolver.resolveUseOCC(
+        boolean useOptimisticConcurrencyControl = BulkByScrollOCCResolver.resolveUseOptimisticConcurrencyControl(
             indexNameExpressionResolver,
             projectMetadata,
             request
@@ -107,7 +107,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     threadPool,
                     scriptService,
                     request,
-                    useOCC,
+                    useOptimisticConcurrencyControl,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
                         if (updateByQueryMetrics != null) {
@@ -124,7 +124,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
-        private final boolean useOCC;
+        private final boolean useOptimisticConcurrencyControl;
 
         AsyncIndexBySearchAction(
             BulkByScrollTask task,
@@ -133,14 +133,14 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             ThreadPool threadPool,
             ScriptService scriptService,
             UpdateByQueryRequest request,
-            boolean useOCC,
+            boolean useOptimisticConcurrencyControl,
             ActionListener<BulkByScrollResponse> listener
         ) {
             super(
                 task,
                 // use sequence number powered optimistic concurrency control unless requested
                 request.getSearchRequest().source() != null && Boolean.TRUE.equals(request.getSearchRequest().source().version()),
-                useOCC,
+                useOptimisticConcurrencyControl,
                 true,
                 logger,
                 client,
@@ -150,7 +150,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 scriptService,
                 null
             );
-            this.useOCC = useOCC;
+            this.useOptimisticConcurrencyControl = useOptimisticConcurrencyControl;
         }
 
         @Override
@@ -168,7 +168,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.index(doc.getIndex());
             index.id(doc.getId());
             index.source(doc.getSource(), doc.getXContentType());
-            if (useOCC) {
+            if (useOptimisticConcurrencyControl) {
                 index.setIfSeqNo(doc.getSeqNo());
                 index.setIfPrimaryTerm(doc.getPrimaryTerm());
             }

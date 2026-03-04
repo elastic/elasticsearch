@@ -71,7 +71,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         long startTime = System.nanoTime();
         ClusterState state = clusterService.state();
         ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
-        boolean useOCC = BulkByScrollOCCResolver.resolveUseOCC(
+        boolean useOptimisticConcurrencyControl = BulkByScrollOCCResolver.resolveUseOptimisticConcurrencyControl(
             indexNameExpressionResolver,
             projectMetadata,
             request
@@ -96,7 +96,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     threadPool,
                     request,
                     scriptService,
-                    useOCC,
+                    useOptimisticConcurrencyControl,
                     ActionListener.runAfter(listener, () -> {
                         long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
                         if (deleteByQueryMetrics != null) {

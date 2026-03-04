@@ -43,7 +43,7 @@ final class BulkByScrollOCCResolver {
      * @throws ActionRequestValidationException if indices have mixed setting values across
      *                                          different data streams or standalone indices
      */
-    static boolean resolveUseOCC(
+    static boolean resolveUseOptimisticConcurrencyControl(
         IndexNameExpressionResolver indexNameExpressionResolver,
         ProjectMetadata projectMetadata,
         AbstractBulkByScrollRequest<?> request

@@ -411,6 +411,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-irate.Irate_of_ratio}
   issue: https://github.com/elastic/elasticsearch/issues/143617
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_of_double_no_grouping_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/143624
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_of_double_no_grouping}
+  issue: https://github.com/elastic/elasticsearch/issues/143625
 
 # Examples:
 #

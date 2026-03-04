@@ -156,6 +156,7 @@ public class SnapshotStepTests extends ESTestCase {
         assertThat(createRequest.indices(), is(new String[] { indexName }));
         assertTrue(createRequest.waitForCompletion());
         assertFalse(createRequest.includeGlobalState());
+        assertThat(createRequest.userMetadata(), is(Map.of("dlm-managed", true)));
     }
 
     public void testExecuteMarksCompleteWhenValidOrphanedSnapshotExists() {
@@ -369,6 +370,7 @@ public class SnapshotStepTests extends ESTestCase {
         assertThat(createRequest.indices(), is(new String[] { indexName }));
         assertTrue(createRequest.waitForCompletion());
         assertFalse(createRequest.includeGlobalState());
+        assertThat(createRequest.userMetadata(), is(Map.of("dlm-managed", true)));
     }
 
     public void testSnapshotNameDerivation() {

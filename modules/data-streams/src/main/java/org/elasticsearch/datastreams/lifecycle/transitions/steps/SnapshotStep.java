@@ -37,6 +37,7 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
 import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
@@ -315,6 +316,7 @@ public class SnapshotStep implements DlmStep {
         request.indices(indexName);
         request.waitForCompletion(true);
         request.includeGlobalState(false);
+        request.userMetadata(Map.of("dlm-managed", true));
         return request;
     }
 

@@ -178,7 +178,10 @@ public class DateFieldMapperTests extends MapperTestCase {
             exampleMalformedValue("hello world").mapping(mappingWithFormat("strict_date_optional_time"))
                 .errorMatches("failed to parse date field [hello world]"),
             exampleMalformedValue("true").mapping(mappingWithFormat("strict_date_optional_time"))
-                .errorMatches("failed to parse date field [true]")
+                .errorMatches("failed to parse date field [true]"),
+            exampleMalformedValue(b -> b.startObject().field("string", "hello").endObject()).errorMatches(
+                "Cannot parse object or array as a date value"
+            )
         );
     }
 
@@ -583,6 +586,24 @@ public class DateFieldMapperTests extends MapperTestCase {
                 equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]")
             );
         }
+    }
+
+    public void testIgnoreMalformedWithObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "date");
+            b.field("ignore_malformed", true);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("string", "hello").endObject()));
+        assertThat(doc.rootDoc().getFields("field"), empty());
+    }
+
+    public void testObjectValueWithoutIgnoreMalformed() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date")));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject("field").field("string", "hello").endObject()))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Cannot parse object or array as a date value"));
     }
 
     @Override

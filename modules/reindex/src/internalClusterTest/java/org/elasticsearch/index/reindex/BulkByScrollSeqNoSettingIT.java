@@ -163,7 +163,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         assertThat(e.getMessage(), containsString(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey()));
     }
 
-    public void testPatternMatchingMultipleIndicesSameSeqNoDisabled() {
+    public void testPatternMatchingMultipleIndicesWithSameSeqNoDisabledSetting() {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
         boolean disableSequenceNumbers = randomBoolean();
@@ -189,7 +189,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         safeAwait(bulkLatch);
     }
 
-    public void testDataStreamWithSameSettingOnAllBackingIndices() throws Exception {
+    public void testDataStreamWithSeqNoDisabledOnAllBackingIndices() throws Exception {
         assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
 
         String dsName = "my-data-stream";
@@ -206,6 +206,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
         BulkByScrollResponse response = updateByQuery.get();
+        // TODO: fix this once overwrites are allowed for backing indices
         assertThat(response.getBulkFailures().size(), greaterThan(0));
         assertThat(response.getBulkFailures().get(0).getMessage(), containsString("no if_primary_term and if_seq_no set"));
         safeAwait(searchLatch);

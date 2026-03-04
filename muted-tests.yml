@@ -303,9 +303,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
-- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
-  method: testWithNulls
-  issue: https://github.com/elastic/elasticsearch/issues/142434
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
   method: testIndexPoints
   issue: https://github.com/elastic/elasticsearch/issues/142439
@@ -408,6 +405,18 @@ tests:
 - class: org.elasticsearch.index.query.PrefixQueryBuilderTests
   method: testPrefixCircuitBreakerTripsWithLowLimit
   issue: https://github.com/elastic/elasticsearch/issues/143548
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_of_ratio_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/143616
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_of_ratio}
+  issue: https://github.com/elastic/elasticsearch/issues/143617
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_of_double_no_grouping_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/143624
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-irate.Irate_of_double_no_grouping}
+  issue: https://github.com/elastic/elasticsearch/issues/143625
 
 # Examples:
 #

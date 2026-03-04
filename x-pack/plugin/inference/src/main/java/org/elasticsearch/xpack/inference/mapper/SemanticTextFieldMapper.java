@@ -170,6 +170,19 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
      */
     public static final Setting<String> INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID = Setting.simpleString(
         "index.semantic_text.default_inference_id",
+        new Setting.Validator<>() {
+            @Override
+            public void validate(String value) {}
+
+            @Override
+            public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                if (isPresent && Strings.isEmpty(value)) {
+                    throw new IllegalArgumentException(
+                        "[index.semantic_text.default_inference_id] must not be empty"
+                    );
+                }
+            }
+        },
         Setting.Property.IndexScope,
         Setting.Property.Final,
         Setting.Property.ServerlessPublic

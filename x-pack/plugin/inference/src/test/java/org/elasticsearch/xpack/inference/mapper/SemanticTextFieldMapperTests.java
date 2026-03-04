@@ -374,6 +374,21 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertInferenceEndpoints(mapperService, fieldName, explicitEndpoint, explicitEndpoint);
     }
 
+    public void testEmptyDefaultInferenceIdSettingThrows() throws Exception {
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
+            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
+            .put(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID.getKey(), "")
+            .build();
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(IndexVersion.current(), settings, fieldMapping)
+        );
+        assertThat(e.getMessage(), containsString("[index.semantic_text.default_inference_id] must not be empty"));
+    }
+
     private void removeDefaultEisEndpoint() {
         PlainActionFuture<Boolean> removalFuture = new PlainActionFuture<>();
         globalModelRegistry.removeDefaultConfigs(Set.of(DEFAULT_EIS_ELSER_INFERENCE_ID), removalFuture);

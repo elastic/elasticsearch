@@ -30,6 +30,17 @@ public class LimitByGoldenTests extends GoldenTestCase {
         );
     }
 
+    public void testLimitByWithoutSort() {
+        runGoldenTest(
+            """
+                FROM employees
+                | LIMIT 5 BY emp_no + 4, languages
+                """,
+            EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION, Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION),
+            STATS
+        );
+    }
+
     /**
      * LIMIT BY with a plain attribute should not introduce any synthetic EVAL.
      */

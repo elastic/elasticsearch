@@ -118,7 +118,7 @@ public class WriteLoadConstraintSettings {
      * is being considered for moving off of a node
      */
     public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
-        SETTING_PREFIX + "utilization_hotspot_threshold",
+        SETTING_PREFIX + "hotspot_utilization_threshold",
         "0%",
         RatioValue::parseRatioValue,
         Setting.Property.Dynamic,

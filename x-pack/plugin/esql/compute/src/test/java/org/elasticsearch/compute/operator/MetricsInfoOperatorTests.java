@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class MetricsInfoOperatorTests extends OperatorTestCase {
 
@@ -1326,19 +1327,19 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
             op.addInput(input1);
             long usedAfterOne = blockFactory.breaker().getUsed();
-            assertThat(usedAfterOne - usedBefore, equalTo(MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterOne, greaterThan(usedBefore));
 
             // Second distinct metric adds another entry
             Page input2 = buildPage(blockFactory, "{\"disk_io\": 1024, \"host\": \"h1\"}", "index-a");
             op.addInput(input2);
             long usedAfterTwo = blockFactory.breaker().getUsed();
-            assertThat(usedAfterTwo - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterTwo, greaterThan(usedAfterOne));
 
-            // Same metric again from a different index but same data stream name → no new entry
+            // Same metric again from a different index but same data stream name → no new entry or set values
             Page input3 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"h2\"}", "index-a");
             op.addInput(input3);
             long usedAfterDuplicate = blockFactory.breaker().getUsed();
-            assertThat(usedAfterDuplicate - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterDuplicate, equalTo(usedAfterTwo));
 
             op.finish();
             Page output = op.getOutput();
@@ -1363,7 +1364,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             );
             op.addInput(page1);
             long usedAfterOne = blockFactory.breaker().getUsed();
-            assertThat(usedAfterOne - usedBefore, equalTo(MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterOne, greaterThan(usedBefore));
 
             // Different metric name → new entry
             Page page2 = buildFinalPage(
@@ -1377,10 +1378,24 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             );
             op.addInput(page2);
             long usedAfterTwo = blockFactory.breaker().getUsed();
-            assertThat(usedAfterTwo - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterTwo, greaterThan(usedAfterOne));
 
-            // Same metric/data-stream again → no new entry
+            // Same metric/data-stream again with same set values → no new memory
             Page page3 = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("ds-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host")
+            );
+            op.addInput(page3);
+            long usedAfterDuplicate = blockFactory.breaker().getUsed();
+            assertThat(usedAfterDuplicate, equalTo(usedAfterTwo));
+
+            // Adding a new dimension field to an existing entry does track the new string
+            Page page4 = buildFinalPage(
                 blockFactory,
                 "cpu_usage",
                 Set.of("ds-a"),
@@ -1389,9 +1404,9 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
                 Set.of("double"),
                 Set.of("host", "region")
             );
-            op.addInput(page3);
-            long usedAfterDuplicate = blockFactory.breaker().getUsed();
-            assertThat(usedAfterDuplicate - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            op.addInput(page4);
+            long usedAfterNewSetValue = blockFactory.breaker().getUsed();
+            assertThat(usedAfterNewSetValue, greaterThan(usedAfterDuplicate));
 
             op.finish();
             Page output = op.getOutput();
@@ -1410,7 +1425,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         );
         Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
         op.addInput(input);
-        assertThat(blockFactory.breaker().getUsed() - usedBefore, equalTo(MetricsInfoOperator.SHALLOW_SIZE));
+        assertThat(blockFactory.breaker().getUsed(), greaterThan(usedBefore));
 
         op.finish();
         Page output = op.getOutput();

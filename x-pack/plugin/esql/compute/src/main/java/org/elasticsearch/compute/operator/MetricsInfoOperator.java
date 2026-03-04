@@ -177,10 +177,9 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    // TODO: Improve memory tracking
-    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MetricInfoKey.class) + RamUsageEstimator.shallowSizeOfInstance(
-        MetricInfo.class
-    );
+    /** Shallow size of a MetricInfoKey + MetricInfo pair (object headers and field slots only). */
+    static final long ENTRY_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MetricInfoKey.class) + RamUsageEstimator
+        .shallowSizeOfInstance(MetricInfo.class);
 
     public enum Mode {
         INITIAL,
@@ -292,14 +291,14 @@ public class MetricsInfoOperator implements Operator {
                     MetricInfoKey key = new MetricInfoKey(metricName, ds);
                     MetricInfo info = metricsByKey.get(key);
                     if (info == null) {
-                        trackNewEntry();
+                        trackNewEntry(metricName, ds);
                         info = new MetricInfo(key.metricName(), key.dataStreamName());
                         metricsByKey.put(key, info);
                     }
-                    info.units.addAll(units);
-                    info.fieldTypes.addAll(fieldTypes);
-                    info.metricTypes.addAll(metricTypes);
-                    info.dimensionFieldKeys.addAll(dimensionFields);
+                    trackSetAddAll(info.units, units);
+                    trackSetAddAll(info.fieldTypes, fieldTypes);
+                    trackSetAddAll(info.metricTypes, metricTypes);
+                    trackSetAddAll(info.dimensionFieldKeys, dimensionFields);
                 }
             }
         } finally {
@@ -371,7 +370,7 @@ public class MetricsInfoOperator implements Operator {
 
         if (prefix == null && dimensionKeys.isEmpty() == false) {
             for (MetricInfo info : touchedMetrics) {
-                info.dimensionFieldKeys.addAll(dimensionKeys);
+                trackSetAddAll(info.dimensionFieldKeys, dimensionKeys);
             }
         }
     }
@@ -386,21 +385,15 @@ public class MetricsInfoOperator implements Operator {
         MetricInfoKey infoKey = new MetricInfoKey(fieldInfo.name(), dataStreamName);
         MetricInfo info = metricsByKey.get(infoKey);
         if (info == null) {
-            trackNewEntry();
+            trackNewEntry(fieldInfo.name(), dataStreamName);
             info = new MetricInfo(infoKey.metricName(), infoKey.dataStreamName());
             metricsByKey.put(infoKey, info);
         }
         touchedMetrics.add(info);
 
-        if (fieldInfo.unit() != null) {
-            info.units.add(fieldInfo.unit());
-        }
-        if (fieldInfo.fieldType() != null) {
-            info.fieldTypes.add(fieldInfo.fieldType());
-        }
-        if (fieldInfo.metricType() != null) {
-            info.metricTypes.add(fieldInfo.metricType());
-        }
+        trackSetAdd(info.units, fieldInfo.unit());
+        trackSetAdd(info.fieldTypes, fieldInfo.fieldType());
+        trackSetAdd(info.metricTypes, fieldInfo.metricType());
     }
 
     /**
@@ -543,9 +536,27 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    private void trackNewEntry() {
-        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "MetricsInfoOperator");
-        trackedBytes += SHALLOW_SIZE;
+    private void trackBytes(long delta) {
+        breaker.addEstimateBytesAndMaybeBreak(delta, "MetricsInfoOperator");
+        trackedBytes += delta;
+    }
+
+    private void trackNewEntry(String name, String dataStream) {
+        trackBytes(ENTRY_SHALLOW_SIZE + RamUsageEstimator.sizeOf(name) + RamUsageEstimator.sizeOf(dataStream));
+    }
+
+    private void trackSetAddAll(Set<String> set, Set<String> values) {
+        for (String value : values) {
+            if (set.add(value)) {
+                trackBytes(RamUsageEstimator.sizeOf(value));
+            }
+        }
+    }
+
+    private void trackSetAdd(Set<String> set, String value) {
+        if (value != null && set.add(value)) {
+            trackBytes(RamUsageEstimator.sizeOf(value));
+        }
     }
 
     @Override

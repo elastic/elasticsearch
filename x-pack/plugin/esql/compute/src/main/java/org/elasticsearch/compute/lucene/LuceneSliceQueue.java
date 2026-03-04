@@ -182,6 +182,7 @@ public final class LuceneSliceQueue {
         Function<ShardContext, List<QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         Function<Query, PartitioningStrategy> autoStrategy,
+        int docThresholdForAutoStrategy,
         int taskConcurrency,
         Function<ShardContext, ScoreMode> scoreModeFunction
     ) {
@@ -206,7 +207,7 @@ public final class LuceneSliceQueue {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-                PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, ctx, query);
+                PartitioningStrategy partitioning = PartitioningStrategy.pick(dataPartitioning, autoStrategy, docThresholdForAutoStrategy, ctx, query);
                 partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
                 List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
                 Weight weight = weight(ctx, query, scoreMode);
@@ -291,6 +292,7 @@ public final class LuceneSliceQueue {
         private static PartitioningStrategy pick(
             DataPartitioning dataPartitioning,
             Function<Query, PartitioningStrategy> autoStrategy,
+            int docThresholdForAutoStrategy,
             ShardContext ctx,
             Query query
         ) {
@@ -298,18 +300,17 @@ public final class LuceneSliceQueue {
                 case SHARD -> PartitioningStrategy.SHARD;
                 case SEGMENT -> PartitioningStrategy.SEGMENT;
                 case DOC -> PartitioningStrategy.DOC;
-                case AUTO -> forAuto(autoStrategy, ctx, query);
+                case AUTO -> forAuto(autoStrategy, ctx, query, docThresholdForAutoStrategy);
             };
         }
 
-        /**
-         * {@link DataPartitioning#AUTO} resolves to {@link #SHARD} for indices
-         * with fewer than this many documents.
-         */
-        private static final int SMALL_INDEX_BOUNDARY = MAX_DOCS_PER_SLICE;
-
-        private static PartitioningStrategy forAuto(Function<Query, PartitioningStrategy> autoStrategy, ShardContext ctx, Query query) {
-            if (ctx.searcher().getIndexReader().maxDoc() < SMALL_INDEX_BOUNDARY) {
+        private static PartitioningStrategy forAuto(
+            Function<Query, PartitioningStrategy> autoStrategy,
+            ShardContext ctx,
+            Query query,
+            int docThresholdForAutoStrategy
+        ) {
+            if (ctx.searcher().getIndexReader().maxDoc() < docThresholdForAutoStrategy) {
                 return PartitioningStrategy.SHARD;
             }
             return autoStrategy.apply(query);

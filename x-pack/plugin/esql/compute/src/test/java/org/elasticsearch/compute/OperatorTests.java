@@ -512,6 +512,7 @@ public class OperatorTests extends MapperServiceTestCase {
             new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
             tagTypes,
             LuceneOperator.NO_LIMIT

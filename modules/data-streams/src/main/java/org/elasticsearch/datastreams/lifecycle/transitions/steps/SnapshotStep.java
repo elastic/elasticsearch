@@ -231,7 +231,7 @@ public class SnapshotStep implements DlmStep {
                             l.onFailure(
                                 new ElasticsearchException(
                                     Strings.format(
-                                        "snapshot [%s] for index [%s] completed with [%d] failed shards",
+                                        "snapshot [%s] for index [%s] finished with [%d] failed shards",
                                         snapshotName,
                                         indexName,
                                         failedShards

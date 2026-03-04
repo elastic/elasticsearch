@@ -141,6 +141,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 context.attributes(),
                 context.batchSize(),
                 context.maxBufferSize(),
+                context.rowLimit(),
                 context.executor(),
                 context.fileSet(),
                 context.partitionColumnNames(),

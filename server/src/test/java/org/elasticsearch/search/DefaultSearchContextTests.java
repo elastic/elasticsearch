@@ -201,7 +201,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 null,
                 randomFrom(SearchService.ResultsType.values()),
                 randomBoolean(),
-                randomInt()
+                randomInt(),
+                null
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
@@ -243,7 +244,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     null,
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
-                    randomInt()
+                    randomInt(),
+                    null
                 )
             ) {
                 context1.from(300);
@@ -325,7 +327,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     null,
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
-                    randomInt()
+                    randomInt(),
+                    null
                 )
             ) {
 
@@ -367,7 +370,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     null,
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
-                    randomInt()
+                    randomInt(),
+                    null
                 )
             ) {
                 context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess();
@@ -398,7 +402,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     null,
                     randomFrom(SearchService.ResultsType.values()),
                     randomBoolean(),
-                    randomInt()
+                    randomInt(),
+                    null
                 )
             ) {
                 context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess();
@@ -469,7 +474,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 null,
                 randomFrom(SearchService.ResultsType.values()),
                 randomBoolean(),
-                randomInt()
+                randomInt(),
+                null
             );
 
             assertThat(context.searcher().hasCancellations(), is(false));
@@ -1222,7 +1228,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 executor,
                 resultsType,
                 executor != null || randomBoolean(),
-                randomInt()
+                randomInt(),
+                null
             );
         }
     }

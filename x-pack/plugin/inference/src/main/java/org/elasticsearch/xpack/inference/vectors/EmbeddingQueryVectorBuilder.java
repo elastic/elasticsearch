@@ -30,7 +30,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 
 import java.io.IOException;
 import java.util.List;
@@ -137,6 +139,10 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
             InferenceResults inferenceResult = inferenceResults.getFirst();
             if (inferenceResult instanceof MlDenseEmbeddingResults mlDenseEmbeddingResults) {
                 listener.onResponse(mlDenseEmbeddingResults.getInferenceAsFloat());
+            } else if (inferenceResults instanceof WarningInferenceResults warningInferenceResults) {
+                listener.onFailure(new IllegalStateException(warningInferenceResults.getWarning()));
+            } else if (inferenceResults instanceof ErrorInferenceResults errorInferenceResults) {
+                listener.onFailure(errorInferenceResults.getException());
             } else {
                 listener.onFailure(
                     new IllegalStateException(

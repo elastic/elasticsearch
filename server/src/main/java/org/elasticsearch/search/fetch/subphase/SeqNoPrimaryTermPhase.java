@@ -10,6 +10,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -49,9 +50,12 @@ public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
                 // we have to check the primary term field as it is only assigned for non-nested documents
                 if (primaryTermField != null && primaryTermField.advanceExact(docId)) {
                     boolean found = seqNoField.advanceExact(docId);
-                    assert found : "found seq no for " + docId + " but not a primary term";
-                    seqNo = seqNoField.longValue();
-                    primaryTerm = primaryTermField.longValue();
+                    assert found || IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG
+                        : "found primary term for " + docId + " but no seq no";
+                    if (found) { // TODO This is brittle, use IndexSettings.DISABLE_SEQUENCE_NUMBERS
+                        seqNo = seqNoField.longValue();
+                        primaryTerm = primaryTermField.longValue();
+                    }
                 }
                 hitContext.hit().setSeqNo(seqNo);
                 hitContext.hit().setPrimaryTerm(primaryTerm);

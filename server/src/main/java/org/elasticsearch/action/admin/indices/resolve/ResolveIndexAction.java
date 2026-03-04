@@ -933,6 +933,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         }
                         dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
                     }
+                    case VIEW -> {
+                        /* do not return*/
+                    }
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }
             }

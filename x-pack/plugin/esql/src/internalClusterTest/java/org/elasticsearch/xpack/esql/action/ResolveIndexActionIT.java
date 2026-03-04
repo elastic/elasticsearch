@@ -1,0 +1,87 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
+import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.hamcrest.Matcher;
+
+import java.util.List;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.emptyIterable;
+
+public class ResolveIndexActionIT extends AbstractEsqlIntegTestCase {
+
+    public void testResolveIndex() {
+        assertAcked(client().admin().indices().create(new CreateIndexRequest("my-index-1")));
+        assertAcked(client().admin().indices().create(new CreateIndexRequest("other-index-2")));
+
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View("my-view-1", "ROW r=1"))
+            )
+        );
+
+        verifyResolvedIndices(
+            new ResolveIndexAction.Request(new String[] { "my-index-1" }),
+            containsInAnyOrder("my-index-1"),
+            emptyIterable(),
+            emptyIterable()
+        );
+        verifyResolvedIndices(
+            new ResolveIndexAction.Request(new String[] { "my-index-*" }),
+            containsInAnyOrder("my-index-1"),
+            emptyIterable(),
+            emptyIterable()
+        );
+
+        // matched view is not returned, but it does not fail request
+        verifyResolvedIndices(
+            new ResolveIndexAction.Request(new String[] { "my-view-1" }),
+            emptyIterable(),
+            emptyIterable(),
+            emptyIterable()
+        );
+        verifyResolvedIndices(
+            new ResolveIndexAction.Request(new String[] { "my-*" }),
+            containsInAnyOrder("my-index-1"),
+            emptyIterable(),
+            emptyIterable()
+        );
+    }
+
+    private void verifyResolvedIndices(
+        ResolveIndexAction.Request request,
+        Matcher<Iterable<? extends String>> indicesMatcher,
+        Matcher<Iterable<? extends String>> aliasesMatcher,
+        Matcher<Iterable<? extends String>> dataStreamsMatcher
+    ) {
+        var response = client().admin().indices().resolveIndex(request).actionGet();
+        assertThat(toStringList(response.getIndices()), indicesMatcher);
+        assertThat(toStringList(response.getAliases()), aliasesMatcher);
+        assertThat(toStringList(response.getDataStreams()), dataStreamsMatcher);
+    }
+
+    private static List<String> toStringList(List<? extends ResolveIndexAction.ResolvedIndexAbstraction> list) {
+        return list.stream().map(ResolveIndexAction.ResolvedIndexAbstraction::getName).toList();
+    }
+}

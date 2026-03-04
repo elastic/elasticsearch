@@ -1401,9 +1401,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Resolve Row fields, allowing later fields to reference earlier ones.
-         * Uses attribute references (like resolveEval) so that non-deterministic expressions
-         * (e.g. random()) are evaluated once and shared across referencing fields.
+         * Resolve Row fields, allowing later fields to reference earlier ones using attribute references.
          * Field deduplication (shadowing) is handled by {@link Row#output()} via mergeOutputAttributes.
          */
         private LogicalPlan resolveRow(Row row) {

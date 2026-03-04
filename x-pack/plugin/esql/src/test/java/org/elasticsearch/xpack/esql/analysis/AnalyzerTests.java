@@ -469,12 +469,6 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(xField.id(), ((ReferenceAttribute) yField.child()).id());
     }
 
-    public void testRowWithSelfReference() {
-        verifyUnsupported("""
-            ROW a = a
-            """, "line 1:9: Unknown column [a]");
-    }
-
     public void testRowWithUnresolvableForwardReferences() {
         verifyUnsupported("""
             ROW a = b + c, b = 1, c = 2

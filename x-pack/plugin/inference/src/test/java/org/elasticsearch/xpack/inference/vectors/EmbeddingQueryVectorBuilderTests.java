@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.vectors;
+package org.elasticsearch.xpack.inference.vectors;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -22,8 +22,7 @@ import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.vectors.EmbeddingQueryVectorBuilder;
-import org.elasticsearch.xpack.ml.MachineLearningTests;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,7 +35,7 @@ public class EmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilder
 
     @Override
     protected List<SearchPlugin> additionalPlugins() {
-        return List.of(MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY));
+        return List.of(new InferencePlugin(Settings.EMPTY));
     }
 
     @Override

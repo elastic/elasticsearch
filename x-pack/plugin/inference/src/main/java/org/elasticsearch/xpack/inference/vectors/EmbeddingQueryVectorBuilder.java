@@ -54,9 +54,9 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     public static final NodeFeature EMBEDDING_QUERY_VECTOR_BUILDER_FEATURE = new NodeFeature("embedding_query_vector_builder");
 
-    public static final ConstructingObjectParser<org.elasticsearch.xpack.core.ml.vectors.EmbeddingQueryVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<EmbeddingQueryVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        args -> new org.elasticsearch.xpack.core.ml.vectors.EmbeddingQueryVectorBuilder(
+        args -> new EmbeddingQueryVectorBuilder(
             (String) args[0],
             (DataType) args[1],
             (DataFormat) args[2],
@@ -73,7 +73,7 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         PARSER.declareString(optionalConstructorArg(), TIMEOUT_FIELD);
     }
 
-    public static org.elasticsearch.xpack.core.ml.vectors.EmbeddingQueryVectorBuilder fromXContent(XContentParser parser) throws IOException {
+    public static EmbeddingQueryVectorBuilder fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 

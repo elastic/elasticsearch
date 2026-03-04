@@ -66,6 +66,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
         "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
         "sub-plan execution results too large",  // INLINE STATS limitations
+        // this comes from mapping-all-types.json and it gets occasionally picked up by full text functions
+        "Inference endpoint not found \\[foo_inference_id\\]",
+        // full-text functions are not allowed to match on fields that come from lookup indices
+        "cannot operate on \\[.*\\], supplied by an index \\[.*\\] in non-STANDARD mode \\[lookup\\]",
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
@@ -590,7 +594,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
-        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MultiMatch)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
+        ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MultiMatch|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after \\(?WHERE.*",
         Pattern.DOTALL
     );
 

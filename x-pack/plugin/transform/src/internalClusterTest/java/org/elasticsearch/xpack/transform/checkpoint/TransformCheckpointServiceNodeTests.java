@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingI
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositionTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
@@ -169,7 +170,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             TestIndexNameExpressionResolver.newInstance(),
             client(),
             xContentRegistry(),
-            false
+            new TransformParsingContext(false)
         );
 
         // use a mock for the checkpoint service

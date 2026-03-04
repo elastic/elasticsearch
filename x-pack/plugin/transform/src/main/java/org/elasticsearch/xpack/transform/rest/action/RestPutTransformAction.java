@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,10 +31,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutTransformAction extends BaseRestHandler {
 
-    private final boolean crossProjectEnabled;
+    private final TransformParsingContext transformParsingContext;
 
-    public RestPutTransformAction(boolean crossProjectEnabled) {
-        this.crossProjectEnabled = crossProjectEnabled;
+    public RestPutTransformAction(TransformParsingContext transformParsingContext) {
+        this.transformParsingContext = transformParsingContext;
     }
 
     /**
@@ -71,7 +72,7 @@ public class RestPutTransformAction extends BaseRestHandler {
         boolean deferValidation = restRequest.paramAsBoolean(TransformField.DEFER_VALIDATION.getPreferredName(), false);
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
-        var request = PutTransformAction.Request.fromXContent(parser, id, deferValidation, timeout, crossProjectEnabled);
+        var request = PutTransformAction.Request.fromXContent(parser, id, deferValidation, timeout, transformParsingContext);
 
         return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
             PutTransformAction.INSTANCE,

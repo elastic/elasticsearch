@@ -36,10 +36,10 @@ public final class TransformConfigUpdate implements Writeable {
 
     public static final TransformConfigUpdate EMPTY = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
 
-    private static final ConstructingObjectParser<TransformConfigUpdate, Boolean> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<TransformConfigUpdate, TransformParsingContext> PARSER = new ConstructingObjectParser<>(
         NAME,
         false,
-        (args, crossProject) -> {
+        (args, context) -> {
             SourceConfig source = (SourceConfig) args[0];
             DestConfig dest = (DestConfig) args[1];
             TimeValue frequency = args[2] == null
@@ -211,8 +211,8 @@ public final class TransformConfigUpdate implements Writeable {
         return Objects.hash(source, dest, frequency, syncConfig, description, settings, metadata, retentionPolicyConfig, headers);
     }
 
-    public static TransformConfigUpdate fromXContent(final XContentParser parser, boolean crossProject) {
-        return PARSER.apply(parser, crossProject);
+    public static TransformConfigUpdate fromXContent(final XContentParser parser, TransformParsingContext context) {
+        return PARSER.apply(parser, context);
     }
 
     public boolean isEmpty() {

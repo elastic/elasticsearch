@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,10 +36,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPreviewTransformAction extends BaseRestHandler {
 
-    private final boolean crossProjectEnabled;
+    private final TransformParsingContext transformParsingContext;
 
-    public RestPreviewTransformAction(boolean crossProjectEnabled) {
-        this.crossProjectEnabled = crossProjectEnabled;
+    public RestPreviewTransformAction(TransformParsingContext transformParsingContext) {
+        this.transformParsingContext = transformParsingContext;
     }
 
     @Override
@@ -85,7 +86,7 @@ public class RestPreviewTransformAction extends BaseRestHandler {
                     restRequest.contentOrSourceParamParser(),
                     timeout,
                     previewAsIndexRequest,
-                    crossProjectEnabled
+                    transformParsingContext
                 )
             );
         }

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
@@ -65,7 +66,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     private final ClusterService clusterService;
     private final Client client;
-    private final boolean crossProjectEnabled;
+    private final TransformParsingContext transformParsingContext;
 
     @Inject
     public TransportGetTransformAction(
@@ -79,8 +80,9 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
         this.clusterService = clusterService;
         this.client = client;
-        this.crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled()
-            && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+        this.transformParsingContext = new TransformParsingContext(
+            transformServices.crossProjectModeDecider().crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+        );
     }
 
     @Override
@@ -131,7 +133,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected TransformConfig parse(XContentParser parser) {
-        return TransformConfig.fromXContent(parser, null, true, crossProjectEnabled);
+        return TransformConfig.fromXContent(parser, null, true, transformParsingContext);
     }
 
     @Override

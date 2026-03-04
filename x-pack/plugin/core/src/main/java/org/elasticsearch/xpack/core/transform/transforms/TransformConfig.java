@@ -181,7 +181,11 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         });
 
         parser.declareString(optionalConstructorArg(), TransformField.ID);
-        parser.declareObject(constructorArg(), (p, c) -> SourceConfig.fromXContent(p, lenient, c.crossProject()), TransformField.SOURCE);
+        parser.declareObject(
+            constructorArg(),
+            (p, c) -> SourceConfig.fromXContent(p, lenient, c.transformParsingContext()),
+            TransformField.SOURCE
+        );
         parser.declareObject(constructorArg(), (p, c) -> DestConfig.fromXContent(p, lenient), TransformField.DESTINATION);
         parser.declareString(optionalConstructorArg(), TransformField.FREQUENCY);
         parser.declareNamedObject(optionalConstructorArg(), (p, c, n) -> p.namedObject(SyncConfig.class, n, c), TransformField.SYNC);
@@ -574,9 +578,9 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         final XContentParser parser,
         @Nullable final String optionalTransformId,
         boolean lenient,
-        boolean crossProject
+        TransformParsingContext transformParsingContext
     ) {
-        var context = new ParserContext(optionalTransformId, crossProject);
+        var context = new ParserContext(optionalTransformId, transformParsingContext);
         return lenient ? LENIENT_PARSER.apply(parser, context) : STRICT_PARSER.apply(parser, context);
     }
 
@@ -899,5 +903,5 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         }
     }
 
-    private record ParserContext(String optionalTransformId, boolean crossProject) {}
+    private record ParserContext(String optionalTransformId, TransformParsingContext transformParsingContext) {}
 }

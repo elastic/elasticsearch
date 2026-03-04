@@ -83,7 +83,7 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
 
     @Override
     protected SourceConfig doParseInstance(XContentParser parser) throws IOException {
-        return SourceConfig.fromXContent(parser, lenient, crossProject);
+        return SourceConfig.fromXContent(parser, lenient, new TransformParsingContext(crossProject));
     }
 
     @Override

@@ -45,8 +45,8 @@ public class SourceConfig implements Writeable, ToXContentObject {
     public static final ParseField INDEX = new ParseField("index");
     public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
-    public static final ConstructingObjectParser<SourceConfig, Boolean> STRICT_PARSER = createParser(false);
-    public static final ConstructingObjectParser<SourceConfig, Boolean> LENIENT_PARSER = createParser(true);
+    public static final ConstructingObjectParser<SourceConfig, TransformParsingContext> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<SourceConfig, TransformParsingContext> LENIENT_PARSER = createParser(true);
 
     static final TransportVersion TRANSFORM_PROJECT_ROUTING = TransportVersion.fromName("transform_project_routing");
     static final TransportVersion TRANSFORM_INDICES_OPTIONS = TransportVersion.fromName("transform_indices_options");
@@ -54,21 +54,18 @@ public class SourceConfig implements Writeable, ToXContentObject {
     private static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.LENIENT_EXPAND_OPEN;
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<SourceConfig, Boolean> createParser(boolean lenient) {
-        ConstructingObjectParser<SourceConfig, Boolean> parser = new ConstructingObjectParser<>(
+    private static ConstructingObjectParser<SourceConfig, TransformParsingContext> createParser(boolean lenient) {
+        ConstructingObjectParser<SourceConfig, TransformParsingContext> parser = new ConstructingObjectParser<>(
             "data_frame_config_source",
             lenient,
-            (args, crossProject) -> {
+            (args, context) -> {
                 String[] index = ((List<String>) args[0]).toArray(new String[0]);
                 // default handling: if the user does not specify a query, we default to match_all
                 QueryConfig queryConfig = args[1] == null ? QueryConfig.matchAll() : (QueryConfig) args[1];
                 Map<String, Object> runtimeMappings = args[2] == null ? Collections.emptyMap() : (Map<String, Object>) args[2];
                 var projectRouting = (String) args[3];
 
-                // TODO: make configurable
-                var indicesOptions = crossProject ? IndicesOptions.CPS_LENIENT_EXPAND_OPEN : DEFAULT_INDICES_OPTIONS;
-
-                return new SourceConfig(index, queryConfig, runtimeMappings, indicesOptions, projectRouting);
+                return new SourceConfig(index, queryConfig, runtimeMappings, context.getDefaultIndicesOptions(), projectRouting);
             }
         );
         parser.declareStringArray(constructorArg(), INDEX);
@@ -258,7 +255,8 @@ public class SourceConfig implements Writeable, ToXContentObject {
         return Objects.hash(indexArrayHash, queryConfig, runtimeMappings, projectRouting, indicesOptions);
     }
 
-    public static SourceConfig fromXContent(final XContentParser parser, boolean lenient, boolean crossProject) throws IOException {
-        return lenient ? LENIENT_PARSER.apply(parser, crossProject) : STRICT_PARSER.apply(parser, crossProject);
+    public static SourceConfig fromXContent(final XContentParser parser, boolean lenient, TransformParsingContext context)
+        throws IOException {
+        return lenient ? LENIENT_PARSER.apply(parser, context) : STRICT_PARSER.apply(parser, context);
     }
 }

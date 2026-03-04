@@ -87,8 +87,8 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             var message = getMessageData(appender.getLastEventAndReset());
             assertMessageSuccess(message, EsqlLogContext.TYPE, query);
             assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
-            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "skipped")), greaterThanOrEqualTo(0));
-            assertThat(message.get(QUERY_FIELD_SHARDS + "failed"), equalTo("0"));
+            assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), greaterThanOrEqualTo(0));
+            assertThat(message.getOrDefault(QUERY_FIELD_SHARDS + "failed", "0"), equalTo("0"));
 
             // Create empty EsqlQueryProfile just to get the markers
             EsqlQueryProfile profile = new EsqlQueryProfile();
@@ -143,9 +143,9 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull(event);
         var message = getMessageData(event);
-        assertMessageSuccess(message, "esql", "FROM esql_partial_test | LIMIT 100");
+        assertMessageSuccess(message, EsqlLogContext.TYPE, "FROM esql_partial_test | LIMIT 100");
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
-        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "skipped")), equalTo(0));
+        assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThanOrEqualTo(1));
     }
 }

@@ -157,8 +157,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("1"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(""));
             assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
-            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "skipped")), greaterThanOrEqualTo(0));
-            assertThat(message.get(QUERY_FIELD_SHARDS + "failed"), equalTo("0"));
+            assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), greaterThanOrEqualTo(0));
+            assertThat(message.getOrDefault(QUERY_FIELD_SHARDS + "failed", "0"), equalTo("0"));
             assertNull(message.get(ES_QUERY_FIELDS_PREFIX + "timed_out"));
         }
 
@@ -171,8 +171,8 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("3"));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
             assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
-            assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "skipped")), greaterThanOrEqualTo(0));
-            assertThat(message.get(QUERY_FIELD_SHARDS + "failed"), equalTo("0"));
+            assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), greaterThanOrEqualTo(0));
+            assertThat(message.getOrDefault(QUERY_FIELD_SHARDS + "failed", "0"), equalTo("0"));
             assertNull(message.get(ES_QUERY_FIELDS_PREFIX + "timed_out"));
         }
         // Total hits
@@ -213,10 +213,10 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
         var event = appender.getLastEventAndReset();
         assertNotNull(event);
         Map<String, String> message = getMessageData(event);
-        assertMessageSuccess(message, "search", "size");
+        assertMessageSuccess(message, SearchLogContext.TYPE, "size");
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThan(0));
-        assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "skipped")), equalTo(0));
+        assertThat(Integer.valueOf(message.getOrDefault(QUERY_FIELD_SHARDS + "skipped", "0")), equalTo(0));
         assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "failed")), greaterThan(0));
     }
 

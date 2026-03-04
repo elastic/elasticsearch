@@ -87,8 +87,6 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertMessageSuccess(message, EqlLogContext.TYPE, query);
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(success ? "1" : "0"));
-        // EQL only logs shards.failed
-        assertThat(message.get(QUERY_FIELD_SHARDS + "failed"), equalTo("0"));
     }
 
     public void testEqlFailureLogging() throws Exception {

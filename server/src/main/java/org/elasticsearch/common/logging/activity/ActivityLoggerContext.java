@@ -42,6 +42,10 @@ public abstract class ActivityLoggerContext {
         return error == null;
     }
 
+    public boolean isTimedOut() {
+        return false;
+    }
+
     public String getType() {
         return type;
     }

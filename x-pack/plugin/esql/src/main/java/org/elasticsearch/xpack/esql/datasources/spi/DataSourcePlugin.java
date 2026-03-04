@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -26,6 +27,7 @@ import java.util.concurrent.ExecutorService;
  *   <li>Table catalog connectors (Iceberg, Delta Lake) for table metadata - keyed by catalog type</li>
  *   <li>Custom operator factories for complex datasources - keyed by source type</li>
  *   <li>Filter pushdown support for predicate pushdown optimization - keyed by source type</li>
+ *   <li>Decompression codecs for compound extensions (e.g. .csv.gz) - via {@link #decompressionCodecs(Settings)}</li>
  * </ul>
  *
  * <p>All methods have default implementations returning empty maps/lists, allowing
@@ -35,6 +37,46 @@ import java.util.concurrent.ExecutorService;
  * since there are no corresponding setters.
  */
 public interface DataSourcePlugin {
+
+    /**
+     * URI schemes whose storage providers this plugin supplies (e.g. "s3", "gs", "http").
+     * Called once at registration time; must be cheap (no I/O, no heavy deps).
+     * Connector plugins should use {@link #supportedConnectorSchemes()} instead.
+     */
+    default Set<String> supportedSchemes() {
+        return Set.of();
+    }
+
+    /**
+     * URI schemes handled by this plugin's connectors (e.g. "flight", "grpc").
+     * Separate from {@link #supportedSchemes()} which is for storage providers.
+     */
+    default Set<String> supportedConnectorSchemes() {
+        return Set.of();
+    }
+
+    /**
+     * Format names this plugin provides (e.g. "csv", "parquet").
+     * Keys must match {@link #formatReaders(Settings)} keys.
+     */
+    default Set<String> supportedFormats() {
+        return Set.of();
+    }
+
+    /**
+     * File extensions this plugin's format readers handle (with leading dot, e.g. ".csv", ".parquet").
+     */
+    default Set<String> supportedExtensions() {
+        return Set.of();
+    }
+
+    /**
+     * Catalog types this plugin provides (e.g. "iceberg").
+     * Keys must match {@link #tableCatalogs(Settings)} keys.
+     */
+    default Set<String> supportedCatalogs() {
+        return Set.of();
+    }
 
     default Map<String, StorageProviderFactory> storageProviders(Settings settings) {
         return Map.of();
@@ -48,11 +90,31 @@ public interface DataSourcePlugin {
         return Map.of();
     }
 
+    /**
+     * Decompression codecs this plugin provides (e.g. gzip for .gz, .gzip).
+     * Used for compound extensions like .csv.gz or .ndjson.gz.
+     */
+    default List<DecompressionCodec> decompressionCodecs(Settings settings) {
+        return List.of();
+    }
+
+    // Complete external source factories
+    default Map<String, ExternalSourceFactory> sourceFactories(Settings settings) {
+        return Map.of();
+    }
+
+    // FIXME: the methods below are superseded by sourceFactories() and ExternalSourceFactory capabilities.
+    // Migrate plugins from connectors()/tableCatalogs() to sourceFactories(),
+    // and from operatorFactories()/filterPushdownSupport() to ExternalSourceFactory methods.
     default Map<String, TableCatalogFactory> tableCatalogs(Settings settings) {
         return Map.of();
     }
 
     default Map<String, SourceOperatorFactoryProvider> operatorFactories(Settings settings) {
+        return Map.of();
+    }
+
+    default Map<String, ConnectorFactory> connectors(Settings settings) {
         return Map.of();
     }
 

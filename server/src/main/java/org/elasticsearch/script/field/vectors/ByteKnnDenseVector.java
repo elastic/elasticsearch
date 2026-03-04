@@ -51,8 +51,8 @@ public class ByteKnnDenseVector implements DenseVector {
     }
 
     @Override
-    public int dotProduct(byte[] queryVector) {
-        return VectorUtil.dotProduct(queryVector, docVector);
+    public double dotProduct(byte[] queryVector) {
+        return ESVectorUtil.dotProduct(queryVector, docVector);
     }
 
     @Override

@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFi
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineSample;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownCompoundOutputEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownConjunctionsToKnnPrefilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
@@ -225,6 +226,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownInferencePlan(),
             new PushDownEval(),
             new PushDownRegexExtract(),
+            new PushDownCompoundOutputEval(),
             new PushDownEnrich(),
             new PushDownJoinPastProject(),
             new PushDownAndCombineOrderBy(),

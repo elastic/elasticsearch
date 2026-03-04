@@ -16,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.tests.codecs.asserting.AssertingCodec;
 import org.apache.lucene.tests.index.BaseStoredFieldsFormatTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormatTests;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 
@@ -41,6 +42,7 @@ public class TSDBStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase 
     }
 
     public void testSyntheticId() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         runTestWithRandomDocs((writer, finalDocs) -> {
             try (var reader = DirectoryReader.open(writer)) {
                 final var storedFields = reader.storedFields();

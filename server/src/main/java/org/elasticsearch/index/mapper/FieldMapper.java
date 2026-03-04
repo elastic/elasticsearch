@@ -381,34 +381,6 @@ public abstract class FieldMapper extends Mapper {
      */
     public abstract Builder getMergeBuilder();
 
-    @Override
-    public final FieldMapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
-        if (mergeWith == this) {
-            return this;
-        }
-        if (mergeWith instanceof FieldMapper == false) {
-            throw new IllegalArgumentException(
-                "mapper ["
-                    + fullPath()
-                    + "] cannot be changed from type ["
-                    + contentType()
-                    + "] to ["
-                    + mergeWith.getClass().getSimpleName()
-                    + "]"
-            );
-        }
-        checkIncomingMergeType((FieldMapper) mergeWith);
-
-        Builder builder = getMergeBuilder();
-        if (builder == null) {
-            return (FieldMapper) mergeWith;
-        }
-        Conflicts conflicts = new Conflicts(fullPath());
-        builder.merge((FieldMapper) mergeWith, conflicts, mapperMergeContext);
-        conflicts.check();
-        return builder.build(mapperMergeContext.getMapperBuilderContext());
-    }
-
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
         if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
             throw new IllegalArgumentException(
@@ -609,12 +581,12 @@ public abstract class FieldMapper extends Mapper {
 
         public static class Builder {
 
-            private final Map<String, Function<MapperBuilderContext, FieldMapper>> mapperBuilders = new HashMap<>();
+            private final Map<String, FieldMapper.Builder> fieldBuilders = new HashMap<>();
 
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
             public Builder add(FieldMapper.Builder builder) {
-                mapperBuilders.put(builder.leafName(), builder::build);
+                fieldBuilders.put(builder.leafName(), builder);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
                     if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
@@ -627,7 +599,27 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void add(FieldMapper mapper) {
-                mapperBuilders.put(mapper.leafName(), context -> mapper);
+                FieldMapper.Builder builder = mapper.getMergeBuilder();
+                if (builder != null) {
+                    fieldBuilders.put(mapper.leafName(), builder);
+                } else {
+                    fieldBuilders.put(mapper.leafName(), new FieldMapper.Builder(mapper.leafName()) {
+                        @Override
+                        protected Parameter<?>[] getParameters() {
+                            return EMPTY_PARAMETERS;
+                        }
+
+                        @Override
+                        public String contentType() {
+                            return mapper.contentType();
+                        }
+
+                        @Override
+                        public FieldMapper build(MapperBuilderContext context) {
+                            return mapper;
+                        }
+                    });
+                }
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
@@ -637,18 +629,55 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void update(FieldMapper toMerge, MapperMergeContext context) {
-                if (mapperBuilders.containsKey(toMerge.leafName()) == false) {
+                if (fieldBuilders.containsKey(toMerge.leafName()) == false) {
                     if (context.decrementFieldBudgetIfPossible(toMerge.getTotalFieldsCount())) {
                         add(toMerge);
                     }
                 } else {
-                    FieldMapper existing = mapperBuilders.get(toMerge.leafName()).apply(context.getMapperBuilderContext());
-                    add(existing.merge(toMerge, context));
+                    FieldMapper.Builder existingBuilder = fieldBuilders.get(toMerge.leafName());
+                    FieldMapper.Builder incomingBuilder = toMerge.getMergeBuilder();
+                    if (incomingBuilder != null) {
+                        MapperMergeContext childContext = MapperMergeContext.from(context.getMapperBuilderContext(), Long.MAX_VALUE);
+                        Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
+                        fieldBuilders.put(toMerge.leafName(), (FieldMapper.Builder) merged);
+                    } else {
+                        add(toMerge);
+                    }
+                }
+            }
+
+            void mergeFrom(Builder incoming, MapperMergeContext mergeContext) {
+                for (var entry : incoming.fieldBuilders.entrySet()) {
+                    FieldMapper.Builder incomingBuilder = entry.getValue();
+                    FieldMapper.Builder existingBuilder = fieldBuilders.get(entry.getKey());
+                    if (existingBuilder == null) {
+                        if (mergeContext.decrementFieldBudgetIfPossible(incomingBuilder.getTotalFieldsCount())) {
+                            fieldBuilders.put(entry.getKey(), incomingBuilder);
+                            updateSyntheticSourceCompatibleKeywordField(incomingBuilder);
+                        }
+                    } else {
+                        MapperMergeContext childContext = MapperMergeContext.from(mergeContext.getMapperBuilderContext(), Long.MAX_VALUE);
+                        Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
+                        fieldBuilders.put(entry.getKey(), (FieldMapper.Builder) merged);
+                    }
+                }
+            }
+
+            private void updateSyntheticSourceCompatibleKeywordField(FieldMapper.Builder builder) {
+                if (builder instanceof KeywordFieldMapper.Builder kwd) {
+                    if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
+                        && (kwd.docValuesParameters().enabled || kwd.isStored())) {
+                        hasSyntheticSourceCompatibleKeywordField = true;
+                    }
                 }
             }
 
             public boolean hasMultiFields() {
-                return mapperBuilders.isEmpty() == false;
+                return fieldBuilders.isEmpty() == false;
+            }
+
+            int size() {
+                return fieldBuilders.size();
             }
 
             public boolean hasSyntheticSourceCompatibleKeywordField() {
@@ -656,14 +685,14 @@ public abstract class FieldMapper extends Mapper {
             }
 
             public MultiFields build(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
-                if (mapperBuilders.isEmpty()) {
+                if (fieldBuilders.isEmpty()) {
                     return empty();
                 } else {
-                    FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
+                    FieldMapper[] mappers = new FieldMapper[fieldBuilders.size()];
                     context = context.createChildContext(mainFieldBuilder.leafName(), null);
                     int i = 0;
-                    for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
-                        mappers[i++] = entry.getValue().apply(context);
+                    for (FieldMapper.Builder builder : fieldBuilders.values()) {
+                        mappers[i++] = builder.build(context);
                     }
                     return new MultiFields(mappers);
                 }
@@ -986,8 +1015,16 @@ public abstract class FieldMapper extends Mapper {
             setValue(parser.apply(field, context, in));
         }
 
-        private void merge(FieldMapper toMerge, Conflicts conflicts) {
-            T value = initializer.apply(toMerge);
+        @SuppressWarnings("unchecked")
+        void mergeFrom(Parameter<?> other, Conflicts conflicts) {
+            mergeValue((T) other.getValue(), conflicts);
+        }
+
+        void freezeValue() {
+            setValue(getValue());
+        }
+
+        private void mergeValue(T value, Conflicts conflicts) {
             T current = getValue();
             if (mergeValidator.canMerge(current, value, conflicts)) {
                 setValue(value);
@@ -1537,6 +1574,11 @@ public abstract class FieldMapper extends Mapper {
             super(name);
         }
 
+        @Override
+        int getTotalFieldsCount() {
+            return 1 + multiFieldsBuilder.size();
+        }
+
         /**
          * Initialises all parameters from an existing mapper
          */
@@ -1547,6 +1589,8 @@ public abstract class FieldMapper extends Mapper {
             for (FieldMapper subField : initializer.builderParams.multiFields.mappers) {
                 multiFieldsBuilder.add(subField);
             }
+            this.copyTo = initializer.builderParams.copyTo;
+            this.sourceKeepMode = initializer.builderParams.sourceKeepMode;
             return this;
         }
 
@@ -1559,19 +1603,6 @@ public abstract class FieldMapper extends Mapper {
             return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
         }
 
-        protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
-            for (Parameter<?> param : getParameters()) {
-                param.merge(in, conflicts);
-            }
-            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.leafName(), null);
-            for (FieldMapper newSubField : in.builderParams.multiFields.mappers) {
-                multiFieldsBuilder.update(newSubField, childContext);
-            }
-            this.copyTo = in.builderParams.copyTo;
-            this.sourceKeepMode = in.builderParams.sourceKeepMode;
-            validate();
-        }
-
         protected final void validate() {
             for (Parameter<?> param : getParameters()) {
                 param.validate();
@@ -1582,6 +1613,78 @@ public abstract class FieldMapper extends Mapper {
          * @return the list of parameters defined for this mapper
          */
         protected abstract Parameter<?>[] getParameters();
+
+        /**
+         * @return the content type name for this field mapper builder, matching the value
+         *         returned by {@link FieldMapper#contentType()} on the built mapper
+         */
+        public abstract String contentType();
+
+        @Override
+        public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
+            MapperBuilderContext builderContext = mergeContext.getMapperBuilderContext();
+            if (incoming instanceof NestedObjectMapper.Builder) {
+                MapperErrors.throwNestedMappingConflictError(builderContext.buildFullName(incoming.leafName()));
+            } else if (incoming instanceof ObjectMapper.Builder) {
+                MapperErrors.throwObjectMappingConflictError(builderContext.buildFullName(incoming.leafName()));
+            }
+            if (builderContext.getMergeReason() == MapperService.MergeReason.INDEX_TEMPLATE) {
+                return incoming;
+            }
+            if (incoming instanceof FieldMapper.Builder == false) {
+                throw new IllegalArgumentException(
+                    "mapper ["
+                        + builderContext.buildFullName(leafName())
+                        + "] cannot be changed from type ["
+                        + contentType()
+                        + "] to ["
+                        + incoming.getClass().getSimpleName()
+                        + "]"
+                );
+            }
+            FieldMapper.Builder incomingField = (FieldMapper.Builder) incoming;
+            String fullName = builderContext.buildFullName(leafName());
+            if (Objects.equals(this.getClass(), incomingField.getClass()) == false
+                || Objects.equals(contentType(), incomingField.contentType()) == false) {
+                if (builderContext.getMergeReason().isAutoUpdate()) {
+                    return this;
+                }
+                throwMergeTypeConflict(incomingField, fullName);
+            }
+            Conflicts conflicts = new Conflicts(fullName);
+            mergeFromBuilder(incomingField, conflicts, mergeContext);
+            conflicts.check();
+            return this;
+        }
+
+        /**
+         * Throws an error when the incoming builder has a different class or content type.
+         * Subclasses can override to provide more specific error messages.
+         */
+        protected void throwMergeTypeConflict(FieldMapper.Builder incoming, String fullName) {
+            throw new IllegalArgumentException(
+                "mapper [" + fullName + "] cannot be changed from type [" + contentType() + "] to [" + incoming.contentType() + "]"
+            );
+        }
+
+        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            Parameter<?>[] myParams = getParameters();
+            Parameter<?>[] theirParams = incoming.getParameters();
+            // Freeze parameter values before merging to prevent dynamic defaults from
+            // changing mid-merge when earlier parameters are updated (e.g., normalizer
+            // changing affects normalizer_skip_store_original_value's default)
+            for (Parameter<?> param : myParams) {
+                param.freezeValue();
+            }
+            for (int i = 0; i < myParams.length; i++) {
+                myParams[i].mergeFrom(theirParams[i], conflicts);
+            }
+            MapperMergeContext childContext = mergeContext.createChildContext(incoming.leafName(), null);
+            multiFieldsBuilder.mergeFrom(incoming.multiFieldsBuilder, childContext);
+            this.copyTo = incoming.copyTo;
+            this.sourceKeepMode = incoming.sourceKeepMode;
+            validate();
+        }
 
         @Override
         public abstract FieldMapper build(MapperBuilderContext context);

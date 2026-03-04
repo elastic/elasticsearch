@@ -1,0 +1,143 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.publish'
+
+esplugin {
+  name = 'esql-datasource-grpc'
+  description = 'Arrow Flight (gRPC) connector support for ESQL external data sources'
+  classname = 'org.elasticsearch.xpack.esql.datasource.grpc.GrpcDataSourcePlugin'
+  extendedPlugins = ['x-pack-esql']
+}
+
+base {
+  archivesName = 'esql-datasource-grpc'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+  compileOnly project(xpackModule('esql:compute'))
+
+  // Arrow Flight (gRPC-based columnar data transport)
+  implementation('org.apache.arrow:flight-core:18.3.0') {
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+    exclude group: 'com.google.guava', module: 'guava'
+  }
+  implementation('org.apache.arrow:arrow-vector:18.3.0') {
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+  }
+  implementation('org.apache.arrow:arrow-memory-core:18.3.0')
+  runtimeOnly('org.apache.arrow:arrow-memory-unsafe:18.3.0')
+
+  // Align Netty to the version used by Elasticsearch to address CVEs in older transitive versions
+  implementation "io.netty:netty-buffer:${versions.netty}"
+  implementation "io.netty:netty-codec:${versions.netty}"
+  implementation "io.netty:netty-codec-http:${versions.netty}"
+  implementation "io.netty:netty-codec-http2:${versions.netty}"
+  implementation "io.netty:netty-common:${versions.netty}"
+  implementation "io.netty:netty-handler:${versions.netty}"
+  implementation "io.netty:netty-handler-proxy:${versions.netty}"
+  implementation "io.netty:netty-resolver:${versions.netty}"
+  implementation "io.netty:netty-transport:${versions.netty}"
+  implementation "io.netty:netty-transport-native-unix-common:${versions.netty}"
+
+  // Upgrade gRPC beyond the version declared by flight-core to address CVE-2025-55163
+  // Note: 1.79.0 breaks Arrow Flight 18.3.0 due to internal API removal (ReadableBuffer.readBytes)
+  implementation('io.grpc:grpc-api:1.78.0') { exclude group: 'com.google.guava', module: 'guava' }
+  implementation('io.grpc:grpc-core:1.78.0') { exclude group: 'com.google.guava', module: 'guava' }
+  implementation('io.grpc:grpc-netty:1.78.0') { exclude group: 'com.google.guava', module: 'guava' }
+  implementation('io.grpc:grpc-protobuf:1.78.0') { exclude group: 'com.google.guava', module: 'guava' }
+  implementation('io.grpc:grpc-stub:1.78.0') { exclude group: 'com.google.guava', module: 'guava' }
+
+  compileOnly 'org.checkerframework:checker-qual:3.42.0'
+  compileOnly 'com.fasterxml.jackson.core:jackson-annotations:2.19.2'
+  compileOnly 'com.fasterxml.jackson.core:jackson-databind:2.19.2'
+
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('esql'))
+  testImplementation project(xpackModule('esql-core'))
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
+  runtimeOnly 'com.google.guava:guava:33.4.0-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
+}
+
+tasks.named("test").configure {
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /arrow-.*/, to: 'arrow'
+  mapping from: /flight-.*/, to: 'arrow'
+  mapping from: /grpc-.*/, to: 'grpc'
+  mapping from: /netty-.*/, to: 'netty'
+  mapping from: /log4j-.*/, to: 'log4j'
+  mapping from: /protobuf-.*/, to: 'protobuf'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+  ignoreViolations(
+    // Arrow memory uses sun.misc.Unsafe
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1',
+    // Netty uses sun.misc.Unsafe internally
+    'io.netty.util.internal.PlatformDependent0',
+    'io.netty.util.internal.PlatformDependent0$1',
+    'io.netty.util.internal.PlatformDependent0$2',
+    'io.netty.util.internal.PlatformDependent0$3',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+    // Guava uses sun.misc.Unsafe internally
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+  )
+}

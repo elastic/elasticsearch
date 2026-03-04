@@ -9,16 +9,20 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
@@ -27,6 +31,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.stream.Stream;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -39,9 +44,31 @@ public class ES93FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    private final DenseVectorFieldMapper.ElementType elementType;
+
+    public ES93FlatVectorFormatTests(DenseVectorFieldMapper.ElementType elementType) {
+        this.elementType = elementType;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> elements() {
+        return Stream.of(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BYTE)
+            .map(e -> new Object[] { e })
+            .toList();
+    }
+
+    @Override
+    protected VectorEncoding randomVectorEncoding() {
+        return switch (elementType) {
+            case FLOAT -> VectorEncoding.FLOAT32;
+            case BYTE -> VectorEncoding.BYTE;
+            default -> throw new IllegalArgumentException();
+        };
+    }
+
     @Override
     protected Codec getCodec() {
-        return TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(DenseVectorFieldMapper.ElementType.FLOAT));
+        return TestUtil.alwaysKnnVectorsFormat(new ES93FlatVectorFormat(elementType));
     }
 
     public void testSearchWithVisitedLimit() {
@@ -49,10 +76,20 @@ public class ES93FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
     }
 
     public void testSimpleOffHeapSize() throws IOException {
-        float[] vector = randomVector(random().nextInt(12, 500));
+        int vectorLength = random().nextInt(12, 500);
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
             Document doc = new Document();
-            doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));
+            int byteSize = switch (elementType) {
+                case FLOAT -> {
+                    doc.add(new KnnFloatVectorField("f", randomVector(vectorLength), DOT_PRODUCT));
+                    yield 4;
+                }
+                case BYTE -> {
+                    doc.add(new KnnByteVectorField("f", randomVector8(vectorLength), DOT_PRODUCT));
+                    yield 1;
+                }
+                default -> throw new IllegalArgumentException();
+            };
             w.addDocument(doc);
             w.commit();
             try (IndexReader reader = DirectoryReader.open(w)) {
@@ -65,7 +102,7 @@ public class ES93FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
                     var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertThat(offHeap, aMapWithSize(1));
-                    assertThat(offHeap, hasEntry("vec", (long) vector.length * Float.BYTES));
+                    assertThat(offHeap, hasEntry("vec", (long) vectorLength * byteSize));
                 }
             }
         }

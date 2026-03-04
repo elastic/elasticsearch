@@ -32,6 +32,6 @@
   "examples" : [
     "FROM histogram_standard_index\n | WHERE instance == \"hand-rolled\"\n | EVAL tdigest = to_tdigest(responseTime)\n | KEEP responseTime, tdigest\n;"
   ],
-  "preview" : false,
+  "preview" : true,
   "snapshot_only" : false
 }

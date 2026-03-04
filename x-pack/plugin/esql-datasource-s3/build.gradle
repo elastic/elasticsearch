@@ -62,7 +62,7 @@ dependencies {
   runtimeOnly "software.amazon.awssdk:http-auth-aws:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:http-auth-spi:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:json-utils:${versions.awsv2sdk}"
-  runtimeOnly "software.amazon.awssdk:profiles:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:profiles:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
 

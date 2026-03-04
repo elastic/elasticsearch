@@ -1173,6 +1173,7 @@ public final class DateFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Cannot parse object or array as a date value");
                 }
             } else {
+                // Otherwise, attempt to parse the date as if it's a string
                 try {
                     timestamp = fieldType().parse(context.parser().text());
                 } catch (IllegalArgumentException | ElasticsearchParseException | DateTimeException | ArithmeticException e) {

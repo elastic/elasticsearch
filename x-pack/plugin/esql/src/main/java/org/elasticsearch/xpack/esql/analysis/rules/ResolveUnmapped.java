@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -89,6 +90,22 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
         if (unresolved.isEmpty()) {
             return plan;
         }
+
+        // Skip attributes whose name exists in the child output: they are temporarily unresolved
+        // (e.g. due to stale NameIds after Fork output changes) and will be wired by ResolveRefs
+        // in the next iteration. Only genuinely unmapped attributes should be nullified/loaded.
+        Set<String> childOutputNames = new HashSet<>();
+        for (LogicalPlan child : plan.children()) {
+            for (Attribute attr : child.output()) {
+                childOutputNames.add(attr.name());
+            }
+        }
+        unresolved.removeIf(ua -> childOutputNames.contains(ua.name()));
+
+        if (unresolved.isEmpty()) {
+            return plan;
+        }
+
         var unresolvedLinkedSet = unresolvedLinkedSet(unresolved);
 
         var transformed = load ? load(plan, unresolvedLinkedSet) : nullify(plan, unresolvedLinkedSet);

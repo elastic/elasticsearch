@@ -40,9 +40,18 @@ public final class OptimalPipelines {
     private static final Map<String, IntFunction<PipelineConfig>> DOUBLE_SHORTLIST = Map.ofEntries(
         Map.entry("delta-offset-gcd-bitpack", bs -> PipelineConfig.forDoubles(bs).delta().offset().gcd().bitPack()),
         Map.entry("integer-pipeline", bs -> PipelineConfig.forDoubles(bs).delta().delta().offset().gcd().patchedPFor().bitPack()),
-        Map.entry("alp-double-lossless", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage().delta().offset().gcd().patchedPFor().bitPack()),
-        Map.entry("alp-double-1e4", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage(1e-4).delta().offset().gcd().patchedPFor().bitPack()),
-        Map.entry("alp-double-1e2", bs -> PipelineConfig.forDoubles(bs).alpDoubleStage(1e-2).delta().offset().gcd().patchedPFor().bitPack()),
+        Map.entry(
+            "alp-double-lossless",
+            bs -> PipelineConfig.forDoubles(bs).alpDoubleStage().delta().offset().gcd().patchedPFor().bitPack()
+        ),
+        Map.entry(
+            "alp-double-1e4",
+            bs -> PipelineConfig.forDoubles(bs).alpDoubleStage(1e-4).delta().offset().gcd().patchedPFor().bitPack()
+        ),
+        Map.entry(
+            "alp-double-1e2",
+            bs -> PipelineConfig.forDoubles(bs).alpDoubleStage(1e-2).delta().offset().gcd().patchedPFor().bitPack()
+        ),
         Map.entry("fpc-lossless", bs -> PipelineConfig.forDoubles(bs).fpcStage().delta().offset().gcd().patchedPFor().bitPack()),
         Map.entry("fpc-1e4", bs -> PipelineConfig.forDoubles(bs).fpcStage(1e-4).delta().offset().gcd().patchedPFor().bitPack()),
         Map.entry("fpc-1e2", bs -> PipelineConfig.forDoubles(bs).fpcStage(1e-2).delta().offset().gcd().patchedPFor().bitPack()),

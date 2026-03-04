@@ -381,12 +381,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/143407
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/143419

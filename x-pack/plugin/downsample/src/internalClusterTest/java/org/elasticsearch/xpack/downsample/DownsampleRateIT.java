@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -59,6 +61,8 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
           }
         }
         """;
+    public static final String START_TIME = "2021-04-29T00:00:00Z";
+    public static final String END_TIME = "2021-04-29T23:59:59Z";
 
     public void testTimeSeriesAggregateRate() throws Exception {
         runTest(
@@ -71,7 +75,9 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 Tuple.tuple("2021-04-29T17:29:22.470Z", 11),
                 Tuple.tuple("2021-04-29T17:32:22.470Z", 12),
                 Tuple.tuple("2021-04-29T17:39:22.470Z", 13)
-            )
+            ),
+            "30m",
+            0.003
         );
     }
 
@@ -88,7 +94,9 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 Tuple.tuple("2021-04-29T17:29:22.470Z", 11),
                 Tuple.tuple("2021-04-29T17:32:22.470Z", 12),
                 Tuple.tuple("2021-04-29T17:39:22.470Z", 13)
-            )
+            ),
+            "30m",
+            0.003
         );
     }
 
@@ -105,7 +113,9 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 Tuple.tuple("2021-04-29T17:29:22.470Z", 40),
                 Tuple.tuple("2021-04-29T17:32:22.470Z", 70),
                 Tuple.tuple("2021-04-29T17:39:22.470Z", 80)
-            )
+            ),
+            "30m",
+            0.003
         );
     }
 
@@ -130,25 +140,45 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
                 Tuple.tuple("2021-04-29T17:28:22.470Z", 5),
                 Tuple.tuple("2021-04-29T17:29:22.470Z", 10),
                 Tuple.tuple("2021-04-29T17:59:22.470Z", 20)
-            )
+            ),
+            "30m",
+            0.003
         );
     }
 
-    private void runTest(List<Tuple<String, Integer>> documents) throws Exception {
+    public void testTimeSeriesQuerying_RandomDocuments() throws Exception {
+        long startTime = Instant.parse(START_TIME).toEpochMilli();
+        long endTime = Instant.parse(END_TIME).toEpochMilli();
+        int counter = 0;
+        long currentTime = startTime;
+        List<Tuple<String, Integer>> documents = new ArrayList<>();
+        while (currentTime < endTime) {
+            if (randomInt(9) > 0) {
+                counter = randomInt(100);
+            } else {
+                counter += randomInt(100);
+            }
+            documents.add(Tuple.tuple(DATE_FORMATTER.formatMillis(currentTime), counter));
+            currentTime += randomLongBetween(10, 60) * 1000;
+        }
+        runTest(documents, "1h", 0.05);
+    }
+
+    private void runTest(List<Tuple<String, Integer>> documents, String interval, double rateEpsilon) throws Exception {
         createIndex();
         indexDocuments(documents);
         DownsampleConfig downsampleConfig = new DownsampleConfig(
-            new DateHistogramInterval("30m"),
+            new DateHistogramInterval(interval),
             DownsampleConfig.SamplingMethod.AGGREGATE
         );
         downsample(downsampleConfig);
 
         try (var baseline = queryRate(INDEX_NAME); var contender = queryRate(DOWNSAMPLED_INDEX_NAME)) {
-            compareResults(baseline, contender);
+            compareResults(baseline, contender, rateEpsilon);
         }
     }
 
-    private void compareResults(EsqlQueryResponse baseline, EsqlQueryResponse contender) {
+    private void compareResults(EsqlQueryResponse baseline, EsqlQueryResponse contender, double rateEpsilon) {
         assertResultColumns(baseline);
         assertResultColumns(contender);
         Iterator<Object> baselineRow = baseline.rows().iterator().next().iterator();
@@ -156,7 +186,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
         // Check rate
         var baselineRate = (double) baselineRow.next();
         var contenderRate = (double) contenderRow.next();
-        assertEquals(baselineRate, contenderRate, 0.003);
+        assertEquals(baselineRate, contenderRate, rateEpsilon);
         // Skip tsid
         var baselineTs = (String) baselineRow.next();
         var contenderTs = (String) contenderRow.next();
@@ -194,8 +224,8 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "metricset")
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-29T00:00:00Z")
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T23:59:59Z")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), START_TIME)
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), END_TIME)
         );
         request.mapping(MAPPING);
         assertAcked(client().admin().indices().create(request));

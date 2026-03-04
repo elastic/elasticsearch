@@ -417,9 +417,7 @@ public class SearchMetricsBytesReadIT extends ESIntegTestCase {
 
         // warmup
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("search_field", "value"));
-        assertBytesReadHeader(
-            new SearchRequest(indexName).source(searchSourceBuilder)
-        );
+        assertBytesReadHeader(new SearchRequest(indexName).source(searchSourceBuilder));
 
         long bytesReadWithoutRank = assertBytesReadHeader(new SearchRequest(indexName).source(searchSourceBuilder));
 

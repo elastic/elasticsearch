@@ -766,6 +766,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
                 names = new String[] { "**" };
             }
+            assert indicesOptions.wildcardOptions().resolveViews() == false : "Views are not supported in ResolveIndexAction";
             Set<ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(
                 projectState.metadata(),
                 indicesOptions,
@@ -919,9 +920,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                             return;
                         }
                         dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
-                    }
-                    case VIEW -> {
-                        /* do not return*/
                     }
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }

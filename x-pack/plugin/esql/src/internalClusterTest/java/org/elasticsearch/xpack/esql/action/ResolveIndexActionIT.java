@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.hamcrest.Matcher;
 
@@ -17,6 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 
 public class ResolveIndexActionIT extends AbstractEsqlIntegTestCase {
@@ -46,11 +48,10 @@ public class ResolveIndexActionIT extends AbstractEsqlIntegTestCase {
         );
 
         // matched view is not returned, but it does not fail request
-        verifyResolvedIndices(
-            new ResolveIndexAction.Request(new String[] { "my-view-1" }),
-            emptyIterable(),
-            emptyIterable(),
-            emptyIterable()
+        expectThrows(
+            IndexNotFoundException.class,
+            containsString("no such index [my-view-1]"),
+            () -> resolveIndices(new ResolveIndexAction.Request(new String[] { "my-view-1" }))
         );
         verifyResolvedIndices(
             new ResolveIndexAction.Request(new String[] { "my-*" }),
@@ -60,13 +61,17 @@ public class ResolveIndexActionIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    private ResolveIndexAction.Response resolveIndices(ResolveIndexAction.Request request) {
+        return client().admin().indices().resolveIndex(request).actionGet();
+    }
+
     private void verifyResolvedIndices(
         ResolveIndexAction.Request request,
         Matcher<Iterable<? extends String>> indicesMatcher,
         Matcher<Iterable<? extends String>> aliasesMatcher,
         Matcher<Iterable<? extends String>> dataStreamsMatcher
     ) {
-        var response = client().admin().indices().resolveIndex(request).actionGet();
+        var response = resolveIndices(request);
         assertThat(toStringList(response.getIndices()), indicesMatcher);
         assertThat(toStringList(response.getAliases()), aliasesMatcher);
         assertThat(toStringList(response.getDataStreams()), dataStreamsMatcher);

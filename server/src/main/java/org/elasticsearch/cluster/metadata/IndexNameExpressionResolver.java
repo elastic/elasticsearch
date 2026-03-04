@@ -1524,6 +1524,13 @@ public class IndexNameExpressionResolver {
                 throw infe;
             }
         }
+        if (indexAbstraction.getType() == Type.VIEW && context.getOptions().wildcardOptions().resolveViews() == false) {
+            if (ignoreUnavailable) {
+                return false;
+            } else {
+                throw notFoundException(name);
+            }
+        }
         if (context.options.allowSelectors()) {
             // Ensure that the selectors are present and that they are compatible with the abstractions they are used with
             assert selector != null : "Earlier logic should have parsed selectors or added the default selectors already";

@@ -108,7 +108,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                         EsField.TimeSeriesFieldType.DIMENSION
                                     ),
                                     DataType.KEYWORD,
-                                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(/*loadMetrics=*/ false)
+                                    new BlockLoaderFunctionConfig.TimeSeriesMetadata(false)
                                 ),
                                 true
                             );

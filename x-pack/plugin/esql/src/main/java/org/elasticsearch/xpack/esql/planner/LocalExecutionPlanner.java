@@ -1015,7 +1015,7 @@ public class LocalExecutionPlanner {
             new FunctionEsField(
                 new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
                 DataType.KEYWORD,
-                new BlockLoaderFunctionConfig.TimeSeriesMetadata(/*loadMetrics=*/ true)
+                new BlockLoaderFunctionConfig.TimeSeriesMetadata(true)
             ),
             true
         );

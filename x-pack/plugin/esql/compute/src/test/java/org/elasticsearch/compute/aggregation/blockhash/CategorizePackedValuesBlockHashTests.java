@@ -144,7 +144,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
+                new HashAggregationOperator.Factory(
                     groupSpecs,
                     AggregatorMode.INITIAL,
                     List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
@@ -163,7 +163,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
+                new HashAggregationOperator.Factory(
                     groupSpecs,
                     AggregatorMode.INITIAL,
                     List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
@@ -184,7 +184,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
+                new HashAggregationOperator.Factory(
                     groupSpecs,
                     AggregatorMode.FINAL,
                     List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2))),

@@ -128,7 +128,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         }
 
         if (options.requiresDeterministicFactory()) {
-            return new HashAggregationOperator.HashAggregationOperatorFactory(
+            return new HashAggregationOperator.Factory(
                 List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
                 mode,
                 List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
@@ -883,7 +883,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     /**
-     * Custom {@link HashAggregationOperator.HashAggregationOperatorFactory} implementation that
+     * Custom {@link HashAggregationOperator.Factory} implementation that
      * randomizes the GroupIds block type passed to AddInput.
      * <p>
      *     This helps testing the different overloads of
@@ -966,7 +966,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
         @Override
         public String describe() {
-            return new HashAggregationOperator.HashAggregationOperatorFactory(
+            return new HashAggregationOperator.Factory(
                 groups,
                 aggregatorMode,
                 aggregators,

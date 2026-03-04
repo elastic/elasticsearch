@@ -23,8 +23,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
-import org.elasticsearch.compute.test.BlockTestUtils;
-import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
@@ -65,7 +63,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         }
 
         maxPageSize = randomPageSize();
-        return new HashAggregationOperator.HashAggregationOperatorFactory(
+        return new HashAggregationOperator.Factory(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
             mode,
             List.of(
@@ -135,7 +133,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         int maxPageSize = randomPageSize();
 
         try (
-            var operator = new HashAggregationOperator.HashAggregationOperatorFactory(
+            var operator = new HashAggregationOperator.Factory(
                 List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3))),
                 mode,
                 List.of(
@@ -198,7 +196,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         int maxPageSize = randomPageSize();
 
         try (
-            var operator = new HashAggregationOperator.HashAggregationOperatorFactory(
+            var operator = new HashAggregationOperator.Factory(
                 List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, true, 3))),
                 mode,
                 List.of(
@@ -270,7 +268,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2) : List.of(1);
             var maxAggregatorChannels = mode.isInputPartial() ? List.of(3, 4) : List.of(1);
 
-            return new HashAggregationOperator.HashAggregationOperatorFactory(
+            return new HashAggregationOperator.Factory(
                 List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3))),
                 mode,
                 List.of(

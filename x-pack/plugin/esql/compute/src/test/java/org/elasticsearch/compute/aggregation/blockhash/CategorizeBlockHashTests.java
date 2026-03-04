@@ -503,7 +503,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
+                new HashAggregationOperator.Factory(
                     List.of(groupSpec),
                     AggregatorMode.INITIAL,
                     List.of(
@@ -525,7 +525,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
+                new HashAggregationOperator.Factory(
                     List.of(groupSpec),
                     AggregatorMode.INITIAL,
                     List.of(
@@ -549,7 +549,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
+                new HashAggregationOperator.Factory(
                     List.of(groupSpec),
                     AggregatorMode.FINAL,
                     List.of(

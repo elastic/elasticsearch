@@ -17,7 +17,7 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -182,7 +182,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 );
             } else {
                 QueryPragmas pragmas = context.queryPragmas();
-                operatorFactory = new HashAggregationOperatorFactory(
+                operatorFactory = new HashAggregationOperator.Factory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorMode,
                     aggregatorFactories,

@@ -64,9 +64,14 @@ public abstract class ActivityLoggerContext {
         return task.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
     }
 
+    public String getTraceId() {
+        return task.getHeader(Task.TRACE_ID);
+    }
+
     public record ShardInfo(Integer successfulShards, Integer skippedShards, Integer failedShards) {}
 
     public Optional<ShardInfo> shardInfo() {
         return Optional.empty();
     }
+
 }

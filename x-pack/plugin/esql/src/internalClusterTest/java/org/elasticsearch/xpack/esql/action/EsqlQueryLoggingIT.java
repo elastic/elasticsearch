@@ -15,9 +15,12 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
+import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -33,10 +36,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.Assert.assertTrue;
 
 public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(EsqlLogProducer.QUERY_LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass
@@ -82,10 +86,18 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     private void assertQuery(String query, long hits) {
         try (var resp = run(query)) {
             var message = getMessageData(appender.getLastEventAndReset());
-            assertMessageSuccess(message, "esql", query);
+            assertMessageSuccess(message, EsqlLogContext.TYPE, query);
             assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "successful")), greaterThanOrEqualTo(1));
             assertThat(Integer.valueOf(message.get(QUERY_FIELD_SHARDS + "skipped")), greaterThanOrEqualTo(0));
             assertThat(message.get(QUERY_FIELD_SHARDS + "failed"), equalTo("0"));
+
+            // Create empty EsqlQueryProfile just to get the markers
+            EsqlQueryProfile profile = new EsqlQueryProfile();
+
+            for (var marker : profile.timeSpanMarkers()) {
+                String tookKey = EsqlLogProducer.PROFILE_PREFIX + marker.name() + ".took";
+                assertTrue("Expected profile field present: " + tookKey, message.containsKey(tookKey));
+            }
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
         }
     }
@@ -93,7 +105,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
     private void assertFailedQuery(String query, String expectedMessage, Class<? extends Throwable> expectedException) {
         expectThrows(VerificationException.class, () -> run(query));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageFailure(message, "esql", query, expectedException, expectedMessage);
+        assertMessageFailure(message, EsqlLogContext.TYPE, query, expectedException, expectedMessage);
     }
 
     private int setupIndex(String name, String prefix) {

@@ -11,6 +11,7 @@ import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
@@ -62,5 +63,9 @@ public class EsqlLogContext extends ActivityLoggerContext {
             return 0;
         }
         return response.getRowCount();
+    }
+
+    Optional<EsqlQueryProfile> getQueryProfile() {
+        return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
     }
 }

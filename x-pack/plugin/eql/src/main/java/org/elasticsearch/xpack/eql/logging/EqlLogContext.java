@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.eql.logging;
 
-import joptsimple.internal.Strings;
-
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.tasks.Task;
@@ -40,8 +38,8 @@ public class EqlLogContext extends ActivityLoggerContext {
         return request.query();
     }
 
-    public String getIndices() {
-        return Strings.join(request.indices(), ",");
+    public String[] getIndices() {
+        return request.indices();
     }
 
     @Override

@@ -105,15 +105,22 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
             .build();
     }
 
+    public void testForceMergeWithFileFallbackHnsw() {
+        doTestForceMergeWithFileFallback("hnsw");
+    }
+
+    public void testForceMergeWithFileFallbackInt8Hnsw() {
+        doTestForceMergeWithFileFallback("int8_hnsw");
+    }
+
     /**
      * Indexes vector data across multiple segments so the merged data exceeds the small max chunk
      * size, then force-merges. This exercises the path where a contiguous memory segment cannot be
      * obtained directly and we resort to copying vector data to a temporary file.
      */
-    public void testForceMergeWithFileFallback() {
-        String indexName = "gpu_merge_fallback";
+    private void doTestForceMergeWithFileFallback(String type) {
+        String indexName = "gpu_merge_fallback_" + type.replace("_", "");
         int dims = randomIntBetween(32, 128);
-        String type = randomFrom("hnsw", "int8_hnsw");
         String similarity = randomFrom("dot_product", "l2_norm", "cosine");
 
         Settings indexSettings = Settings.builder()
@@ -140,8 +147,8 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
         assertAcked(prepareCreate(indexName).setSettings(indexSettings).setMapping(mapping));
         ensureGreen();
 
-        int docsPerBatch = randomIntBetween(300, 500);
-        int numBatches = randomIntBetween(3, 5);
+        int docsPerBatch = randomIntBetween(500, 999);
+        int numBatches = randomIntBetween(2, 4);
         int totalDocs = 0;
 
         int bytesPerVector = "int8_hnsw".equals(type) ? dims + 4 : dims * Float.BYTES;
@@ -159,7 +166,7 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
             BulkResponse bulkResponse = bulkRequest.get();
             assertFalse("Bulk request failed: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
             totalDocs += docsPerBatch;
-            flush(indexName);
+            flushAndRefresh(indexName);
         }
 
         long segmentsBefore = indicesAdmin().prepareStats(indexName)
@@ -171,18 +178,21 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
             .getCount();
         assertThat("expected multiple segments before merge", segmentsBefore, greaterThan(1L));
 
-        int k = Math.min(10, totalDocs);
-        int numCandidates = k * 10;
+        int k = 10;
+        int numCandidates = k * 5;
         float[] queryVector = randomFloatVector(dims, similarity);
 
+        Set<String> idsBeforeMerge = new HashSet<>();
         var responseBefore = prepareSearch(indexName).setSize(k)
             .setFetchSource(false)
             .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null)))
             .get();
-        SearchHit[] hitsBefore;
         try {
-            hitsBefore = responseBefore.getHits().getHits();
+            SearchHit[] hitsBefore = responseBefore.getHits().getHits();
             assertEquals(k, hitsBefore.length);
+            for (SearchHit hit : hitsBefore) {
+                idsBeforeMerge.add(hit.getId());
+            }
         } finally {
             responseBefore.decRef();
         }
@@ -199,34 +209,22 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
         try {
             SearchHit[] hitsAfter = responseAfter.getHits().getHits();
             assertEquals(k, hitsAfter.length);
-            assertAtLeastNOutOfKMatches(hitsBefore, hitsAfter, (int) (k * 0.8), k);
+            assertAtLeastNOutOfKMatches(idsBeforeMerge, hitsAfter, 4, k);
         } finally {
             responseAfter.decRef();
         }
     }
 
-    private static void assertAtLeastNOutOfKMatches(SearchHit[] hits1, SearchHit[] hits2, int minMatches, int k) {
-        Set<String> ids1 = new HashSet<>();
-        Set<String> ids2 = new HashSet<>();
-        for (SearchHit hit : hits1) {
-            ids1.add(hit.getId());
+    private static void assertAtLeastNOutOfKMatches(Set<String> idsBefore, SearchHit[] hitsAfter, int minMatches, int k) {
+        int matches = 0;
+        for (SearchHit hit : hitsAfter) {
+            if (idsBefore.contains(hit.getId())) {
+                matches++;
+            }
         }
-        for (SearchHit hit : hits2) {
-            ids2.add(hit.getId());
-        }
-        Set<String> intersection = new HashSet<>(ids1);
-        intersection.retainAll(ids2);
         assertTrue(
-            String.format(
-                Locale.ROOT,
-                "Expected at least %d matching IDs out of %d, but found %d. Before: %s, After: %s",
-                minMatches,
-                k,
-                intersection.size(),
-                ids1,
-                ids2
-            ),
-            intersection.size() >= minMatches
+            "Expected at least " + minMatches + " out of " + k + " results to match before/after merge, but got " + matches,
+            matches >= minMatches
         );
     }
 

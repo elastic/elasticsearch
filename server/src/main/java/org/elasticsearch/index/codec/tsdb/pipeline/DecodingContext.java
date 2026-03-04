@@ -39,6 +39,7 @@ public final class DecodingContext implements MetadataReader {
     }
 
     public boolean isStageApplied(int position) {
+        assert position >= 0 && position < pipelineLength : "Position out of range: " + position;
         return (positionBitmap & (1 << position)) != 0;
     }
 

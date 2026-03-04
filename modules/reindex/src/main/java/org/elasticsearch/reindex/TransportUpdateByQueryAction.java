@@ -16,9 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -50,9 +48,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final Client client;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final ProjectResolver projectResolver;
     private final UpdateByQueryMetrics updateByQueryMetrics;
+    private final BulkByScrollOCCResolver occResolver;
 
     @Inject
     public TransportUpdateByQueryAction(
@@ -71,22 +68,15 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.client = client;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.projectResolver = projectResolver;
         this.updateByQueryMetrics = updateByQueryMetrics;
+        this.occResolver = new BulkByScrollOCCResolver(clusterService, indexNameExpressionResolver, projectResolver);
     }
 
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         long startTime = System.nanoTime();
-        ClusterState state = clusterService.state();
-        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
-        boolean useOptimisticConcurrencyControl = BulkByScrollOCCResolver.resolveUseOptimisticConcurrencyControl(
-            indexNameExpressionResolver,
-            projectMetadata,
-            request
-        );
+        boolean useOptimisticConcurrencyControl = occResolver.resolveUseOptimisticConcurrencyControl(request);
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(
             request,
             bulkByScrollTask,

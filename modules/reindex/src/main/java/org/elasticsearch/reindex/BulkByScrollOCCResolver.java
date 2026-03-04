@@ -10,11 +10,14 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -30,7 +33,19 @@ import java.util.SortedMap;
  */
 final class BulkByScrollOCCResolver {
 
-    private BulkByScrollOCCResolver() {}
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ProjectResolver projectResolver;
+
+    BulkByScrollOCCResolver(
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver
+    ) {
+        this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.projectResolver = projectResolver;
+    }
 
     /**
      * Resolves whether OCC (optimistic concurrency control via seq_no/primary_term) should be used
@@ -43,14 +58,14 @@ final class BulkByScrollOCCResolver {
      * @throws ActionRequestValidationException if indices have mixed setting values across
      *                                          different data streams or standalone indices
      */
-    static boolean resolveUseOptimisticConcurrencyControl(
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ProjectMetadata projectMetadata,
-        AbstractBulkByScrollRequest<?> request
-    ) {
+    boolean resolveUseOptimisticConcurrencyControl(AbstractBulkByScrollRequest<?> request) {
         if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG == false) {
             return true;
         }
+
+        ClusterState state = clusterService.state();
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+
         Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(projectMetadata, request.getSearchRequest());
         if (concreteIndices.length == 0) {
             return true;

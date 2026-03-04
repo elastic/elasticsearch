@@ -39,7 +39,7 @@ public final class MetadataBuffer implements MetadataWriter {
      *
      * @param initialCapacity the initial buffer capacity in bytes
      */
-    public MetadataBuffer(final int initialCapacity) {
+    public MetadataBuffer(int initialCapacity) {
         this.data = new byte[initialCapacity];
         this.dataSize = 0;
     }
@@ -60,7 +60,7 @@ public final class MetadataBuffer implements MetadataWriter {
      * @param offset the start offset within this buffer
      * @param length the number of bytes to write
      */
-    public void writeTo(final DataOutput out, final int offset, final int length) throws IOException {
+    public void writeTo(final DataOutput out, int offset, int length) throws IOException {
         assert offset >= 0 && length >= 0 && offset + length <= dataSize
             : "Invalid slice [offset=" + offset + ", length=" + length + ", size=" + dataSize + "]";
         if (length > 0) {
@@ -73,31 +73,31 @@ public final class MetadataBuffer implements MetadataWriter {
         dataSize = 0;
     }
 
-    private void ensureCapacity(final int additional) {
+    private void ensureCapacity(int additional) {
         if (data.length < dataSize + additional) {
             data = ArrayUtil.grow(data, dataSize + additional);
         }
     }
 
     @Override
-    public MetadataWriter writeByte(final byte value) {
+    public MetadataWriter writeByte(byte value) {
         ensureCapacity(Byte.BYTES);
         data[dataSize++] = value;
         return this;
     }
 
     @Override
-    public MetadataWriter writeZInt(final int value) {
+    public MetadataWriter writeZInt(int value) {
         return encodeVInt((value >> 31) ^ (value << 1));
     }
 
     @Override
-    public MetadataWriter writeZLong(final long value) {
+    public MetadataWriter writeZLong(long value) {
         return encodeVLong((value >> 63) ^ (value << 1));
     }
 
     @Override
-    public MetadataWriter writeLong(final long value) {
+    public MetadataWriter writeLong(long value) {
         ensureCapacity(Long.BYTES);
         final int lo = (int) value;
         final int hi = (int) (value >> 32);
@@ -113,7 +113,7 @@ public final class MetadataBuffer implements MetadataWriter {
     }
 
     @Override
-    public MetadataWriter writeInt(final int value) {
+    public MetadataWriter writeInt(int value) {
         ensureCapacity(Integer.BYTES);
         data[dataSize++] = (byte) value;
         data[dataSize++] = (byte) (value >> 8);
@@ -123,13 +123,13 @@ public final class MetadataBuffer implements MetadataWriter {
     }
 
     @Override
-    public MetadataWriter writeVInt(final int value) {
+    public MetadataWriter writeVInt(int value) {
         assert value >= 0 : "writeVInt requires non-negative value, got: " + value + ". Use writeZInt for signed values";
         return encodeVInt(value);
     }
 
     @Override
-    public MetadataWriter writeVLong(final long value) {
+    public MetadataWriter writeVLong(long value) {
         assert value >= 0 : "writeVLong requires non-negative value, got: " + value + ". Use writeZLong for signed values";
         return encodeVLong(value);
     }
@@ -155,7 +155,7 @@ public final class MetadataBuffer implements MetadataWriter {
     }
 
     @Override
-    public MetadataWriter writeBytes(final byte[] bytes, final int offset, final int length) {
+    public MetadataWriter writeBytes(final byte[] bytes, int offset, int length) {
         ensureCapacity(length);
         System.arraycopy(bytes, offset, data, dataSize, length);
         dataSize += length;

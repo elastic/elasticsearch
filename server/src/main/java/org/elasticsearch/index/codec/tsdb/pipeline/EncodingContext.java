@@ -35,7 +35,7 @@ public final class EncodingContext {
      * @param blockSize      the number of values per block
      * @param pipelineLength the number of stages in the pipeline
      */
-    public EncodingContext(final int blockSize, final int pipelineLength) {
+    public EncodingContext(int blockSize, int pipelineLength) {
         this(blockSize, pipelineLength, new MetadataBuffer());
     }
 
@@ -46,11 +46,11 @@ public final class EncodingContext {
      * @param pipelineLength   the number of stages in the pipeline
      * @param metadataCapacity the initial metadata buffer capacity in bytes
      */
-    public EncodingContext(final int blockSize, final int pipelineLength, final int metadataCapacity) {
+    public EncodingContext(int blockSize, int pipelineLength, int metadataCapacity) {
         this(blockSize, pipelineLength, new MetadataBuffer(metadataCapacity));
     }
 
-    EncodingContext(final int blockSize, final int pipelineLength, final MetadataBuffer metadataBuffer) {
+    EncodingContext(int blockSize, int pipelineLength, final MetadataBuffer metadataBuffer) {
         this.blockSize = blockSize;
         this.pipelineLength = pipelineLength;
         this.metadataBuffer = metadataBuffer;
@@ -76,7 +76,7 @@ public final class EncodingContext {
      *
      * @param position the zero-based stage index
      */
-    public void setCurrentPosition(final int position) {
+    public void setCurrentPosition(int position) {
         if (position < 0 || position >= pipelineLength) {
             throw new IllegalArgumentException("Position out of range: " + position);
         }
@@ -98,7 +98,7 @@ public final class EncodingContext {
      *
      * @param position the zero-based stage index
      */
-    public void applyStage(final int position) {
+    public void applyStage(int position) {
         assert position >= 0 && position < pipelineLength : "Position out of range: " + position;
         if ((positionBitmap & (1 << position)) == 0) {
             positionOffsets[position] = metadataBuffer.size();
@@ -112,7 +112,7 @@ public final class EncodingContext {
      * @param position the zero-based stage index
      * @return whether the stage was applied
      */
-    public boolean isStageApplied(final int position) {
+    public boolean isStageApplied(int position) {
         assert position >= 0 && position < pipelineLength : "Position out of range: " + position;
         return (positionBitmap & (1 << position)) != 0;
     }
@@ -178,7 +178,7 @@ public final class EncodingContext {
      *
      * @param count the value count
      */
-    public void setValueCount(final int count) {
+    public void setValueCount(int count) {
         this.valueCount = count;
     }
 

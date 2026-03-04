@@ -44,7 +44,7 @@ public final class PipelineDescriptor {
         /** Persisted byte identifier for this data type. */
         public final byte id;
 
-        DataType(final byte id) {
+        DataType(byte id) {
             this.id = id;
         }
 
@@ -55,7 +55,7 @@ public final class PipelineDescriptor {
          * @return the corresponding {@link DataType}
          * @throws IOException if the identifier is unknown (corrupt data)
          */
-        public static DataType fromId(final byte id) throws IOException {
+        public static DataType fromId(byte id) throws IOException {
             return switch (id) {
                 case 0x00 -> LONG;
                 case 0x01 -> DOUBLE;
@@ -75,7 +75,7 @@ public final class PipelineDescriptor {
      * @param stageIds the ordered stage identifiers
      * @param blockSize the number of values per block (must be a power of 2)
      */
-    public PipelineDescriptor(final byte[] stageIds, final int blockSize) {
+    public PipelineDescriptor(final byte[] stageIds, int blockSize) {
         this(stageIds, blockSize, DataType.LONG);
     }
 
@@ -86,7 +86,7 @@ public final class PipelineDescriptor {
      * @param blockSize the number of values per block (must be a power of 2)
      * @param dataType  the numeric data type this pipeline operates on
      */
-    public PipelineDescriptor(final byte[] stageIds, final int blockSize, final DataType dataType) {
+    public PipelineDescriptor(final byte[] stageIds, int blockSize, final DataType dataType) {
         if (stageIds == null || stageIds.length == 0) {
             throw new IllegalArgumentException("Pipeline must have at least one stage");
         }
@@ -101,7 +101,7 @@ public final class PipelineDescriptor {
         this.dataType = dataType;
     }
 
-    private PipelineDescriptor(final byte[] stageIds, final byte blockShift, final DataType dataType) {
+    private PipelineDescriptor(final byte[] stageIds, byte blockShift, final DataType dataType) {
         this.stageIds = stageIds;
         this.blockShift = blockShift;
         this.dataType = dataType;
@@ -122,7 +122,7 @@ public final class PipelineDescriptor {
      * @param position the zero-based stage index
      * @return the byte identifier at that position
      */
-    public byte stageIdAt(final int position) {
+    public byte stageIdAt(int position) {
         return stageIds[position];
     }
 
@@ -178,7 +178,7 @@ public final class PipelineDescriptor {
      * @param blockSize the desired block size (must be a power of 2)
      * @return a descriptor with the given block size
      */
-    public PipelineDescriptor withBlockSize(final int blockSize) {
+    public PipelineDescriptor withBlockSize(int blockSize) {
         final byte newBlockShift = (byte) Integer.numberOfTrailingZeros(blockSize);
         if (newBlockShift == this.blockShift) {
             return this;

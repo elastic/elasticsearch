@@ -32,7 +32,7 @@ public final class DecodingContext implements MetadataReader {
      * @param blockSize      the number of values per block
      * @param pipelineLength the number of stages in the pipeline
      */
-    public DecodingContext(final int blockSize, final int pipelineLength) {
+    public DecodingContext(int blockSize, int pipelineLength) {
         this.blockSize = blockSize;
         this.pipelineLength = pipelineLength;
     }
@@ -60,7 +60,7 @@ public final class DecodingContext implements MetadataReader {
      *
      * @param bitmap the position bitmap
      */
-    public void setPositionBitmap(final short bitmap) {
+    public void setPositionBitmap(short bitmap) {
         this.positionBitmap = bitmap;
     }
 
@@ -70,7 +70,7 @@ public final class DecodingContext implements MetadataReader {
      * @param position the zero-based stage index
      * @return whether the stage was applied
      */
-    public boolean isStageApplied(final int position) {
+    public boolean isStageApplied(int position) {
         assert position >= 0 && position < pipelineLength : "Position out of range: " + position;
         return (positionBitmap & (1 << position)) != 0;
     }
@@ -138,7 +138,7 @@ public final class DecodingContext implements MetadataReader {
     }
 
     @Override
-    public void readBytes(final byte[] bytes, final int offset, final int length) throws IOException {
+    public void readBytes(final byte[] bytes, int offset, int length) throws IOException {
         dataInput.readBytes(bytes, offset, length);
     }
 }

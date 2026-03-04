@@ -87,7 +87,7 @@ public final class BlockFormat {
         final long[] values,
         final PayloadDecoder payloadStage,
         final DecodingContext context,
-        final int payloadPosition
+        int payloadPosition
     ) throws IOException {
         readHeader(in, context);
         if (context.isStageApplied(payloadPosition) == false) {

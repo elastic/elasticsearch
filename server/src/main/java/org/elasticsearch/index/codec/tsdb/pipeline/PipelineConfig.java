@@ -37,7 +37,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
      * @param blockSize the number of values per block
      * @return a new builder for long pipelines
      */
-    public static LongBuilder forLongs(final int blockSize) {
+    public static LongBuilder forLongs(int blockSize) {
         return new LongBuilder(blockSize);
     }
 
@@ -47,7 +47,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
      * @param blockSize the number of values per block
      * @return a new builder for double pipelines
      */
-    public static DoubleBuilder forDoubles(final int blockSize) {
+    public static DoubleBuilder forDoubles(int blockSize) {
         return new DoubleBuilder(blockSize);
     }
 
@@ -57,7 +57,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
      * @param blockSize the number of values per block
      * @return a new builder for float pipelines
      */
-    public static FloatBuilder forFloats(final int blockSize) {
+    public static FloatBuilder forFloats(int blockSize) {
         return new FloatBuilder(blockSize);
     }
 
@@ -69,7 +69,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
      * @param specs     the ordered stage specifications
      * @return the pipeline configuration
      */
-    public static PipelineConfig of(final PipelineDescriptor.DataType dataType, final int blockSize, final List<StageSpec> specs) {
+    public static PipelineConfig of(final PipelineDescriptor.DataType dataType, int blockSize, final List<StageSpec> specs) {
         return new PipelineConfig(dataType, blockSize, specs);
     }
 
@@ -100,7 +100,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
         private final int blockSize;
         private final List<StageSpec> specs = new ArrayList<>();
 
-        private LongBuilder(final int blockSize) {
+        private LongBuilder(int blockSize) {
             this.blockSize = blockSize;
         }
 
@@ -139,7 +139,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
         }
 
-        public PipelineConfig zstd(final int compressionLevel) {
+        public PipelineConfig zstd(int compressionLevel) {
             specs.add(new StageSpec.ZstdPayload(compressionLevel));
             return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
         }
@@ -163,7 +163,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
         private final int blockSize;
         private final List<StageSpec> specs = new ArrayList<>();
 
-        private DoubleBuilder(final int blockSize) {
+        private DoubleBuilder(int blockSize) {
             this.blockSize = blockSize;
         }
 
@@ -197,7 +197,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return this;
         }
 
-        public DoubleBuilder alpDoubleStage(final double maxError) {
+        public DoubleBuilder alpDoubleStage(double maxError) {
             specs.add(new StageSpec.AlpDoubleStage(maxError));
             return this;
         }
@@ -207,17 +207,17 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return this;
         }
 
-        public DoubleBuilder fpcStage(final int tableSize) {
+        public DoubleBuilder fpcStage(int tableSize) {
             specs.add(new StageSpec.FpcDoubleStage(tableSize));
             return this;
         }
 
-        public DoubleBuilder fpcStage(final double maxError) {
+        public DoubleBuilder fpcStage(double maxError) {
             specs.add(new StageSpec.FpcDoubleStage(0, maxError));
             return this;
         }
 
-        public DoubleBuilder fpcStage(final int tableSize, final double maxError) {
+        public DoubleBuilder fpcStage(int tableSize, double maxError) {
             specs.add(new StageSpec.FpcDoubleStage(tableSize, maxError));
             return this;
         }
@@ -232,7 +232,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
-        public PipelineConfig zstd(final int compressionLevel) {
+        public PipelineConfig zstd(int compressionLevel) {
             specs.add(new StageSpec.ZstdPayload(compressionLevel));
             return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
@@ -252,7 +252,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
-        public PipelineConfig gorilla(final double maxError) {
+        public PipelineConfig gorilla(double maxError) {
             specs.add(new StageSpec.GorillaDoublePayload(maxError));
             return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
@@ -262,7 +262,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
-        public PipelineConfig chimp(final double maxError) {
+        public PipelineConfig chimp(double maxError) {
             specs.add(new StageSpec.ChimpDoublePayload(maxError));
             return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
@@ -272,7 +272,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
 
-        public PipelineConfig chimp128(final double maxError) {
+        public PipelineConfig chimp128(double maxError) {
             specs.add(new StageSpec.Chimp128DoublePayload(maxError));
             return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
         }
@@ -285,7 +285,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
         private final int blockSize;
         private final List<StageSpec> specs = new ArrayList<>();
 
-        private FloatBuilder(final int blockSize) {
+        private FloatBuilder(int blockSize) {
             this.blockSize = blockSize;
         }
 
@@ -319,7 +319,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return this;
         }
 
-        public FloatBuilder alpFloatStage(final double maxError) {
+        public FloatBuilder alpFloatStage(double maxError) {
             specs.add(new StageSpec.AlpFloatStage(maxError));
             return this;
         }
@@ -329,17 +329,17 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return this;
         }
 
-        public FloatBuilder fpcStage(final int tableSize) {
+        public FloatBuilder fpcStage(int tableSize) {
             specs.add(new StageSpec.FpcFloatStage(tableSize));
             return this;
         }
 
-        public FloatBuilder fpcStage(final double maxError) {
+        public FloatBuilder fpcStage(double maxError) {
             specs.add(new StageSpec.FpcFloatStage(0, maxError));
             return this;
         }
 
-        public FloatBuilder fpcStage(final int tableSize, final double maxError) {
+        public FloatBuilder fpcStage(int tableSize, double maxError) {
             specs.add(new StageSpec.FpcFloatStage(tableSize, maxError));
             return this;
         }
@@ -354,7 +354,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
 
-        public PipelineConfig zstd(final int compressionLevel) {
+        public PipelineConfig zstd(int compressionLevel) {
             specs.add(new StageSpec.ZstdPayload(compressionLevel));
             return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }

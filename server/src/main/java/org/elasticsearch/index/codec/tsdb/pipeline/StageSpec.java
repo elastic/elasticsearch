@@ -256,13 +256,13 @@ public sealed interface StageSpec {
         }
     }
 
-    private static void validateMaxError(final double maxError) {
+    private static void validateMaxError(double maxError) {
         if (maxError < 0 || Double.isFinite(maxError) == false) {
             throw new IllegalArgumentException("maxError must be non-negative and finite, got: " + maxError);
         }
     }
 
-    private static void validateTableSize(final int tableSize) {
+    private static void validateTableSize(int tableSize) {
         if (tableSize < 0) {
             throw new IllegalArgumentException("tableSize must be non-negative, got: " + tableSize);
         }

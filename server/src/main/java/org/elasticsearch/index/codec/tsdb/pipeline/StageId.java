@@ -59,7 +59,7 @@ public enum StageId {
      * @param id          the persisted byte identifier
      * @param displayName the human-readable name for logging
      */
-    StageId(final byte id, final String displayName) {
+    StageId(byte id, final String displayName) {
         this.id = id;
         this.displayName = displayName;
     }
@@ -71,7 +71,7 @@ public enum StageId {
      * @return the corresponding {@link StageId}
      * @throws IllegalArgumentException if the identifier is unknown
      */
-    public static StageId fromId(final byte id) {
+    public static StageId fromId(byte id) {
         return switch (id) {
             case (byte) 0x01 -> DELTA_STAGE;
             case (byte) 0x02 -> OFFSET_STAGE;

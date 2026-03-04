@@ -526,6 +526,7 @@ record TestConfiguration(
                "<corpus_2>.fvec"
              ],
              "queries": "<queries>.fvec",
+             "vector_encoding": "float32", // optional, default float32
              "dimensions": 512,
              "vector_space": "cosine",
              "num_doc_vectors": 10000000,
@@ -568,6 +569,7 @@ record TestConfiguration(
                 ).getFirst();
             }
 
+            Object vectorEncoding = dsData.get("vector_encoding");
             String vectorSpace = dsData.get("vector_space").toString();
             int numDocVectors = ((Number) dsData.get("num_doc_vectors")).intValue();
             int numQueryVectors = ((Number) dsData.get("num_query_vectors")).intValue();
@@ -583,6 +585,10 @@ record TestConfiguration(
 
             docVectors = data;
             queryVectors = queries;
+            // vector encoding is optional (default float32)
+            if (vectorEncoding != null) {
+                setVectorEncoding(vectorEncoding.toString());
+            }
             setDimensions(-1);  // dataset dimensions is documentation, the tester reads the dimensions from the fvec files
             // vector space might already be set explicitly from the config file
             if (this.vectorSpace == null) {

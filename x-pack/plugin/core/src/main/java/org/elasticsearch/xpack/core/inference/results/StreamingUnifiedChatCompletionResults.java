@@ -281,8 +281,8 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
                     content?: string | null;
                     refusal?: string | null;
                     role?: 'system' | 'user' | 'assistant' | 'tool';
-                    reasoning?: string | null;
                     tool_calls?: Array<{ ... }>;
+                    reasoning?: string | null;
                     reasoning_details?: Array<{ ... }>;
                 };
                 */

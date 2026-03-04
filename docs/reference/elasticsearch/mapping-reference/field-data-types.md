@@ -77,6 +77,9 @@ Dates
 [`histogram`](/reference/elasticsearch/mapping-reference/histogram.md)
 :   Pre-aggregated numerical values in the form of a histogram.
 
+[`tdigest`](/reference/elasticsearch/mapping-reference/t-digest.md) {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
+:   Pre-aggregated numerical values in the form of a T-Digest.
+
 
 ### Text search types [text-search-types]
 

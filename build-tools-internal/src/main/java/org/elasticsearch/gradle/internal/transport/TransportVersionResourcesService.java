@@ -260,6 +260,18 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return UPPER_BOUNDS_DIR.resolve(name + ".csv");
     }
 
+    boolean hasCherryPickConflicts() {
+        if (refExists("CHERRY_PICK_HEAD") == false) {
+            return false;
+        }
+        return gitCommand("diff", "--name-only", "--diff-filter=U", transportResourcesDir.toString()).strip().isEmpty() == false;
+    }
+
+    void checkoutOriginalChange() {
+        gitCommand("checkout", "--theirs", transportResourcesDir.toString());
+        gitCommand("add", transportResourcesDir.toString());
+    }
+
     boolean checkIfDefinitelyOnReleaseBranch(Collection<TransportVersionUpperBound> upperBounds, String currentUpperBoundName) {
         // only want to look at definitions <= the current upper bound.
         // TODO: we should filter all of the upper bounds/definitions that are validated by this, not just in this method
@@ -278,9 +290,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         if (baseRefName.get() == null) {
             synchronized (baseRefName) {
                 String refName;
-                // the existence of the MERGE_HEAD ref means we are in the middle of a merge, and should use that as our base
-                String gitDir = gitCommand("rev-parse", "--git-dir").strip();
-                if (Files.exists(Path.of(gitDir).resolve("MERGE_HEAD"))) {
+                if (refExists("MERGE_HEAD")) {
                     refName = gitCommand("rev-parse", "--verify", "MERGE_HEAD").strip();
                 } else {
                     String upstreamRef = findUpstreamRef();
@@ -394,6 +404,12 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
         String content = gitCommand("show", getBaseRefName() + ":./" + pathString).strip();
         return parser.apply(resourcePath, content);
+    }
+
+    private boolean refExists(String refName) {
+        // the existence of the MERGE_HEAD/CHERRY_PICK_HEAD ref means we are in the middle of a merge/cherry-pick
+        String gitDir = gitCommand("rev-parse", "--git-dir").strip();
+        return Files.exists(Path.of(gitDir).resolve(refName));
     }
 
     private static Map<String, TransportVersionDefinition> readDefinitions(Path dir, boolean isReferable) throws IOException {

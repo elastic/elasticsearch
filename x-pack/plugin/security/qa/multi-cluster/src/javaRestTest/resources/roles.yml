@@ -1,3 +1,14 @@
+remote_search_cross_cluster_inference:
+  cluster:
+    - monitor
+  indices:
+    - names: ['*']
+      privileges: ['read', 'view_index_metadata']
+  remote_indices:
+    - names: ['test-*']
+      privileges: ['read', 'read_cross_cluster', 'view_index_metadata']
+      clusters: ['*']
+
 read_remote_shared_logs:
   remote_indices:
     - names: [ 'shared-logs' ]

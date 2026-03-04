@@ -232,6 +232,23 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
         // Our type is always boolean, so figure out the evaluator type from the inputs
         DataType commonType = commonType(left().dataType(), right().dataType());
+
+        // if you reached this point, it means that the types were not compatible, which should have been caught by the type resolution
+        // verification step, so this should never happen in practice. We are throwing an exception in this case to get more information
+        // about the failure, if it does happen.
+        // see also https://github.com/elastic/elasticsearch/issues/141267
+        if (commonType == null) {
+            throw new EsqlIllegalArgumentException(
+                "Cannot compare incompatible types ["
+                    + left().dataType().typeName()
+                    + "] and ["
+                    + right().dataType().typeName()
+                    + "] "
+                    + "with operator ["
+                    + functionType.symbol()
+                    + "]"
+            );
+        }
         if (commonType.isNumeric()) {
             lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
             rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));

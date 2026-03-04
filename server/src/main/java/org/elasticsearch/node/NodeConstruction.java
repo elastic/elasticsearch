@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -705,6 +706,8 @@ class NodeConstruction {
 
         modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
+        TemplateDecoratorProvider.initOnce(pluginsService.loadServiceProviders(TemplateDecoratorProvider.class));
+
         RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
             RootObjectMapperNamespaceValidator.class,
             () -> new DefaultRootObjectMapperNamespaceValidator()
@@ -1285,7 +1288,7 @@ class NodeConstruction {
             onlinePrewarmingService
         );
 
-        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, taskManager, terminationHandler);
+        final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
 
         modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
 
@@ -1569,8 +1572,9 @@ class NodeConstruction {
         // Due to Java's type erasure with generics, the injector can't give us exactly what we need, and we have
         // to resort to some evil casting.
         @SuppressWarnings("rawtypes")
-        Map<ActionType<?>, TransportAction<?, ?>> actions = forciblyCast(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-        }));
+        Map<ActionType<?>, TransportAction<?, ?>> actions = forciblyCast(
+            injector.getInstance(new Key<Map<ActionType, TransportAction>>() {})
+        );
 
         client.initialize(
             actions,

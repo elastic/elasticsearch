@@ -328,11 +328,12 @@ sinh
 ROW a=1.8
 | EVAL sinh=SINH(a)
 // end::sinh[]
+| EVAL sinh=round(sinh, 10)
 ;
 
 // tag::sinh-result[]
 a:double | sinh:double
-     1.8 | 2.94217428809568
+     1.8 | 2.9421742881
 // end::sinh-result[]
 ;
 

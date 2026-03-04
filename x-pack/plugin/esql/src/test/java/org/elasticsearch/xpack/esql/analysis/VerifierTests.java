@@ -731,6 +731,10 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:40: Unknown column [emp_no]", error("from test | rename emp_no as r1 | drop emp_no"));
     }
 
+    public void testDropUnknownPattern() {
+        assertEquals("1:18: No matches found for pattern [foobar*]", error("from test | drop foobar*"));
+    }
+
     public void testNonStringFieldsInDissect() {
         assertEquals(
             "1:21: Dissect only supports KEYWORD or TEXT values, found expression [emp_no] type [INTEGER]",
@@ -3300,7 +3304,7 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo(
                 "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                    + "[max_chunk_size] must be a greater than or equal to [20.0];"
+                    + "[max_chunk_size] must be greater than or equal to [20.0];"
             )
         );
         assertThat(
@@ -3311,7 +3315,7 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo(
                 "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                    + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
+                    + "[max_chunk_size] must be greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
             )
         );
         assertThat(

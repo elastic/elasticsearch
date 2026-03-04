@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.ArrayList;
@@ -42,6 +43,11 @@ public class EsqlCapabilities {
          * Introduction of {@code ST_X} and {@code ST_Y}. Added in #105768.
          */
         ST_X_Y,
+
+        /**
+         * Quantize results of {@code ST_X} and {@code ST_Y} and related functions
+         */
+        ST_X_Y_QUANTIZED,
 
         /**
          * Changed precision of {@code geo_point} and {@code cartesian_point} fields, by loading from source into WKB. Done in #103691.
@@ -148,10 +154,22 @@ public class EsqlCapabilities {
          * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
          */
         STRING_LITERAL_AUTO_CASTING_EXTENDED,
+
         /**
          * Support for metadata fields.
          */
         METADATA_FIELDS,
+
+        /**
+         * Support for optional fields (might or might not be present in the mappings) using FAIL/NULLIFY/LOAD
+         */
+        OPTIONAL_FIELDS(Build.current().isSnapshot()),
+
+        /**
+         * Support for Optional fields (might or might not be present in the mappings) using FAIL/NULLIFY only. This is a temporary
+         * capability until we enable the LOAD option mentioned above.
+         */
+        OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
         /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
@@ -225,6 +243,11 @@ public class EsqlCapabilities {
          * Support for function {@code IP_PREFIX}.
          */
         FN_IP_PREFIX,
+
+        /**
+         * Fix a bug leading to the scratch leaking data to other rows.
+         */
+        FN_IP_PREFIX_FIX_DIRTY_SCRATCH_LEAK,
 
         /**
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
@@ -333,6 +356,11 @@ public class EsqlCapabilities {
         CASE_MV,
 
         /**
+         * {@code CASE} folding with DATE_PERIOD and TIME_DURATION return types.
+         */
+        CASE_FOLD_TEMPORAL_AMOUNT,
+
+        /**
          * Support for loading values over enrich. This is supported by all versions of ESQL but not
          * the unit test CsvTests.
          */
@@ -396,6 +424,9 @@ public class EsqlCapabilities {
 
         /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
         ST_EXTENT_AGG_DOCVALUES,
+
+        /** Fix to bug with spatial aggregations not properly supporting the WHERE clause. Fixes #142329. */
+        SPATIAL_AGGS_FILTERING,
 
         /**
          * Fix determination of CRS types in spatial functions when folding.
@@ -1786,7 +1817,7 @@ public class EsqlCapabilities {
         FIX_INLINE_STATS_INCORRECT_PRUNNING(INLINE_STATS.enabled),
 
         /**
-         * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval} replaced a stats
+         * {@link ReplaceStatsFilteredOrNullAggWithEval} replaced a stats
          * with false filter with null with {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Present} or
          * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Absent}
          */
@@ -1807,9 +1838,57 @@ public class EsqlCapabilities {
         FIX_STATS_MV_CONSTANT_FOLD,
 
         /**
-         * Support for requesting the "_tier" metadata field.
+         * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an
+         * {@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction} with null value with an
+         * {@link org.elasticsearch.xpack.esql.plan.logical.Eval}.
+         * https://github.com/elastic/elasticsearch/issues/137544
          */
-        METADATA_TIER_FIELD,
+        FIX_AGG_ON_NULL_BY_REPLACING_WITH_EVAL,
+
+        /**
+         * Enrich works with dense_vector fields
+         */
+        ENRICH_DENSE_VECTOR_BUGFIX,
+
+        /**
+         * Fix for INLINE STATS GROUP BY null being incorrectly pruned by PruneLeftJoinOnNullMatchingField.
+         * For INLINE STATS, the right side of the join can be Aggregate or LocalRelation (when optimized).
+         * The join key is always the grouping, and since STATS supports GROUP BY null, pruning the join when
+         * the join key (grouping) is null would incorrectly change the query results. This fix ensures
+         * PruneLeftJoinOnNullMatchingField only applies to LOOKUP JOIN (where right side is EsRelation).
+         * https://github.com/elastic/elasticsearch/issues/139887
+         */
+        FIX_INLINE_STATS_GROUP_BY_NULL(INLINE_STATS.enabled),
+
+        /**
+         * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
+         */
+        CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
+
+        /**
+         * Fixes reset calculation in rates where partitioning data into multiple slices can lead to incorrect results.
+         */
+        RATE_FIX_RESETS_MULTIPLE_SEGMENTS,
+
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
+
+        /**
+         * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
+         */
+        TS_COMMAND_GROUP_ON_ALIASES,
+
+        /**
+         * Fixes https://github.com/elastic/elasticsearch/issues/139359
+         */
+        INLINE_STATS_DROP_GROUPINGS_FIX(INLINE_STATS.enabled),
+        /**
+         * https://github.com/elastic/elasticsearch/issues/142219
+         */
+        INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

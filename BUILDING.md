@@ -344,6 +344,12 @@ allprojects {
   ```
 4. Run the Gradle build as needed with `--write-verification-metadata` to ensure the Gradle dependency verification does not fail on your custom dependency.
 
+```bash
+
+# write verification metadata and run the precommit task
+./gradlew --write-verification-metadata sha256 precommit
+```
+
 > [!Note]
 > As Gradle prefers to use modules whose descriptor has been created from real meta-data rather than being generated,
 flat directory repositories cannot be used to override artifacts with real meta-data from other repositories declared in the build.

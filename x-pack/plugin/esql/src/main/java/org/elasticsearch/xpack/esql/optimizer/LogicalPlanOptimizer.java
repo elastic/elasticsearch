@@ -60,7 +60,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRowAsLocalRelation;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
@@ -206,7 +206,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // TODO: bifunction can now (since we now have just one data types set) be pushed into the rule
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
             new ReplaceStringCasingWithInsensitiveEquals(),
-            new ReplaceStatsFilteredAggWithEval(),
+            new ReplaceStatsFilteredOrNullAggWithEval(),
             new ExtractAggregateCommonFilter(),
             // prune/elimination
             new PruneFilters(),

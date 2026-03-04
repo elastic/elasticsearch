@@ -12,10 +12,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
@@ -122,6 +124,10 @@ public class AddGarbageRowsSourceOperator extends SourceOperator {
                 case NULL -> newBlocks[b].appendNull();
                 case DOUBLE -> ((DoubleBlock.Builder) newBlocks[b]).appendDouble(ESTestCase.randomDouble());
                 case FLOAT -> ((FloatBlock.Builder) newBlocks[b]).appendFloat(ESTestCase.randomFloat());
+                case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) newBlocks[b]).append(
+                    BlockTestUtils.randomExponentialHistogram()
+                );
+                default -> throw new UnsupportedOperationException("Unsupported type: " + block.elementType());
             }
         }
         signalKeep(newBlocks, false);

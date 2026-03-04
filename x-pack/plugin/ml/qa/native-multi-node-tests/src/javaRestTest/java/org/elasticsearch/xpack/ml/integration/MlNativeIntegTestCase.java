@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -99,6 +100,7 @@ import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.gpu.GPUPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
@@ -108,6 +110,8 @@ import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
 import org.junit.After;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -140,6 +144,9 @@ import static org.hamcrest.Matchers.is;
  */
 abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
+    @Rule
+    public final TestRule templateDecoratorRule = TemplateDecoratorRule.initDefault();
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
@@ -169,7 +176,9 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             EsqlCorePlugin.class,
             EsqlPlugin.class,
             // basic multi-project functionality
-            TestOnlyMultiProjectPlugin.class
+            TestOnlyMultiProjectPlugin.class,
+            // GPU plugin needed for node features published by DEFAULT distribution nodes
+            GPUPlugin.class
         );
     }
 

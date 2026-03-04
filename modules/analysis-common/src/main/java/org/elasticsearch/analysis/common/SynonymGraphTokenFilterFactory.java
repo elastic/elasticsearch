@@ -67,6 +67,24 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             }
 
             @Override
+            public TokenFilterFactory getSynonymFilter() {
+                // When building a synonym filter, we must prevent previous synonym filters in the chain
+                // from being active, as this would cause recursive synonym expansion during the building phase.
+                //
+                // Without this fix, when chaining multiple synonym filters (e.g., synonym_A → synonym_B → synonym_C),
+                // building synonym_C would use an analyzer containing active synonym_A and synonym_B filters.
+                // This causes:
+                // 1. Recursive synonym expansion when parsing synonym rules (e.g., synonyms are expanded via previous filters)
+                // 2. Each SynonymMap inflates since it applies all previous synonym rules again
+                // 3. Triggering O(n²) operations in SynonymGraphFilter.bufferOutputTokens()
+                // 4. Massive memory allocation during analyzer reload → OutOfMemoryError
+                //
+                // This matches the behavior of SynonymTokenFilterFactory and prevents OOM with chained
+                // synonym filters (critical for users with many chained synonym sets).
+                return IDENTITY_FILTER;
+            }
+
+            @Override
             public AnalysisMode getAnalysisMode() {
                 return analysisMode;
             }
@@ -77,5 +95,4 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             }
         };
     }
-
 }

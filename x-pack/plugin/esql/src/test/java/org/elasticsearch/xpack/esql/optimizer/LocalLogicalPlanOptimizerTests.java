@@ -382,9 +382,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         // Expects
         // MockFieldAttributeCommand[last_name{f}#7]
-        // \_Project[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
-        // ages{f}#6, last_name{r}#7, long_noidx{f}#13, salary{f}#8]]
-        // \_Eval[[null[KEYWORD] AS last_name]]
+        // \_Project[[last_name{r}#7]]
+        // \_Eval[[null[KEYWORD] AS last_name#7]]
         // \_Limit[1000[INTEGER],false]
         // \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
         LogicalPlan localPlan = localPlan(new MockFieldAttributeCommand(EMPTY, plan, lastName), testStats);
@@ -400,7 +399,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertEquals(literal.child(), new Literal(EMPTY, null, KEYWORD));
         assertThat(Expressions.names(relation.output()), not(contains("last_name")));
 
-        assertEquals(Expressions.names(initialRelation.output()), Expressions.names(project.output()));
+        assertThat(Expressions.names(project.output()), contains("last_name"));
     }
 
     /**
@@ -1129,7 +1128,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Expected:
-     * EsqlProject[[s{r}#4]]
+     * Project[[s{r}#4]]
      * \_TopN[[Order[s{r}#4,DESC,FIRST]],1[INTEGER]]
      *   \_Eval[[$$dense_vector$replaced$28{t}#28 AS s#4]]
      *     \_EsRelation[types][$$dense_vector$replaced$28{t}#28, !alias_integer, b..]
@@ -1146,8 +1145,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
-        // EsqlProject[[s{r}#4]]
-        var project = as(plan, EsqlProject.class);
+        // Project[[s{r}#4]]
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s"));
 
         // TopN[[Order[s{r}#4,DESC,FIRST]],1[INTEGER]]
@@ -1468,7 +1467,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
         // EsqlProject[[dense_vector{f}#25]]
-        var project = as(plan, EsqlProject.class);
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("dense_vector"));
 
         var limit = as(project.child(), Limit.class);
@@ -1622,8 +1621,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         LogicalPlan plan = localPlan(plan(query, allTypesAnalyzer), TEST_SEARCH_STATS);
 
-        // EsqlProject[[s1{r}#5, s2{r}#8, r2{r}#14]]
-        var project = as(plan, EsqlProject.class);
+        // Project[[s1{r}#5, s2{r}#8, r2{r}#14]]
+        var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("s1", "s2", "r2"));
 
         // Eval with s1, s2, r2

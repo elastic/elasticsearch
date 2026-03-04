@@ -46,7 +46,7 @@ public final class CountDistinctDoubleAggregatorFunction implements AggregatorFu
 
   public static CountDistinctDoubleAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, int precision) {
-    return new CountDistinctDoubleAggregatorFunction(driverContext, channels, CountDistinctDoubleAggregator.initSingle(driverContext.bigArrays(), precision), precision);
+    return new CountDistinctDoubleAggregatorFunction(driverContext, channels, CountDistinctDoubleAggregator.initSingle(driverContext, precision), precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

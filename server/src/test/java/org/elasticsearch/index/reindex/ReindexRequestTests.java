@@ -518,6 +518,13 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
     }
 
+    public void testValidateGivenRemoteIndex() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("remote:index");
+        assertArrayEquals(new String[] { "remote:index" }, r.getSearchRequest().indices());
+        ActionRequestValidationException validationException = r.validate();
+        assertNull(validationException);
+    }
+
     private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {
         BytesReference request;
         try (XContentBuilder b = JsonXContent.contentBuilder()) {

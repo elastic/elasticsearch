@@ -112,7 +112,7 @@ class S3RetryingInputStream extends RetryingInputStream<Void> {
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
             return switch (action) {
-                case OPEN -> e instanceof RuntimeException;
+                case OPEN -> e instanceof SdkException;
                 case READ -> e instanceof IOException;
             };
         }

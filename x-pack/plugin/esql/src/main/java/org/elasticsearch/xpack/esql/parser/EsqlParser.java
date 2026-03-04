@@ -130,8 +130,19 @@ public class EsqlParser {
     }
 
     // testing utility
-    public EsqlStatement createStatement(String query, QueryParams params) {
+    public EsqlStatement unvalidatedStatement(String query, QueryParams params) {
         return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()), new InferenceSettings(Settings.EMPTY));
+    }
+
+    // testing utility
+    public EsqlStatement createStatement(String query, QueryParams params) {
+        return parse(
+            query,
+            params,
+            new SettingsValidationContext(false, config.isDevVersion()), // TODO: wire CPS in
+            new PlanTelemetry(new EsqlFunctionRegistry()),
+            new InferenceSettings(Settings.EMPTY)
+        );
     }
 
     public EsqlStatement parse(

@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -169,7 +170,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 invocation -> new TestTemplateService.MockTemplateScript.Factory(((Script) invocation.getArguments()[0]).getIdOrCode())
             );
             List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
-            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList());
+            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), randomFrom(IndexMode.values()));
             SearchExecutionContext mockContext = new SearchExecutionContext(
                 0,
                 0,

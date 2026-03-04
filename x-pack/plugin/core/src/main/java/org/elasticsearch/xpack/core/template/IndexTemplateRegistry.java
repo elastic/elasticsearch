@@ -45,9 +45,7 @@ import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
@@ -661,14 +659,34 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         });
     }
 
-    protected static Map<String, ComposableIndexTemplate> parseComposableTemplates(IndexTemplateConfig... config) {
+    private static <T> Map<String, T> parseTemplates(TemplateUtils.TemplateParser<T> templateParser, IndexTemplateConfig... config) {
         return Arrays.stream(config).collect(Collectors.toUnmodifiableMap(IndexTemplateConfig::getTemplateName, indexTemplateConfig -> {
-            try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, indexTemplateConfig.loadBytes())) {
-                return ComposableIndexTemplate.parse(parser);
+            try {
+                return indexTemplateConfig.load(templateParser);
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
         }));
+    }
+
+    /**
+     * Parses the provided index templates using an optional {@link Template.TemplateDecorator} provided via SPI,
+     * see {@link org.elasticsearch.cluster.metadata.TemplateDecoratorProvider}.
+     *
+     * Note: Despite being static, do not use this in a static context to guarantee that SPI implementations are properly loaded.
+     */
+    protected static Map<String, ComposableIndexTemplate> parseComposableTemplates(IndexTemplateConfig... config) {
+        return parseTemplates(ComposableIndexTemplate::parse, config);
+    }
+
+    /**
+     * Parses the provided component templates using an optional {@link Template.TemplateDecorator} provided via SPI,
+     * see {@link org.elasticsearch.cluster.metadata.TemplateDecoratorProvider}.
+     *
+     * Note: Despite being static, do not use this in a static context to guarantee that SPI implementations are properly loaded.
+     */
+    protected static Map<String, ComponentTemplate> parseComponentTemplates(IndexTemplateConfig... config) {
+        return parseTemplates(ComponentTemplate::parse, config);
     }
 
     private void addIngestPipelinesIfMissing(ProjectMetadata project) {

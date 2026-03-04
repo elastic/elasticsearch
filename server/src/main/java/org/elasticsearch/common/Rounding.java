@@ -1047,7 +1047,7 @@ public abstract class Rounding implements Writeable {
 
         private TimeIntervalPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
             long minLookup = minUtcMillis - interval;
-            long maxLookup = maxUtcMillis;
+            long maxLookup = maxUtcMillis + interval;
 
             LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(timeZone, minLookup, maxLookup);
             if (lookup == null) {
@@ -1161,8 +1161,7 @@ public abstract class Rounding implements Writeable {
 
             @Override
             public long nextRoundingValue(long utcMillis) {
-                // TODO this is used in date range's collect so we should optimize it too
-                return new JavaTimeRounding().nextRoundingValue(utcMillis);
+                return offset.localToUtcInThisOffset((roundKey(offset.utcToLocalTime(utcMillis), interval) + 1) * interval);
             }
 
             @Override

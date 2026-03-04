@@ -24,6 +24,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -68,20 +69,27 @@ import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxSe
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.PROJECT_ID;
 
-public class IbmWatsonxService extends SenderService {
-
-    public static final String NAME = "watsonxai";
+public class IbmWatsonxService extends SenderService implements RerankingInferenceService {
 
     private static final String SERVICE_NAME = "IBM watsonx";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.COMPLETION,
-        TaskType.CHAT_COMPLETION
+        TaskType.CHAT_COMPLETION,
+        TaskType.RERANK
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new IbmWatsonUnifiedChatCompletionResponseHandler(
         "IBM watsonx chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
+
+    public static final String NAME = "watsonxai";
+
+    // IBM watsonx has a single rerank model with a token limit of 512
+    // (see https://dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-models-embed.html?context=wx#reranker-overview)
+    // Using 1 token = 0.75 words as a rough estimate, we get 384 words
+    // allowing for some headroom, we set the window size below 384 words
+    public static final int RERANK_WINDOW_SIZE = 350;
 
     public IbmWatsonxService(
         HttpRequestSender.Factory factory,
@@ -360,6 +368,11 @@ public class IbmWatsonxService extends SenderService {
 
     protected IbmWatsonxActionCreator getActionCreator(Sender sender, ServiceComponents serviceComponents) {
         return new IbmWatsonxActionCreator(getSender(), getServiceComponents());
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        return RERANK_WINDOW_SIZE;
     }
 
     public static class Configuration {

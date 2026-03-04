@@ -100,6 +100,10 @@ public class DebPreservationTests extends PackagingTestCase {
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
 
+        // The @Before hook that normally pins heap runs before installation is assigned in this test,
+        // so explicitly set it here to avoid CI oom-killed from auto heap sizing.
+        setHeap("1g");
+
         // Ensure ES is started
         Packages.runElasticsearchStartCommand(sh);
         ServerUtils.waitForElasticsearch(installation);

@@ -23,6 +23,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -505,7 +506,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         final ResolvedIndices resolvedIndices = createMockResolvedIndices(Map.of(indexName, testDenseVectorFields));
         final Index localIndex = resolvedIndices.getConcreteLocalIndices()[0];
         final Predicate<String> nameMatcher = testDenseVectorFields::contains;
-        final MappingLookup mappingLookup = MappingLookup.fromMapping(getTestMapping());
+        final MappingLookup mappingLookup = MappingLookup.fromMapping(getTestMapping(), randomFrom(IndexMode.values()));
 
         var indexMetadata = IndexMetadata.builder("index")
             .settings(

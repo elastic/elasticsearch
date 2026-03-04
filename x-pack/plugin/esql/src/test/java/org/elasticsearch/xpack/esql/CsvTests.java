@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.junit.After;
+import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -134,6 +135,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolutio
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -266,96 +268,96 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+            assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
             /*
              * The csv tests support all but a few features. The unsupported features
              * are tested in integration tests.
              */
-            assumeFalse(
+            assumeFalseLogging(
                 "metadata fields aren't supported",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_FIELDS.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "enrich can't load fields in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ENRICH_LOAD.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't use rereank in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.RERANK.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't use completion in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.COMPLETION.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't use match in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't use score function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SCORE_FUNCTION.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't load metrics in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_COMMAND_V0.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't load metrics in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V7.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't use MATCH function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_FUNCTION.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't use MATCH_PHRASE function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't use KQL function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KQL_FUNCTION.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't use KNN function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V5.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "lookup join disabled for csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "can't use TERM function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TERM_FUNCTION.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "CSV tests cannot correctly handle the field caps change",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "CSV tests cannot currently handle the _source field mapping directives",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "CSV tests cannot currently handle scoring that depends on Lucene",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SCORE.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "CSV tests cannot currently handle FORK",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FORK_V9.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "CSV tests cannot currently handle TEXT_EMBEDDING function",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "CSV tests cannot currently handle multi_match function that depends on Lucene",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
             );
-            assumeFalse(
+            assumeFalseLogging(
                 "CSV tests cannot currently handle subqueries",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
             );
@@ -370,14 +372,14 @@ public class CsvTests extends ESTestCase {
                     testCase.requiredCapabilities,
                     everyItem(in(EsqlCapabilities.capabilities(true)))
                 );
-                assumeTrue(
+                assumeTrueLogging(
                     "Capability not supported in this build",
                     EsqlCapabilities.capabilities(false).containsAll(testCase.requiredCapabilities)
                 );
             } else {
                 for (EsqlCapabilities.Cap c : EsqlCapabilities.Cap.values()) {
                     if (false == c.isEnabled()) {
-                        assumeFalse(
+                        assumeFalseLogging(
                             c.capabilityName() + " is not supported in non-snapshot releases",
                             testCase.requiredCapabilities.contains(c.capabilityName())
                         );
@@ -388,6 +390,19 @@ public class CsvTests extends ESTestCase {
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
+        }
+    }
+
+    private static void assumeTrueLogging(String message, boolean condition) {
+        assumeFalseLogging(message, condition == false);
+    }
+
+    private static void assumeFalseLogging(String message, boolean condition) {
+        try {
+            assumeFalse(message, condition);
+        } catch (AssumptionViolatedException ave) {
+            LOGGER.info("skipping test: " + ave.getMessage());
+            throw ave;
         }
     }
 
@@ -573,7 +588,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private LogicalPlan analyzedPlan(
-        LogicalPlan parsed,
+        EsqlStatement parsed,
         Configuration configuration,
         Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
         TransportVersion minimumVersion
@@ -588,11 +603,12 @@ public class CsvTests extends ESTestCase {
                 Map.of(),
                 enrichPolicies,
                 emptyInferenceResolution(),
-                minimumVersion
+                minimumVersion,
+                parsed.setting(UNMAPPED_FIELDS)
             ),
             TEST_VERIFIER
         );
-        LogicalPlan plan = analyzer.analyze(parsed);
+        LogicalPlan plan = analyzer.analyze(parsed.plan());
         plan.setAnalyzed();
         LOGGER.debug("Analyzed plan:\n{}", plan);
         return plan;
@@ -671,7 +687,7 @@ public class CsvTests extends ESTestCase {
         var testDatasets = testDatasets(statement.plan());
         // Specifically use the newest transport version; the csv tests correspond to a single node cluster on the current version.
         TransportVersion minimumVersion = TransportVersion.current();
-        LogicalPlan analyzed = analyzedPlan(statement.plan(), configuration, testDatasets, minimumVersion);
+        LogicalPlan analyzed = analyzedPlan(statement, configuration, testDatasets, minimumVersion);
 
         FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(

@@ -671,3 +671,52 @@ setup:
   - match: { indices.mappings.field_types.0.indexed_vector_dim_min: 164 }
   - match: { indices.mappings.field_types.0.indexed_vector_dim_max: 1276 }
 
+---
+"Dense vector dynamic template with dotted field name and intermediate object":
+  - requires:
+      cluster_features: "mapper.dense_vector.dynamic_template_dotted_field_fix"
+      reason: "fix for dynamic template with dotted field names"
+  - do:
+      indices.put_template:
+        name: dense-vector-dotted-template
+        body:
+          index_patterns: ["dense-vector-dotted-*"]
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            dynamic_templates:
+              - dense_vector_template:
+                  path_match: "my_vectors.*"
+                  mapping:
+                    similarity: cosine
+                    type: dense_vector
+                    index: true
+                    index_options:
+                      type: hnsw
+
+  - do:
+      index:
+        index: dense-vector-dotted-test
+        id: "1"
+        refresh: true
+        body:
+          my_vectors.vector1: [
+            -0.09274746, 0.048125198, -0.31602416, 0.57141583, -0.34229536,
+            0.15138765, -0.08300583, 0.7065178, 0.14968437, -0.22518804,
+            0.33417892, -0.12654321
+          ]
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
+      indices.get_mapping:
+        index: dense-vector-dotted-test
+
+  - match: { dense-vector-dotted-test.mappings.properties.my_vectors.properties.vector1.type: dense_vector }
+  - match: { dense-vector-dotted-test.mappings.properties.my_vectors.properties.vector1.dims: 12 }
+  - match: { dense-vector-dotted-test.mappings.properties.my_vectors.properties.vector1.index: true }
+  - match: { dense-vector-dotted-test.mappings.properties.my_vectors.properties.vector1.similarity: cosine }
+

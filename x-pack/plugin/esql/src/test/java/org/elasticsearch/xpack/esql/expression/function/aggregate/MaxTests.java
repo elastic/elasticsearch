@@ -204,7 +204,7 @@ public class MaxTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override

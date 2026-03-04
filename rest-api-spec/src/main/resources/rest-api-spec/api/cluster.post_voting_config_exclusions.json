@@ -23,11 +23,11 @@
     },
     "params": {
       "node_ids": {
-        "type": "string",
+        "type": "list",
         "description": "A comma-separated list of the persistent ids of the nodes to exclude from the voting configuration. If specified, you may not also specify ?node_names."
       },
       "node_names": {
-        "type": "string",
+        "type": "list",
         "description": "A comma-separated list of the names of the nodes to exclude from the voting configuration. If specified, you may not also specify ?node_ids."
       },
       "timeout": {

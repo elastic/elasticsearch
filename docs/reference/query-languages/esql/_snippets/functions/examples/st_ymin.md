@@ -12,6 +12,6 @@ FROM airport_city_boundaries
 
 | abbrev:keyword | airport:text | xmin:double | xmax:double | ymin:double | ymax:double |
 | --- | --- | --- | --- | --- | --- |
-| CPH | Copenhagen | 12.453 | 12.6398 | 55.6318 | 55.7327 |
+| CPH | Copenhagen | 12.45299999602139 | 12.639799928292632 | 55.63179998192936 | 55.732699991203845 |
 
 

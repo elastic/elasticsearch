@@ -152,8 +152,10 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result1 = gradleRunner("cleanTest", "cleanTest2", "test", "test2").build()
-        def result2 = gradleRunner("cleanTest", "cleanTest2", "test", "test2").build()
+        // Avoid invoking cleanTest* on Windows; it can flake due to file handle timing when deleting build/test-results/**/binary.
+        // We still need two consecutive task executions to observe two different seeds while reusing the configuration cache.
+        def result1 = gradleRunner("test", "test2", "--rerun-tasks").build()
+        def result2 = gradleRunner("test", "test2", "--rerun-tasks").build()
 
         then:
         def seeds1 = result1.output.findAll(/(?m)TESTSEED=\[([^\]]+)\]/) { it[1] }

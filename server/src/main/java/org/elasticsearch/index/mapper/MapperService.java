@@ -208,6 +208,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final MappingParser mappingParser;
     private final DocumentParser documentParser;
     private final IndexVersion indexVersionCreated;
+    private final IndexMode indexMode;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private final Function<Query, BitSetProducer> bitSetProducer;
@@ -263,6 +264,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+        // We parse the setting in this way to avoid any index settings validations which are not relevant here.
+        this.indexMode = IndexMode.fromIndexSettingsWithoutValidation(indexSettings.getSettings());
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
         this.mappingParserContextSupplier = () -> new MappingParserContext(
@@ -638,7 +641,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mappingSource,
             indexVersionCreated,
             mapperMetrics,
-            index().getName()
+            index().getName(),
+            indexMode
         );
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
@@ -880,5 +884,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MapperMetrics getMapperMetrics() {
         return mapperMetrics;
+    }
+
+    public IndexMode getIndexMode() {
+        return indexMode;
     }
 }

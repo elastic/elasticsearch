@@ -684,7 +684,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                     idSparse,
                     TaskType.SPARSE_EMBEDDING,
                     ElasticInferenceService.NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(nameSparse, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(nameSparse, null, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     new ElasticInferenceServiceComponents(url),

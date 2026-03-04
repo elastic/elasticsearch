@@ -64,6 +64,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -163,6 +164,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -527,6 +529,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @ClassRule
     public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
+
+    @ClassRule
+    public static final TestRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -2809,6 +2814,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeSleep: interrupted");
+        }
+    }
+
+    /**
+     * Join the given {@link Thread} with a timeout of {@link #SAFE_AWAIT_TIMEOUT}, preserving the thread's interrupt status
+     * flag and asserting that the thread is indeed completed before the timeout.
+     */
+    public static void safeJoin(Thread t) {
+        try {
+            t.join(SAFE_AWAIT_TIMEOUT.millis());
+            assertFalse("safeJoin: Thread is still running after the timeout", t.isAlive());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safeJoin: interrupted waiting for Thread to die");
         }
     }
 

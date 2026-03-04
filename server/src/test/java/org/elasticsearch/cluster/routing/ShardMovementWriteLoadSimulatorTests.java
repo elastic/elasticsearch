@@ -37,8 +37,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
 
-    private static final RoutingChangesObserver NOOP = new RoutingChangesObserver() {
-    };
+    private static final RoutingChangesObserver NOOP = new RoutingChangesObserver() {};
     private static final String[] INDICES = { "indexOne", "indexTwo", "indexThree" };
 
     /**

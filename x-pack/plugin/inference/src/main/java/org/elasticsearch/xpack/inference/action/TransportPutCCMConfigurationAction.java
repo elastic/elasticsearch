@@ -112,7 +112,9 @@ public class TransportPutCCMConfigurationAction extends TransportMasterNodeActio
             var authRequestHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
                 eisSettings.getElasticInferenceServiceUrl(),
                 threadPool,
-                new ValidationAuthenticationFactory(request.getApiKey())
+                new ValidationAuthenticationFactory(request.getApiKey()),
+                ccmFeature,
+                ccmService
             );
 
             var errorListener = authValidationListener.delegateResponse((delegate, exception) -> {

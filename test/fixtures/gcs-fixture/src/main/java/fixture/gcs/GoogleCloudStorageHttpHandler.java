@@ -18,6 +18,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,6 +38,14 @@ import java.util.stream.Collectors;
 
 import static fixture.gcs.MockGcsBlobStore.failAndThrow;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.rest.RestStatus.BAD_GATEWAY;
+import static org.elasticsearch.rest.RestStatus.GATEWAY_TIMEOUT;
+import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
+import static org.elasticsearch.rest.RestStatus.NO_CONTENT;
+import static org.elasticsearch.rest.RestStatus.REQUEST_TIMEOUT;
+import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
+import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 
 /**
  * Minimal HTTP handler that acts as a Google Cloud Storage compliant server
@@ -44,12 +53,19 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @SuppressForbidden(reason = "Uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
+    private static final String CRLF = "\r\n";
+
     private static final String IF_GENERATION_MATCH = "ifGenerationMatch";
     private static final String GENERATION = "generation";
 
     private final AtomicInteger defaultPageLimit = new AtomicInteger(1_000);
     private final MockGcsBlobStore mockGcsBlobStore;
     private final String bucket;
+
+    // track delete failures for individual blobs to avoid unbounded retries
+    private final Map<String, Integer> batchDeleteFailureCounters = new HashMap<>();
+    // maximum number of delete failures for individual blob
+    private static final int MAX_DELETE_FAILURES = 3;
 
     public GoogleCloudStorageHttpHandler(final String bucket) {
         this.bucket = Objects.requireNonNull(bucket);
@@ -160,20 +176,22 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final var batchReader = MultipartContent.Reader.readStream(boundary, requestBody.streamInput());
                 final var responseStream = new ByteArrayOutputStream();
                 final var batchWriter = new MultipartContent.Writer(boundary, responseStream);
+                // allow some batches to proceed without partial failures
+                final var allowPartialFailures = ESTestCase.randomBoolean();
                 while (batchReader.hasNext()) {
                     final var batchItem = batchReader.next();
                     final var contentId = batchItem.headers().get("content-id");
-                    // only deletes are supported in batch
+                    // batch supports only deletions
                     final var objectName = parseBatchItemDeleteObject(bucket, batchItem.content());
-                    mockGcsBlobStore.deleteBlob(objectName);
-                    final var responsePartHeaders = new LinkedHashMap<String, String>() {
+                    final var deleteStatus = allowPartialFailures ? deleteObjectOrRandomlyFail(objectName) : deleteObject(objectName);
+                    final var partHeaders = new LinkedHashMap<String, String>() {
                         {
                             put("content-type", "application/http");
                             put("content-id", "response-" + contentId);
                         }
                     };
-                    final var responsePartContent = "HTTP/1.1 204 No Content\r\n\r\n";
-                    batchWriter.write(MultipartContent.Part.of(responsePartHeaders, responsePartContent));
+                    final var partContent = deleteItemStatusToHttpContent(deleteStatus);
+                    batchWriter.write(MultipartContent.Part.of(partHeaders, partContent));
                 }
                 batchWriter.end();
 
@@ -244,6 +262,11 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 }
                 exchange.getResponseHeaders().add("x-goog-stored-content-length", String.valueOf(updateResponse.storedContentLength()));
                 exchange.sendResponseHeaders(updateResponse.statusCode(), -1);
+            } else if (Regex.simpleMatch("DELETE /storage/v1/b/" + bucket + "/o*", request)) {
+                final var object = readObjectName(request);
+                // don't fail deletes here, fixture will inject failures before reaching this point
+                final var deleteStatus = deleteObject(object);
+                exchange.sendResponseHeaders(deleteStatus.getStatus(), -1);
             } else {
                 exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
             }
@@ -264,30 +287,115 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         }
     }
 
-    // Example of DELETE batch item status line
-    // DELETE http://127.0.0.1:49177/storage/v1/b/bucket/o/test/tests-vQzflxz2Swa_bhmlM6gtyA/data-5odMgVMYTbKAI6DxS0qi-A.dat HTTP/1.1";
-    static final Pattern BATCH_ITEM_HTTP_LINE = Pattern.compile(
-        "(?<method>\\w+) (.+)/storage/v1/b/(?<bucket>.+)/o/(?<object>.+) HTTP/1\\.1"
+    // Example of request line
+    static final Pattern METHOD_BUCKET_OBJECT_PATTERN = Pattern.compile(
+        "(?<method>\\w+) .+/v1/b/(?<bucket>[a-zA-Z0-9._-]+)/o/" + "(?<object>[^?^\\s]+)"
     );
+
+    private String readObjectName(String requestLine) {
+        var m = METHOD_BUCKET_OBJECT_PATTERN.matcher(requestLine);
+        if (m.find()) {
+            final var _bucket = m.group("bucket");
+            if (bucket.equals(_bucket) == false) {
+                throw failAndThrow("bucket name does not match, expected: " + bucket + ", got: " + _bucket);
+            }
+            return URLDecoder.decode(m.group("object"), UTF_8);
+        } else {
+            throw failAndThrow("cannot parse bucket and object from uri: " + requestLine);
+        }
+    }
+
+    private RestStatus deleteObjectOrRandomlyFail(String objectName) {
+        synchronized (batchDeleteFailureCounters) {
+            final var failures = batchDeleteFailureCounters.getOrDefault(objectName, 0);
+            // 10% failure is an arbitrary number, not too small, not too big
+            if (fail10Percent()) {
+                if (failures < MAX_DELETE_FAILURES) {
+                    batchDeleteFailureCounters.put(objectName, failures + 1);
+                    return randomRetryableError();
+                }
+            }
+            return deleteObject(objectName);
+        }
+    }
+
+    RestStatus deleteObject(String objectName) {
+        synchronized (batchDeleteFailureCounters) {
+            batchDeleteFailureCounters.remove(objectName);
+            final var deleted = mockGcsBlobStore.deleteBlob(objectName);
+            return deleted ? NO_CONTENT : NOT_FOUND;
+        }
+    }
+
+    static RestStatus randomRetryableError() {
+        return ESTestCase.randomFrom(
+            REQUEST_TIMEOUT,
+            TOO_MANY_REQUESTS,
+            INTERNAL_SERVER_ERROR,
+            BAD_GATEWAY,
+            SERVICE_UNAVAILABLE,
+            GATEWAY_TIMEOUT
+        );
+    }
+
+    // returns HTTP content for a part in multipart batch delete response
+    static String deleteItemStatusToHttpContent(RestStatus itemStatus) {
+        final var responseText = new StringBuilder();
+        final var statusLine = switch (itemStatus) {
+            case NO_CONTENT -> "204 No Content";
+            case NOT_FOUND -> "404 Not Found";
+            case REQUEST_TIMEOUT -> "408 Request Timeout";
+            case TOO_MANY_REQUESTS -> "429 Too Many Requests";
+            case INTERNAL_SERVER_ERROR -> "500 Internal Server Error";
+            case BAD_GATEWAY -> "502 Bad Gateway";
+            case SERVICE_UNAVAILABLE -> "503 Service Unavailable";
+            case GATEWAY_TIMEOUT -> "504 Gateway Timeout";
+            default -> throw failAndThrow("HTTP status line is not implemented for " + itemStatus);
+        };
+        responseText.append("HTTP/1.1 ").append(statusLine).append(CRLF);
+        // an error must contain a JSON object describing error, a minimal description needs at least an error code
+        if (itemStatus != NO_CONTENT) {
+            final var errorObj = """
+                {
+                  "error" : {
+                    "code": $code
+                  }
+                }
+                """.replace("$code", Integer.toString(itemStatus.getStatus()));
+            responseText.append("content-type: application/json")
+                .append(CRLF)
+                .append("content-length: ")
+                .append(errorObj.length())
+                .append(CRLF)
+                .append(CRLF)
+                .append(errorObj)
+                .append(CRLF);
+        }
+        return responseText.toString();
+    }
+
+    static boolean fail10Percent() {
+        return ESTestCase.between(1, 10) == 1;
+    }
 
     static String parseBatchItemDeleteObject(String bucket, BytesReference bytes) {
         final var s = bytes.utf8ToString();
         return s.lines().findFirst().map(line -> {
-            var matcher = BATCH_ITEM_HTTP_LINE.matcher(line);
+            var matcher = METHOD_BUCKET_OBJECT_PATTERN.matcher(line);
             if (matcher.find() == false) {
-                throw new IllegalStateException("Cannot parse batch item HTTP line: " + line);
+                throw failAndThrow("Cannot parse batch item HTTP line: " + line);
             }
             var method = matcher.group("method");
             if (method.equals("DELETE") == false) {
-                throw new IllegalStateException("Expected DELETE item, found " + line);
+                throw failAndThrow("Expected DELETE item, found " + line);
             }
             var _bucket = matcher.group("bucket");
             if (bucket.equals(_bucket) == false) {
-                throw new IllegalStateException("Bucket does not match expected: " + bucket + ", got: " + _bucket);
+                throw failAndThrow("Bucket does not match expected: " + bucket + ", got: " + _bucket);
             }
             return URLDecoder.decode(matcher.group("object"), UTF_8);
 
-        }).orElseThrow();
+        }).orElseThrow(() -> failAndThrow("Empty batch item"));
     }
 
     record ListBlobsResponse(String bucket, MockGcsBlobStore.PageOfBlobs pageOfBlobs) implements ToXContent {

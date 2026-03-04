@@ -15,6 +15,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.core.Nullable;
@@ -149,6 +150,9 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
 
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
+            if (e instanceof AlreadyClosedException) {
+                return false;
+            }
             return switch (action) {
                 case OPEN -> BaseService.EXCEPTION_HANDLER.shouldRetry(e, null);
                 case READ -> e instanceof StorageException;

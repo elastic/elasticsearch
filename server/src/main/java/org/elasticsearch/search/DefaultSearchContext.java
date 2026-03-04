@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -167,7 +168,8 @@ final class DefaultSearchContext extends SearchContext {
         SearchService.ResultsType resultsType,
         boolean enableQueryPhaseParallelCollection,
         int minimumDocsPerSlice,
-        long memoryAccountingBufferSize
+        long memoryAccountingBufferSize,
+        @Nullable CircuitBreaker circuitBreaker
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -211,7 +213,7 @@ final class DefaultSearchContext extends SearchContext {
             closeFuture.addListener(ActionListener.releasing(Releasables.wrap(engineSearcher, searcher)));
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.timeout = timeout;
-            searchExecutionContext = indexService.newSearchExecutionContext(
+            SearchExecutionContext baseContext = indexService.newSearchExecutionContext(
                 request.shardId().id(),
                 request.shardRequestIndex(),
                 searcher,
@@ -220,6 +222,7 @@ final class DefaultSearchContext extends SearchContext {
                 request.getRuntimeMappings(),
                 request.source() == null ? null : request.source().size()
             );
+            searchExecutionContext = circuitBreaker != null ? new SearchExecutionContext(baseContext, circuitBreaker) : baseContext;
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;
             success = true;
@@ -946,6 +949,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public IdLoader newIdLoader() {
-        return IdLoader.create(indexService.mapperService());
+        MapperService mapperService = indexService.mapperService();
+        return IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
     }
 }

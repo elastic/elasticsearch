@@ -1482,9 +1482,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
 
                 int m = XContentMapValues.nodeIntegerValue(mNode, Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode, Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
+                boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
+                if (onDiskRescore) {
+                    throw new IllegalArgumentException("on_disk_rescore is only supported for indexed and quantized vector types");
+                }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
 
                 return new HnswIndexOptions(m, efConstruction);
@@ -1571,6 +1576,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         FLAT("flat", false) {
             @Override
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
+                boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
+                if (onDiskRescore) {
+                    throw new IllegalArgumentException("on_disk_rescore is only supported for indexed and quantized vector types");
+                }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new FlatIndexOptions();
             }
@@ -1588,6 +1598,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         INT8_FLAT("int8_flat", true) {
             @Override
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
                 Float confidenceInterval = null;
                 if (confidenceIntervalNode != null) {
@@ -1596,6 +1607,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
+                }
+                boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
+                if (onDiskRescore) {
+                    throw new IllegalArgumentException("on_disk_rescore is only supported for indexed and quantized vector types");
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int8FlatIndexOptions(confidenceInterval, rescoreVector);
@@ -1614,6 +1629,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         INT4_FLAT("int4_flat", true) {
             @Override
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
+                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
                 Float confidenceInterval = null;
                 if (confidenceIntervalNode != null) {
@@ -1622,6 +1638,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
+                }
+                boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
+                if (onDiskRescore) {
+                    throw new IllegalArgumentException("on_disk_rescore is only supported for indexed and quantized vector types");
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new Int4FlatIndexOptions(confidenceInterval, rescoreVector);
@@ -1674,11 +1694,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 RescoreVector rescoreVector = null;
+                Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 if (hasRescoreIndexVersion(indexVersion)) {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                     if (rescoreVector == null && defaultOversampleForBBQ(indexVersion)) {
                         rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
                     }
+                }
+                boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
+                if (onDiskRescore) {
+                    throw new IllegalArgumentException("on_disk_rescore is only supported for indexed and quantized vector types");
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
                 return new BBQFlatIndexOptions(rescoreVector);
@@ -3151,7 +3176,24 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int dims = fieldType().element.parseDimensionCount(context);
             DenseVectorFieldMapper.Builder builder = (Builder) getMergeBuilder();
             builder.dimensions(dims);
-            Mapper update = builder.build(context.createDynamicMapperBuilderContext());
+            // Build the mapper using a context derived from this field's existing fullPath.
+            // The document parser's content path cannot be used here because for dynamically
+            // mapped fields with dotted names (e.g. "a.b"), the content path
+            // includes the field name itself, not just the parent object path.
+            MapperBuilderContext builderContext;
+            String existingFullPath = fullPath();
+            String leaf = leafName();
+            MapperBuilderContext rootCtx = MapperBuilderContext.root(
+                context.mappingLookup().isSourceSynthetic(),
+                context.mappingLookup().isDataStreamTimestampFieldEnabled()
+            );
+            if (existingFullPath.equals(leaf)) {
+                builderContext = rootCtx;
+            } else {
+                String parentPath = existingFullPath.substring(0, existingFullPath.length() - leaf.length() - 1);
+                builderContext = rootCtx.createChildContext(parentPath, context.dynamic());
+            }
+            Mapper update = builder.build(builderContext);
             context.addDynamicMapper(update);
             return;
         }

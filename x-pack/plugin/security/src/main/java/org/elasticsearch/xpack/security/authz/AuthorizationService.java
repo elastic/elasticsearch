@@ -119,6 +119,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.ContextConstrainedAction.HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.allowAll;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
@@ -155,6 +156,8 @@ public class AuthorizationService {
     private final AuthorizationDenialMessages authorizationDenialMessages;
     private final ProjectResolver projectResolver;
 
+    private final Map<String, String> contextConstrainedActions;
+
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
@@ -180,7 +183,8 @@ public class AuthorizationService {
         ProjectResolver projectResolver,
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver projectRoutingResolver
+        ProjectRoutingResolver projectRoutingResolver,
+        Map<String, String> contextConstrainedActions
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -213,6 +217,7 @@ public class AuthorizationService {
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
         this.authorizedProjectsResolver = authorizedProjectsResolver;
+        this.contextConstrainedActions = Map.copyOf(contextConstrainedActions);
     }
 
     public void checkPrivileges(
@@ -344,6 +349,10 @@ public class AuthorizationService {
                 return;
             }
 
+            if (checkContextConstraint(authentication, action, auditId, unwrappedRequest, listener) == false) {
+                return;
+            }
+
             if (SystemUser.is(authentication.getEffectiveSubject().getUser())) {
                 // this never goes async so no need to wrap the listener
                 authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
@@ -443,6 +452,42 @@ public class AuthorizationService {
             throw actionDenied(authentication, null, action, originalRequest, "because it requires operator privileges", operatorException);
         }
         operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
+    }
+
+    /**
+     * Checks whether the action is context-constrained and, if so, whether the required
+     * invocation context marker is present in the thread context.
+     *
+     * @return {@code true} if the action is allowed to proceed, {@code false} if it was denied
+     *         (in which case the listener has already been notified of the failure)
+     */
+    private boolean checkContextConstraint(
+        final Authentication authentication,
+        final String action,
+        final String requestId,
+        final TransportRequest request,
+        final ActionListener<Void> listener
+    ) {
+        final String requiredContext = contextConstrainedActions.get(action);
+        if (requiredContext != null) {
+            final String actualContext = threadContext.getHeader(HEADER_KEY);
+            if (requiredContext.equals(actualContext) == false) {
+                final AuditTrail auditTrail = auditTrailService.get();
+                auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
+                listener.onFailure(
+                    actionDenied(
+                        authentication,
+                        EmptyAuthorizationInfo.INSTANCE,
+                        action,
+                        request,
+                        "missing required invocation context [" + requiredContext + "]",
+                        null
+                    )
+                );
+                return false;
+            }
+        }
+        return true;
     }
 
     private void maybeAuthorizeRunAs(

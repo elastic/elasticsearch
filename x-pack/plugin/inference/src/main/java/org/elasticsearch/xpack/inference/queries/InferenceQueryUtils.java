@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlDenseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.core.security.authz.ContextConstrainedAction;
 import org.elasticsearch.xpack.inference.InferenceException;
 
 import java.util.ArrayList;
@@ -617,6 +618,7 @@ public final class InferenceQueryUtils {
                         )
                     );
                 } else {
+                    threadContext.putHeader(ContextConstrainedAction.HEADER_KEY, GetInferenceFieldsInternalAction.REQUIRED_CONTEXT);
                     client.execute(
                         connection,
                         GetInferenceFieldsInternalAction.REMOTE_TYPE,

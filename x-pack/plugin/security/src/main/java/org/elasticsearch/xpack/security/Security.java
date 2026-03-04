@@ -127,6 +127,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -1174,7 +1175,8 @@ public class Security extends Plugin
             projectResolver,
             authorizedProjectsResolver,
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver
+            projectRoutingResolver,
+            buildContextConstrainedActions()
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1484,6 +1486,10 @@ public class Security extends Plugin
 
     private AuthorizationEngine getAuthorizationEngine() {
         return findValueFromExtensions("authorization engine", extension -> extension.getAuthorizationEngine(settings));
+    }
+
+    private static Map<String, String> buildContextConstrainedActions() {
+        return Map.of(GetInferenceFieldsInternalAction.NAME, GetInferenceFieldsInternalAction.REQUIRED_CONTEXT);
     }
 
     private AuthenticationFailureHandler createAuthenticationFailureHandler(

@@ -167,6 +167,7 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
+import org.elasticsearch.xpack.core.security.authz.ContextConstrainedAction;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -262,6 +263,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -372,7 +374,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            Map.of()
         );
     }
 
@@ -1354,7 +1357,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            Map.of()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1418,7 +1422,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             authorizedProjectsResolver,
             crossProjectModeDecider,
-            projectRoutingResolver
+            projectRoutingResolver,
+            Map.of()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1965,7 +1970,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver
+            projectRoutingResolver,
+            Map.of()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2019,7 +2025,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
-            projectRoutingResolver
+            projectRoutingResolver,
+            Map.of()
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3561,7 +3568,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver
+            projectRoutingResolver,
+            Map.of()
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3725,7 +3733,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             projectResolver,
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
-            projectRoutingResolver
+            projectRoutingResolver,
+            Map.of()
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -3803,6 +3812,129 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         // The operator related exception is verified in the authorize(...) call
         verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testContextConstrainedActionDeniedWithoutMarker() {
+        initServiceWithContextConstraint();
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final Authentication authentication = createAuthentication(new User("user1", "role1"));
+        roleMap.put("role1", new RoleDescriptor("role1", null, null, null));
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, "indices:admin/test/constrained", mock(TransportRequest.class)),
+            "indices:admin/test/constrained",
+            "user1"
+        );
+        verify(auditTrail).accessDenied(
+            any(String.class),
+            eq(authentication),
+            eq("indices:admin/test/constrained"),
+            any(TransportRequest.class),
+            any(AuthorizationInfo.class)
+        );
+    }
+
+    public void testContextConstrainedActionDeniedWithWrongMarker() {
+        initServiceWithContextConstraint();
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        threadContext.putHeader(ContextConstrainedAction.HEADER_KEY, "wrong_context");
+        final Authentication authentication = createAuthentication(new User("user1", "role1"));
+        roleMap.put("role1", new RoleDescriptor("role1", null, null, null));
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, "indices:admin/test/constrained", mock(TransportRequest.class)),
+            "indices:admin/test/constrained",
+            "user1"
+        );
+        verify(auditTrail).accessDenied(
+            any(String.class),
+            eq(authentication),
+            eq("indices:admin/test/constrained"),
+            any(TransportRequest.class),
+            any(AuthorizationInfo.class)
+        );
+    }
+
+    public void testContextConstrainedActionAllowedWithCorrectMarker() {
+        final String constrainedAction = "indices:data/read/search";
+        initServiceWithContextConstraint(constrainedAction, "test_context");
+        mockEmptyMetadata();
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        threadContext.putHeader(ContextConstrainedAction.HEADER_KEY, "test_context");
+        final Authentication authentication = createAuthentication(new User("user1", "role1"));
+        roleMap.put(
+            "role1",
+            new RoleDescriptor(
+                "role1",
+                null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("all").build() },
+                null
+            )
+        );
+        authorize(authentication, constrainedAction, new SearchRequest());
+        verify(auditTrail, never()).accessDenied(
+            any(String.class),
+            any(Authentication.class),
+            eq(constrainedAction),
+            any(TransportRequest.class),
+            any(AuthorizationInfo.class)
+        );
+    }
+
+    public void testContextConstrainedActionSystemUserDeniedWithoutMarker() {
+        initServiceWithContextConstraint();
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final Authentication authentication = createAuthentication(InternalUsers.SYSTEM_USER);
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, "indices:admin/test/constrained", mock(TransportRequest.class)),
+            "indices:admin/test/constrained",
+            SystemUser.NAME
+        );
+    }
+
+    public void testNonConstrainedActionUnaffected() {
+        initServiceWithContextConstraint();
+        mockEmptyMetadata();
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final Authentication authentication = createAuthentication(new User("user1", "role1"));
+        roleMap.put("role1", new RoleDescriptor("role1", new String[] { "all" }, null, null));
+        authorize(authentication, "cluster:admin/whatever", mock(TransportRequest.class));
+        verify(auditTrail, never()).accessDenied(
+            any(String.class),
+            any(Authentication.class),
+            eq("cluster:admin/whatever"),
+            any(TransportRequest.class),
+            any(AuthorizationInfo.class)
+        );
+    }
+
+    private void initServiceWithContextConstraint() {
+        initServiceWithContextConstraint("indices:admin/test/constrained", "test_context");
+    }
+
+    private void initServiceWithContextConstraint(String actionName, String requiredContext) {
+        authorizationService = new AuthorizationService(
+            Settings.EMPTY,
+            rolesStore,
+            fieldPermissionsCache,
+            clusterService,
+            auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool,
+            new AnonymousUser(Settings.EMPTY),
+            null,
+            Collections.emptySet(),
+            new XPackLicenseState(() -> 0),
+            indexNameExpressionResolver,
+            operatorPrivilegesService,
+            RESTRICTED_INDICES,
+            new AuthorizationDenialMessages.Default(),
+            linkedProjectConfigService,
+            projectResolver,
+            authorizedProjectsResolver,
+            crossProjectModeDecider,
+            projectRoutingResolver,
+            Map.of(actionName, requiredContext)
+        );
+        setFakeOriginatingAction = false;
     }
 
     public void testRemoteActionDenied() {

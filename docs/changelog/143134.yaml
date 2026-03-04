@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 143134
+summary: Fix use-after-free in `SearchApplicationIndexService` buffer lifecycle
+type: bug

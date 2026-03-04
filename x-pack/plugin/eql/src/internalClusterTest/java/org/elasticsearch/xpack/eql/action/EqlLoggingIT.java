@@ -13,10 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ActivityLoggingUtils;
-import org.elasticsearch.xpack.eql.logging.EqlLogProducer;
+import org.elasticsearch.xpack.eql.logging.EqlLogContext;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -25,7 +26,8 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
@@ -36,7 +38,7 @@ import static org.hamcrest.Matchers.is;
 
 public class EqlLoggingIT extends AbstractEqlIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(EqlLogProducer.LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass
@@ -79,9 +81,9 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertThat(response.isRunning(), is(false));
         assertThat(response.isPartial(), is(false));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageSuccess(message, "eql", query);
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo("test"));
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo(success ? "1" : "0"));
+        assertMessageSuccess(message, EqlLogContext.TYPE, query);
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(success ? "1" : "0"));
     }
 
     public void testEqlFailureLogging() throws Exception {
@@ -94,9 +96,9 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         expectThrows(Exception.class, () -> client().execute(EqlSearchAction.INSTANCE, request).get());
         assertThat(appender.events.size(), equalTo(1));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageFailure(message, "eql", query, IndexNotFoundException.class, "Unknown index [test]");
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "indices"), equalTo("test"));
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("0"));
+        assertMessageFailure(message, EqlLogContext.TYPE, query, IndexNotFoundException.class, "Unknown index [test]");
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
     }
 
     private void prepareIndex() throws Exception {

@@ -135,13 +135,13 @@ develocity {
             // Attach build scan link as build metadata
             // See: https://buildkite.com/docs/pipelines/build-meta-data
             runBuildkiteAgent(
-              ['meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}"],
+              ['meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanUri}".toString()],
               "storing build scan link in Buildkite metadata"
             )
 
             // Attach build scan ID as build metadata
             runBuildkiteAgent(
-              ['meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanId}"],
+              ['meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanId}".toString()],
               "storing build scan ID in Buildkite metadata"
             )
 

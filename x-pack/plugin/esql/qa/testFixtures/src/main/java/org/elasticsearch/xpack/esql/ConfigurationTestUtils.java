@@ -137,7 +137,9 @@ public class ConfigurationTestUtils {
                 try (
                     Block.Builder builder = type.newBlockBuilder(
                         positions,
-                        new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
+                        BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+                            .breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST))
+                            .build()
                     )
                 ) {
                     for (int p = 0; p < positions; p++) {

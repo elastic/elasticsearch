@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -26,9 +27,21 @@ import java.util.Set;
  * Parses key=value segments, validates consistency across all files, and infers types
  * using Spark-style rules: try Integer, Long, Double, Boolean, fallback to keyword.
  */
-final class HivePartitionDetector {
+final class HivePartitionDetector implements PartitionDetector {
 
-    private HivePartitionDetector() {}
+    static final HivePartitionDetector INSTANCE = new HivePartitionDetector();
+
+    HivePartitionDetector() {}
+
+    @Override
+    public String name() {
+        return "hive";
+    }
+
+    @Override
+    public PartitionMetadata detect(List<StorageEntry> files, Map<String, Object> config) {
+        return detect(files);
+    }
 
     static PartitionMetadata detect(List<StorageEntry> files) {
         if (files == null || files.isEmpty()) {
@@ -58,7 +71,7 @@ final class HivePartitionDetector {
             return PartitionMetadata.EMPTY;
         }
 
-        Map<String, List<String>> columnValues = new LinkedHashMap<>();
+        LinkedHashMap<String, List<String>> columnValues = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
         for (String key : referenceKeys) {
             columnValues.put(key, new ArrayList<>());
         }
@@ -68,15 +81,15 @@ final class HivePartitionDetector {
             }
         }
 
-        Map<String, DataType> partitionColumns = new LinkedHashMap<>();
+        LinkedHashMap<String, DataType> partitionColumns = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
         for (Map.Entry<String, List<String>> e : columnValues.entrySet()) {
             partitionColumns.put(e.getKey(), inferType(e.getValue()));
         }
 
-        Map<StoragePath, Map<String, Object>> filePartitionValues = new LinkedHashMap<>();
+        LinkedHashMap<StoragePath, Map<String, Object>> filePartitionValues = Maps.newLinkedHashMapWithExpectedSize(files.size());
         for (int i = 0; i < files.size(); i++) {
             Map<String, String> raw = allRawPartitions.get(i);
-            Map<String, Object> typed = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> typed = Maps.newLinkedHashMapWithExpectedSize(referenceKeys.size());
             for (Map.Entry<String, String> e : raw.entrySet()) {
                 typed.put(e.getKey(), castValue(e.getValue(), partitionColumns.get(e.getKey())));
             }

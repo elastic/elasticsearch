@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.logging;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.activity.ActivityLogProducer;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.index.ActionLoggingFields;
 
 import java.util.Optional;
@@ -17,9 +18,9 @@ public class SqlLogProducer implements ActivityLogProducer<SqlLogContext> {
 
     @Override
     public Optional<ESLogMessage> produce(SqlLogContext context, ActionLoggingFields additionalFields) {
-        ESLogMessage msg = produceCommon(context, additionalFields);
+        ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
         return Optional.of(
-            msg.field(ES_QUERY_FIELDS_PREFIX + "query", context.getQuery()).field(ES_QUERY_FIELDS_PREFIX + "hits", context.getRows())
+            msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery()).field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getRows())
         );
     }
 }

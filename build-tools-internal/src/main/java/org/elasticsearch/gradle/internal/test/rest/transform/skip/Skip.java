@@ -19,6 +19,8 @@ import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformByParentObject;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformGlobalSetup;
 import org.gradle.api.tasks.Input;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
 
@@ -27,6 +29,7 @@ import java.util.Iterator;
  */
 public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByParentObject {
 
+    private static final Logger log = LoggerFactory.getLogger(Skip.class);
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
     private final String skipReason;
@@ -87,8 +90,14 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
     @Override
     public void transformTest(ObjectNode parent) {
         if (testName.isBlank() == false) {
-            assert parent.get(testName) instanceof ArrayNode;
-            addSkip((ArrayNode) parent.get(testName));
+            JsonNode value = parent.get(testName);
+            // Only apply skip to test documents where the key is the test name and value is the steps array.
+            // Do not apply to nested keys with the same name (e.g. "do: get: { ... }" request body).
+            // This makes it possible to skip tests where the test name is an overloaded term such as
+            // task.skipTest("tsdb/25_id_generation/delete",...)
+            if (value instanceof ArrayNode) {
+                addSkip((ArrayNode) value);
+            }
         }
     }
 

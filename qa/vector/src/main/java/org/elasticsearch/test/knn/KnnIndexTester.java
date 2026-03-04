@@ -66,6 +66,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
@@ -131,7 +132,16 @@ public class KnnIndexTester {
         Directory create(Path indexPath) throws IOException;
     }
 
-    record DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm) {}
+    record DirectoryTypeConfig(
+        DirectoryFactory factory,
+        boolean shared,
+        boolean preWarm,
+        @Nullable BiConsumer<Directory, String> diagnosticLogger
+    ) {
+        DirectoryTypeConfig(DirectoryFactory factory, boolean shared, boolean preWarm) {
+            this(factory, shared, preWarm, null);
+        }
+    }
 
     private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>();
 
@@ -151,6 +161,21 @@ public class KnnIndexTester {
      */
     static void registerDirectoryType(String name, DirectoryFactory factory, boolean shared, boolean preWarm) {
         directoryTypeRegistry.put(name, new DirectoryTypeConfig(factory, shared, preWarm));
+    }
+
+    /**
+     * Registers a custom directory type with an optional diagnostic logger.
+     *
+     * @param diagnosticLogger called with (directory, label) at key points (before/after prewarm, after search)
+     */
+    static void registerDirectoryType(
+        String name,
+        DirectoryFactory factory,
+        boolean shared,
+        boolean preWarm,
+        BiConsumer<Directory, String> diagnosticLogger
+    ) {
+        directoryTypeRegistry.put(name, new DirectoryTypeConfig(factory, shared, preWarm, diagnosticLogger));
     }
 
     static DirectoryTypeConfig getDirectoryTypeConfig(String name) {
@@ -459,9 +484,12 @@ public class KnnIndexTester {
                 Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
                 try {
                     if (dirConfig.preWarm()) {
+                        logDiagnostics(dirConfig, readDir, "Before prewarm");
                         KnnSearcher.preWarmDirectory(readDir);
+                        logDiagnostics(dirConfig, readDir, "After prewarm");
                     }
                     runSearches(testConfiguration, indexPath, readDir, results, parsedArgs, indexPathName, indexType);
+                    logDiagnostics(dirConfig, readDir, "After search");
                 } finally {
                     if (sharedDir == null) {
                         readDir.close();
@@ -489,6 +517,12 @@ public class KnnIndexTester {
             knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments(), sharedDir);
         } else {
             knnIndexer.forceMerge(indexResults, testConfiguration.forceMergeMaxNumSegments());
+        }
+    }
+
+    private static void logDiagnostics(DirectoryTypeConfig dirConfig, Directory dir, String label) {
+        if (dirConfig.diagnosticLogger() != null) {
+            dirConfig.diagnosticLogger().accept(dir, label);
         }
     }
 

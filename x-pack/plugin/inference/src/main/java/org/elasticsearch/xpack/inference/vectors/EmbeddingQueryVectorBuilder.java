@@ -130,9 +130,9 @@ public class EmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     private static void handleEmbeddingResponse(ActionListener<float[]> listener, InferenceAction.Response response) {
         List<? extends InferenceResults> inferenceResults = response.getResults().transformToCoordinationFormat();
         if (inferenceResults.isEmpty()) {
-            listener.onFailure(new IllegalStateException("embedding inference response contains no results"));
+            listener.onFailure(new IllegalStateException("the query embedding response contains no results"));
         } else if (inferenceResults.size() > 1) {
-            listener.onFailure(new IllegalStateException("embedding inference response contains " + inferenceResults.size() + " results"));
+            listener.onFailure(new IllegalStateException("the query embedding response contains " + inferenceResults.size() + " results"));
         } else {
             InferenceResults inferenceResult = inferenceResults.getFirst();
             if (inferenceResult instanceof MlDenseEmbeddingResults mlDenseEmbeddingResults) {

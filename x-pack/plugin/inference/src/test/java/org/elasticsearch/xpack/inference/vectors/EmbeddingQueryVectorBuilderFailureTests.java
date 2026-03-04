@@ -73,7 +73,7 @@ public class EmbeddingQueryVectorBuilderFailureTests extends ESTestCase {
         queryVectorBuilder.buildVector(client, future);
 
         var exception = expectThrows(IllegalStateException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
-        assertThat(exception.getMessage(), equalTo("embedding inference response contains no results"));
+        assertThat(exception.getMessage(), equalTo("the query embedding response contains no results"));
     }
 
     public void testMultipleResults_ThrowsIllegalStateException() {
@@ -91,7 +91,7 @@ public class EmbeddingQueryVectorBuilderFailureTests extends ESTestCase {
         queryVectorBuilder.buildVector(client, future);
 
         var exception = expectThrows(IllegalStateException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
-        assertThat(exception.getMessage(), equalTo("embedding inference response contains 3 results"));
+        assertThat(exception.getMessage(), equalTo("the query embedding response contains 3 results"));
     }
 
     public void testReceivingSparseEmbeddingResults_ThrowsIllegalStateException() {

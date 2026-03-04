@@ -287,8 +287,6 @@ GET /_search
 
 You can repeat this process to get additional pages of results. If using a PIT, you can extend the PIT’s retention period using the `keep_alive` parameter of each search request.
 
-When using slicing with a point-in-time search, the default partitioning uses Lucene document IDs for efficiency. You can explicitly specify `"field": "_id"` in the slice object to partition by the document's `_id` field instead.
-
 When you’re finished, you should delete your PIT.
 
 ```console

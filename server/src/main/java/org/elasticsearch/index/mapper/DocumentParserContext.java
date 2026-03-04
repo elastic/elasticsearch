@@ -165,6 +165,7 @@ public abstract class DocumentParserContext {
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper.Builder> dynamicObjectMappers;
+    private final Map<String, Mapper> builtDynamicMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
     private final RoutingFields routingFields;
     private final ObjectMapper parent;
@@ -196,6 +197,7 @@ public abstract class DocumentParserContext {
         Scope currentScope,
         Map<String, List<Mapper.Builder>> dynamicMappers,
         Map<String, ObjectMapper.Builder> dynamicObjectMappers,
+        Map<String, Mapper> builtDynamicMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
         String id,
         Field version,
@@ -216,6 +218,7 @@ public abstract class DocumentParserContext {
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
+        this.builtDynamicMappers = builtDynamicMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
         this.id = id;
         this.version = version;
@@ -239,6 +242,7 @@ public abstract class DocumentParserContext {
             in.currentScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
+            in.builtDynamicMappers,
             in.dynamicRuntimeFields,
             in.id,
             in.version,
@@ -267,6 +271,7 @@ public abstract class DocumentParserContext {
             new HashSet<>(),
             new ArrayList<>(),
             Scope.SINGLETON,
+            new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
@@ -530,7 +535,7 @@ public abstract class DocumentParserContext {
      * @throws IllegalArgumentException if the field limit has been exceeded.
      * This can happen when dynamic is set to {@link ObjectMapper.Dynamic#TRUE} or {@link ObjectMapper.Dynamic#RUNTIME}.
      */
-    public final boolean addDynamicMapper(Mapper.Builder builder, String fullPath) {
+    public boolean addDynamicMapper(Mapper.Builder builder, String fullPath) {
         // eagerly check object depth limit here to avoid stack overflow errors
         if (builder instanceof ObjectMapper.Builder) {
             MappingLookup.checkObjectDepthLimit(indexSettings().getMappingDepthLimit(), fullPath);
@@ -679,6 +684,61 @@ public abstract class DocumentParserContext {
      */
     final ObjectMapper.Builder getDynamicObjectBuilder(String name) {
         return dynamicObjectMappers.get(name);
+    }
+
+    /**
+     * Returns a dynamically created object mapper for the given field name, creating one if it
+     * doesn't already exist. Subsequent calls with the same field name at the same path return
+     * the cached mapper, avoiding redundant builder creation when parsing arrays of objects.
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    final Mapper getDynamicMapper(String fieldName) {
+        Mapper.Builder builder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(this, fieldName);
+        return getDynamicMapper(builder);
+    }
+
+    /**
+     * Registers a dynamically created mapper builder if one doesn't already exist for the same
+     * field path, builds the mapper, and caches the result. Subsequent calls for the same field
+     * path reuse the cached mapper, avoiding redundant builder and mapper accumulation when
+     * parsing arrays of objects.
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    public final Mapper getDynamicMapper(Mapper.Builder builder) {
+        return getDynamicMapper(builder, createDynamicMapperBuilderContext());
+    }
+
+    /**
+     * Like {@link #getDynamicMapper(Mapper.Builder)} but uses the provided builder context
+     * to compute the full field path and build the mapper.
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    public final Mapper getDynamicMapper(Mapper.Builder builder, MapperBuilderContext builderContext) {
+        return getDynamicMapper(builder, null, builderContext);
+    }
+
+    /**
+     * Registers a dynamically created mapper builder and caches the result. If {@code preBuiltMapper}
+     * is provided, it is used directly instead of building from the builder, avoiding a redundant build
+     * when the caller has already built the mapper (e.g. to check its type before deciding to register).
+     *
+     * @return the mapper, or null if the field limit was exceeded
+     */
+    final Mapper getDynamicMapper(Mapper.Builder builder, @Nullable Mapper preBuiltMapper, MapperBuilderContext builderContext) {
+        String fullPath = builderContext.buildFullName(builder.leafName());
+        Mapper existing = builtDynamicMappers.get(fullPath);
+        if (existing != null) {
+            return existing;
+        }
+        if (addDynamicMapper(builder, fullPath) == false) {
+            return null;
+        }
+        Mapper mapper = preBuiltMapper != null ? preBuiltMapper : builder.build(builderContext);
+        builtDynamicMappers.put(fullPath, mapper);
+        return mapper;
     }
 
     /**

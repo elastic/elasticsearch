@@ -30,6 +30,7 @@ import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -37,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -125,10 +127,27 @@ public class ReindexerTests extends ESTestCase {
 
     // listenerWithRelocations tests
 
-    public void testListenerWithRelocationsPassesThroughForWorkerWithParent() {
+    public void testListenerWithRelocationsPassesThroughForWorkerWithLeaderParent() {
         assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-        final Reindexer reindexer = reindexerWithRelocation();
-        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", 99));
+        final long parentTaskId = 99;
+        final BulkByScrollTask leaderTask = new BulkByScrollTask(
+            parentTaskId,
+            "test_type",
+            "test_action",
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            true
+        );
+        leaderTask.setWorkerCount(2);
+
+        final TaskManager taskManager = mock(TaskManager.class);
+        when(taskManager.getCancellableTasks()).thenReturn(Map.of(parentTaskId, leaderTask));
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+
+        final Reindexer reindexer = reindexerWithRelocation(mock(ClusterService.class), transportService);
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", parentTaskId));
         task.setWorker(Float.POSITIVE_INFINITY, null);
 
         final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
@@ -294,7 +313,10 @@ public class ReindexerTests extends ESTestCase {
     }
 
     private static Reindexer reindexerWithRelocation() {
-        return reindexerWithRelocation(mock(ClusterService.class), mock(TransportService.class));
+        final TaskManager taskManager = mock(TaskManager.class);
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+        return reindexerWithRelocation(mock(ClusterService.class), transportService);
     }
 
     private static Reindexer reindexerWithRelocation(ClusterService clusterService, TransportService transportService) {

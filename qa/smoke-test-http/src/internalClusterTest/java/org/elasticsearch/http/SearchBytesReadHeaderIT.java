@@ -54,14 +54,14 @@ public class SearchBytesReadHeaderIT extends HttpSmokeTestCase {
         {
             Request searchRequest = new Request("POST", "/" + indexName + "/_search");
             searchRequest.setJsonEntity("""
-            {
-                "query": {
-                    "match_all": {}
-                },
-                "size": 2,
-                "sort" : [ { "field.keyword": "desc" } ]
-            }
-            """);
+                {
+                    "query": {
+                        "match_all": {}
+                    },
+                    "size": 2,
+                    "sort" : [ { "field.keyword": "desc" } ]
+                }
+                """);
 
             Response response = getRestClient().performRequest(searchRequest);
             assertOK(response);

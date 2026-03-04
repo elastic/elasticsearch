@@ -527,8 +527,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         return new DiversifyRetrieverBuilder.RankDocWithSearchHit[] {
             getTestVectorSupplierScoreDoc(1, 1, 2.0f, List.of(new VectorData(new float[] { 10, 20, 30, 40 }))),
             getTestVectorSupplierScoreDoc(2, 2, 1.8f, List.of(new VectorData(new float[] { 12, 24, 36, 48 }))),
-            getTestVectorSupplierScoreDoc(3, 0, 1.8f, List.of(new VectorData(new float[] { 45, 35, 25, 15 }))),
-        };
+            getTestVectorSupplierScoreDoc(3, 0, 1.8f, List.of(new VectorData(new float[] { 45, 35, 25, 15 }))), };
     }
 
     private DiversifyRetrieverBuilder.RankDocWithSearchHit getTestVectorSupplierScoreDoc(

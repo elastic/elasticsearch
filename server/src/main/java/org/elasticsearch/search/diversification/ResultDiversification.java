@@ -37,8 +37,8 @@ public abstract class ResultDiversification<C extends ResultDiversificationConte
 
         if (docVectorIsFloat == comparisonVector.isFloat()) {
             return docVectorIsFloat
-                   ? similarityFunction.compare(thisDocVector.floatVector(), comparisonVector.floatVector())
-                   : similarityFunction.compare(thisDocVector.byteVector(), comparisonVector.byteVector());
+                ? similarityFunction.compare(thisDocVector.floatVector(), comparisonVector.floatVector())
+                : similarityFunction.compare(thisDocVector.byteVector(), comparisonVector.byteVector());
         }
 
         if (docVectorIsFloat) {

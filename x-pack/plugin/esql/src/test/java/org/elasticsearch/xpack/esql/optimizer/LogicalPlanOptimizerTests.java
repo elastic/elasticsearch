@@ -13,6 +13,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -9852,6 +9854,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(3, page.getBlockCount());
+        assertEquals(4, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(2, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(6, ((IntBlock) page.getBlock(2)).getInt(0));
     }
 
     /**
@@ -9871,6 +9880,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(4, page.getBlockCount());
+        assertEquals(10, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(20, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(30, ((IntBlock) page.getBlock(2)).getInt(0));
+        assertEquals(10, ((IntBlock) page.getBlock(3)).getInt(0));
     }
 
     /**
@@ -9890,6 +9907,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z", "w")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(4, page.getBlockCount());
+        assertEquals(5, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(25, ((IntBlock) page.getBlock(2)).getInt(0));
+        assertEquals(12, ((IntBlock) page.getBlock(3)).getInt(0));
     }
 
     /**
@@ -9909,6 +9934,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(4, page.getBlockCount());
+        assertEquals(10, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(2)).getInt(0));
+        assertEquals(6, ((IntBlock) page.getBlock(3)).getInt(0));
     }
 
     /**
@@ -9928,6 +9961,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "result")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(4, page.getBlockCount());
+        assertEquals(2, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(4, ((IntBlock) page.getBlock(2)).getInt(0));
+        assertEquals(18, ((IntBlock) page.getBlock(3)).getInt(0));
     }
 
     /**
@@ -9945,6 +9986,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("x", "y", "z")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(3, page.getBlockCount());
+        assertEquals(10, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertTrue(page.getBlock(1).isNull(0));
+        assertTrue(page.getBlock(2).isNull(0));
     }
 
     /**
@@ -9965,6 +10013,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "c", "d", "e")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(5, page.getBlockCount());
+        assertEquals(1, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(2, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(2)).getInt(0));
+        assertEquals(4, ((IntBlock) page.getBlock(3)).getInt(0));
+        assertEquals(5, ((IntBlock) page.getBlock(4)).getInt(0));
     }
 
     /**
@@ -9984,6 +10041,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("a", "b", "is_greater", "is_equal")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(4, page.getBlockCount());
+        assertEquals(10, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(20, ((IntBlock) page.getBlock(1)).getInt(0));
+        assertEquals(true, ((BooleanBlock) page.getBlock(2)).getBoolean(0));
+        assertEquals(false, ((BooleanBlock) page.getBlock(3)).getBoolean(0));
     }
 
     /**
@@ -10001,6 +10066,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = asLimit(plan, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
         assertMap(Expressions.names(relation.output()), is(List.of("b", "a")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(2, page.getBlockCount());
+        assertEquals(2, ((IntBlock) page.getBlock(0)).getInt(0));
+        assertEquals(3, ((IntBlock) page.getBlock(1)).getInt(0));
     }
 
     /**

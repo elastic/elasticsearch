@@ -44,6 +44,17 @@ public interface BlockLoaderFunctionConfig {
         }
     }
 
+    /**
+     * Configuration for loading time-series metadata fields from {@code _source}.
+     * Controls which field types to include (dimensions, metrics, or both).
+     */
+    record TimeSeriesMetadata(boolean loadMetrics) implements BlockLoaderFunctionConfig {
+        @Override
+        public Function function() {
+            return Function.TIME_SERIES_METADATA;
+        }
+    }
+
     enum Function {
         AMD_COUNT,
         AMD_DEFAULT,
@@ -59,7 +70,6 @@ public interface BlockLoaderFunctionConfig {
         V_HAMMING,
         V_L1NORM,
         V_L2NORM,
-        TIME_SERIES_DIMENSIONS,
-        TIME_SERIES_METRICS_AND_DIMENSIONS
+        TIME_SERIES_METADATA
     }
 }

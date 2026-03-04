@@ -38,7 +38,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -121,26 +120,25 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
     }
 
     /**
-     * An executor that registers all running tasks so the test can abort specific ones via {@link #abortTask(String)}.
+     * An executor whose running tasks can be locally aborted by the test via {@link #abortTask(String)}.
      * <p>
-     * {@link #automaticReassignmentOnShutdown()} is set to {@code false}. This executor manages its own shutdown
-     * behavior.
+     * {@link #automaticReassignmentOnShutdown()} is set to {@code false} so the executor manages its own
+     * shutdown behavior.
      */
     static class TestLocalAbortExecutor extends PersistentTasksExecutor<TestShutdownParams> {
 
         static final String NAME = "cluster:admin/persistent/test_local_abort";
 
-        private static final ConcurrentHashMap<String, TaskEntry> runningTasks = new ConcurrentHashMap<>();
-
         static volatile boolean allowAssignment = true;
 
+        private static final ConcurrentHashMap<String, SubscribableListener<Void>> abortSignals = new ConcurrentHashMap<>();
+
         /**
-         * Waits until the task with the given persistent-task ID is running, then signals its
-         * {@code nodeOperation} to call {@link AllocatedPersistentTask#markAsLocallyAborted}.
+         * Signals the {@code nodeOperation} for the given task to call
+         * {@link AllocatedPersistentTask#markAsLocallyAborted}.
          */
-        static void abortTask(String taskId) throws Exception {
-            assertBusy(() -> assertNotNull(runningTasks.get(taskId)));
-            runningTasks.get(taskId).signal().onResponse(null);
+        static void abortTask(String taskId) {
+            abortSignals.computeIfAbsent(taskId, k -> new SubscribableListener<>()).onResponse(null);
         }
 
         TestLocalAbortExecutor(ThreadPool threadPool) {
@@ -164,27 +162,24 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
 
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, TestShutdownParams params, PersistentTaskState state) {
-            final var signal = new SubscribableListener<Void>();
-            runningTasks.put(task.getPersistentTaskId(), new TaskEntry(task, signal));
+            final var signal = abortSignals.computeIfAbsent(task.getPersistentTaskId(), k -> new SubscribableListener<>());
             safeAwait(l -> {
-                // Canceled (test cleanup)
+                // Fired when the task is canceled externally (e.g. test cleanup).
                 task.addListener(() -> {
-                    if (runningTasks.remove(task.getPersistentTaskId()) != null) {
+                    if (abortSignals.remove(task.getPersistentTaskId()) != null) {
                         task.markAsCompleted();
                         l.onResponse(null);
                     }
                 });
-                // Locally aborted
+                // Fired by abortTask(): nodeOperation itself calls markAsLocallyAborted.
                 signal.addListener(ActionListener.running(() -> {
-                    if (runningTasks.remove(task.getPersistentTaskId()) != null) {
+                    if (abortSignals.remove(task.getPersistentTaskId()) != null) {
                         task.markAsLocallyAborted("test local abort");
                         l.onResponse(null);
                     }
                 }));
             });
         }
-
-        private record TaskEntry(AllocatedPersistentTask task, SubscribableListener<Void> signal) {}
     }
 
     public static class TestShutdownPlugin extends Plugin implements PersistentTaskPlugin {
@@ -252,14 +247,10 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
         return Collections.singletonList(TestShutdownPlugin.class);
     }
 
-    @Before
-    public void resetLocalAbortState() {
-        TestLocalAbortExecutor.allowAssignment = true;
-        TestLocalAbortExecutor.runningTasks.clear();
-    }
-
     @After
     public void assertNoRunningTasks() throws Exception {
+        TestLocalAbortExecutor.allowAssignment = true;
+        TestLocalAbortExecutor.abortSignals.clear();
         for (String taskName : List.of(TestShutdownParams.OPT_IN_NAME, TestShutdownParams.OPT_OUT_NAME, TestLocalAbortExecutor.NAME)) {
             assertBusy(() -> {
                 assertThat(clusterAdmin().prepareListTasks().setActions(taskName + "[c]").get().getTasks(), empty());
@@ -276,9 +267,7 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
     public void testOptInTaskIsReassignedOnShutdown() throws Exception {
         final var taskName = TestShutdownParams.OPT_IN_NAME;
         final var taskId = startTask(taskName);
-        waitForTaskToStart(taskName);
-
-        final var task = assertClusterStateHasTask(taskId, taskName);
+        final var task = awaitClusterStateHasTaskAssigned(taskId, taskName);
         final var originalNodeId = task.getAssignment().getExecutorNode();
         assertNotNull("task should be assigned before shutdown", originalNodeId);
 
@@ -298,7 +287,6 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
                 final var executorNode = tasks.getFirst().getAssignment().getExecutorNode();
                 return executorNode != null && originalNodeId.equals(executorNode) == false;
             });
-            waitForTaskToStart(taskName);
         } finally {
             NodeShutdownTestUtils.clearShutdownMetadata(internalCluster().getCurrentMasterNodeInstance(ClusterService.class));
             cancelTask(taskName);
@@ -312,9 +300,7 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
     public void testOptOutTaskIsNotReassignedOnShutdown() throws Exception {
         final var taskName = TestShutdownParams.OPT_OUT_NAME;
         final var taskId = startTask(taskName);
-        waitForTaskToStart(taskName);
-
-        final var task = assertClusterStateHasTask(taskId, taskName);
+        final var task = awaitClusterStateHasTaskAssigned(taskId, taskName);
         final var originalNodeId = task.getAssignment().getExecutorNode();
         assertNotNull("task should be assigned before shutdown", originalNodeId);
 
@@ -352,30 +338,23 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
             .setRecheckInterval(TimeValue.timeValueMillis(1));
         try {
             final var taskId = startTask(TestLocalAbortExecutor.NAME);
-            waitForTaskToStart(TestLocalAbortExecutor.NAME);
 
-            // Block reassignment so we can observe the unassigned state
+            // Block reassignment so we can observe the unassigned state.
             TestLocalAbortExecutor.allowAssignment = false;
             TestLocalAbortExecutor.abortTask(taskId);
 
-            awaitClusterState(state -> {
-                final var tasks = findTasks(state, TestLocalAbortExecutor.NAME);
-                return tasks.size() == 1
-                    && taskId.equals(tasks.getFirst().getId())
-                    && tasks.getFirst().getAssignment().getExecutorNode() == null
-                    && "test local abort".equals(tasks.getFirst().getAssignment().getExplanation());
-            });
+            awaitClusterStateHasTaskUnassigned(taskId, TestLocalAbortExecutor.NAME);
+            assertThat(
+                "abort reason should be recorded in cluster state",
+                assertClusterStateHasTask(taskId, TestLocalAbortExecutor.NAME).getAssignment().getExplanation(),
+                equalTo("test local abort")
+            );
             assertThat(clusterAdmin().prepareListTasks().setActions(TestLocalAbortExecutor.NAME + "[c]").get().getTasks(), empty());
 
             TestLocalAbortExecutor.allowAssignment = true;
-            awaitClusterState(state -> {
-                final var tasks = findTasks(state, TestLocalAbortExecutor.NAME);
-                return tasks.size() == 1 && "test local abort".equals(tasks.getFirst().getAssignment().getExplanation()) == false;
-            });
-            waitForTaskToStart(TestLocalAbortExecutor.NAME);
+            awaitClusterStateHasTaskAssigned(taskId, TestLocalAbortExecutor.NAME);
         } finally {
             cancelTask(TestLocalAbortExecutor.NAME);
-            resetLocalAbortState();
         }
     }
 
@@ -388,8 +367,23 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
         return taskId;
     }
 
-    private static void waitForTaskToStart(String taskName) throws Exception {
-        assertBusy(() -> assertThat(clusterAdmin().prepareListTasks().setActions(taskName + "[c]").get().getTasks(), hasSize(1)));
+    private PersistentTask<?> awaitClusterStateHasTaskAssigned(String taskId, String taskName) throws Exception {
+        awaitClusterState(state -> {
+            final var tasks = findTasks(state, taskName);
+            return tasks.size() == 1
+                && taskId.equals(tasks.getFirst().getId())
+                && tasks.getFirst().getAssignment().getExecutorNode() != null;
+        });
+        return assertClusterStateHasTask(taskId, taskName);
+    }
+
+    private void awaitClusterStateHasTaskUnassigned(String taskId, String taskName) throws Exception {
+        awaitClusterState(state -> {
+            final var tasks = findTasks(state, taskName);
+            return tasks.size() == 1
+                && taskId.equals(tasks.getFirst().getId())
+                && tasks.getFirst().getAssignment().getExecutorNode() == null;
+        });
     }
 
     private static PersistentTask<?> assertClusterStateHasTask(String taskId, String taskName) {

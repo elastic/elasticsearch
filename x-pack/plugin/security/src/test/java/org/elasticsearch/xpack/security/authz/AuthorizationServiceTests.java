@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.ContextConstrainedAction;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.MockIndicesRequest;
@@ -167,7 +168,6 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
-import org.elasticsearch.xpack.core.security.authz.ContextConstrainedAction;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -375,7 +375,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            Map.of()
+            Map::of
         );
     }
 
@@ -1358,7 +1358,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            Map.of()
+            Map::of
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1423,7 +1423,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            Map.of()
+            Map::of
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -1971,7 +1971,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
             projectRoutingResolver,
-            Map.of()
+            Map::of
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -2026,7 +2026,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(settings),
             projectRoutingResolver,
-            Map.of()
+            Map::of
         );
 
         RoleDescriptor role = new RoleDescriptor(
@@ -3569,7 +3569,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
             projectRoutingResolver,
-            Map.of()
+            Map::of
         );
 
         Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
@@ -3734,7 +3734,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizedProjectsResolver.Default(),
             new CrossProjectModeDecider(Settings.EMPTY),
             projectRoutingResolver,
-            Map.of()
+            Map::of
         );
         Authentication authentication;
         try (StoredContext ignore = threadContext.stashContext()) {
@@ -3932,7 +3932,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizedProjectsResolver,
             crossProjectModeDecider,
             projectRoutingResolver,
-            Map.of(actionName, requiredContext)
+            () -> Map.of(actionName, requiredContext)
         );
         setFakeOriginatingAction = false;
     }

@@ -113,13 +113,13 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.ContextConstrainedAction.HEADER_KEY;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
-import static org.elasticsearch.xpack.core.security.authz.ContextConstrainedAction.HEADER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.allowAll;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
@@ -156,7 +156,7 @@ public class AuthorizationService {
     private final AuthorizationDenialMessages authorizationDenialMessages;
     private final ProjectResolver projectResolver;
 
-    private final Map<String, String> contextConstrainedActions;
+    private final Supplier<Map<String, String>> contextConstrainedActions;
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
@@ -184,7 +184,7 @@ public class AuthorizationService {
         AuthorizedProjectsResolver authorizedProjectsResolver,
         CrossProjectModeDecider crossProjectModeDecider,
         ProjectRoutingResolver projectRoutingResolver,
-        Map<String, String> contextConstrainedActions
+        Supplier<Map<String, String>> contextConstrainedActions
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -217,7 +217,7 @@ public class AuthorizationService {
         this.authorizationDenialMessages = authorizationDenialMessages;
         this.projectResolver = projectResolver;
         this.authorizedProjectsResolver = authorizedProjectsResolver;
-        this.contextConstrainedActions = Map.copyOf(contextConstrainedActions);
+        this.contextConstrainedActions = contextConstrainedActions;
     }
 
     public void checkPrivileges(
@@ -468,7 +468,7 @@ public class AuthorizationService {
         final TransportRequest request,
         final ActionListener<Void> listener
     ) {
-        final String requiredContext = contextConstrainedActions.get(action);
+        final String requiredContext = contextConstrainedActions.get().get(action);
         if (requiredContext != null) {
             final String actualContext = threadContext.getHeader(HEADER_KEY);
             if (requiredContext.equals(actualContext) == false) {

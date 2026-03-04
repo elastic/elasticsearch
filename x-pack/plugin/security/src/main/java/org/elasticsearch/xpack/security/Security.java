@@ -18,6 +18,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -83,6 +84,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.plugins.ActionRegistryConsumer;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -127,7 +129,6 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -491,7 +492,8 @@ public class Security extends Plugin
         SearchPlugin,
         RestServerActionPlugin,
         ReloadablePlugin,
-        PersistentTaskPlugin {
+        PersistentTaskPlugin,
+        ActionRegistryConsumer {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
@@ -650,6 +652,7 @@ public class Security extends Plugin
     private final SetOnce<RemoteClusterAuthenticationService> remoteClusterAuthenticationService = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
+    private final SetOnce<Map<String, String>> contextConstrainedActions = new SetOnce<>();
     private final SetOnce<List<Closeable>> closableComponents = new SetOnce<>();
 
     public Security(Settings settings) {
@@ -1176,7 +1179,7 @@ public class Security extends Plugin
             authorizedProjectsResolver,
             new CrossProjectModeDecider(settings),
             projectRoutingResolver,
-            buildContextConstrainedActions()
+            contextConstrainedActions::get
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1486,10 +1489,6 @@ public class Security extends Plugin
 
     private AuthorizationEngine getAuthorizationEngine() {
         return findValueFromExtensions("authorization engine", extension -> extension.getAuthorizationEngine(settings));
-    }
-
-    private static Map<String, String> buildContextConstrainedActions() {
-        return Map.of(GetInferenceFieldsInternalAction.NAME, GetInferenceFieldsInternalAction.REQUIRED_CONTEXT);
     }
 
     private AuthenticationFailureHandler createAuthenticationFailureHandler(
@@ -1935,6 +1934,11 @@ public class Security extends Plugin
     @Override
     public void onNodeStarted() {
         this.nodeStartedListenable.onResponse(null);
+    }
+
+    @Override
+    public void onActionRegistryReady(ActionModule actionModule) {
+        contextConstrainedActions.set(actionModule.getContextConstrainedActions());
     }
 
     /**

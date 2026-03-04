@@ -366,9 +366,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/142079
-- class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
-  method: testCliConnectionWithApiKey
-  issue: https://github.com/elastic/elasticsearch/issues/143125
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
@@ -378,9 +375,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatSingleNodeTests
   method: testTSDBIndexUsesCorrectDocValuesFormat
   issue: https://github.com/elastic/elasticsearch/issues/143198
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_aggregate_metric_double_implicit_casting}
-  issue: https://github.com/elastic/elasticsearch/issues/143292
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testTsIndexConflictingTypes {null}
   issue: https://github.com/elastic/elasticsearch/issues/142410
@@ -396,9 +390,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.LookupJoinIT
   method: testMultiValueJoinKeyWarnings
   issue: https://github.com/elastic/elasticsearch/issues/143350
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-irate.*}
-  issue: https://github.com/elastic/elasticsearch/issues/143368
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.LookupJoinWithMixPushableAndUnpushableFilters}
   issue: https://github.com/elastic/elasticsearch/issues/143378
@@ -432,18 +423,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/TS Command grouping on text field}
   issue: https://github.com/elastic/elasticsearch/issues/142544
-- class: org.elasticsearch.xpack.logsdb.StandardToLogsDbIndexModeRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/143426
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.MvJoinKeyOnFromAfterStats}
   issue: https://github.com/elastic/elasticsearch/issues/143427
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
   issue: https://github.com/elastic/elasticsearch/issues/143430
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:k8s-timeseries.Datenanos_derivative_compared_to_rate}
-  issue: https://github.com/elastic/elasticsearch/issues/143431
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:lookup-join.MvJoinKeyFromRow}
   issue: https://github.com/elastic/elasticsearch/issues/143432
@@ -459,6 +444,15 @@ tests:
 - class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/143471
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testWriteLargeBlob
+  issue: https://github.com/elastic/elasticsearch/issues/143551
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:lookup-join.MvJoinKeyOnTheLookupIndexAfterStats}
+  issue: https://github.com/elastic/elasticsearch/issues/143552
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:lookup-join.LookupJoinOnTwoFieldsAfterTop}
+  issue: https://github.com/elastic/elasticsearch/issues/143553
 
 # Examples:
 #

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
 /**
  * Utility for draining pages from a {@link CloseableIterator} into an {@link AsyncExternalSourceBuffer}
@@ -40,8 +41,15 @@ public final class ExternalSourceDrainUtils {
     }
 
     public static int drainPagesWithBudget(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer) {
+        return drainPagesWithBudget(pages, buffer, FormatReader.NO_LIMIT);
+    }
+
+    public static int drainPagesWithBudget(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer, int rowLimit) {
         int totalRows = 0;
         while (pages.hasNext() && buffer.noMoreInputs() == false) {
+            if (rowLimit != FormatReader.NO_LIMIT && totalRows >= rowLimit) {
+                break;
+            }
             var spaceListener = buffer.waitForSpace();
             if (spaceListener.isDone() == false) {
                 PlainActionFuture<Void> future = new PlainActionFuture<>();

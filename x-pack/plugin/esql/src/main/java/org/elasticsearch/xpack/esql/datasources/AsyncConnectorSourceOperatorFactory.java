@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
@@ -100,15 +99,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         } else {
             executor.execute(() -> {
                 try (ResultCursor cursor = connector.execute(request, Split.SINGLE)) {
-                    int rowsRemaining = rowLimit;
-                    while (cursor.hasNext()) {
-                        if (buffer.noMoreInputs() || (rowLimit != FormatReader.NO_LIMIT && rowsRemaining <= 0)) {
-                            break;
-                        }
-                        Page page = cursor.next();
-                        rowsRemaining -= page.getPositionCount();
-                        buffer.addPage(page);
-                    }
+                    ExternalSourceDrainUtils.drainPagesWithBudget(cursor, buffer, rowLimit);
                     buffer.finish(false);
                 } catch (Exception e) {
                     buffer.onFailure(e);

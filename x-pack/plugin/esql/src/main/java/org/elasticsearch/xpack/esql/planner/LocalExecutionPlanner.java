@@ -1244,7 +1244,7 @@ public class LocalExecutionPlanner {
         // Shrink buffer for small limits
         int effectiveBufferSize = 10;
         if (pushedLimit != FormatReader.NO_LIMIT) {
-            effectiveBufferSize = Math.max(1, Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1));
+            effectiveBufferSize = Math.min(10, (pushedLimit + pageSize - 1) / pageSize + 1);
         }
 
         int splitCount = externalSource.splits().size();

@@ -588,3 +588,58 @@ sample_data            | 2023-10-23T13:33:34.937Z  | Disconnected
 sample_data            | 2023-10-23T12:27:28.948Z  | Connected to 10.1.0.2
 sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
 ;
+
+unmappedFieldNullifiedTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| KEEP @timestamp, cluster, event_log
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:date            | cluster:keyword | event_log:null
+2024-05-10T00:00:29.000Z   | staging        | null
+2024-05-10T00:00:33.000Z   | staging        | null
+2024-05-10T00:00:51.000Z   | prod           | null
+2024-05-10T00:00:57.000Z   | prod           | null
+2024-05-10T00:01:25.000Z   | qa             | null
+;
+
+rateOnUnmappedTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+required_capability: tbucket
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| STATS r = MAX(RATE(nonexistent_counter)) BY tbucket = tbucket(1 hour)
+| SORT tbucket
+| LIMIT 3
+;
+
+r:double | tbucket:datetime
+null    | 2024-05-10T00:00:00.000Z
+;
+
+explicitLastOverTimeUnmappedNullifyTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| STATS x = max(max_over_time(event_log)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| SORT cluster, time_bucket
+| LIMIT 5
+;
+
+x:null | cluster:keyword | time_bucket:datetime
+null     | prod            | 2024-05-10T00:00:00.000Z
+null     | prod            | 2024-05-10T00:10:00.000Z
+null     | prod            | 2024-05-10T00:20:00.000Z
+null     | qa              | 2024-05-10T00:00:00.000Z
+null     | qa              | 2024-05-10T00:10:00.000Z
+;

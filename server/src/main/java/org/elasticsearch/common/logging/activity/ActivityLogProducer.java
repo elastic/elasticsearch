@@ -27,6 +27,7 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
     String X_OPAQUE_ID_FIELD = "http.request.headers.x_opaque_id";
     String EVENT_OUTCOME_FIELD = "event.outcome";
     String EVENT_DURATION_FIELD = "event.duration";
+    String TRACE_ID_FIELD = "trace.id";
 
     /**
      * Produces a {@link ESLogMessage} if the producer decides to log, or nothing otherwise.
@@ -47,6 +48,7 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
         var fields = new ESLogMessage();
         fields.withFields(additionalFields.logFields());
         fields.field(X_OPAQUE_ID_FIELD, context.getOpaqueId());
+        fields.field(TRACE_ID_FIELD, context.getTraceId());
         long tookInNanos = context.getTookInNanos();
         fields.field(EVENT_DURATION_FIELD, tookInNanos);
         fields.field(EVENT_OUTCOME_FIELD, context.isSuccess() ? "success" : "failure");

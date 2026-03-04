@@ -13,7 +13,6 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 

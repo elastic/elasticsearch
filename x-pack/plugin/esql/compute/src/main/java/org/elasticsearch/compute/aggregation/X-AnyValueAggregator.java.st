@@ -22,8 +22,13 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+$if(!v_long)$
 import org.elasticsearch.compute.data.$v_Type$Block;
 import org.elasticsearch.compute.data.IntVector;
+$else$
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.$v_Type$Block;
+$endif$
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
@@ -35,7 +40,13 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-AnyValueAggregator.java.st` instead.
  */
 @Aggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "$v_TYPE$_BLOCK") })
+$if(v_boolean || v_BytesRef)$
+@GroupingAggregator(
+    { @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "$v_TYPE$_BLOCK") }
+)
+$else$
 @GroupingAggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "$v_TYPE$_BLOCK") })
+$endif$
 public class Any$v_Type$Aggregator {
     public static String describe() {
         return "any_$v_type$_aggregator";
@@ -133,7 +144,8 @@ public class Any$v_Type$Aggregator {
             }
             int size = (int) values.size();
             $if(v_BytesRef)$
-            var result = driverContext.blockFactory().newBytesRefArrayBlock(values, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
+            var result = driverContext.blockFactory()
+                .newBytesRefArrayBlock(values, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
             values = null; // transfer the ownership of values to the block
             return result;
             $else$

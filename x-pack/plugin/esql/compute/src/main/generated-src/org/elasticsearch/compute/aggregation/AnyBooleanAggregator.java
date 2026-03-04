@@ -29,7 +29,9 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-AnyValueAggregator.java.st` instead.
  */
 @Aggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") })
-@GroupingAggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") })
+@GroupingAggregator(
+    { @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") }
+)
 public class AnyBooleanAggregator {
     public static String describe() {
         return "any_boolean_aggregator";

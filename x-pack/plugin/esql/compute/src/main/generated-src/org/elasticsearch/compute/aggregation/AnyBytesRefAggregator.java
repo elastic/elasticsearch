@@ -31,7 +31,9 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-AnyValueAggregator.java.st` instead.
  */
 @Aggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") })
-@GroupingAggregator({ @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") })
+@GroupingAggregator(
+    { @IntermediateState(name = "observed", type = "BOOLEAN"), @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") }
+)
 public class AnyBytesRefAggregator {
     public static String describe() {
         return "any_BytesRef_aggregator";
@@ -110,7 +112,8 @@ public class AnyBytesRefAggregator {
                 return driverContext.blockFactory().newConstantNullBlock(1);
             }
             int size = (int) values.size();
-            var result = driverContext.blockFactory().newBytesRefArrayBlock(values, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
+            var result = driverContext.blockFactory()
+                .newBytesRefArrayBlock(values, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
             values = null; // transfer the ownership of values to the block
             return result;
         }

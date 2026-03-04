@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -1097,6 +1099,32 @@ public class GetActionIT extends ESIntegTestCase {
         MultiGetResponse multiGetResponse = multiGetRequestBuilder.get();
         assertThat(multiGetResponse.getResponses().length, equalTo(1));
         return multiGetResponse.getResponses()[0].getResponse();
+    }
+
+    public void testGetWithSequenceNumbersDisabled() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        String index = "test-seq-no-disabled";
+        assertAcked(
+            prepareCreate(index).setSettings(
+                Settings.builder()
+                    .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+        );
+        client().prepareIndex(index).setId("1").setSource("field", "value").get();
+
+        GetResponse getResponse = client().prepareGet(index, "1").get();
+        assertTrue(getResponse.isExists());
+        assertThat(getResponse.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        assertThat(getResponse.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
+
+        MultiGetResponse multiGetResponse = client().prepareMultiGet().add(index, "1").get();
+        assertThat(multiGetResponse.getResponses().length, equalTo(1));
+        GetResponse mgetResponse = multiGetResponse.getResponses()[0].getResponse();
+        assertTrue(mgetResponse.isExists());
+        assertThat(mgetResponse.getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        assertThat(mgetResponse.getPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
     }
 
     private GetResponse getDocument(String index, String docId, String field, @Nullable String routing) {

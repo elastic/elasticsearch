@@ -122,6 +122,7 @@ public class SumTests extends AbstractAggregationTestCase {
 
             DataType type = fieldTypedData.type().widenSmallNumeric();
             var data = fieldTypedData.multiRowData();
+            String expectedWarning = null;
             Object expected = null;
             if (data.isEmpty() == false) {
                 expected = switch (type) {
@@ -158,7 +159,12 @@ public class SumTests extends AbstractAggregationTestCase {
                                 sum.set(j, sum.get(j) + vectors.get(i).get(j));
                             }
                         }
-                        yield sum.stream().anyMatch(f -> Float.isFinite(f) == false) ? null : sum;
+                        Float failedValue = sum.stream().filter(v -> Float.isFinite(v) == false).findFirst().orElse(null);
+                        if (failedValue == null) {
+                            yield sum;
+                        }
+                        expectedWarning = "java.lang.ArithmeticException: not a finite float number: " + failedValue;
+                        yield null;
                     }
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
@@ -176,12 +182,20 @@ public class SumTests extends AbstractAggregationTestCase {
                 : type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE
                 : DataType.LONG;
 
-            return new TestCaseSupplier.TestCase(
+            var testCase = new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("Sum", fieldSupplier.type()),
                 returnType,
                 expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
             );
+
+            if (expectedWarning != null) {
+                testCase = testCase.withWarning(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                ).withWarning("Line 1:1: " + expectedWarning);
+            }
+
+            return testCase;
         });
     }
 }

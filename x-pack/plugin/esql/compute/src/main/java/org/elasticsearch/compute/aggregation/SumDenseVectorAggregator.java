@@ -24,7 +24,10 @@ import org.elasticsearch.compute.operator.DriverContext;
  * <p>This uses the block-only aggregation path where the combine method receives
  * the entire FloatBlock and a position, rather than individual float values.
  */
-@Aggregator({ @IntermediateState(name = "sum", type = "FLOAT_BLOCK") })
+@Aggregator(
+    value = { @IntermediateState(name = "sum", type = "FLOAT_BLOCK"), @IntermediateState(name = "failed", type = "BOOLEAN") },
+    warnExceptions = ArithmeticException.class
+)
 @GroupingAggregator
 class SumDenseVectorAggregator {
 
@@ -55,8 +58,10 @@ class SumDenseVectorAggregator {
     /**
      * Combine intermediate state (a FloatBlock with sum vector) into current state.
      */
-    public static void combineIntermediate(SingleState state, FloatBlock sum) {
-        if (sum.areAllValuesNull() == false && sum.isNull(0) == false) {
+    public static void combineIntermediate(SingleState state, FloatBlock sum, boolean failed) {
+        if (failed) {
+            state.failed(failed);
+        } else if (sum.areAllValuesNull() == false && sum.isNull(0) == false) {
             int valueCount = sum.getValueCount(0);
             int start = sum.getFirstValueIndex(0);
             state.add(sum, start, valueCount);
@@ -89,8 +94,10 @@ class SumDenseVectorAggregator {
     /**
      * Combine intermediate state for a specific group.
      */
-    public static void combineIntermediate(SumDenseVectorGroupingState current, int groupId, FloatBlock sum, int position) {
-        if (sum.isNull(position) == false) {
+    public static void combineIntermediate(SumDenseVectorGroupingState current, int groupId, FloatBlock sum, boolean failed, int position) {
+        if (failed) {
+            current.setFailed(position);
+        } else if (sum.isNull(position) == false) {
             int valueCount = sum.getValueCount(position);
             int start = sum.getFirstValueIndex(position);
             current.add(groupId, sum, start, valueCount);
@@ -109,9 +116,13 @@ class SumDenseVectorAggregator {
     static class SingleState implements AggregatorState {
         private float[] sum;
         private boolean seen = false;
+        private boolean failed = false;
         private int dimensions = -1;
 
         void add(FloatBlock block, int start, int valueCount) {
+            if (failed) {
+                return;
+            }
             if (sum == null) {
                 dimensions = valueCount;
                 sum = new float[dimensions];
@@ -123,12 +134,15 @@ class SumDenseVectorAggregator {
             }
             for (int i = 0; i < dimensions; i++) {
                 sum[i] += block.getFloat(start + i);
+                if (Float.isFinite(sum[i]) == false) {
+                    throw new ArithmeticException("not a finite float number: " + sum[i]);
+                }
             }
             seen = true;
         }
 
         Block toBlock(DriverContext driverContext) {
-            if (seen == false || sum == null) {
+            if (seen == false || failed == true || sum == null) {
                 return driverContext.blockFactory().newConstantNullBlock(1);
             }
             for (float f : sum) {
@@ -146,9 +160,14 @@ class SumDenseVectorAggregator {
             }
         }
 
+        public void failed(boolean failed) {
+            this.failed = failed;
+        }
+
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext);
+            blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(failed, 1);
         }
 
         @Override

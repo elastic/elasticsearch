@@ -174,3 +174,23 @@ green      | [0.0, 128.0, 0.0]       | [255.0, 128.0, 255.0]
 red        | [255.0, 0.0, 0.0]       | [255.0, 128.0, 255.0]
 ;
 
+sumDenseVectorOverflow
+required_capability: dense_vector_sum_function
+
+ROW
+    expand = [1, 2, 3],
+    overflow = to_dense_vector([3e38, 3e38, 3e38]),
+    underflow = to_dense_vector([-3e38, -3e38, -3e38])
+| MV_EXPAND expand
+| STATS
+      overflow = SUM(overflow),
+      underflow = SUM(underflow)
+;
+warning:Line 7:12: evaluation of [SUM(overflow)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 7:12: java.lang.ArithmeticException: not a finite float number: Infinity
+warning:Line 8:13: evaluation of [SUM(underflow)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 8:13: java.lang.ArithmeticException: not a finite float number: -Infinity
+
+overflow:dense_vector | underflow:dense_vector
+null                  | null
+;

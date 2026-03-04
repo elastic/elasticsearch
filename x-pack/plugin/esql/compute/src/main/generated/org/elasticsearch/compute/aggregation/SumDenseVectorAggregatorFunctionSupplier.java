@@ -9,13 +9,18 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SumDenseVectorAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SumDenseVectorAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public SumDenseVectorAggregatorFunctionSupplier() {
+  WarningSourceLocation warningsSource;
+
+  public SumDenseVectorAggregatorFunctionSupplier(WarningSourceLocation warningsSource) {
+    this.warningsSource = warningsSource;
   }
 
   @Override
@@ -31,13 +36,15 @@ public final class SumDenseVectorAggregatorFunctionSupplier implements Aggregato
   @Override
   public SumDenseVectorAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SumDenseVectorAggregatorFunction.create(driverContext, channels);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return SumDenseVectorAggregatorFunction.create(warnings, driverContext, channels);
   }
 
   @Override
   public SumDenseVectorGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SumDenseVectorGroupingAggregatorFunction.create(channels, driverContext);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return SumDenseVectorGroupingAggregatorFunction.create(warnings, channels, driverContext);
   }
 
   @Override

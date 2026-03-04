@@ -4,12 +4,15 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.ArithmeticException;
 import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -17,6 +20,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link SumDenseVectorAggregator}.
@@ -24,24 +28,28 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class SumDenseVectorGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("sum", ElementType.FLOAT)  );
+      new IntermediateStateDesc("sum", ElementType.FLOAT),
+      new IntermediateStateDesc("failed", ElementType.BOOLEAN)  );
 
   private final SumDenseVectorGroupingState state;
+
+  private final Warnings warnings;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public SumDenseVectorGroupingAggregatorFunction(List<Integer> channels,
+  public SumDenseVectorGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
       SumDenseVectorGroupingState state, DriverContext driverContext) {
+    this.warnings = warnings;
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static SumDenseVectorGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new SumDenseVectorGroupingAggregatorFunction(channels, SumDenseVectorAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+  public static SumDenseVectorGroupingAggregatorFunction create(Warnings warnings,
+      List<Integer> channels, DriverContext driverContext) {
+    return new SumDenseVectorGroupingAggregatorFunction(warnings, channels, SumDenseVectorAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -90,7 +98,15 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        SumDenseVectorAggregator.combine(state, groupId, valuesPosition, vectorBlock);
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
+        try {
+          SumDenseVectorAggregator.combine(state, groupId, valuesPosition, vectorBlock);
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          state.setFailed(groupId);
+        }
       }
     }
   }
@@ -104,6 +120,12 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
       return;
     }
     FloatBlock sum = (FloatBlock) sumUncast;
+    Block failedUncast = page.getBlock(channels.get(1));
+    if (failedUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+    assert sum.getPositionCount() == failed.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -113,7 +135,7 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, valuesPosition);
+        SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, failed.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
@@ -128,7 +150,15 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        SumDenseVectorAggregator.combine(state, groupId, valuesPosition, vectorBlock);
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
+        try {
+          SumDenseVectorAggregator.combine(state, groupId, valuesPosition, vectorBlock);
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          state.setFailed(groupId);
+        }
       }
     }
   }
@@ -142,6 +172,12 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
       return;
     }
     FloatBlock sum = (FloatBlock) sumUncast;
+    Block failedUncast = page.getBlock(channels.get(1));
+    if (failedUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+    assert sum.getPositionCount() == failed.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -151,7 +187,7 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, valuesPosition);
+        SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, failed.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
@@ -160,7 +196,15 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
-      SumDenseVectorAggregator.combine(state, groupId, valuesPosition, vectorBlock);
+      if (state.hasFailed(groupId)) {
+        continue;
+      }
+      try {
+        SumDenseVectorAggregator.combine(state, groupId, valuesPosition, vectorBlock);
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        state.setFailed(groupId);
+      }
     }
   }
 
@@ -173,10 +217,16 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
       return;
     }
     FloatBlock sum = (FloatBlock) sumUncast;
+    Block failedUncast = page.getBlock(channels.get(1));
+    if (failedUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+    assert sum.getPositionCount() == failed.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, valuesPosition);
+      SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, failed.getBoolean(valuesPosition), valuesPosition);
     }
   }
 

@@ -148,7 +148,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
 
     @Override
     protected AggregatorFunctionSupplier denseVectorSupplier() {
-        return new SumDenseVectorAggregatorFunctionSupplier();
+        return new SumDenseVectorAggregatorFunctionSupplier(source());
     }
 
     public Expression summationMode() {

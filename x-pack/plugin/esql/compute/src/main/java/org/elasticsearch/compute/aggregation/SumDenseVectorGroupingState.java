@@ -19,7 +19,7 @@ import org.elasticsearch.core.Releasables;
  * Grouping state for summing dense vectors. Each group maintains its own float[] for the sum.
  * All vectors must have the same dimensions.
  */
-final class SumDenseVectorGroupingState extends AbstractArrayState implements GroupingAggregatorState {
+final class SumDenseVectorGroupingState extends AbstractFallibleArrayState implements GroupingAggregatorState {
 
     private FloatArray sums;
     private int dimensions = -1;
@@ -48,7 +48,11 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
 
         int groupSumStart = groupId * dimensions;
         for (int i = 0; i < dimensions; i++) {
-            sums.set(groupSumStart + i, block.getFloat(start + i) + sums.get(groupSumStart + i));
+            float result = block.getFloat(start + i) + sums.get(groupSumStart + i);
+            if (Float.isFinite(result) == false) {
+                throw new ArithmeticException("not a finite float number: " + result);
+            }
+            sums.set(groupSumStart + i, result);
         }
         trackGroupId(groupId);
     }
@@ -61,6 +65,13 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
     @Override
     public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
         blocks[offset] = toValuesBlock(selected, driverContext);
+        try (var hasFailedBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int group = selected.getInt(i);
+                hasFailedBuilder.appendBoolean(i, hasFailed(group));
+            }
+            blocks[offset + 1] = hasFailedBuilder.build().asBlock();
+        }
     }
 
     Block toValuesBlock(IntVector selected, DriverContext driverContext) {
@@ -71,31 +82,18 @@ final class SumDenseVectorGroupingState extends AbstractArrayState implements Gr
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 int groupIndex = group * dimensions;
-                if (groupIndex < sums.size() && hasValue(group)) {
-                    if (hasNonFinite(groupIndex)) {
-                        builder.appendNull();
-                    } else {
-                        builder.beginPositionEntry();
-                        for (int j = 0; j < dimensions; j++) {
-                            builder.appendFloat(sums.get(groupIndex + j));
-                        }
-                        builder.endPositionEntry();
+                if (groupIndex < sums.size() && hasValue(group) && hasFailed(group) == false) {
+                    builder.beginPositionEntry();
+                    for (int j = 0; j < dimensions; j++) {
+                        builder.appendFloat(sums.get(groupIndex + j));
                     }
+                    builder.endPositionEntry();
                 } else {
                     builder.appendNull();
                 }
             }
             return builder.build();
         }
-    }
-
-    private boolean hasNonFinite(int groupIndex) {
-        for (int j = 0; j < dimensions; j++) {
-            if (Float.isFinite(sums.get(groupIndex + j)) == false) {
-                return true;
-            }
-        }
-        return false;
     }
 
     @Override

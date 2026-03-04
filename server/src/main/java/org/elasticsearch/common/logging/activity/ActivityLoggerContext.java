@@ -68,6 +68,9 @@ public abstract class ActivityLoggerContext {
         return task.getHeader(Task.TRACE_ID);
     }
 
+    /**
+     * Shard stats information. All fields are nullable.
+     */
     public record ShardInfo(Integer successfulShards, Integer skippedShards, Integer failedShards) {}
 
     public Optional<ShardInfo> shardInfo() {

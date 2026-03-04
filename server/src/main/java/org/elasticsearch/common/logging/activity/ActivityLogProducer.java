@@ -66,8 +66,12 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
         }
         context.shardInfo().ifPresent(shardInfo -> {
             fields.field(QUERY_FIELD_SHARDS + "successful", shardInfo.successfulShards());
-            fields.field(QUERY_FIELD_SHARDS + "skipped", shardInfo.skippedShards());
-            fields.field(QUERY_FIELD_SHARDS + "failed", shardInfo.failedShards());
+            if (shardInfo.skippedShards() != null && shardInfo.skippedShards() > 0) {
+                fields.field(QUERY_FIELD_SHARDS + "skipped", shardInfo.skippedShards());
+            }
+            if (shardInfo.failedShards() != null && shardInfo.failedShards() > 0) {
+                fields.field(QUERY_FIELD_SHARDS + "failed", shardInfo.failedShards());
+            }
         });
         return fields;
     }

@@ -40,10 +40,7 @@ public class EsqlLogContext extends ActivityLoggerContext {
     }
 
     public Optional<ShardInfo> shardInfo() {
-        if (response == null || response.getExecutionInfo() == null) {
-            return Optional.empty();
-        }
-        return Optional.of(getShardInfo(response.getExecutionInfo()));
+        return Optional.ofNullable(response).map(EsqlQueryResponse::getExecutionInfo).map(EsqlLogContext::getShardInfo);
     }
 
     static ShardInfo getShardInfo(EsqlExecutionInfo info) {

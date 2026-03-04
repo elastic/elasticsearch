@@ -38,6 +38,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.listSemanticEquals;
+
 public final class PushDownAndCombineLimits extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext>
     implements
         OptimizerRules.LocalAware<Limit> {
@@ -55,7 +57,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
 
     @Override
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
-        if (limit.child() instanceof Limit childLimit && childLimit.groupings().equals(limit.groupings())) {
+        if (limit.child() instanceof Limit childLimit && listSemanticEquals(childLimit.groupings(), limit.groupings())) {
             return combineLimits(limit, childLimit, ctx.foldCtx());
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval

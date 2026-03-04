@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.listSemanticEquals;
+
 /**
  * Combines a Limit immediately followed by a TopN into a single TopN.
  * This is needed because {@link HoistRemoteEnrichTopN} can create new TopN nodes that are not covered by the previous rules.
@@ -25,7 +27,7 @@ public final class CombineLimitTopN extends OptimizerRules.OptimizerRule<Limit> 
 
     @Override
     public LogicalPlan rule(Limit limit) {
-        if (limit.child() instanceof TopN topn && limit.groupings().equals(topn.groupings())) {
+        if (limit.child() instanceof TopN topn && listSemanticEquals(limit.groupings(), topn.groupings())) {
             int thisLimitValue = Foldables.limitValue(limit.limit(), limit.sourceText());
             int topNValue = Foldables.limitValue(topn.limit(), topn.sourceText());
             if (topNValue <= thisLimitValue) {

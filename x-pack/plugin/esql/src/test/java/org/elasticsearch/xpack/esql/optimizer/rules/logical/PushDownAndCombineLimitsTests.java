@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -281,6 +282,25 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
         Limit child = as(optimized.child(), Limit.class);
         assertEquals(List.of(b), child.groupings());
         as(child.child(), EsRelation.class);
+    }
+
+    public void testCombineLimitsWithSemanticallyEqualGroupings() {
+        FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute b = getFieldAttribute("b");
+        EsRelation relation = relation().withAttributes(List.of(a, b));
+        // Semantically equal to a
+        ReferenceAttribute aSameId = new ReferenceAttribute(EMPTY, null, a.name(), a.dataType(), a.nullable(), a.id(), false);
+        assertTrue(a.semanticEquals(aSameId));
+        assertNotEquals(List.of(a), List.of(aSameId));
+
+        Limit innerLimit = new Limit(EMPTY, new Literal(EMPTY, 10, INTEGER), relation, List.of(a));
+        Limit outerLimit = new Limit(EMPTY, new Literal(EMPTY, 5, INTEGER), innerLimit, List.of(aSameId));
+
+        Limit optimized = as(optimizePlan(outerLimit), Limit.class);
+        assertEquals(5, ((Literal) optimized.limit()).value());
+        assertEquals(1, optimized.groupings().size());
+        assertTrue(optimized.groupings().get(0).semanticEquals(a));
+        as(optimized.child(), EsRelation.class);
     }
 
     private LogicalPlan optimizePlan(LogicalPlan plan) {

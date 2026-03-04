@@ -1087,6 +1087,25 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(childTopN.groupings(), equalTo(groupings));
     }
 
+    /**
+     * When Limit and TopN have semantically equal groupings (same logical attribute, different expression instances),
+     * the rule should still combine them. Ensures Expressions.semanticEquals(List, List) is used.
+     */
+    public void testCombineLimitTopNSemanticallyEqualGroupings() {
+        var attr = getFieldAttribute("a");
+        var topNGroupings = List.<Expression>of(attr);
+        var limitGroupings = List.<Expression>of(
+            new ReferenceAttribute(EMPTY, null, attr.name(), attr.dataType(), attr.nullable(), attr.id(), false)
+        );
+        var source = emptySource();
+        var topN = new TopN(EMPTY, source, List.of(new Order(EMPTY, attr, Order.OrderDirection.ASC, null)), L(5), topNGroupings, false);
+        var limit = new Limit(EMPTY, L(10), topN, limitGroupings);
+        var result = new CombineLimitTopN().rule(limit);
+        var resultTopN = as(result, TopN.class);
+        assertThat(resultTopN.limit(), equalTo(L(5)));
+        assertThat(resultTopN.child(), equalTo(source));
+    }
+
     public void testPushdownLimitsPastLeftJoin() {
         var rule = new PushDownAndCombineLimits();
 

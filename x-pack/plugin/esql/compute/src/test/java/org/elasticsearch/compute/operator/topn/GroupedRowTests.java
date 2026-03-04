@@ -25,7 +25,7 @@ public class GroupedRowTests extends ESTestCase {
     public void testCloseReleasesAllTestsNoPreAllocation() throws Exception {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        var row = new GroupedRow(breaker, 0, 0);
+        var row = new TopNRow(breaker, 0, 0);
         row.close();
         MockBigArrays.ensureAllArraysAreReleased();
         assertThat("Not all memory was released", breaker.getUsed(), equalTo(0L));
@@ -34,39 +34,39 @@ public class GroupedRowTests extends ESTestCase {
     public void testCloseReleasesAllTestsWithPreAllocation() throws Exception {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1));
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        var row = new GroupedRow(breaker, 16, 32);
+        var row = new TopNRow(breaker, 16, 32);
         row.close();
         MockBigArrays.ensureAllArraysAreReleased();
         assertThat("Not all memory was released", breaker.getUsed(), equalTo(0L));
     }
 
     public void testRamBytesUsedEmpty() {
-        var row = new GroupedRow(breaker, 0, 0);
+        var row = new TopNRow(breaker, 0, 0);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedSmall() {
-        var row = new GroupedRow(breaker, 0, 0);
-        row.keys().append(randomByte());
-        row.values().append(randomByte());
+        var row = new TopNRow(breaker, 0, 0);
+        row.keys.append(randomByte());
+        row.values.append(randomByte());
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedBig() {
-        var row = new GroupedRow(breaker, 0, 0);
+        var row = new TopNRow(breaker, 0, 0);
         for (int i = 0; i < 10000; i++) {
-            row.keys().append(randomByte());
-            row.values().append(randomByte());
+            row.keys.append(randomByte());
+            row.values.append(randomByte());
         }
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
     public void testRamBytesUsedPreAllocated() {
-        var row = new GroupedRow(breaker, 64, 128);
+        var row = new TopNRow(breaker, 64, 128);
         assertThat(row.ramBytesUsed(), equalTo(expectedRamBytesUsed(row)));
     }
 
-    private long expectedRamBytesUsed(GroupedRow row) {
+    private long expectedRamBytesUsed(TopNRow row) {
         var expected = RamUsageTester.ramUsed(row);
         expected -= RamUsageTester.ramUsed(breaker);
         expected -= sharedRowBytes();
@@ -78,8 +78,8 @@ public class GroupedRowTests extends ESTestCase {
         return RamUsageTester.ramUsed("topn");
     }
 
-    static long undercountedBytesForRow(GroupedRow row) {
-        return emptyByteArrayOverhead(row.values());
+    static long undercountedBytesForRow(TopNRow row) {
+        return emptyByteArrayOverhead(row.values);
     }
 
     private static long emptyByteArrayOverhead(BreakingBytesRefBuilder builder) {

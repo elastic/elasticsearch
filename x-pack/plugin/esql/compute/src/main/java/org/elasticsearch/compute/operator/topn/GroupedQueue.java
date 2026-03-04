@@ -8,8 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.PriorityQueue;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
@@ -22,7 +20,7 @@ import java.util.List;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 
 /**
- * A queue that maintains a separate per-group priority queue, indexed by integer group IDs
+ * A queue that maintains a separate {@link TopNQueue} per group, indexed by integer group IDs
  * assigned by a {@link org.elasticsearch.compute.aggregation.blockhash.BlockHash}.
  * Uses a {@link BigArrays}-backed {@link ObjectArray} for better performance and circuit
  * breaker integration.
@@ -33,7 +31,7 @@ class GroupedQueue implements Accountable, Releasable {
     private final CircuitBreaker breaker;
     private final BigArrays bigArrays;
     private final int topCount;
-    private ObjectArray<PerGroupQueue> queues;
+    private ObjectArray<TopNQueue> queues;
 
     GroupedQueue(CircuitBreaker breaker, BigArrays bigArrays, int topCount) {
         this.breaker = breaker;
@@ -50,7 +48,7 @@ class GroupedQueue implements Accountable, Releasable {
     int size() {
         int totalSize = 0;
         for (long i = 0; i < queues.size(); i++) {
-            PerGroupQueue queue = queues.get(i);
+            TopNQueue queue = queues.get(i);
             if (queue != null) {
                 totalSize += queue.size();
             }
@@ -59,22 +57,22 @@ class GroupedQueue implements Accountable, Releasable {
     }
 
     /**
-     * Attempts to add the row to the appropriate per-group queue based on {@link GroupedRow#groupId}.
+     * Attempts to add the row to the per-group queue identified by {@code groupId}.
      * @return If the row was added and the queue was full, the evicted row.
      *         If the row was added and it wasn't full, {@code null}.
      *         If the row wasn't added, the input row.
      */
-    GroupedRow addRow(GroupedRow row) {
-        return getOrCreateQueue(row.groupId).addRow(row);
+    TopNRow addRow(long groupId, TopNRow row) {
+        return getOrCreateQueue(groupId).addRow(row);
     }
 
-    private PerGroupQueue getOrCreateQueue(long groupId) {
+    private TopNQueue getOrCreateQueue(long groupId) {
         if (groupId >= queues.size()) {
             queues = bigArrays.grow(queues, groupId + 1);
         }
-        PerGroupQueue queue = queues.get(groupId);
+        TopNQueue queue = queues.get(groupId);
         if (queue == null) {
-            queue = PerGroupQueue.build(breaker, topCount);
+            queue = TopNQueue.build(breaker, topCount);
             queues.set(groupId, queue);
         }
         return queue;
@@ -85,10 +83,10 @@ class GroupedQueue implements Accountable, Releasable {
      * For an ascending order, the first element will be the min element (or last in the
      * priority queue), and vice versa.
      */
-    List<GroupedRow> popAll() {
-        List<GroupedRow> allRows = new ArrayList<>(size());
+    List<TopNRow> popAll() {
+        List<TopNRow> allRows = new ArrayList<>(size());
         for (long i = 0; i < queues.size(); i++) {
-            PerGroupQueue queue = queues.get(i);
+            TopNQueue queue = queues.get(i);
             if (queue != null) {
                 queue.popAllInto(allRows);
                 queue.close();
@@ -105,7 +103,7 @@ class GroupedQueue implements Accountable, Releasable {
         if (queues != null) {
             total += queues.ramBytesUsed();
             for (long i = 0; i < queues.size(); i++) {
-                PerGroupQueue queue = queues.get(i);
+                TopNQueue queue = queues.get(i);
                 if (queue != null) {
                     total += queue.ramBytesUsed();
                 }
@@ -119,7 +117,7 @@ class GroupedQueue implements Accountable, Releasable {
         Releasables.close(() -> {
             if (queues != null) {
                 for (long i = 0; i < queues.size(); i++) {
-                    PerGroupQueue queue = queues.get(i);
+                    TopNQueue queue = queues.get(i);
                     if (queue != null) {
                         queue.close();
                         queues.set(i, null);
@@ -127,83 +125,5 @@ class GroupedQueue implements Accountable, Releasable {
                 }
             }
         }, queues);
-    }
-
-    /**
-     * A single-group priority queue backed by Lucene's PriorityQueue.
-     */
-    static final class PerGroupQueue extends PriorityQueue<GroupedRow> implements Accountable, Releasable {
-        private static final long SHALLOW_SIZE = shallowSizeOfInstance(PerGroupQueue.class);
-
-        private final CircuitBreaker breaker;
-        private final int topCount;
-
-        private PerGroupQueue(CircuitBreaker breaker, int topCount) {
-            super(topCount);
-            this.topCount = topCount;
-            this.breaker = breaker;
-        }
-
-        static PerGroupQueue build(CircuitBreaker breaker, int topCount) {
-            breaker.addEstimateBytesAndMaybeBreak(sizeOf(topCount), "topn");
-            return new PerGroupQueue(breaker, topCount);
-        }
-
-        @Override
-        protected boolean lessThan(GroupedRow lhs, GroupedRow rhs) {
-            return lhs.compareTo(rhs) < 0;
-        }
-
-        GroupedRow addRow(GroupedRow row) {
-            if (size() < topCount) {
-                add(row);
-                return null;
-            } else if (lessThan(top(), row)) {
-                GroupedRow evicted = top();
-                updateTop(row);
-                return evicted;
-            }
-            return row;
-        }
-
-        void popAllInto(List<GroupedRow> target) {
-            while (size() > 0) {
-                target.add(pop());
-            }
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            long total = SHALLOW_SIZE;
-            total += RamUsageEstimator.alignObjectSize(
-                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
-            );
-            for (GroupedRow r : this) {
-                total += r == null ? 0 : r.ramBytesUsed();
-            }
-            return total;
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(() -> {
-                var heapArray = getHeapArray();
-                for (int i = 0; i < heapArray.length; i++) {
-                    GroupedRow row = (GroupedRow) heapArray[i];
-                    if (row != null) {
-                        row.close();
-                        heapArray[i] = null;
-                    }
-                }
-            }, () -> breaker.addWithoutBreaking(-sizeOf(topCount)));
-        }
-
-        private static long sizeOf(int topCount) {
-            long total = SHALLOW_SIZE;
-            total += RamUsageEstimator.alignObjectSize(
-                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * (topCount + 1L)
-            );
-            return total;
-        }
     }
 }

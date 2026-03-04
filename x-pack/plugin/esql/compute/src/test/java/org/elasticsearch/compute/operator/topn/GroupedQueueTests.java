@@ -59,8 +59,8 @@ public class GroupedQueueTests extends ESTestCase {
         int topCount = 5;
         try (GroupedQueue queue = new GroupedQueue(breaker, bigArrays, topCount)) {
             for (int i = 0; i < topCount; i++) {
-                GroupedRow row = createRow(breaker, i % 2, i * 10);
-                GroupedRow result = queue.addRow(row);
+                TopNRow row = createRow(breaker, i * 10);
+                TopNRow result = queue.addRow(i % 2, row);
                 assertThat(result, nullValue());
                 assertThat(queue.size(), equalTo(i + 1));
             }
@@ -72,8 +72,8 @@ public class GroupedQueueTests extends ESTestCase {
         try (GroupedQueue queue = new GroupedQueue(breaker, bigArrays, topCount)) {
             fillQueueToCapacity(queue, topCount);
 
-            try (GroupedRow evicted = queue.addRow(createRow(breaker, 0, 5))) {
-                assertRowValues(evicted, 0, 20, 40);
+            try (TopNRow evicted = queue.addRow(0, createRow(breaker, 5))) {
+                assertRowValues(evicted, 20, 40);
             }
         }
     }
@@ -82,8 +82,8 @@ public class GroupedQueueTests extends ESTestCase {
         try (GroupedQueue queue = new GroupedQueue(breaker, bigArrays, 3)) {
             addRows(queue, 0, 30, 40, 50);
 
-            try (GroupedRow row = createRow(breaker, 0, 60)) {
-                GroupedRow result = queue.addRow(row);
+            try (TopNRow row = createRow(breaker, 60)) {
+                TopNRow result = queue.addRow(0, row);
                 assertThat(result, sameInstance(row));
             }
         }
@@ -91,29 +91,29 @@ public class GroupedQueueTests extends ESTestCase {
 
     public void testAddWithDifferentGroupKeys() {
         try (GroupedQueue queue = new GroupedQueue(breaker, bigArrays, 2)) {
-            assertThat(queue.addRow(createRow(breaker, 0, 10)), nullValue());
-            assertThat(queue.addRow(createRow(breaker, 1, 20)), nullValue());
-            assertThat(queue.addRow(createRow(breaker, 0, 30)), nullValue());
-            assertThat(queue.addRow(createRow(breaker, 1, 40)), nullValue());
+            assertThat(queue.addRow(0, createRow(breaker, 10)), nullValue());
+            assertThat(queue.addRow(1, createRow(breaker, 20)), nullValue());
+            assertThat(queue.addRow(0, createRow(breaker, 30)), nullValue());
+            assertThat(queue.addRow(1, createRow(breaker, 40)), nullValue());
             assertThat(queue.size(), equalTo(4));
 
-            try (GroupedRow evicted = queue.addRow(createRow(breaker, 0, 5))) {
+            try (TopNRow evicted = queue.addRow(0, createRow(breaker, 5))) {
                 assertThat(evicted, notNullValue());
-                assertRowValues(evicted, 0, 30, 60);
+                assertRowValues(evicted, 30, 60);
             }
-            try (GroupedRow evicted = queue.addRow(createRow(breaker, 1, 15))) {
+            try (TopNRow evicted = queue.addRow(1, createRow(breaker, 15))) {
                 assertThat(evicted, notNullValue());
-                assertRowValues(evicted, 1, 40, 80);
+                assertRowValues(evicted, 40, 80);
             }
             assertThat(queue.size(), equalTo(4));
 
-            try (GroupedRow row = queue.addRow(createRow(breaker, 0, 50))) {
+            try (TopNRow row = queue.addRow(0, createRow(breaker, 50))) {
                 assertThat(row, notNullValue());
-                assertRowValues(row, 0, 50, 100);
+                assertRowValues(row, 50, 100);
             }
-            try (GroupedRow row = queue.addRow(createRow(breaker, 1, 50))) {
+            try (TopNRow row = queue.addRow(1, createRow(breaker, 50))) {
                 assertThat(row, notNullValue());
-                assertRowValues(row, 1, 50, 100);
+                assertRowValues(row, 50, 100);
             }
             assertThat(queue.size(), equalTo(4));
         }
@@ -177,13 +177,12 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
-    private GroupedRow createRow(CircuitBreaker breaker, int groupKey, int sortKey) {
-        IntBlock groupKeyBlock = blockFactory.newIntBlockBuilder(1).appendInt(groupKey).build();
+    private TopNRow createRow(CircuitBreaker breaker, int sortKey) {
+        IntBlock groupKeyBlock = blockFactory.newIntBlockBuilder(1).appendInt(0).build();
         IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey).build();
         IntBlock valueBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey * 2).build();
-        GroupedRow row = new GroupedRow(breaker, 32, 64);
-        row.groupId = groupKey;
-        var filler = new GroupedRowFiller(
+        TopNRow row = new TopNRow(breaker, 32, 64);
+        var filler = new TopNOperator.RowFiller(
             List.of(ElementType.INT, ElementType.INT, ElementType.INT),
             List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
             SORT_ORDERS,
@@ -191,7 +190,7 @@ public class GroupedQueueTests extends ESTestCase {
             new Page(groupKeyBlock, keyBlock, valueBlock)
         );
         try {
-            filler.writeSortKey(0, row);
+            filler.writeKey(0, row);
             filler.writeValues(0, row);
         } finally {
             Releasables.close(groupKeyBlock, keyBlock, valueBlock);
@@ -199,16 +198,14 @@ public class GroupedQueueTests extends ESTestCase {
         return row;
     }
 
-    private static void assertRowValues(GroupedRow row, long expectedGroupKey, int expectedSortKey, int expectedValue) {
-        assertThat(row.groupId, equalTo(expectedGroupKey));
-
-        BytesRef keys = row.keys().bytesRefView();
+    private static void assertRowValues(TopNRow row, int expectedSortKey, int expectedValue) {
+        BytesRef keys = row.keys.bytesRefView();
         assertThat(
             TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1)),
             equalTo(expectedSortKey)
         );
 
-        BytesRef values = row.values().bytesRefView();
+        BytesRef values = row.values.bytesRefView();
         BytesRef reader = new BytesRef(values.bytes, values.offset, values.length);
         assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(reader), equalTo(1));
         TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(reader);
@@ -218,8 +215,8 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     private void addRow(GroupedQueue queue, int groupKey, int value) {
-        GroupedRow row = createRow(breaker, groupKey, value);
-        Releasables.close(queue.addRow(row));
+        TopNRow row = createRow(breaker, value);
+        Releasables.close(queue.addRow(groupKey, row));
     }
 
     private void fillQueueToCapacity(GroupedQueue queue, int capacity) {
@@ -234,12 +231,12 @@ public class GroupedQueueTests extends ESTestCase {
 
     private static final List<TopNOperator.SortOrder> SORT_ORDERS = List.of(new TopNOperator.SortOrder(1, true, false));
 
-    private static void assertQueueContents(GroupedQueue queue, List<Tuple<Integer, Integer>> groupAndSortKeys) {
+    private void assertQueueContents(GroupedQueue queue, List<Tuple<Integer, Integer>> groupAndSortKeys) {
         assertThat(queue.size(), equalTo(groupAndSortKeys.size()));
-        List<GroupedRow> actual = queue.popAll();
+        List<TopNRow> actual = queue.popAll();
         for (int i = 0; i < groupAndSortKeys.size(); i++) {
             Tuple<Integer, Integer> expectedTuple = groupAndSortKeys.get(i);
-            assertRowValues(actual.get(i), expectedTuple.v1(), expectedTuple.v2(), expectedTuple.v2() * 2);
+            assertRowValues(actual.get(i), expectedTuple.v2(), expectedTuple.v2() * 2);
         }
         Releasables.close(actual);
     }

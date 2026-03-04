@@ -854,14 +854,14 @@ public class TopNOperatorTests extends OperatorTestCase {
         for (int b = 0; b < page.getBlockCount(); b++) {
             // Non-null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
-                TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), page, p);
+                TopNRow row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), page, p);
                 assertThat(row, equalTo(row));
                 assertThat(row.compareTo(row), equalTo(0));
             }
 
             // Null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
-                TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), nullPage, p);
+                TopNRow row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), nullPage, p);
                 assertThat(row, equalTo(row));
                 assertThat(row.compareTo(row), equalTo(0));
             }
@@ -869,8 +869,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // nulls first
             for (int p = 0; p < page.getPositionCount(); p++) {
                 boolean asc = randomBoolean();
-                TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, true, page, p);
-                TopNOperator.Row nullRow = row(elementType, encoder, b, asc, true, nullPage, p);
+                TopNRow nonNullRow = row(elementType, encoder, b, asc, true, page, p);
+                TopNRow nullRow = row(elementType, encoder, b, asc, true, nullPage, p);
                 assertThat(nonNullRow, not(equalTo(nullRow)));
                 assertThat(nonNullRow, lessThan(nullRow));
                 assertThat(nullRow, greaterThan(nonNullRow));
@@ -879,8 +879,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // nulls last
             for (int p = 0; p < page.getPositionCount(); p++) {
                 boolean asc = randomBoolean();
-                TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, false, page, p);
-                TopNOperator.Row nullRow = row(elementType, encoder, b, asc, false, nullPage, p);
+                TopNRow nonNullRow = row(elementType, encoder, b, asc, false, page, p);
+                TopNRow nullRow = row(elementType, encoder, b, asc, false, nullPage, p);
                 assertThat(nonNullRow, not(equalTo(nullRow)));
                 assertThat(nonNullRow, greaterThan(nullRow));
                 assertThat(nullRow, lessThan(nonNullRow));
@@ -889,8 +889,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // ascending
             {
                 boolean nullsFirst = randomBoolean();
-                TopNOperator.Row r1 = row(elementType, encoder, b, true, nullsFirst, page, 0);
-                TopNOperator.Row r2 = row(elementType, encoder, b, true, nullsFirst, page, 1);
+                TopNRow r1 = row(elementType, encoder, b, true, nullsFirst, page, 0);
+                TopNRow r2 = row(elementType, encoder, b, true, nullsFirst, page, 1);
                 assertThat(r1, not(equalTo(r2)));
                 assertThat(r1, greaterThan(r2));
                 assertThat(r2, lessThan(r1));
@@ -898,8 +898,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // descending
             {
                 boolean nullsFirst = randomBoolean();
-                TopNOperator.Row r1 = row(elementType, encoder, b, false, nullsFirst, page, 0);
-                TopNOperator.Row r2 = row(elementType, encoder, b, false, nullsFirst, page, 1);
+                TopNRow r1 = row(elementType, encoder, b, false, nullsFirst, page, 0);
+                TopNRow r2 = row(elementType, encoder, b, false, nullsFirst, page, 1);
                 assertThat(r1, not(equalTo(r2)));
                 assertThat(r1, lessThan(r2));
                 assertThat(r2, greaterThan(r1));
@@ -908,7 +908,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         page.releaseBlocks();
     }
 
-    private TopNOperator.Row row(
+    private TopNRow row(
         ElementType elementType,
         TopNEncoder encoder,
         int channel,
@@ -927,7 +927,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             channelInKey,
             page
         );
-        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), 0, 0);
+        TopNRow row = new TopNRow(nonBreakingBigArrays().breakerService().getBreaker("request"), 0, 0);
         rf.writeKey(position, row);
         rf.writeValues(position, row);
         return row;

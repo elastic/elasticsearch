@@ -108,7 +108,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     private BytesRefHashTable keysHash;
     private GroupedQueue inputQueue;
-    private GroupedRow spare;
+    private TopNRow spare;
 
     private ReleasableIterator<Page> output;
 
@@ -172,7 +172,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             if (this.topCount <= 0) {
                 return;
             }
-            GroupedRowFiller rowFiller = new GroupedRowFiller(elementTypes, encoders, sortOrders, channelInKey, page);
+            TopNOperator.RowFiller rowFiller = new TopNOperator.RowFiller(elementTypes, encoders, sortOrders, channelInKey, page);
             for (int pos = 0; pos < page.getPositionCount(); pos++) {
                 BytesRef key = keyEncoder.encode(page, pos);
                 long hashOrd = keysHash.add(key);
@@ -187,16 +187,15 @@ public class GroupedTopNOperator implements Operator, Accountable {
         }
     }
 
-    private void processRow(GroupedRowFiller rowFiller, int position, long groupId) {
+    private void processRow(TopNOperator.RowFiller rowFiller, int position, long groupId) {
         if (spare == null) {
-            spare = new GroupedRow(breaker, rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
+            spare = new TopNRow(breaker, rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
         } else {
             spare.clear();
         }
-        spare.groupId = groupId;
-        rowFiller.writeSortKey(position, spare);
+        rowFiller.writeKey(position, spare);
 
-        var nextSpare = inputQueue.addRow(spare);
+        var nextSpare = inputQueue.addRow(groupId, spare);
         if (nextSpare != spare) {
             var insertedRow = spare;
             spare = nextSpare;
@@ -309,7 +308,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             return ReleasableIterator.empty();
         }
 
-        List<GroupedRow> rows = inputQueue.popAll();
+        List<TopNRow> rows = inputQueue.popAll();
         inputQueue.close();
         keysHash.close();
         inputQueue = null;
@@ -318,10 +317,10 @@ public class GroupedTopNOperator implements Operator, Accountable {
     }
 
     private class Result implements ReleasableIterator<Page> {
-        private final List<GroupedRow> rows;
+        private final List<TopNRow> rows;
         private int r;
 
-        private Result(List<GroupedRow> rows) {
+        private Result(List<TopNRow> rows) {
             this.rows = rows;
         }
 
@@ -344,9 +343,9 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 }
                 int rEnd = r + size;
                 while (r < rEnd) {
-                    try (GroupedRow row = rows.set(r++, null)) {
-                        readKeys(builders, row.keys().bytesRefView());
-                        readValues(builders, row.values().bytesRefView());
+                    try (TopNRow row = rows.set(r++, null)) {
+                        readKeys(builders, row.keys.bytesRefView());
+                        readValues(builders, row.values.bytesRefView());
                     }
                     if (totalSize(builders) > jumboPageBytes) {
                         break;

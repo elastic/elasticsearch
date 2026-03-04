@@ -128,7 +128,7 @@ public final class PipelineSelector {
     private static double maxErrorForHint(@Nullable OptimizeFor hint) {
         if (hint == OptimizeFor.STORAGE) return QUANTIZE_2_DECIMALS;
         if (hint == OptimizeFor.BALANCED) return QUANTIZE_4_DECIMALS;
-        return -1;
+        return 0;
     }
 
     // NOTE: mirrors selectDouble with float-specific builder and stage types.

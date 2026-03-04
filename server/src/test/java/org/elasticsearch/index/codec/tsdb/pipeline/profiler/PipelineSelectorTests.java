@@ -108,7 +108,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
-        assertAlpMaxError(config, -1.0);
+        assertAlpMaxError(config, 0.0);
     }
 
     public void testNoisyDoubleStorageSelectsAlpWith2Decimals() {
@@ -436,7 +436,7 @@ public class PipelineSelectorTests extends ESTestCase {
 
         final PipelineConfig config = selector.select(profile, 512, PipelineDescriptor.DataType.DOUBLE, null, null);
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
-        assertAlpMaxError(config, -1.0);
+        assertAlpMaxError(config, 0.0);
     }
 
     public void testNonMonotonicDoubleCounterDefaultSelectsLosslessAlp() {
@@ -446,7 +446,7 @@ public class PipelineSelectorTests extends ESTestCase {
         final PipelineConfig gauge = selector.select(profile, 512, PipelineDescriptor.DataType.DOUBLE, null, MetricType.GAUGE);
         assertEquals(counter, gauge);
         assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
-        assertAlpMaxError(counter, -1.0);
+        assertAlpMaxError(counter, 0.0);
     }
 
     public void testNonMonotonicDoubleCounterStorageSelectsLosslessAlp() {
@@ -462,7 +462,7 @@ public class PipelineSelectorTests extends ESTestCase {
             MetricType.COUNTER
         );
         assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
-        assertAlpMaxError(counter, -1.0);
+        assertAlpMaxError(counter, 0.0);
 
         final PipelineConfig gauge = selector.select(
             profile,
@@ -485,7 +485,7 @@ public class PipelineSelectorTests extends ESTestCase {
             MetricType.COUNTER
         );
         assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
-        assertAlpMaxError(counter, -1.0);
+        assertAlpMaxError(counter, 0.0);
 
         final PipelineConfig gauge = selector.select(
             profile,
@@ -509,7 +509,7 @@ public class PipelineSelectorTests extends ESTestCase {
 
         final PipelineConfig config = selector.select(profile, 512, PipelineDescriptor.DataType.FLOAT, null, null);
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
-        assertAlpMaxError(config, -1.0);
+        assertAlpMaxError(config, 0.0);
     }
 
     public void testNonMonotonicFloatCounterDefaultSelectsLosslessAlp() {
@@ -519,7 +519,7 @@ public class PipelineSelectorTests extends ESTestCase {
         final PipelineConfig gauge = selector.select(profile, 512, PipelineDescriptor.DataType.FLOAT, null, MetricType.GAUGE);
         assertEquals(counter, gauge);
         assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
-        assertAlpMaxError(counter, -1.0);
+        assertAlpMaxError(counter, 0.0);
     }
 
     public void testNonMonotonicFloatCounterStorageSelectsLosslessAlp() {
@@ -533,7 +533,7 @@ public class PipelineSelectorTests extends ESTestCase {
             MetricType.COUNTER
         );
         assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
-        assertAlpMaxError(counter, -1.0);
+        assertAlpMaxError(counter, 0.0);
 
         final PipelineConfig gauge = selector.select(
             profile,
@@ -542,7 +542,7 @@ public class PipelineSelectorTests extends ESTestCase {
             PipelineResolver.OptimizeFor.STORAGE,
             MetricType.GAUGE
         );
-        assertAlpMaxError(gauge, -1.0);
+        assertAlpMaxError(gauge, 0.0);
     }
 
     public void testNonMonotonicFloatCounterBalancedSelectsLosslessAlp() {
@@ -556,7 +556,7 @@ public class PipelineSelectorTests extends ESTestCase {
             MetricType.COUNTER
         );
         assertThat(counter.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
-        assertAlpMaxError(counter, -1.0);
+        assertAlpMaxError(counter, 0.0);
 
         final PipelineConfig gauge = selector.select(
             profile,
@@ -565,7 +565,7 @@ public class PipelineSelectorTests extends ESTestCase {
             PipelineResolver.OptimizeFor.BALANCED,
             MetricType.GAUGE
         );
-        assertAlpMaxError(gauge, -1.0);
+        assertAlpMaxError(gauge, 0.0);
     }
 
     public void testHighRepeatDoubleSelectsChimp() {
@@ -1063,7 +1063,7 @@ public class PipelineSelectorTests extends ESTestCase {
                 // Lossy ALP on counters would break rate calculations.
                 for (final StageSpec spec : config.specs()) {
                     if (spec instanceof StageSpec.AlpDoubleStage alp) {
-                        assertEquals("STORAGE + COUNTER must use lossless ALP in block " + b + " of " + file, -1.0, alp.maxError(), 0.0);
+                        assertEquals("STORAGE + COUNTER must use lossless ALP in block " + b + " of " + file, 0.0, alp.maxError(), 0.0);
                     }
                 }
 

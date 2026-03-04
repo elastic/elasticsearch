@@ -77,7 +77,7 @@ public sealed interface StageSpec {
 
     record AlpDoubleStage(double maxError) implements StageSpec {
         public AlpDoubleStage() {
-            this(-1);
+            this(0);
         }
 
         @Override
@@ -88,7 +88,7 @@ public sealed interface StageSpec {
 
     record AlpRdDoubleStage(double maxError) implements StageSpec {
         public AlpRdDoubleStage() {
-            this(-1);
+            this(0);
         }
 
         @Override
@@ -99,7 +99,7 @@ public sealed interface StageSpec {
 
     record AlpFloatStage(double maxError) implements StageSpec {
         public AlpFloatStage() {
-            this(-1);
+            this(0);
         }
 
         @Override
@@ -110,7 +110,7 @@ public sealed interface StageSpec {
 
     record AlpRdFloatStage(double maxError) implements StageSpec {
         public AlpRdFloatStage() {
-            this(-1);
+            this(0);
         }
 
         @Override
@@ -121,11 +121,11 @@ public sealed interface StageSpec {
 
     record FpcDoubleStage(int tableSize, double maxError) implements StageSpec {
         public FpcDoubleStage() {
-            this(0, -1);
+            this(0, 0);
         }
 
         public FpcDoubleStage(int tableSize) {
-            this(tableSize, -1);
+            this(tableSize, 0);
         }
 
         @Override
@@ -136,11 +136,11 @@ public sealed interface StageSpec {
 
     record FpcFloatStage(int tableSize, double maxError) implements StageSpec {
         public FpcFloatStage() {
-            this(0, -1);
+            this(0, 0);
         }
 
         public FpcFloatStage(int tableSize) {
-            this(tableSize, -1);
+            this(tableSize, 0);
         }
 
         @Override
@@ -177,7 +177,7 @@ public sealed interface StageSpec {
 
     record Gorilla(double maxError) implements StageSpec {
         public Gorilla() {
-            this(-1);
+            this(0);
         }
 
         @Override
@@ -195,7 +195,7 @@ public sealed interface StageSpec {
 
     record AlpDouble(double maxError) implements StageSpec {
         public AlpDouble() {
-            this(-1);
+            this(0);
         }
 
         @Override
@@ -206,7 +206,7 @@ public sealed interface StageSpec {
 
     record AlpRdDouble(double maxError) implements StageSpec {
         public AlpRdDouble() {
-            this(-1);
+            this(0);
         }
 
         @Override
@@ -224,7 +224,7 @@ public sealed interface StageSpec {
 
     record AlpFloat(double maxError) implements StageSpec {
         public AlpFloat() {
-            this(-1);
+            this(0);
         }
 
         @Override
@@ -235,7 +235,7 @@ public sealed interface StageSpec {
 
     record AlpRdFloat(double maxError) implements StageSpec {
         public AlpRdFloat() {
-            this(-1);
+            this(0);
         }
 
         @Override
@@ -246,7 +246,7 @@ public sealed interface StageSpec {
 
     record ChimpDoublePayload(double maxError) implements StageSpec {
         public ChimpDoublePayload() {
-            this(-1);
+            this(0);
         }
 
         @Override
@@ -264,7 +264,7 @@ public sealed interface StageSpec {
 
     record Chimp128DoublePayload(double maxError) implements StageSpec {
         public Chimp128DoublePayload() {
-            this(-1);
+            this(0);
         }
 
         @Override

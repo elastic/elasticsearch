@@ -428,20 +428,6 @@ tests:
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/pull/142366
   # ROUTING TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId
-- class: org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapperTests
-  method: testRetrievedFromIdInTimeSeriesMode
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.cluster.routing.IndexRoutingTests
-  methods:
-    - testRoutingPathOneSub
-    - testRoutingPathNumbersInSource
-    - testRoutingPathManyTopLevel
-    - testRoutingPathDotInName
-    - testRoutingPathBwc
-    - testRoutingPathManySubs
-    - testRoutingPathOneTopLevel
-    - testRoutingPathBooleansInSource
-  issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.index.mapper.SourceFieldMapperTests
   methods:
     - testRecoverySourceWithTimeSeriesCustom

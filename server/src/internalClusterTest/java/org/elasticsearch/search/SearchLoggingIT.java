@@ -78,16 +78,19 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.test.AbstractSearchCancellationTestCase.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
+import static org.elasticsearch.test.ActivityLoggingUtils.getMessageField;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     static AccumulatingMockAppender appender;
@@ -177,6 +180,25 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
             assertNull(message.get(ES_QUERY_FIELDS_PREFIX + "timed_out"));
         }
+    }
+
+    public void testIndicesFieldIsArray() {
+        setupIndex();
+
+        assertSearchHitsWithoutFailures(prepareSearch(INDEX_NAME).setQuery(matchQuery("field1", "quick")), "1", "2", "3");
+        var event = appender.getLastEventAndReset();
+        Object indicesField = getMessageField(event, QUERY_FIELD_INDICES);
+        assertThat(indicesField, instanceOf(String[].class));
+        assertThat((String[]) indicesField, arrayContaining(INDEX_NAME));
+
+        // Test with more than one index
+        String secondIndex = INDEX_NAME + "_2";
+        assertAcked(prepareCreate(secondIndex));
+        assertSearchHitsWithoutFailures(prepareSearch(INDEX_NAME, secondIndex).setQuery(matchQuery("field1", "quick")), "1", "2", "3");
+        var event2 = appender.getLastEventAndReset();
+        Object indicesField2 = getMessageField(event2, QUERY_FIELD_INDICES);
+        assertThat(indicesField2, instanceOf(String[].class));
+        assertThat((String[]) indicesField2, arrayContaining(INDEX_NAME, secondIndex));
     }
 
     public void testFailureLog() {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_DURATION_FIELD;
@@ -53,13 +54,24 @@ public class ActivityLoggingUtils {
         updateClusterSettings(builder);
     }
 
+    private static String stringify(Object t) {
+        if (t instanceof String[]) return String.join(",", (String[]) t);
+        return t.toString();
+    }
+
     public static Map<String, String> getMessageData(LogEvent event) {
         assertNotNull(event);
         assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
         ESLogMessage message = (ESLogMessage) event.getMessage();
-        HashMap<String, String> map = new HashMap<>();
-        message.getData().forEach((k, v) -> map.put(k, v.toString()));
-        return map;
+
+        return message.getData().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> stringify(e.getValue())));
+    }
+
+    public static Object getMessageField(LogEvent event, String key) {
+        assertNotNull(event);
+        assertThat(event.getMessage(), instanceOf(ESLogMessage.class));
+        ESLogMessage message = (ESLogMessage) event.getMessage();
+        return message.getData().get(key);
     }
 
     public static void assertMessageSuccess(Map<String, String> message, String type, String query) {

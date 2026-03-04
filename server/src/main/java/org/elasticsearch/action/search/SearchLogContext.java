@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.search;
 
-import joptsimple.internal.Strings;
-
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
@@ -108,8 +106,8 @@ public class SearchLogContext extends ActivityLoggerContext {
         return response != null && response.isTimedOut();
     }
 
-    public String getIndices() {
-        return Strings.join(getIndexNames(), ",");
+    public String[] getIndices() {
+        return getIndexNames();
     }
 
     public boolean hasAggregations() {

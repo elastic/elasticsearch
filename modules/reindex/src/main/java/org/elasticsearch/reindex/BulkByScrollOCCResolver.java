@@ -81,6 +81,7 @@ final class BulkByScrollOCCResolver {
             DataStream parentDataStream = indexAbstraction != null ? indexAbstraction.getParentDataStream() : null;
 
             if (parentDataStream != null) {
+                // OCC is disabled for a data stream if any backing index has DISABLE_SEQUENCE_NUMBERS = true
                 seqNoDisabledPerSource.merge(parentDataStream.getName(), seqNoDisabled, (existing, current) -> existing || current);
             } else {
                 seqNoDisabledPerSource.put(concreteIndex.getName(), seqNoDisabled);

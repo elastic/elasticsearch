@@ -441,12 +441,12 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<Results> publ
             public record CompletionTokenDetails(@Nullable Integer reasoningTokens) implements Writeable {
 
                 private CompletionTokenDetails(StreamInput in) throws IOException {
-                    this(in.readOptionalInt());
+                    this(in.readOptionalVInt());
                 }
 
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
-                    out.writeOptionalInt(reasoningTokens);
+                    out.writeOptionalVInt(reasoningTokens);
                 }
             }
         }

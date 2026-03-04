@@ -761,7 +761,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
      * @param state The cluster state
      * @param numberOfNodesHotSpotting The number of nodes that should be hot-spotting
      * @param queueLatencyThresholdMillis The latency threshold in milliseconds
-     * @param hotspotUtilizationThresholdPercent The high utilization threshold as a percentage
+     * @param hotspotUtilizationThresholdPercent The hotspot utilization threshold as a percentage
      * @return a ClusterInfo with the given parameters
      */
     private static ClusterInfo createClusterInfoWithHotSpots(

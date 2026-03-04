@@ -15,9 +15,11 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
@@ -98,14 +100,15 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+//@Repeat(iterations = 100)
 public class TopNOperatorTests extends OperatorTestCase {
-    private final int pageSize = randomPageSize();
     // versions taken from org.elasticsearch.xpack.versionfield.VersionTests
     private static final List<String> VERSIONS = List.of(
         "1",
@@ -146,6 +149,8 @@ public class TopNOperatorTests extends OperatorTestCase {
         "1.2.3-rc1"
     );
 
+    private final int pageSize = randomPageSize();
+
     @Override
     protected TopNOperator.TopNOperatorFactory simple(SimpleOptions options) {
         List<ElementType> elementTypes = List.of(LONG);
@@ -160,6 +165,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             encoders,
             sortOrders,
             pageSize,
+            Long.MAX_VALUE,
             InputOrdering.NOT_SORTED,
             minCompetitive
         );
@@ -254,6 +260,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                     List.of(DEFAULT_UNSORTABLE),
                     List.of(new TopNOperator.SortOrder(0, true, false)),
                     pageSize,
+                    randomJumboPageBytes(),
                     sortedInput,
                     null
                 ).get(context)
@@ -353,7 +360,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(INT),
                         List.of(DEFAULT_SORTABLE),
                         List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
-                        randomPageSize(),
+                        pageSize,
+                        randomJumboPageBytes(),
                         InputOrdering.SORTED,
                         null
                     )
@@ -407,7 +415,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(INT, INT),
                         List.of(DEFAULT_SORTABLE, DEFAULT_SORTABLE),
                         List.of(new TopNOperator.SortOrder(0, asc, nullsFirst), new TopNOperator.SortOrder(1, asc, nullsFirst)),
-                        randomPageSize(),
+                        pageSize,
+                        randomJumboPageBytes(),
                         InputOrdering.SORTED,
                         null
                     )
@@ -428,6 +437,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             List.of(DEFAULT_UNSORTABLE),
             List.of(new TopNOperator.SortOrder(0, true, false)),
             pageSize,
+            randomJumboPageBytes(),
             InputOrdering.SORTED,
             null
         );
@@ -973,7 +983,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         elementTypes,
                         encoders,
                         List.of(new TopNOperator.SortOrder(0, false, false)),
-                        randomPageSize(),
+                        pageSize,
+                        randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
                         null
                     )
@@ -1069,7 +1080,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         elementTypes,
                         encoders,
                         List.of(new TopNOperator.SortOrder(0, false, false)),
-                        randomPageSize(),
+                        pageSize,
+                        randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
                         null
                     )
@@ -1139,7 +1151,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             sourceOperator.elementTypes(),
                             encoder,
                             sortOrders,
-                            randomPageSize(),
+                            pageSize,
+                            randomJumboPageBytes(),
                             InputOrdering.NOT_SORTED,
                             null
                         )
@@ -1189,7 +1202,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             List.of(BYTES_REF, BYTES_REF),
             List.of(UTF8, new FixedLengthAscTopNEncoder(fixedLength)),
             List.of(new TopNOperator.SortOrder(0, false, false), new TopNOperator.SortOrder(1, false, true)),
-            randomPageSize(),
+            pageSize,
+            randomJumboPageBytes(),
             InputOrdering.NOT_SORTED,
             null
         );
@@ -1433,7 +1447,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(blockType),
                         List.of(encoder),
                         List.of(sortOrders),
-                        randomPageSize(),
+                        pageSize,
+                        randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
                         null
                     )
@@ -1533,6 +1548,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 encoders,
                 sortOrders,
                 rowsPerPage,
+                Long.MAX_VALUE,
                 InputOrdering.NOT_SORTED,
                 minCompetitiveSupplier
             )
@@ -1678,7 +1694,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
-                            randomPageSize(),
+                            pageSize,
+                            randomJumboPageBytes(),
                             InputOrdering.NOT_SORTED,
                             null
                         )
@@ -1806,7 +1823,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
-                            randomPageSize(),
+                            pageSize,
+                            randomJumboPageBytes(),
                             InputOrdering.NOT_SORTED,
                             null
                         )
@@ -1898,7 +1916,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             new TopNOperator.SortOrder(0, true, randomBoolean()),
                             new TopNOperator.SortOrder(1, randomBoolean(), randomBoolean())
                         ),
-                        randomPageSize(),
+                        pageSize,
+                        randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
                         null
                     )
@@ -1937,6 +1956,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(DEFAULT_UNSORTABLE),
                         List.of(new TopNOperator.SortOrder(0, true, randomBoolean())),
                         maxPageSize,
+                        Long.MAX_VALUE,
                         InputOrdering.NOT_SORTED,
                         null
                     )
@@ -1973,7 +1993,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 List.of(INT),
                 List.of(DEFAULT_UNSORTABLE),
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
-                randomPageSize(),
+                pageSize,
+                randomJumboPageBytes(),
                 InputOrdering.NOT_SORTED,
                 null
             )
@@ -1999,7 +2020,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 types,
                 encoders,
                 List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
-                randomPageSize(),
+                pageSize,
+                randomJumboPageBytes(),
                 InputOrdering.NOT_SORTED,
                 null
             )
@@ -2094,6 +2116,70 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
     }
 
+    public void testSplitOnSize() {
+        int topCount = 50;
+        long jumboPageBytes = randomJumboPageBytes();
+        int byteLength = Math.max(10, Math.toIntExact(jumboPageBytes / 10));
+        logger.info("byteLength {}", byteLength);
+        int inputPageRows = 10;
+        int inputPageCount = 10;
+        int blockOverhead = 1000;
+        BlockFactory factory = blockFactory();
+        long minPageSize = jumboPageBytes;
+        long maxPageSize = jumboPageBytes + byteLength + blockOverhead;
+        if (byteLength < 100) {
+            /*
+             * With very small bytes we might break too early. That's ok. Small
+             * ones are rare and if we have them then a few early-breaks is fine.
+             */
+            minPageSize -= 10;
+        }
+        if (byteLength < PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
+            /*
+             * In this range fall into a hole where we switch to BigArrayVectors.
+             * Under it we grow a more controlled amount. Over it our byteLength
+             * is big enough that it covers the
+             */
+            maxPageSize += PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        }
+        try (
+            TopNOperator op = new TopNOperator(
+                driverContext().blockFactory(),
+                factory.breaker(),
+                topCount,
+                List.of(BYTES_REF),
+                List.of(UTF8),
+                List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
+                Integer.MAX_VALUE,
+                jumboPageBytes,
+                InputOrdering.NOT_SORTED,
+                null
+            )
+        ) {
+            for (int p = 0; p < inputPageCount; p++) {
+                try (BytesRefBlock.Builder bytes = factory.newBytesRefBlockBuilder(inputPageRows)) {
+                    for (int r = 0; r < inputPageRows; r++) {
+                        bytes.appendBytesRef(new BytesRef(randomAlphanumericOfLength(byteLength)));
+                    }
+                    op.addInput(new Page(bytes.build()));
+                }
+            }
+            op.finish();
+            int totalPositions = 0;
+            while (op.isFinished() == false) {
+                try (Page out = op.getOutput()) {
+                    totalPositions += out.getPositionCount();
+                    if (totalPositions < topCount) {
+                        assertThat(out.ramBytesUsedByBlocks(), both(greaterThanOrEqualTo(minPageSize)).and(lessThanOrEqualTo(maxPageSize)));
+                    } else {
+                        assertThat(out.ramBytesUsedByBlocks(), lessThanOrEqualTo(maxPageSize));
+                    }
+                }
+            }
+            assertThat(totalPositions, equalTo(topCount));
+        }
+    }
+
     /**
      * Because the ordering algorithm used here (mainly vanilla Java sorting with streams and Comparators) uses
      * compareTo which also considers equality, multiple rows can be considered equal between each others
@@ -2166,5 +2252,9 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     static Version randomVersion() {
         return new Version(randomFrom(VERSIONS));
+    }
+
+    private long randomJumboPageBytes() {
+        return rarely() ? between(1, 100) : ByteSizeValue.ofKb(between(1, 1000)).getBytes();
     }
 }

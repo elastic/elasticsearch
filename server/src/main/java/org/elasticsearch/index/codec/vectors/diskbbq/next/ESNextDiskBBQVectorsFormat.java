@@ -70,6 +70,17 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     );
 
     public static final int DEFAULT_VECTORS_PER_CLUSTER = 384;
+    private static final int DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER = 3;
+
+    /**
+     * Returns the default flat index threshold for the given cluster size.
+     * @param configuredClusterSize the configured cluster size
+     * @return the default flat index threshold
+     */
+    public static int defaultFlatThreshold(int configuredClusterSize) {
+        return configuredClusterSize * DEFAULT_FLAT_VECTOR_THRESHOLD_MULTIPLIER;
+    }
+
     public static final int MIN_VECTORS_PER_CLUSTER = 64;
     public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536
     public static final int DEFAULT_CENTROIDS_PER_PARENT_CLUSTER = 16;
@@ -150,7 +161,39 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 int totalBits = dimensions * 4;
                 return (totalBits + 7) / 8 * 8 / 4;
             }
+        },
+        SEVEN_BIT_SYMMETRIC(3, (byte) 7, (byte) 7) {
+            @Override
+            public void pack(int[] quantized, byte[] destination) {
+                packAsBytes(quantized, destination);
+            }
+
+            @Override
+            public void packQuery(int[] quantized, byte[] destination) {
+                packAsBytes(quantized, destination);
+            }
+
+            @Override
+            public int discretizedDimensions(int dimensions) {
+                return dimensions;
+            }
+
+            @Override
+            public int getDocPackedLength(int dimensions) {
+                return discretizedDimensions(dimensions);
+            }
+
+            @Override
+            public int getQueryPackedLength(int dimensions) {
+                return discretizedDimensions(dimensions);
+            }
         };
+
+        private static void packAsBytes(int[] quantized, byte[] destination) {
+            for (int i = 0; i < quantized.length; i++) {
+                destination[i] = (byte) quantized[i];
+            }
+        }
 
         private final int id;
         private final byte bits, queryBits;
@@ -219,6 +262,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 case 1 -> ONE_BIT_4BIT_QUERY;
                 case 2 -> TWO_BIT_4BIT_QUERY;
                 case 4 -> FOUR_BIT_SYMMETRIC;
+                case 7 -> SEVEN_BIT_SYMMETRIC;
                 default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
             };
         }
@@ -233,6 +277,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int numMergeWorkers;
     private final boolean doPrecondition;
     private final int preconditioningBlockDimension;
+    private final int flatVectorThreshold;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster) {
         this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster);
@@ -248,7 +293,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             null,
             1,
             false,
-            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            defaultFlatThreshold(vectorPerCluster)
         );
     }
 
@@ -262,6 +308,32 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         int maxMergingWorkers,
         boolean doPrecondition,
         int preconditioningBlockDimension
+    ) {
+        this(
+            quantEncoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            doPrecondition,
+            preconditioningBlockDimension,
+            defaultFlatThreshold(vectorPerCluster)
+        );
+    }
+
+    public ESNextDiskBBQVectorsFormat(
+        QuantEncoding quantEncoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        boolean doPrecondition,
+        int preconditioningBlockDimension,
+        int flatVectorThreshold
     ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
@@ -296,6 +368,11 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                     + preconditioningBlockDimension
             );
         }
+        if (flatVectorThreshold < -1) {
+            throw new IllegalArgumentException(
+                "flatVectorThreshold must be -1 (dynamic), 0 (disabled), or > 0, got: " + flatVectorThreshold
+            );
+        }
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.quantEncoding = quantEncoding;
@@ -309,6 +386,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.numMergeWorkers = maxMergingWorkers;
         this.preconditioningBlockDimension = preconditioningBlockDimension;
         this.doPrecondition = doPrecondition;
+        this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -329,7 +407,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             mergeExec,
             numMergeWorkers,
             preconditioningBlockDimension,
-            doPrecondition
+            doPrecondition,
+            flatVectorThreshold
         );
     }
 

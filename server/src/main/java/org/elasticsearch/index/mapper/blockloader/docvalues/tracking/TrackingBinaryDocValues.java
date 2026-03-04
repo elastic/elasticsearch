@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.tracking;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -31,18 +30,18 @@ public record TrackingBinaryDocValues(CircuitBreaker breaker, BinaryDocValues do
     private static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(3).getBytes();
 
     public static TrackingBinaryDocValues get(CircuitBreaker breaker, LeafReaderContext context, String fieldName) throws IOException {
-        return get(breaker, context, leafReader -> leafReader.getBinaryDocValues(fieldName));
+        return get(breaker, context, ctx -> ctx.reader().getBinaryDocValues(fieldName));
     }
 
     public static TrackingBinaryDocValues get(
         CircuitBreaker breaker,
         LeafReaderContext context,
-        IOFunction<LeafReader, BinaryDocValues> supplier
+        IOFunction<LeafReaderContext, BinaryDocValues> supplier
     ) throws IOException {
         breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
         TrackingBinaryDocValues result = null;
         try {
-            BinaryDocValues docValues = supplier.apply(context.reader());
+            BinaryDocValues docValues = supplier.apply(context);
             if (docValues == null) {
                 return null;
             }

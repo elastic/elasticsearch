@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,13 +31,8 @@ public class IbmWatsonxChatCompletionRequestEntityTests extends ESTestCase {
     private static final String ROLE = "user";
 
     public void testModelUserFieldsSerialization() throws IOException, URISyntaxException {
-        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString("test content"),
-            ROLE,
-            null,
-            null
-        );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        Message message = new Message(new ContentString("test content"), ROLE, null, null);
+        var messageList = new ArrayList<Message>();
         messageList.add(message);
 
         var unifiedRequest = UnifiedCompletionRequest.of(messageList);

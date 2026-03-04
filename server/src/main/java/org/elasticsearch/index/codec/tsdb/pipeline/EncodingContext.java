@@ -46,7 +46,7 @@ public final class EncodingContext {
      * @param pipelineLength   the number of stages in the pipeline
      * @param metadataCapacity the initial metadata buffer capacity in bytes
      */
-    public EncodingContext(int blockSize, int pipelineLength, int metadataCapacity) {
+    EncodingContext(int blockSize, int pipelineLength, int metadataCapacity) {
         this(blockSize, pipelineLength, new MetadataBuffer(metadataCapacity));
     }
 
@@ -81,15 +81,6 @@ public final class EncodingContext {
             throw new IllegalArgumentException("Position out of range: " + position);
         }
         this.currentPosition = position;
-    }
-
-    /**
-     * Returns the current stage position.
-     *
-     * @return the zero-based stage index, or {@code -1} if not set
-     */
-    public int position() {
-        return currentPosition;
     }
 
     /**

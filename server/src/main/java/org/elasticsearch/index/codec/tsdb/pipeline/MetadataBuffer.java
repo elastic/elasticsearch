@@ -23,7 +23,7 @@ import java.io.IOException;
  * format (two little-endian ints, low int first) for compatibility with
  * {@code DataInput.readLong}.
  */
-public final class MetadataBuffer implements MetadataWriter {
+final class MetadataBuffer implements MetadataWriter {
 
     private static final int DEFAULT_CAPACITY = 64;
     private static final int MAX_VINT_BYTES = 5;

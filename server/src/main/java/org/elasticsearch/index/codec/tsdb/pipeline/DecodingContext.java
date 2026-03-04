@@ -60,7 +60,7 @@ public final class DecodingContext implements MetadataReader {
      *
      * @param bitmap the position bitmap
      */
-    public void setPositionBitmap(short bitmap) {
+    void setPositionBitmap(short bitmap) {
         this.positionBitmap = bitmap;
     }
 

@@ -140,7 +140,7 @@ public final class PipelineDescriptor {
      *
      * @return the block shift
      */
-    public int blockShift() {
+    int blockShift() {
         return blockShift;
     }
 
@@ -150,7 +150,7 @@ public final class PipelineDescriptor {
      *
      * @return the bitmap size in bytes (1 or 2)
      */
-    public int bitmapBytes() {
+    int bitmapBytes() {
         return pipelineLength() <= 8 ? 1 : 2;
     }
 
@@ -159,7 +159,7 @@ public final class PipelineDescriptor {
      *
      * @return a copy of the stage identifiers
      */
-    public byte[] stageIds() {
+    byte[] stageIds() {
         return stageIds.clone();
     }
 
@@ -192,7 +192,7 @@ public final class PipelineDescriptor {
      * @param out the data output stream
      * @throws IOException if an I/O error occurs
      */
-    public void writeTo(final DataOutput out) throws IOException {
+    void writeTo(final DataOutput out) throws IOException {
         out.writeVInt(stageIds.length);
         out.writeByte(blockShift);
         out.writeByte(dataType.id);
@@ -206,7 +206,7 @@ public final class PipelineDescriptor {
      * @return the deserialized descriptor
      * @throws IOException if an I/O error occurs or the data is invalid
      */
-    public static PipelineDescriptor readFrom(final DataInput in) throws IOException {
+    static PipelineDescriptor readFrom(final DataInput in) throws IOException {
         final int length = in.readVInt();
         if (length <= 0 || length > MAX_PIPELINE_LENGTH) {
             throw new IOException("Invalid pipeline length: " + length);

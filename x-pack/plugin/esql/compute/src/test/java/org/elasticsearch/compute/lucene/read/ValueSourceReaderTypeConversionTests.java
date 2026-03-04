@@ -60,6 +60,7 @@ import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -1060,7 +1061,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            new TestDriverRunner().run(d);
+            /*
+             * We use a 3-minute timer because many of the cases can
+             * take 40 seconds in CI. Locally it's taking 9 seconds.
+             */
+            new TestDriverRunner().timeout(TimeValue.timeValueMinutes(3)).run(d);
             success = true;
         } finally {
             if (success == false) {

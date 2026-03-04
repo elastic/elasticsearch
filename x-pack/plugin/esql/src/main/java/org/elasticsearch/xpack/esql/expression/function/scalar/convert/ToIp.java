@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.Ab
  *     expose a single method to users.
  * </p>
  */
-public class ToIp extends EsqlScalarFunction implements SurrogateExpression, OptionalArgument, ConvertFunction {
+public class ToIp extends EsqlScalarFunction implements OnlySurrogateExpression, OptionalArgument, ConvertFunction {
     private static final String LEADING_ZEROS = "leading_zeros";
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(Map.entry(LEADING_ZEROS, KEYWORD));
 

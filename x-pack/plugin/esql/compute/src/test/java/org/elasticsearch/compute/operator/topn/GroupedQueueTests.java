@@ -199,7 +199,7 @@ public class GroupedQueueTests extends ESTestCase {
         return row;
     }
 
-    private static void assertRowValues(GroupedRow row, int expectedGroupKey, int expectedSortKey, int expectedValue) {
+    private static void assertRowValues(GroupedRow row, long expectedGroupKey, int expectedSortKey, int expectedValue) {
         assertThat(row.groupId, equalTo(expectedGroupKey));
 
         BytesRef keys = row.keys().bytesRefView();

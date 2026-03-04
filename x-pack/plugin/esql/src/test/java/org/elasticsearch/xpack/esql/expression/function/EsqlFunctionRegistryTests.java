@@ -353,7 +353,6 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotileSerializationTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPointsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPointsSerializationTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMaxSerializationTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMinSerializationTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StYMaxSerializationTests is missing")

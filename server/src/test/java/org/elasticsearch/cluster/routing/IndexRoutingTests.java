@@ -664,7 +664,7 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathBwc() throws IOException {
-        TimeSeriesRoutingFixture fixture = indexRoutingForRoutingPath(IndexVersion.current(), 8, "dim.*,other.*,top", false);
+        TimeSeriesRoutingFixture fixture = indexRoutingForRoutingPath(IndexVersion.current(), 8, "dim.*,other.*,top", randomBoolean());
         /*
          * These are the expected shards when we first added routing_path. If these values change
          * time series will be routed to unexpected shards. You may modify
@@ -682,54 +682,15 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(fixture, Map.of("dim.a", "a"), 4);
     }
 
-    public void testRoutingPathBwcWithSyntheticId() throws IOException {
-        TimeSeriesRoutingFixture fixture = indexRoutingForRoutingPath(IndexVersion.current(), 8, "dim.*,other.*,top", true);
-        /*
-         * These are the expected shards when we first added routing_path
-         * with synthetic id. If these values change
-         * time series will be routed to unexpected shards. You may modify
-         * them with a new index created version, but when you do you must
-         * copy this test and patch the versions at the top. Because newer
-         * versions of Elasticsearch must continue to route based on the
-         * version on the index.
-         */
-        assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 4);
-        assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 5);
-        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 4);
-        assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 7);
-        assertIndexShard(fixture, Map.of("top", "a"), 5);
-        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 0);
-        assertIndexShard(fixture, Map.of("dim.a", "a"), 4);
-    }
-
     public void testRoutingPathBwcAfterTsidBasedRouting() throws IOException {
-        TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(IndexVersion.current(), 8, "dim.*,other.*,top", false);
+        TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
+            IndexVersion.current(),
+            8,
+            "dim.*,other.*,top",
+            randomBoolean()
+        );
         /*
          * These are the expected shards after tsid based routing. If these values change
-         * time series will be routed to unexpected shards. You may modify
-         * them with a new index created version, but when you do you must
-         * copy this test and patch the versions at the top. Because newer
-         * versions of Elasticsearch must continue to route based on the
-         * version on the index.
-         */
-        assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 7);
-        assertIndexShard(fixture, Map.of("dim", Map.of("a", "b")), 5);
-        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d")), 5);
-        assertIndexShard(fixture, Map.of("other", Map.of("a", "a")), 0);
-        assertIndexShard(fixture, Map.of("top", "a"), 7);
-        assertIndexShard(fixture, Map.of("dim", Map.of("c", "d"), "top", "b"), 2);
-        assertIndexShard(fixture, Map.of("dim.a", "a"), 7);
-        assertIndexShard(fixture, Map.of("dim.a", 1), 0);
-        assertIndexShard(fixture, Map.of("dim.a", "1"), 5);
-        assertIndexShard(fixture, Map.of("dim.a", true), 5);
-        assertIndexShard(fixture, Map.of("dim.a", "true"), 6);
-    }
-
-    public void testRoutingPathBwcAfterTsidBasedRoutingWithSyntheticId() throws IOException {
-        TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(IndexVersion.current(), 8, "dim.*,other.*,top", true);
-        /*
-         * These are the expected shards after tsid based routing with
-         * synthetic id. If these values change
          * time series will be routed to unexpected shards. You may modify
          * them with a new index created version, but when you do you must
          * copy this test and patch the versions at the top. Because newer

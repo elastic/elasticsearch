@@ -149,9 +149,9 @@ public sealed interface StageSpec {
 
     /** Zstandard block compression payload. */
     record ZstdPayload(int compressionLevel) implements StageSpec {
-        public static final int DEFAULT_COMPRESSION_LEVEL = 3;
-        public static final int MIN_COMPRESSION_LEVEL = 1;
-        public static final int MAX_COMPRESSION_LEVEL = 22;
+        static final int DEFAULT_COMPRESSION_LEVEL = 3;
+        static final int MIN_COMPRESSION_LEVEL = 1;
+        static final int MAX_COMPRESSION_LEVEL = 22;
 
         public ZstdPayload {
             if (compressionLevel < MIN_COMPRESSION_LEVEL || compressionLevel > MAX_COMPRESSION_LEVEL) {

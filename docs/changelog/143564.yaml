@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 143564
+pr: 143564
+summary: Introduce ViewUnionAll to differentiate view-produced unions from subquery unions
+type: enhancement

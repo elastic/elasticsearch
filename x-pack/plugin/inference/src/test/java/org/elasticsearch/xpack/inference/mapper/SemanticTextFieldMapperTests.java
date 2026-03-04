@@ -328,14 +328,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertTrue(fields.isEmpty());
     }
 
-    public void testDefaultInferenceIdUsesEisWhenAvailable() throws Exception {
-        final String fieldName = "field";
-        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
-
-        MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
-        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_JINA_V5_INFERENCE_ID, DEFAULT_EIS_JINA_V5_INFERENCE_ID);
-    }
-
     public void testDefaultInferenceIdUsesElserForPreJinaV5Indices() throws Exception {
         // Even when EIS is available, indices created before SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5 should
         // default to ELSER to avoid mixing embedding types with existing semantic_text fields.

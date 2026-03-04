@@ -11,23 +11,16 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Immutable specification for a field's encoding pipeline.
  * Captures the data type, block size, and stage specifications for deferred codec construction.
  * Use {@link #forLongs} or {@link #forDoubles} to start building a configuration.
  */
-public final class PipelineConfig {
+public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize, List<StageSpec> specs) {
 
-    private final PipelineDescriptor.DataType dataType;
-    private final int blockSize;
-    private final List<StageSpec> specs;
-
-    PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize, List<StageSpec> specs) {
-        this.dataType = dataType;
-        this.blockSize = blockSize;
-        this.specs = List.copyOf(specs);
+    public PipelineConfig {
+        specs = List.copyOf(specs);
     }
 
     /**
@@ -52,35 +45,6 @@ public final class PipelineConfig {
         return new PipelineConfig(dataType, blockSize, specs);
     }
 
-    public PipelineDescriptor.DataType dataType() {
-        return dataType;
-    }
-
-    public int blockSize() {
-        return blockSize;
-    }
-
-    /**
-     * Returns an unmodifiable view of the stage specifications.
-     */
-    public List<StageSpec> specs() {
-        return specs;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o instanceof PipelineConfig that) {
-            return dataType == that.dataType && blockSize == that.blockSize && specs.equals(that.specs);
-        }
-        return false;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(dataType, blockSize, specs);
-    }
-
     public String describeStages() {
         if (specs.isEmpty()) {
             return "default";
@@ -93,11 +57,6 @@ public final class PipelineConfig {
             sb.append(specs.get(i).stageId().displayName);
         }
         return sb.toString();
-    }
-
-    @Override
-    public String toString() {
-        return "PipelineConfig{" + "dataType=" + dataType + ", blockSize=" + blockSize + ", specs=" + specs + '}';
     }
 
     /**

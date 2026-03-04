@@ -19,7 +19,6 @@ import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.junit.After;

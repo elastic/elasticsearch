@@ -55,15 +55,12 @@ public class EqlLogContext extends ActivityLoggerContext {
     }
 
     public Optional<ShardInfo> shardInfo() {
-        if (response == null) {
-            return Optional.empty();
-        }
         // We only know about failed shards in EQL
-        return Optional.of(new ShardInfo(null, null, getFailedShards(response)));
+        return Optional.ofNullable(response).map(r -> new ShardInfo(null, null, getFailedShards(response)));
     }
 
     private static int getFailedShards(EqlSearchResponse response) {
         long failedShards = Arrays.stream(response.shardFailures()).map(ShardSearchFailure::shard).distinct().count();
-        return failedShards >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) failedShards;
+        return Math.clamp(failedShards, 0, Integer.MAX_VALUE);
     }
 }

@@ -65,15 +65,9 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
             fields.field(prefix + "timed_out", true);
         }
         context.shardInfo().ifPresent(shardInfo -> {
-            if (shardInfo.successfulShards() != null) {
-                fields.field(QUERY_FIELD_SHARDS + "successful", shardInfo.successfulShards());
-            }
-            if (shardInfo.skippedShards() != null) {
-                fields.field(QUERY_FIELD_SHARDS + "skipped", shardInfo.skippedShards());
-            }
-            if (shardInfo.failedShards() != null) {
-                fields.field(QUERY_FIELD_SHARDS + "failed", shardInfo.failedShards());
-            }
+            fields.field(QUERY_FIELD_SHARDS + "successful", shardInfo.successfulShards());
+            fields.field(QUERY_FIELD_SHARDS + "skipped", shardInfo.skippedShards());
+            fields.field(QUERY_FIELD_SHARDS + "failed", shardInfo.failedShards());
         });
         return fields;
     }

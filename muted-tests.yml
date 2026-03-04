@@ -459,6 +459,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:lookup-join.MvJoinKeyOnTheLookupIndexAfterStats}
   issue: https://github.com/elastic/elasticsearch/issues/143552
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:lookup-join.LookupJoinOnTwoFieldsAfterTop}
+  issue: https://github.com/elastic/elasticsearch/issues/143553
 
 # Examples:
 #

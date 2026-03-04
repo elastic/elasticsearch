@@ -13,6 +13,8 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
 public class DecodingContextTests extends ESTestCase {
 
     private static final int BASE_BLOCK_SIZE = 128;
@@ -104,6 +106,29 @@ public class DecodingContextTests extends ESTestCase {
         final byte[] dest = new byte[numBytes];
         context.metadata().readBytes(dest);
         assertArrayEquals(source, dest);
+    }
+
+    public void testReverseWrittenMetadataIsReadSequentially() throws IOException {
+        final int numTransformStages = randomIntBetween(2, 8);
+        final int pipelineLength = numTransformStages + 1;
+        final EncodingContext encodingContext = new EncodingContext(randomBlockSize(), pipelineLength);
+
+        for (int pos = 0; pos < numTransformStages; pos++) {
+            encodingContext.setCurrentPosition(pos);
+            encodingContext.metadata().writeVLong(pos);
+        }
+
+        final byte[] buffer = new byte[256];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+        encodingContext.writeStageMetadata(out);
+
+        final DecodingContext decodingContext = new DecodingContext(randomBlockSize(), pipelineLength);
+        decodingContext.setDataInput(new ByteArrayDataInput(buffer, 0, out.getPosition()));
+        decodingContext.setPositionBitmap(encodingContext.positionBitmap());
+
+        for (int pos = numTransformStages - 1; pos >= 0; pos--) {
+            assertEquals(pos, decodingContext.readVLong());
+        }
     }
 
     public void testAllMetadataReaderMethodsRoundtrip() throws Exception {

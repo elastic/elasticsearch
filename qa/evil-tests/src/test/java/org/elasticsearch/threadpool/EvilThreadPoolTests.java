@@ -11,9 +11,9 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -62,7 +62,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionErrorOnFixedESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor fixedExecutor = EsExecutors.newFixed(
+        final EsExecutorService fixedExecutor = EsExecutors.newFixed(
             "test",
             1,
             1,
@@ -79,7 +79,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionErrorOnScalingESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor scalingExecutor = EsExecutors.newScaling(
+        final EsExecutorService scalingExecutor = EsExecutors.newScaling(
             "test",
             1,
             1,
@@ -171,7 +171,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionExceptionOnFixedESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor fixedExecutor = EsExecutors.newFixed(
+        final EsExecutorService fixedExecutor = EsExecutors.newFixed(
             "test",
             1,
             1,
@@ -188,7 +188,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionExceptionOnScalingESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor scalingExecutor = EsExecutors.newScaling(
+        final EsExecutorService scalingExecutor = EsExecutors.newScaling(
             "test",
             1,
             1,

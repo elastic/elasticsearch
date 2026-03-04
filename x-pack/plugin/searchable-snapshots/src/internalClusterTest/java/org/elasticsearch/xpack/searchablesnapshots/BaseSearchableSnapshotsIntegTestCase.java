@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -61,7 +62,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -347,8 +347,8 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
     protected void assertExecutorIsIdle(String executorName) throws Exception {
         assertBusy(() -> {
             for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
-                ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(executorName);
-                assertThat(threadPoolExecutor.getQueue().size(), equalTo(0));
+                EsExecutorService threadPoolExecutor = (EsExecutorService) threadPool.executor(executorName);
+                assertThat(threadPoolExecutor.getCurrentQueueSize(), equalTo(0));
                 assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
             }
         });

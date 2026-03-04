@@ -44,8 +44,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -898,7 +898,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
     private Runnable blockAllThreads(String executorName) throws Exception {
         final int numberOfThreads = threadPool.info(executorName).getMax();
-        final EsThreadPoolExecutor executor = (EsThreadPoolExecutor) threadPool.executor(executorName);
+        final EsExecutorService executor = (EsExecutorService) threadPool.executor(executorName);
         final CyclicBarrier barrier = new CyclicBarrier(numberOfThreads + 1);
         final CountDownLatch latch = new CountDownLatch(1);
         for (int i = 0; i < numberOfThreads; i++) {

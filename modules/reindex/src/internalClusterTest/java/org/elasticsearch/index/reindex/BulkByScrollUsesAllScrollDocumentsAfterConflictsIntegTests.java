@@ -20,7 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -191,7 +191,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
         final int writeThreads = threadPool.info(ThreadPool.Names.WRITE).getMax();
         assertThat(writeThreads, equalTo(1));
-        final EsThreadPoolExecutor writeThreadPool = (EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE);
+        final EsExecutorService writeThreadPool = (EsExecutorService) threadPool.executor(ThreadPool.Names.WRITE);
         final CyclicBarrier barrier = new CyclicBarrier(writeThreads + 1);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -232,7 +232,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         final ActionFuture<BulkResponse> bulkFuture = internalCluster().coordOnlyNodeClient().bulk(conflictingUpdatesBulkRequest);
 
         // Ensure that the concurrent writes are enqueued before the update by query request is sent
-        assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(1)));
+        assertBusy(() -> assertThat(writeThreadPool.getCurrentQueueSize(), equalTo(1)));
 
         requestBuilder.source(sourceIndex).maxDocs(maxDocs).abortOnVersionConflict(false);
 
@@ -247,7 +247,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         source.setQuery(QueryBuilders.matchAllQuery());
         final ActionFuture<BulkByScrollResponse> updateByQueryResponse = requestBuilder.execute();
 
-        assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(2)));
+        assertBusy(() -> assertThat(writeThreadPool.getCurrentQueueSize(), equalTo(2)));
 
         // Allow tasks from the write thread to make progress
         latch.countDown();

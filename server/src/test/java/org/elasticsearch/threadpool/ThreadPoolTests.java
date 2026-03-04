@@ -15,12 +15,11 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
+import org.elasticsearch.common.util.concurrent.EsExecutorService.TaskTrackingEsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -371,15 +370,12 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(4)), equalTo(10));
     }
 
-    public void testWriteThreadPoolUsesTaskExecutionTimeTrackingEsThreadPoolExecutor() {
+    public void testWriteThreadPoolUsesTaskTimeTrackingEsThreadPoolExecutor() {
         final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
         try {
-            assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
-            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
-            assertThat(
-                threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE),
-                instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class)
-            );
+            assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskTrackingEsExecutorService.class));
+            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskTrackingEsExecutorService.class));
+            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE), instanceOf(TaskTrackingEsExecutorService.class));
         } finally {
             assertTrue(terminate(threadPool));
         }
@@ -503,14 +499,14 @@ public class ThreadPoolTests extends ESTestCase {
             final String threadPoolName = ThreadPool.Names.WRITE;
             final MetricAsserter metricAsserter = new MetricAsserter(meterRegistry, threadPoolName);
             final ThreadPool.Info threadPoolInfo = threadPool.info(threadPoolName);
-            final TaskExecutionTimeTrackingEsThreadPoolExecutor executor = asInstanceOf(
-                TaskExecutionTimeTrackingEsThreadPoolExecutor.class,
+            final TaskTrackingEsExecutorService executor = asInstanceOf(
+                TaskTrackingEsExecutorService.class,
                 threadPool.executor(threadPoolName)
             );
 
             final long beforePreviousCollectNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
-            double allocationUtilization = executor.pollUtilization(UtilizationTrackingPurpose.ALLOCATION);
+            double allocationUtilization = executor.pollUtilization(TaskTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION);
             final long afterPreviousCollectNanos = System.nanoTime();
 
             var metricValue = metricAsserter.assertLatestMetricValueMatches(
@@ -533,7 +529,7 @@ public class ThreadPoolTests extends ESTestCase {
             });
             safeAwait(barrier);
             safeGet(future);
-            // Wait for TaskExecutionTimeTrackingEsThreadPoolExecutor#afterExecute to run
+            // Wait for TaskTimeTrackingEsThreadPoolExecutor#afterExecute to run
             assertBusy(() -> assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L)));
             // When you call submit, the TimedRunnable wraps the FutureTask, so safeGet can return before the duration of
             // the task is calculated. Waiting for totalTaskExecutionTime to be updated ensures maxDurationNanos is greater
@@ -542,7 +538,7 @@ public class ThreadPoolTests extends ESTestCase {
 
             final long beforeMetricsCollectedNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
-            allocationUtilization = executor.pollUtilization(UtilizationTrackingPurpose.ALLOCATION);
+            allocationUtilization = executor.pollUtilization(TaskTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION);
             final long afterMetricsCollectedNanos = System.nanoTime();
 
             // Calculate upper bound on utilisation metric
@@ -602,7 +598,7 @@ public class ThreadPoolTests extends ESTestCase {
             final int numThreads = randomIntBetween(1, Math.min(10, threadPoolInfo.getMax()));
             final CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
             final List<Future<?>> futures = new ArrayList<>();
-            final EsThreadPoolExecutor executor = asInstanceOf(EsThreadPoolExecutor.class, threadPool.executor(threadPoolName));
+            final EsExecutorService executor = asInstanceOf(EsExecutorService.class, threadPool.executor(threadPoolName));
             for (int i = 0; i < numThreads; i++) {
                 futures.add(executor.submit(() -> {
                     safeAwait(barrier);
@@ -637,7 +633,7 @@ public class ThreadPoolTests extends ESTestCase {
             // Let all threads complete
             safeAwait(barrier);
             futures.forEach(ESTestCase::safeGet);
-            // Wait for TaskExecutionTimeTrackingEsThreadPoolExecutor#afterExecute to complete
+            // Wait for TaskTimeTrackingEsThreadPoolExecutor#afterExecute to complete
             assertBusy(() -> assertThat(executor.getActiveCount(), equalTo(0)));
 
             meterRegistry.getRecorder().collect();

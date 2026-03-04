@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 
 import java.nio.file.Path;
 import java.time.Clock;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -90,8 +88,13 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin implements
         }
 
         @Override
-        public BlockingQueue<Runnable> queue() {
-            return new ArrayBlockingQueue<>(1);
+        public int drainQueue() {
+            return 0;
+        }
+
+        @Override
+        public int getCurrentQueueSize() {
+            return 0;
         }
 
         @Override

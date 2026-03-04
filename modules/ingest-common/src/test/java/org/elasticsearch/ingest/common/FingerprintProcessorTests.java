@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.core.ObjectPool;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
@@ -378,14 +379,14 @@ public class FingerprintProcessorTests extends ESTestCase {
     }
 
     private void doTestObjectTraversal(Map<String, Object> inputMap, List<String> fields, List<Object> expectedValues) throws Exception {
-        ThreadLocal<FingerprintProcessor.Hasher> threadLocalHasher = ThreadLocal.withInitial(TestHasher::new);
+        ObjectPool<FingerprintProcessor.Hasher> hasherPool = ObjectPool.withInitial(TestHasher::new);
         FingerprintProcessor fp = new FingerprintProcessor(
             FingerprintProcessor.TYPE,
             "",
             fields,
             "fingerprint",
             new byte[0],
-            threadLocalHasher,
+            hasherPool,
             false
         );
 
@@ -397,7 +398,8 @@ public class FingerprintProcessorTests extends ESTestCase {
 
         var input = TestIngestDocument.withDefaultVersion(inputMap);
         var output = fp.execute(input);
-        var hasher = (TestHasher) threadLocalHasher.get();
+
+        var hasher = (TestHasher) hasherPool.acquire().get();
         assertThat(hasher.getBytesSeen(), equalTo(expectedBytes));
         assertTrue(output.hasField("fingerprint"));
         assertThat(output.getFieldValue("fingerprint", String.class), equalTo(Base64.getEncoder().encodeToString(expectedBytes)));

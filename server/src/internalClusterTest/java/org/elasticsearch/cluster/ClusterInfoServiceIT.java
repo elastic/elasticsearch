@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
@@ -409,8 +409,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     /**
      * The {@link TransportNodeUsageStatsForThreadPoolsAction} returns the max value of two kinds of queue latencies:
-     * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#getMaxQueueLatencyMillisSinceLastPollAndReset()} and
-     * {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis()}. The latter looks at currently queued tasks,
+     * {@link TaskTimeTrackingEsThreadPoolExecutor#getMaxQueueLatencyMillisSinceLastPollAndReset()} and
+     * {@link TaskTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis()}. The latter looks at currently queued tasks,
      * and the former tracks the queue latency of tasks when they are taken off of the queue to start execution.
      */
     public void testMaxQueueLatenciesInClusterInfo() throws Exception {
@@ -466,8 +466,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             // Reach into the data node's write thread pool to check that tasks have reached the queue.
             var dataNodeThreadPool = internalCluster().getInstance(ThreadPool.class, dataNodeName);
             var writeExecutor = dataNodeThreadPool.executor(ThreadPool.Names.WRITE);
-            assert writeExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor;
-            var trackingWriteExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) writeExecutor;
+            assert writeExecutor instanceof TaskTimeTrackingEsThreadPoolExecutor;
+            var trackingWriteExecutor = (TaskTimeTrackingEsThreadPoolExecutor) writeExecutor;
             assertBusy(
                 // Wait for the parallel threads' writes to get queued in the write thread pool.
                 () -> assertThat(
@@ -516,7 +516,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             Arrays.stream(threadsToJoin).forEach(thread -> assertFalse(thread.isAlive()));
             // Monitor the write executor on the data node to try and determine when the backlog of tasks
             // has been fully drained (and
-            // {@link org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor.afterExecute()}
+            // {@link org.elasticsearch.common.util.concurrent.TaskTimeTrackingEsThreadPoolExecutor.afterExecute()}
             // has been called). This is probably not foolproof, so worth investigating if we see non-zero utilization numbers
             // after the next poll. See https://github.com/elastic/elasticsearch/issues/134500
             assertBusy(() -> assertThat(trackingWriteExecutor.getActiveCount(), equalTo(0)));

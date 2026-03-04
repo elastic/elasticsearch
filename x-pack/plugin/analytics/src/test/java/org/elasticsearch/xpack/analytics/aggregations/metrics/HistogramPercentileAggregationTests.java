@@ -82,7 +82,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
             bulkRequest.add(new IndexRequest("raw").source(doc));
             histogram.recordValue(value);
             if ((i + 1) % frq == 0) {
-                client().bulk(bulkRequest);
+                client().bulk(bulkRequest).actionGet();
                 bulkRequest = new BulkRequest();
                 List<Double> values = new ArrayList<>();
                 List<Integer> counts = new ArrayList<>();
@@ -186,7 +186,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
             bulkRequest.add(new IndexRequest("raw").source(doc));
             histogram.add(value);
             if ((i + 1) % frq == 0) {
-                client().bulk(bulkRequest);
+                client().bulk(bulkRequest).actionGet();
                 bulkRequest = new BulkRequest();
                 List<Double> values = new ArrayList<>();
                 List<Long> counts = new ArrayList<>();

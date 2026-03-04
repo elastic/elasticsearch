@@ -13,38 +13,57 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.ThreadPoolExecutor;
+
+import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_REJECTED;
+import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_PREFIX;
 
 public abstract class EsRejectedExecutionHandler implements RejectedExecutionHandler {
 
-    private final CounterMetric rejected = new CounterMetric();
-    private LongCounter rejectionCounter = null;
+    static class RejectionMetrics {
+        private final CounterMetric rejected = new CounterMetric();
+        private LongCounter rejectionCounter = null;
+
+        void incrementRejections() {
+            rejected.inc();
+            if (rejectionCounter != null) {
+                rejectionCounter.increment();
+            }
+        }
+
+        void registerCounter(MeterRegistry meterRegistry, String threadPoolName) {
+            rejectionCounter = meterRegistry.registerLongCounter(
+                THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_REJECTED,
+                "number of rejected threads for " + threadPoolName,
+                "count"
+            );
+            rejectionCounter.incrementBy(getRejectedTaskCount());
+        }
+
+        long getRejectedTaskCount() {
+            return rejected.count();
+        }
+    }
+
+    private final RejectionMetrics rejectionMetrics = new RejectionMetrics();
 
     /**
      * The number of rejected executions.
      */
-    public long rejected() {
-        return rejected.count();
+    public long getRejectedTaskCount() {
+        return rejectionMetrics.getRejectedTaskCount();
     }
 
     protected void incrementRejections() {
-        rejected.inc();
-        if (rejectionCounter != null) {
-            rejectionCounter.increment();
-        }
+        rejectionMetrics.incrementRejections();
     }
 
-    public void registerCounter(MeterRegistry meterRegistry, String metric_name, String threadpool_name) {
-        rejectionCounter = meterRegistry.registerLongCounter(metric_name, "number of rejected threads for " + threadpool_name, "count");
-        rejectionCounter.incrementBy(rejected());
+    public void registerCounter(MeterRegistry meterRegistry, String threadPoolName) {
+        rejectionMetrics.registerCounter(meterRegistry, threadPoolName);
     }
 
-    protected static EsRejectedExecutionException newRejectedException(
-        Runnable r,
-        ThreadPoolExecutor executor,
-        boolean isExecutorShutdown
-    ) {
+    protected static EsRejectedExecutionException newRejectedException(Runnable r, ExecutorService executor, boolean isExecutorShutdown) {
         final StringBuilder builder = new StringBuilder("rejected execution of ").append(r).append(" on ").append(executor);
         if (isExecutorShutdown) {
             builder.append(" (shutdown)");

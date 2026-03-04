@@ -169,7 +169,7 @@ public class ExecutionService {
      */
     public int clearExecutionsAndQueue(Runnable stoppedListener) {
         assert stoppedListener != null;
-        int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
+        int cancelledTaskCount = executor.drainQueue();
         this.clearExecutions(stoppedListener);
         return cancelledTaskCount;
     }
@@ -179,7 +179,7 @@ public class ExecutionService {
     }
 
     public long executionThreadPoolQueueSize() {
-        return executor.queue().size();
+        return executor.getCurrentQueueSize();
     }
 
     public long executionThreadPoolMaxSize() {

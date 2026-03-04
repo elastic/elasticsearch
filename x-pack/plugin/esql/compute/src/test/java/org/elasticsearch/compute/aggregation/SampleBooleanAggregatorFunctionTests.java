@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceBooleanBlockSourceOperator;
 import org.elasticsearch.test.MixWithIncrement;
+import org.elasticsearch.test.VirtualThreadsSeedDecorator;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,7 +29,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-@SeedDecorators(MixWithIncrement.class)
+@SeedDecorators({ MixWithIncrement.class, VirtualThreadsSeedDecorator.class })
 public class SampleBooleanAggregatorFunctionTests extends AggregatorFunctionTestCase {
     private static final int LIMIT = 50;
 

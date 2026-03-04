@@ -16,7 +16,10 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
+import org.elasticsearch.telemetry.metric.Instrument;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.ArrayList;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
@@ -31,7 +34,7 @@ import static org.elasticsearch.core.Strings.format;
 /**
  * An extension to thread pool executor, allowing (in the future) to add specific additional stats to it.
  */
-public class EsThreadPoolExecutor extends ThreadPoolExecutor {
+public class EsThreadPoolExecutor extends ThreadPoolExecutor implements EsExecutorService {
 
     private static final Logger logger = LogManager.getLogger(EsThreadPoolExecutor.class);
     private static final long NOT_TRACKED_TIME = -1L;
@@ -93,7 +96,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         TimeUnit unit,
         BlockingQueue<Runnable> workQueue,
         ThreadFactory threadFactory,
-        RejectedExecutionHandler handler,
+        EsRejectedExecutionHandler handler,
         ThreadContext contextHolder,
         EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
     ) {
@@ -121,7 +124,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         TimeUnit unit,
         BlockingQueue<Runnable> workQueue,
         ThreadFactory threadFactory,
-        RejectedExecutionHandler handler,
+        EsRejectedExecutionHandler handler,
         ThreadContext contextHolder,
         EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig,
         LongSupplier currentTimeMillisSupplier // For test to configure a custom time supplier
@@ -134,6 +137,29 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         this.lastLoggingTimeMillisForHotThreads = hotThreadsOnLargeQueueConfig.isEnabled()
             ? new AtomicLong(currentTimeMillisSupplier.getAsLong() - hotThreadsOnLargeQueueConfig.intervalInMillis())
             : null;
+    }
+
+    @Override
+    public Stream<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
+        var rejectedExecutionHandler = (EsRejectedExecutionHandler) getRejectedExecutionHandler();
+        // FIXME bug or is below assumed reason true?
+        // registered, but intentionally not returned so it won't be closed prior to closing the executor
+        rejectedExecutionHandler.registerCounter(meterRegistry, threadPoolName);
+        return Stream.empty();
+    }
+
+    @Override
+    public void setRejectedExecutionHandler(RejectedExecutionHandler handler) {
+        if (handler instanceof EsRejectedExecutionHandler == false) {
+            throw new IllegalArgumentException(handler.getClass().getName() + " is not a EsRejectedExecutionHandler");
+        }
+        super.setRejectedExecutionHandler(handler);
+    }
+
+    @Override
+    public long getRejectedTaskCount() {
+        var rejectedExecutionHandler = (EsRejectedExecutionHandler) getRejectedExecutionHandler();
+        return rejectedExecutionHandler.getRejectedTaskCount();
     }
 
     @Override
@@ -244,6 +270,19 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
                 + r
                 + "]";
         return true;
+    }
+
+    /**
+     * Returns the current queue size (operations that are queued)
+     */
+    @Override
+    public int getCurrentQueueSize() {
+        return getQueue().size();
+    }
+
+    @Override
+    public int drainQueue() {
+        return getQueue().drainTo(new ArrayList<>());
     }
 
     /**

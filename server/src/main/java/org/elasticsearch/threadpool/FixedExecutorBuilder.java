@@ -11,6 +11,7 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -19,7 +20,6 @@ import org.elasticsearch.node.Node;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
 /**
@@ -145,7 +145,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         int size = settings.size;
         int queueSize = settings.queueSize;
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name(), isSystemThread());
-        final ExecutorService executor = EsExecutors.newFixed(
+        final EsExecutorService executor = EsExecutors.newFixed(
             settings.nodeName + "/" + name(),
             size,
             queueSize,

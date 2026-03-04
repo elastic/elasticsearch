@@ -50,6 +50,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Booleans;
@@ -151,7 +152,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -873,8 +873,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     // visible for testing
     static boolean isExecutorQueuedBeyondPrewarmingFactor(Executor searchOperationsExecutor, int prewarmingMaxPoolFactorThreshold) {
-        if (searchOperationsExecutor instanceof ThreadPoolExecutor tpe) {
-            return (tpe.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < tpe.getQueue().size();
+        if (searchOperationsExecutor instanceof EsExecutorService es) {
+            return (es.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < es.getCurrentQueueSize();
         } else {
             logger.trace(
                 "received executor [{}] that we can't inspect for queueing. allowing online prewarming for all searches",

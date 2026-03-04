@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.core.ObjectPool;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -49,7 +50,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
 
     private final List<String> fields;
     private final String targetField;
-    private final ThreadLocal<Hasher> threadLocalHasher;
+    private final ObjectPool<Hasher> hasherPool;
     private final byte[] salt;
     private final boolean ignoreMissing;
 
@@ -59,14 +60,14 @@ public final class FingerprintProcessor extends AbstractProcessor {
         List<String> fields,
         String targetField,
         byte[] salt,
-        ThreadLocal<Hasher> threadLocalHasher,
+        ObjectPool<Hasher> hasherPool,
         boolean ignoreMissing
     ) {
         super(tag, description);
         this.fields = new ArrayList<>(fields);
         this.fields.sort(Comparator.naturalOrder());
         this.targetField = targetField;
-        this.threadLocalHasher = threadLocalHasher;
+        this.hasherPool = hasherPool;
         this.salt = salt;
         this.ignoreMissing = ignoreMissing;
     }
@@ -74,62 +75,64 @@ public final class FingerprintProcessor extends AbstractProcessor {
     @Override
     @SuppressWarnings("unchecked")
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        Hasher hasher = threadLocalHasher.get();
-        hasher.reset();
-        hasher.update(salt);
+        try (var pooledHasher = hasherPool.acquire()) {
+            Hasher hasher = pooledHasher.get();
+            hasher.reset();
+            hasher.update(salt);
 
-        var values = new Stack<>();
-        for (int k = fields.size() - 1; k >= 0; k--) {
-            String field = fields.get(k);
-            Object value = ingestDocument.getFieldValue(field, Object.class, true);
-            if (value == null) {
-                if (ignoreMissing) {
-                    continue;
-                } else {
-                    throw new IllegalArgumentException("missing field [" + field + "] when calculating fingerprint");
+            var values = new Stack<>();
+            for (int k = fields.size() - 1; k >= 0; k--) {
+                String field = fields.get(k);
+                Object value = ingestDocument.getFieldValue(field, Object.class, true);
+                if (value == null) {
+                    if (ignoreMissing) {
+                        continue;
+                    } else {
+                        throw new IllegalArgumentException("missing field [" + field + "] when calculating fingerprint");
+                    }
                 }
-            }
-            values.push(value);
-        }
-
-        if (values.size() > 0) {
-            // iteratively traverse document fields
-            while (values.isEmpty() == false) {
-                var value = values.pop();
-                if (value instanceof List<?> list) {
-                    for (int k = list.size() - 1; k >= 0; k--) {
-                        values.push(list.get(k));
-                    }
-                } else if (value instanceof Set) {
-                    @SuppressWarnings("rawtypes")
-                    var set = (Set<Comparable>) value;
-                    // process set entries in consistent order
-                    var setList = new ArrayList<>(set);
-                    setList.sort(Comparator.naturalOrder());
-                    for (int k = setList.size() - 1; k >= 0; k--) {
-                        values.push(setList.get(k));
-                    }
-                } else if (value instanceof Map) {
-                    var map = (Map<String, Object>) value;
-                    // process map entries in consistent order
-                    @SuppressWarnings("rawtypes")
-                    var entryList = new ArrayList<>(map.entrySet());
-                    entryList.sort(Map.Entry.comparingByKey(Comparator.naturalOrder()));
-                    for (int k = entryList.size() - 1; k >= 0; k--) {
-                        values.push(entryList.get(k));
-                    }
-                } else if (value instanceof Map.Entry<?, ?> entry) {
-                    hasher.update(DELIMITER);
-                    hasher.update(toBytes(entry.getKey()));
-                    values.push(entry.getValue());
-                } else {
-                    // feed them through digest.update
-                    hasher.update(DELIMITER);
-                    hasher.update(toBytes(value));
-                }
+                values.push(value);
             }
 
-            ingestDocument.setFieldValue(targetField, Base64.getEncoder().encodeToString(hasher.digest()));
+            if (values.size() > 0) {
+                // iteratively traverse document fields
+                while (values.isEmpty() == false) {
+                    var value = values.pop();
+                    if (value instanceof List<?> list) {
+                        for (int k = list.size() - 1; k >= 0; k--) {
+                            values.push(list.get(k));
+                        }
+                    } else if (value instanceof Set) {
+                        @SuppressWarnings("rawtypes")
+                        var set = (Set<Comparable>) value;
+                        // process set entries in consistent order
+                        var setList = new ArrayList<>(set);
+                        setList.sort(Comparator.naturalOrder());
+                        for (int k = setList.size() - 1; k >= 0; k--) {
+                            values.push(setList.get(k));
+                        }
+                    } else if (value instanceof Map) {
+                        var map = (Map<String, Object>) value;
+                        // process map entries in consistent order
+                        @SuppressWarnings("rawtypes")
+                        var entryList = new ArrayList<>(map.entrySet());
+                        entryList.sort(Map.Entry.comparingByKey(Comparator.naturalOrder()));
+                        for (int k = entryList.size() - 1; k >= 0; k--) {
+                            values.push(entryList.get(k));
+                        }
+                    } else if (value instanceof Map.Entry<?, ?> entry) {
+                        hasher.update(DELIMITER);
+                        hasher.update(toBytes(entry.getKey()));
+                        values.push(entry.getValue());
+                    } else {
+                        // feed them through digest.update
+                        hasher.update(DELIMITER);
+                        hasher.update(toBytes(value));
+                    }
+                }
+
+                ingestDocument.setFieldValue(targetField, Base64.getEncoder().encodeToString(hasher.digest()));
+            }
         }
 
         return ingestDocument;
@@ -198,8 +201,8 @@ public final class FingerprintProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    public ThreadLocal<Hasher> getThreadLocalHasher() {
-        return threadLocalHasher;
+    public ObjectPool<Hasher> getHasherPool() {
+        return hasherPool;
     }
 
     public byte[] getSalt() {
@@ -253,7 +256,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
                     )
                 );
             }
-            ThreadLocal<Hasher> threadLocalHasher = ThreadLocal.withInitial(() -> {
+            ObjectPool<Hasher> threadLocalHasher = ObjectPool.withInitial(() -> {
                 try {
                     return MessageDigestHasher.getInstance(method);
                 } catch (NoSuchAlgorithmException e) {

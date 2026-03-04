@@ -36,12 +36,12 @@ import static org.hamcrest.Matchers.hasSize;
  * Tests for the automatic queue resizing of the {@code QueueResizingEsThreadPoolExecutorTests}
  * based on the time taken for each event.
  */
-public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCase {
+public class TaskTimeTrackingEsThreadPoolExecutorTests extends ESTestCase {
 
     public void testExecutionEWMACalculation() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
 
-        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        TaskTimeTrackingEsThreadPoolExecutor executor = new TaskTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
@@ -97,7 +97,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
     /**
      * Verifies that we can peek at the task in front of the task queue to fetch the duration that the oldest task has been queued.
-     * Tests {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis}.
+     * Tests {@link TaskTimeTrackingEsThreadPoolExecutor#peekMaxQueueLatencyInQueueMillis}.
      */
     public void testFrontOfQueueLatency() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
@@ -110,7 +110,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             // tasks.
             TimeUnit.MILLISECONDS.toNanos(1)
         );
-        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        TaskTimeTrackingEsThreadPoolExecutor executor = new TaskTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
@@ -167,7 +167,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
     /**
      * Verifies that tracking of the max queue latency (captured on task dequeue) is maintained.
-     * Tests {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#getMaxQueueLatencyMillisSinceLastPollAndReset()}.
+     * Tests {@link TaskTimeTrackingEsThreadPoolExecutor#getMaxQueueLatencyMillisSinceLastPollAndReset()}.
      */
     public void testMaxDequeuedQueueLatency() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
@@ -178,7 +178,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             barrier,
             TimeUnit.NANOSECONDS.toNanos(1000000) // Until changed, queue latencies will always be 1 millisecond.
         );
-        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        TaskTimeTrackingEsThreadPoolExecutor executor = new TaskTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
@@ -229,7 +229,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     /** Use a runnable wrapper that simulates a task with unknown failures. */
     public void testExceptionThrowingTask() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        TaskTimeTrackingEsThreadPoolExecutor executor = new TaskTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
@@ -266,7 +266,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     public void testGetOngoingTasks() throws Exception {
         var testStartTimeNanos = System.nanoTime();
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        var executor = new TaskTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
@@ -304,7 +304,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     public void testQueueLatencyHistogramMetrics() {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final var threadPoolName = randomIdentifier();
-        var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+        var executor = new TaskTimeTrackingEsThreadPoolExecutor(
             threadPoolName,
             1,
             1,
@@ -326,7 +326,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         try {
             final var barrier = new CyclicBarrier(2);
             final ExponentialBucketHistogram expectedHistogram = new ExponentialBucketHistogram(
-                TaskExecutionTimeTrackingEsThreadPoolExecutor.QUEUE_LATENCY_HISTOGRAM_BUCKETS
+                TaskTracker.QUEUE_LATENCY_HISTOGRAM_BUCKETS
             );
 
             /*
@@ -402,7 +402,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     }
 
     /** Execute a blank task {@code times} times for the executor */
-    private void executeTask(TaskExecutionTimeTrackingEsThreadPoolExecutor executor, int times) {
+    private void executeTask(TaskTimeTrackingEsThreadPoolExecutor executor, int times) {
         logger.info("--> executing a task [{}] times", times);
         for (int i = 0; i < times; i++) {
             executor.execute(() -> {});
@@ -439,7 +439,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
      * This allows dynamically manipulating the queue time with {@link #setQueuedTimeTakenNanos}, and provides a means of waiting for a task
      * to start by calling {@code safeAwait(barrier)} after submitting a task.
      * <p>
-     * Look at {@link TaskExecutionTimeTrackingEsThreadPoolExecutor#wrapRunnable} for how the ThreadPool uses this as a wrapper around all
+     * Look at {@link TaskTimeTrackingEsThreadPoolExecutor#wrapRunnable} for how the ThreadPool uses this as a wrapper around all
      * submitted tasks.
      */
     public class AdjustableQueueTimeWithExecutionBarrierTimedRunnable extends TimedRunnable {

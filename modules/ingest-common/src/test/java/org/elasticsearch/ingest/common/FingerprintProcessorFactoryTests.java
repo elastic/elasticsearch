@@ -53,7 +53,9 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         assertThat(fingerprintProcessor.getFields(), equalTo(sortedFieldList));
         assertThat(fingerprintProcessor.getTargetField(), equalTo(targetField));
         assertThat(fingerprintProcessor.getSalt(), equalTo(salt.getBytes(StandardCharsets.UTF_8)));
-        assertThat(fingerprintProcessor.getThreadLocalHasher().get().getAlgorithm(), equalTo(method));
+        try (var pooledHasher = fingerprintProcessor.getHasherPool().acquire()) {
+            assertThat(pooledHasher.get().getAlgorithm(), equalTo(method));
+        }
         assertThat(fingerprintProcessor.isIgnoreMissing(), equalTo(ignoreMissing));
     }
 
@@ -71,7 +73,9 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(fingerprintProcessor.getTag(), equalTo(processorTag));
         assertThat(fingerprintProcessor.getFields(), equalTo(sortedFieldList));
-        assertThat(fingerprintProcessor.getThreadLocalHasher().get().getAlgorithm(), equalTo(method));
+        try (var pooledHasher = fingerprintProcessor.getHasherPool().acquire()) {
+            assertThat(pooledHasher.get().getAlgorithm(), equalTo(method));
+        }
 
         // invalid method
         String invalidMethod = randomValueOtherThanMany(
@@ -120,7 +124,9 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         assertThat(fingerprintProcessor.getFields(), equalTo(sortedFieldList));
         assertThat(fingerprintProcessor.getTargetField(), equalTo(FingerprintProcessor.Factory.DEFAULT_TARGET));
         assertThat(fingerprintProcessor.getSalt(), equalTo(new byte[0]));
-        assertThat(fingerprintProcessor.getThreadLocalHasher().get().getAlgorithm(), equalTo(FingerprintProcessor.Factory.DEFAULT_METHOD));
+        try (var pooledHasher = fingerprintProcessor.getHasherPool().acquire()) {
+            assertThat(pooledHasher.get().getAlgorithm(), equalTo(FingerprintProcessor.Factory.DEFAULT_METHOD));
+        }
         assertThat(fingerprintProcessor.isIgnoreMissing(), equalTo(false));
     }
 }

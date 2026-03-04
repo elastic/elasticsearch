@@ -19,8 +19,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -248,7 +248,7 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
     }
 
     private static void logThreadPoolQueue(String threadPoolName, ThreadPool threadPool) {
-        if (threadPool.executor(threadPoolName) instanceof EsThreadPoolExecutor tpe) {
+        if (threadPool.executor(threadPoolName) instanceof EsExecutorService tpe) {
             logger.debug("Thread pool details " + threadPoolName + " " + tpe);
             logger.debug(Arrays.toString(tpe.getTasks().toArray()));
         }

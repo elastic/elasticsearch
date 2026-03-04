@@ -240,7 +240,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         this.activityLogger = new ActivityLogger<>(
-            "search",
             clusterService.getClusterSettings(),
             new SearchLogProducer(clusterService.getClusterSettings(), indexNameExpressionResolver.getSystemNamePredicate()),
             logWriterProvider,

@@ -18,7 +18,7 @@ public class EqlLogProducer implements ActivityLogProducer<EqlLogContext> {
 
     @Override
     public Optional<ESLogMessage> produce(EqlLogContext context, ActionLoggingFields additionalFields) {
-        ESLogMessage msg = produceCommon(context, additionalFields);
+        ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
         msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());

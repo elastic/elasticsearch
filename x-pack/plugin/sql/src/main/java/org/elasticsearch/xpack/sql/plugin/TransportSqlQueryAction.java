@@ -117,7 +117,6 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             bigArrays
         );
         this.activityLogger = new ActivityLogger<>(
-            SqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new SqlLogProducer(),
             logWriterProvider,

@@ -453,6 +453,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/143471
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  method: testWriteLargeBlob
+  issue: https://github.com/elastic/elasticsearch/issues/143551
 
 # Examples:
 #

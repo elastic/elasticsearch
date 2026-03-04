@@ -1851,7 +1851,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
-            List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
+            // Find existing LIMITs without groups. Groups are unbounded, and they still require another default LIMIT
+            List<LogicalPlan> limits = logicalPlan.collectFirstChildren(lp -> lp instanceof Limit l && l.groupings().isEmpty());
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
             // the default limit for TS queries or for non-TS queries.
             // NOTE: PromqlCommand is translated to TimeSeriesAggregate during optimization.

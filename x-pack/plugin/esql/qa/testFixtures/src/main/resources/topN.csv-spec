@@ -1143,3 +1143,21 @@ emp_no:integer | first_name:keyword | languages:integer
 10001          | Georgi             | 2
 10020          | Mayuko             | null
 ;
+
+sortByLimitThenLimitByDifferentGrouping
+required_capability: limit_by
+
+FROM employees
+| SORT salary DESC
+| LIMIT 1 BY languages
+| SORT salary DESC
+| LIMIT 1 BY gender
+| KEEP first_name, last_name, salary, languages, gender
+| SORT gender DESC nulls last
+;
+
+first_name:keyword | last_name:keyword | salary:integer | languages:integer | gender:keyword
+Otmar              | Herbst            | 74999          | null              | M
+Tzvetan            | Zielinski         | 74572          | 4                 | F
+Lillian            | Haddadi           | 73717          | 1                 | null
+;

@@ -11,6 +11,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -250,6 +251,36 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
             assertTrue(optimizedPlan.duplicated());
             assertFalse(optimizedPlan.local());
         }
+    }
+
+    public void testCombineLimitsWithSameGroupings() {
+        FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute b = getFieldAttribute("b");
+        EsRelation relation = relation().withAttributes(List.of(a, b));
+        List<Expression> groupings = List.of(a);
+
+        Limit innerLimit = new Limit(EMPTY, new Literal(EMPTY, 10, INTEGER), relation, groupings);
+        Limit outerLimit = new Limit(EMPTY, new Literal(EMPTY, 5, INTEGER), innerLimit, groupings);
+
+        Limit optimized = as(optimizePlan(outerLimit), Limit.class);
+        assertEquals(5, ((Literal) optimized.limit()).value());
+        assertEquals(groupings, optimized.groupings());
+        as(optimized.child(), EsRelation.class);
+    }
+
+    public void testDoNotCombineLimitsWithDifferentGroupings() {
+        FieldAttribute a = getFieldAttribute("a");
+        FieldAttribute b = getFieldAttribute("b");
+        EsRelation relation = relation().withAttributes(List.of(a, b));
+
+        Limit innerLimit = new Limit(EMPTY, new Literal(EMPTY, 5, INTEGER), relation, List.of(b));
+        Limit outerLimit = new Limit(EMPTY, new Literal(EMPTY, 5, INTEGER), innerLimit, List.of(a));
+
+        Limit optimized = as(optimizePlan(outerLimit), Limit.class);
+        assertEquals(List.of(a), optimized.groupings());
+        Limit child = as(optimized.child(), Limit.class);
+        assertEquals(List.of(b), child.groupings());
+        as(child.child(), EsRelation.class);
     }
 
     private LogicalPlan optimizePlan(LogicalPlan plan) {

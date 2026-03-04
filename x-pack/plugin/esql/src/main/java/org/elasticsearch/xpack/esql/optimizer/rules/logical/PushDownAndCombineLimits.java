@@ -55,7 +55,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
 
     @Override
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
-        if (limit.child() instanceof Limit childLimit && childLimit.groupings().isEmpty() && limit.groupings().isEmpty()) {
+        if (limit.child() instanceof Limit childLimit && childLimit.groupings().equals(limit.groupings())) {
             return combineLimits(limit, childLimit, ctx.foldCtx());
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval
@@ -166,7 +166,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // If any of them is local, we want the local limit
             return lower.local() ? lower : lower.withLocal(upper.local());
         } else {
-            return new Limit(upper.source(), upper.limit(), lower.child(), upper.duplicated(), upper.local());
+            return new Limit(upper.source(), upper.limit(), lower.child(), upper.groupings(), upper.duplicated(), upper.local());
         }
     }
 
@@ -207,14 +207,14 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     }
 
     /**
-     * Checks the existence of another 'visible' Limit, that exists behind an operation that doesn't produce output more data than
+     * Checks the existence of another 'visible' non-grouping Limit, that exists behind an operation that doesn't produce output more data than
      * its input (that is not a relation/source nor aggregation).
      * P.S. Typically an aggregation produces less data than the input.
      */
     private static Limit descendantLimit(UnaryPlan unary) {
         UnaryPlan plan = unary;
         while (plan instanceof Aggregate == false) {
-            if (plan instanceof Limit limit) {
+            if (plan instanceof Limit limit && limit.groupings().isEmpty()) {
                 return limit;
             } else if (plan instanceof MvExpand) {
                 // the limit that applies to mv_expand shouldn't be changed

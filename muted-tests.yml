@@ -393,15 +393,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-irate.*}
   issue: https://github.com/elastic/elasticsearch/issues/143368
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:lookup-join.LookupJoinWithMixPushableAndUnpushableFilters}
-  issue: https://github.com/elastic/elasticsearch/issues/143378
 - class: org.elasticsearch.snapshots.ConcurrentSnapshotsIT
   method: testBackToBackQueuedDeletes
   issue: https://github.com/elastic/elasticsearch/issues/143387
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:lookup-join.MvJoinKeyOnTheLookupIndexAfterStats}
-  issue: https://github.com/elastic/elasticsearch/issues/143388
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/143407
@@ -432,30 +426,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries.Datenanos_derivative_compared_to_rate}
   issue: https://github.com/elastic/elasticsearch/issues/143431
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:lookup-join.MvJoinKeyFromRow}
-  issue: https://github.com/elastic/elasticsearch/issues/143432
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:lookup-join.MvJoinKeyOnTheLookupIndexAfterStats}
-  issue: https://github.com/elastic/elasticsearch/issues/143434
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:lookup-join.MvJoinKeyOnTheLookupIndex}
-  issue: https://github.com/elastic/elasticsearch/issues/143442
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:lookup-join.LookupJoinWithCoalesceFilterOnRight}
-  issue: https://github.com/elastic/elasticsearch/issues/143443
 - class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/143471
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/143551
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:lookup-join.MvJoinKeyOnTheLookupIndexAfterStats}
-  issue: https://github.com/elastic/elasticsearch/issues/143552
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: test {csv-spec:lookup-join.LookupJoinOnTwoFieldsAfterTop}
-  issue: https://github.com/elastic/elasticsearch/issues/143553
 
 # Examples:
 #

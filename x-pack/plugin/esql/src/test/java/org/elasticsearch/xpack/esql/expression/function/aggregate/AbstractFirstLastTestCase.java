@@ -16,6 +16,7 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.unlimitedSuppliers;
@@ -23,15 +24,27 @@ import static org.hamcrest.Matchers.anyOf;
 
 public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestCase {
 
-    public static Iterable<Object[]> parameters(boolean isFirst, boolean isNullable) {
+    public static Iterable<Object[]> parameters(boolean isFirst) {
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (DataType valueType : List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.KEYWORD, DataType.TEXT)) {
+        List<DataType> types = List.of(
+            DataType.INTEGER,
+            DataType.LONG,
+            DataType.DOUBLE,
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.IP,
+            DataType.BOOLEAN,
+            DataType.DATETIME,
+            DataType.DATE_NANOS
+        );
+
+        for (DataType valueType : types) {
             for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(valueType, rows, rows)) {
-                for (DataType sortType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
+                for (DataType sortType : List.of(DataType.LONG, DataType.DATETIME, DataType.DATE_NANOS)) {
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : unlimitedSuppliers(sortType, rows, rows)) {
-                        suppliers.add(makeSupplier(valueSupplier, sortSupplier, isFirst, isNullable));
+                        suppliers.add(makeSupplier(valueSupplier, sortSupplier, isFirst));
                     }
                 }
             }
@@ -43,8 +56,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
     private static TestCaseSupplier makeSupplier(
         TestCaseSupplier.TypedDataSupplier valueSupplier,
         TestCaseSupplier.TypedDataSupplier sortSupplier,
-        boolean first,
-        boolean isNullable
+        boolean first
     ) {
         return new TestCaseSupplier(
             valueSupplier.name() + ", " + sortSupplier.name(),
@@ -68,9 +80,16 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                     }
                 }
 
+                String evaluatorStr = String.format(
+                    Locale.ROOT,
+                    "All%sBy%s",
+                    standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", values.type()),
+                    standardAggregatorNameAllBytesTheSame("", sorts.type())
+                );
+
                 return new TestCaseSupplier.TestCase(
                     List.of(values, sorts),
-                    (isNullable ? "All" : "") + standardAggregatorName(first ? "First" : "Last", values.type()) + "ByTimestamp",
+                    evaluatorStr,
                     values.type(),
                     anyOf(() -> Iterators.map(expected.iterator(), Matchers::equalTo))
                 );

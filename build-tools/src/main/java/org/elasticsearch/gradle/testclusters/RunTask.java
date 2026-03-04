@@ -284,6 +284,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     node.setting("telemetry.metrics.enabled", "true");
                     node.setting("telemetry.tracing.enabled", "true");
                     node.setting("telemetry.agent.transaction_sample_rate", "1.0");
+                    node.setting("telemetry.agent.transaction_max_spans", "100");
                     node.setting("telemetry.agent.metrics_interval", "10s");
                     node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
                 }

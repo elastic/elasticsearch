@@ -133,6 +133,11 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                     public int nextGroupId(int currentGroupId) {
                         return -1;
                     }
+
+                    @Override
+                    public void computeAdjacentGroupIds() {
+                        // not used by #nextGroupId and #previousGroupId
+                    }
                 }
             );
         }

@@ -23,6 +23,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
@@ -70,8 +72,10 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumChannels),
                 new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxChannels)
             ),
-            maxPageSize,
+            between(1, 1000),
+            randomDoubleBetween(0.1, 10.0, true),
             randomPageSize(),
+            maxPageSize,
             null
         );
     }
@@ -138,6 +142,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                     new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                 ),
+                between(1, 1000),
+                randomDoubleBetween(0.1, 10.0, true),
                 maxPageSize,
                 randomPageSize(),
                 null
@@ -199,6 +205,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                     new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                 ),
+                between(1, 1000),
+                randomDoubleBetween(0.1, 10.0, true),
                 maxPageSize,
                 randomPageSize(),
                 null
@@ -269,6 +277,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                     new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumAggregatorChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxAggregatorChannels)
                 ),
+                between(1, 1000),
+                randomDoubleBetween(0.1, 10.0, true),
                 maxPageSize,
                 randomPageSize(),
                 null

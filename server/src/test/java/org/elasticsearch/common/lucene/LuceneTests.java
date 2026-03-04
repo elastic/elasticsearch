@@ -560,19 +560,14 @@ public class LuceneTests extends ESTestCase {
             sortFieldTuple.v1(),
             Lucene::writeSortField,
             Lucene::readSortField,
-            TransportVersionUtils.randomVersion(random())
+            TransportVersionUtils.randomVersion()
         );
         assertEquals(sortFieldTuple.v2(), deserialized);
     }
 
     public void testSortValueSerialization() throws IOException {
         Object sortValue = randomSortValue();
-        Object deserialized = copyInstance(
-            sortValue,
-            Lucene::writeSortValue,
-            Lucene::readSortValue,
-            TransportVersionUtils.randomVersion(random())
-        );
+        Object deserialized = copyInstance(sortValue, Lucene::writeSortValue, Lucene::readSortValue, TransportVersionUtils.randomVersion());
         assertEquals(sortValue, deserialized);
     }
 

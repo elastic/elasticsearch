@@ -10,6 +10,9 @@
 package org.elasticsearch.rest.streams.logs;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -22,11 +25,13 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.streams.logs.RestStreamsStatusAction.STREAM_SPLIT;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestSetLogStreamsEnabledAction extends BaseRestHandler {
 
-    public static final Set<String> SUPPORTED_PARAMS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, RestUtils.REST_TIMEOUT_PARAM);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSetLogStreamsEnabledAction.class);
+    public static final Set<String> SUPPORTED_PARAMS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, RestUtils.REST_TIMEOUT_PARAM, "name");
 
     @Override
     public String getName() {
@@ -35,18 +40,32 @@ public class RestSetLogStreamsEnabledAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_streams/logs/_enable"), new Route(POST, "/_streams/logs/_disable"));
+        return List.of(new Route(POST, "/_streams/{name}/_enable"), new Route(POST, "/_streams/{name}/_disable"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         final boolean enabled = request.path().endsWith("_enable");
-        assert enabled || request.path().endsWith("_disable");
+        assert enabled || request.path().endsWith("_disable")
+            : "path should always end in either _enable or _disable but was " + request.path();
+        StreamType type = StreamType.fromString(request.param("name"));
+        if (type == StreamType.LOGS) {
+            deprecationLogger.critical(
+                DeprecationCategory.API,
+                "log_stream",
+                "The 'logs' stream is deprecated. Use individual stream names such as '"
+                    + StreamType.LOGS_OTEL.getStreamName()
+                    + "' and '"
+                    + StreamType.LOGS_ECS.getStreamName()
+                    + "' instead"
+            );
+        }
 
         LogsStreamsActivationToggleAction.Request activationRequest = new LogsStreamsActivationToggleAction.Request(
             RestUtils.getMasterNodeTimeout(request),
             RestUtils.getAckTimeout(request),
-            enabled
+            enabled,
+            type
         );
 
         return restChannel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
@@ -61,4 +80,8 @@ public class RestSetLogStreamsEnabledAction extends BaseRestHandler {
         return SUPPORTED_PARAMS;
     }
 
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(STREAM_SPLIT);
+    }
 }

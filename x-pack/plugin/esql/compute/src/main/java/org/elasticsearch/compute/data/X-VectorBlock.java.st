@@ -76,8 +76,8 @@ $endif$
     }
 
     @Override
-    public $Type$Block filter(int... positions) {
-        return vector.filter(positions).asBlock();
+    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
+        return vector.filter(mayContainDuplicates, positions).asBlock();
     }
 
     @Override

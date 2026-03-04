@@ -89,7 +89,7 @@ import java.io.IOException;
  * will be treated as a Summary mismatch on the source shard node.
  */
 
-public class SplitShardCountSummary implements Writeable {
+public class SplitShardCountSummary implements Writeable, Comparable<SplitShardCountSummary> {
     public static final SplitShardCountSummary UNSET = new SplitShardCountSummary(0);
 
     /**
@@ -149,9 +149,7 @@ public class SplitShardCountSummary implements Writeable {
         int shardCount = numberOfShards;
         if (reshardingMetadata != null) {
             if (reshardingMetadata.getSplit().isTargetShard(shardId)) {
-                int sourceShardId = reshardingMetadata.getSplit().sourceShard(shardId);
-                // Requests cannot be routed to target shards until they are ready
-                assert reshardingMetadata.getSplit().allTargetStatesAtLeast(sourceShardId, minShardState) : "unexpected target state";
+                // if the request is being sent to the target shard, the summary must include it
                 shardCount = reshardingMetadata.getSplit().shardCountAfter();
             } else if (reshardingMetadata.getSplit().isSourceShard(shardId)) {
                 if (reshardingMetadata.getSplit().allTargetStatesAtLeast(shardId, minShardState)) {
@@ -229,5 +227,10 @@ public class SplitShardCountSummary implements Writeable {
     @Override
     public String toString() {
         return "SplitShardCountSummary [shardCountSummary=" + shardCountSummary + "]";
+    }
+
+    @Override
+    public int compareTo(SplitShardCountSummary o) {
+        return Integer.compare(this.shardCountSummary, o.shardCountSummary);
     }
 }

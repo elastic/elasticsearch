@@ -49,10 +49,10 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         final long queueLatencyThresholdMillis = randomLongBetween(50_000, 100_000);
         final Settings settings = enabledWriteLoadDeciderSettings(queueLatencyThresholdMillis);
         internalCluster().startMasterOnlyNode(settings);
-        final String dataNodeOne = internalCluster().startDataOnlyNode(settings);
-        final String dataNodeTwo = internalCluster().startDataOnlyNode(settings);
+        final String dataNodeOne = internalCluster().startIndexOnlyNode(settings);
+        final String dataNodeTwo = internalCluster().startIndexOnlyNode(settings);
         // Maintain a third node so that there's always at least one non-hot-spotting node that can receive shards.
-        internalCluster().startDataOnlyNode(settings);
+        internalCluster().startIndexOnlyNode(settings);
 
         // Unmodified cluster info should detect no hot-spotting nodes
         MockLog.awaitLogger(
@@ -78,10 +78,10 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.DEBUG,
                 Strings.format("""
-                    Nodes [[%s]] are hot-spotting, of 3 total ingest nodes. Reroute for hot-spotting has never previously been called. \
+                    Nodes [%s] are hot-spotting, of 3 total ingest nodes. Reroute for hot-spotting has never previously been called. \
                     Previously hot-spotting nodes are [0 nodes]. The write thread pool queue latency threshold is [%s]. \
                     Triggering reroute.
-                    """, getNodeId(dataNodeOne), TimeValue.timeValueMillis(queueLatencyThresholdMillis))
+                    """, getNodeId(dataNodeOne) + "/" + dataNodeOne, TimeValue.timeValueMillis(queueLatencyThresholdMillis))
             )
         );
 
@@ -113,10 +113,10 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                 WriteLoadConstraintMonitor.class.getCanonicalName(),
                 Level.DEBUG,
                 Strings.format("""
-                    Nodes [[*]] are hot-spotting, of 3 total ingest nodes. \
-                    Reroute for hot-spotting was last called [*] ago. Previously hot-spotting nodes are [[%s]]. \
+                    Nodes [*] are hot-spotting, of 3 total ingest nodes. \
+                    Reroute for hot-spotting was last called [*] ago. Previously hot-spotting nodes are [%s]. \
                     The write thread pool queue latency threshold is [%s]. Triggering reroute.
-                    """, getNodeId(dataNodeOne), TimeValue.timeValueMillis(queueLatencyThresholdMillis))
+                    """, getNodeId(dataNodeOne) + "/" + dataNodeOne, TimeValue.timeValueMillis(queueLatencyThresholdMillis))
             )
         );
 

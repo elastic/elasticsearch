@@ -46,7 +46,7 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
 
   public static CountDistinctIntAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, int precision) {
-    return new CountDistinctIntAggregatorFunction(driverContext, channels, CountDistinctIntAggregator.initSingle(driverContext.bigArrays(), precision), precision);
+    return new CountDistinctIntAggregatorFunction(driverContext, channels, CountDistinctIntAggregator.initSingle(driverContext, precision), precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

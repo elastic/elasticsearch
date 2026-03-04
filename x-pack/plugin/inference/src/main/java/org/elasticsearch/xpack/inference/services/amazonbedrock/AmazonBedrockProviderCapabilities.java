@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.DEFAULT_MAX_CHUNK_SIZE;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.TOP_K_FIELD;
 
 public final class AmazonBedrockProviderCapabilities {
     private static final List<AmazonBedrockProvider> embeddingProviders = List.of(
@@ -57,9 +62,9 @@ public final class AmazonBedrockProviderCapabilities {
         96
     );
 
-    public static boolean providerAllowsTaskType(AmazonBedrockProvider provider, TaskType taskType) {
+    private static boolean providerAllowsTaskType(AmazonBedrockProvider provider, TaskType taskType) {
         switch (taskType) {
-            case COMPLETION -> {
+            case COMPLETION, CHAT_COMPLETION -> {
                 return chatCompletionProviders.contains(provider);
             }
             case TEXT_EMBEDDING -> {
@@ -71,7 +76,7 @@ public final class AmazonBedrockProviderCapabilities {
         }
     }
 
-    public static boolean chatCompletionProviderHasTopKParameter(AmazonBedrockProvider provider) {
+    private static boolean chatCompletionProviderHasTopKParameter(AmazonBedrockProvider provider) {
         return chatCompletionProvidersWithTopK.contains(provider);
     }
 
@@ -83,14 +88,6 @@ public final class AmazonBedrockProviderCapabilities {
         return SimilarityMeasure.COSINE;
     }
 
-    public static int getEmbeddingsProviderDefaultChunkSize(AmazonBedrockProvider provider) {
-        if (embeddingsDefaultChunkSize.containsKey(provider)) {
-            return embeddingsDefaultChunkSize.get(provider);
-        }
-
-        return DEFAULT_MAX_CHUNK_SIZE;
-    }
-
     public static int getEmbeddingsMaxBatchSize(AmazonBedrockProvider provider) {
         if (embeddingsMaxBatchSize.containsKey(provider)) {
             return embeddingsMaxBatchSize.get(provider);
@@ -99,4 +96,51 @@ public final class AmazonBedrockProviderCapabilities {
         return 1;
     }
 
+    /**
+     * Checks if the given provider supports the specified task type.
+     * If not, throws an ElasticsearchStatusException with a BAD_REQUEST status.
+     * @param taskType the task type to check
+     * @param provider the Amazon Bedrock provider to check
+     */
+    public static void checkProviderForTask(TaskType taskType, AmazonBedrockProvider provider) {
+        if (providerAllowsTaskType(provider, taskType) == false) {
+            throw new ElasticsearchStatusException(
+                Strings.format("The [%s] task type for provider [%s] is not available", taskType, provider),
+                RestStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    /**
+     * Checks if the given chat completion model's provider supports the topK parameter.
+     * If not, and if the topK parameter is set in the model's task settings,
+     * throws an ElasticsearchStatusException with a BAD_REQUEST status.
+     * @param model the Amazon Bedrock chat completion model to check
+     */
+    public static void checkChatCompletionProviderForTopKParameter(AmazonBedrockChatCompletionModel model) {
+        var taskSettings = model.getTaskSettings();
+        if (taskSettings.topK() != null && chatCompletionProviderHasTopKParameter(model.provider()) == false) {
+            throw new ElasticsearchStatusException(
+                Strings.format("The [%s] task parameter is not available for provider [%s]", TOP_K_FIELD, model.provider()),
+                RestStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    /**
+     * Checks if the given text embedding model's provider allows the truncation field in task settings.
+     * If not, and if the truncation field is set in the model's task settings,
+     * throws an ElasticsearchStatusException with a BAD_REQUEST status.
+     * @param model the Amazon Bedrock text embedding model to check
+     */
+    public static void checkTaskSettingsForTextEmbeddingModel(AmazonBedrockEmbeddingsModel model) {
+        if (model.provider() != AmazonBedrockProvider.COHERE && model.getTaskSettings().truncation() != null) {
+            throw new ElasticsearchStatusException(
+                "The [{}] task type for provider [{}] does not allow [truncate] field",
+                RestStatus.BAD_REQUEST,
+                TaskType.TEXT_EMBEDDING,
+                model.provider()
+            );
+        }
+    }
 }

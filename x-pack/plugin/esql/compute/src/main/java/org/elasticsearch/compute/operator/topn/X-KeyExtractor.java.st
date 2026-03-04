@@ -36,39 +36,32 @@ abstract class KeyExtractorFor$Type$ implements KeyExtractor {
             : new KeyExtractorFor$Type$.MaxFromUnorderedBlock(encoder, nul, nonNul, block);
     }
 
-$if(BytesRef)$
     private final TopNEncoder encoder;
+$if(BytesRef)$
     protected final BytesRef scratch = new BytesRef();
 $endif$
     private final byte nul;
     private final byte nonNul;
 
     KeyExtractorFor$Type$(TopNEncoder encoder, byte nul, byte nonNul) {
-$if(BytesRef)$
         this.encoder = encoder;
-$else$
-        assert encoder == TopNEncoder.DEFAULT_SORTABLE;
-$endif$
         this.nul = nul;
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BreakingBytesRefBuilder key, $type$ value) {
+    protected final void nonNul(BreakingBytesRefBuilder key, $type$ value) {
         key.append(nonNul);
 $if(BytesRef)$
-        return encoder.encodeBytesRef(value, key) + 1;
+        encoder.encodeBytesRef(value, key);
 $elseif(boolean)$
-        TopNEncoder.DEFAULT_SORTABLE.encodeBoolean(value, key);
-        return Byte.BYTES + 1;
+        encoder.encodeBoolean(value, key);
 $else$
-        TopNEncoder.DEFAULT_SORTABLE.encode$Type$(value, key);
-        return $BYTES$ + 1;
+        encoder.encode$Type$(value, key);
 $endif$
     }
 
-    protected final int nul(BreakingBytesRefBuilder key) {
+    protected final void nul(BreakingBytesRefBuilder key) {
         key.append(nul);
-        return 1;
     }
 
     @Override
@@ -89,11 +82,11 @@ $endif$
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
 $if(BytesRef)$
-            return nonNul(key, vector.get$Type$(position, scratch));
+            nonNul(key, vector.get$Type$(position, scratch));
 $else$
-            return nonNul(key, vector.get$Type$(position));
+            nonNul(key, vector.get$Type$(position));
 $endif$
         }
     }
@@ -107,14 +100,15 @@ $endif$
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
 $if(BytesRef)$
-            return nonNul(key, block.get$Type$(block.getFirstValueIndex(position), scratch));
+            nonNul(key, block.get$Type$(block.getFirstValueIndex(position), scratch));
 $else$
-            return nonNul(key, block.get$Type$(block.getFirstValueIndex(position)));
+            nonNul(key, block.get$Type$(block.getFirstValueIndex(position)));
 $endif$
         }
     }
@@ -128,14 +122,15 @@ $endif$
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
 $if(BytesRef)$
-            return nonNul(key, block.get$Type$(block.getFirstValueIndex(position) + block.getValueCount(position) - 1, scratch));
+            nonNul(key, block.get$Type$(block.getFirstValueIndex(position) + block.getValueCount(position) - 1, scratch));
 $else$
-            return nonNul(key, block.get$Type$(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
+            nonNul(key, block.get$Type$(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
 $endif$
         }
     }
@@ -153,10 +148,11 @@ $endif$
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
@@ -170,20 +166,21 @@ $if(BytesRef)$
                     min.length = v.length;
                 }
             }
-            return nonNul(key, min);
+            nonNul(key, min);
 $elseif(boolean)$
             for (int i = start; i < end; i++) {
                 if (block.getBoolean(i) == false) {
-                    return nonNul(key, false);
+                    nonNul(key, false);
+                    return;
                 }
             }
-            return nonNul(key, true);
+            nonNul(key, true);
 $else$
             $type$ min = block.get$Type$(start);
             for (int i = start + 1; i < end; i++) {
                 min = Math.min(min, block.get$Type$(i));
             }
-            return nonNul(key, min);
+            nonNul(key, min);
 $endif$
         }
     }
@@ -201,10 +198,11 @@ $endif$
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
@@ -218,20 +216,21 @@ $if(BytesRef)$
                     max.length = v.length;
                 }
             }
-            return nonNul(key, max);
+            nonNul(key, max);
 $elseif(boolean)$
             for (int i = start; i < end; i++) {
                 if (block.getBoolean(i)) {
-                    return nonNul(key, true);
+                    nonNul(key, true);
+                    return;
                 }
             }
-            return nonNul(key, false);
+            nonNul(key, false);
 $else$
             $type$ max = block.get$Type$(start);
             for (int i = start + 1; i < end; i++) {
                 max = Math.max(max, block.get$Type$(i));
             }
-            return nonNul(key, max);
+            nonNul(key, max);
 $endif$
         }
     }

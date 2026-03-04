@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
@@ -65,20 +66,32 @@ public class LookupJoinGenerator implements CommandGenerator {
         }
         StringBuilder stringBuilder = new StringBuilder();
         for (int i = 0; i < keyNames.size(); i++) {
+            String keyName = keyNames.get(i);
+            String joinName = joinOn.get(i);
+            if (EsqlQueryGenerator.needsQuoting(keyName)) {
+                keyName = EsqlQueryGenerator.quote(keyName);
+            }
+            if (EsqlQueryGenerator.needsQuoting(joinName)) {
+                joinName = EsqlQueryGenerator.quote(joinName);
+            }
             stringBuilder.append("| rename ");
-            stringBuilder.append(keyNames.get(i));
+            stringBuilder.append(keyName);
             stringBuilder.append(" as ");
-            stringBuilder.append(joinOn.get(i));
+            stringBuilder.append(joinName);
         }
         stringBuilder.append(" | lookup join ").append(lookupIdxName).append(" on ");
         for (int i = 0; i < keyNames.size(); i++) {
-            stringBuilder.append(joinOn.get(i));
+            String joinName = joinOn.get(i);
+            if (EsqlQueryGenerator.needsQuoting(joinName)) {
+                joinName = EsqlQueryGenerator.quote(joinName);
+            }
+            stringBuilder.append(joinName);
             if (i < keyNames.size() - 1) {
                 stringBuilder.append(", ");
             }
         }
         String cmdString = stringBuilder.toString();
-        return new CommandDescription(LOOKUP_JOIN, this, cmdString, Map.of());
+        return new CommandDescription(LOOKUP_JOIN, this, cmdString, Map.of("nKeys", keyNames.size()));
     }
 
     @Override
@@ -94,17 +107,19 @@ public class LookupJoinGenerator implements CommandGenerator {
             return VALIDATION_OK;
         }
 
-        // the -1 is for the additional RENAME, that could drop one column
-        int prevCols = previousColumns.size() - 1;
+        // this is for the additional RENAME, that could drop columns
+        int prevCols = previousColumns.size() - (Integer) commandDescription.context().get("nKeys");
 
         if (previousColumns.stream().anyMatch(x -> x.name().equals("<all-fields-projected>"))) {
             // known bug https://github.com/elastic/elasticsearch/issues/121741
             prevCols--;
         }
 
-        if (prevCols > columns.size()) {
-            return new ValidationResult(false, "Expecting at least [" + prevCols + "] columns, got [" + columns.size() + "]");
-        }
+        // todo: awaits fix https://github.com/elastic/elasticsearch/issues/142636
+        // if (prevCols > columns.size()) {
+        // return new ValidationResult(false, "Expecting at least [" + prevCols + "] columns, got [" + columns.size() + "]");
+        // }
+
         return VALIDATION_OK;
     }
 }

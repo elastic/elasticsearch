@@ -17,6 +17,7 @@ import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -171,7 +172,7 @@ public final class VersionsAndSeqNoResolver {
     ) throws IOException {
         final long timestamp;
         if (useSyntheticId) {
-            assert uid.equals(new BytesRef(Base64.getUrlDecoder().decode(id)));
+            assert uid.equals(Uid.encodeId((id)));
             timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
         } else {
             byte[] idAsBytes = Base64.getUrlDecoder().decode(id);

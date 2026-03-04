@@ -1,15 +1,17 @@
-The ES|QL documentation is composed of static content and generated content.
+# ES|QL documentation
+
+This directory contains the source files for ES|QL's language documentation.
+If you're adding a new function, command, or operator, start with the [Tutorials](#tutorials) section.
+
+The docs are a mix of static content you edit by hand and generated content produced by running ES|QL tests.
 The static content exists in this directory and can be edited by hand.
-However, the subdirectories `_snippets`, `images` and `kibana` contain a mix
-of static and generated content, and so updating them is a bit more involved.
+The subdirectories `_snippets`, `images` and `kibana` contain a mix of static and generated content, and so updating them is a bit more involved.
 
 ## Static content
 
-The root `esql` directory and the following two subdirectories contain static content:
-* `commands` - contains the static content for the ES|QL commands.
-  This content will typically contain mostly `include` directives for content in the `_snippets` or `images` directories.
-* `functions-operators` - contains the static content for the ES|QL functions and operators.
-  Again this will contain mostly `include` directives for content in the `_snippets` or `images` directories.
+The root `esql` directory and the following subdirectories contain static content:
+* `commands/` - standalone page per command, each including a layout snippet from `_snippets/commands/layout/`
+* `functions-operators/` - group index pages and a standalone page per function, each including a layout snippet from `_snippets/functions/layout/`
 
 ## Mixed static and generated content
 
@@ -30,11 +32,12 @@ contain subdirectories that are mostly generated:
 * `parameters` - description of each function's parameters scraped from `@Param`
 * `signature` - railroad diagram of the syntax to invoke each function
 * `types` - a table of each combination of support type for each parameter. These are generated from tests.
-* `layout` - a fully generated description for each function
+* `layout` - a fully generated layout for each function (syntax diagram, parameters, description, types, examples).
+  Layout files do not contain a heading — the heading lives on the function's standalone wrapper page.
 
-Most functions can use the generated docs generated in the `layout` directory.
-If we need something more custom for the function we can make a file in this
-directory that can `include` any parts of the files above.
+Most functions can use the generated layout.
+If you need something more custom you can make a file in this
+directory that `include`s any parts of the files above.
 
 To regenerate the files for a function run its tests using gradle.
 For example to generate docs for the `CASE` function:
@@ -66,6 +69,16 @@ There are two subdirectories, one static and one generated:
   The structure of the subdirectories mimics the csv-spec files and test tags used in the tests.
 
 Including generated examples in the command documentation is done by using the include directive.
+
+#### Settings
+
+Query settings (see [SET](commands/set.md) command) are documented in the `_snippets/commands/settings` directory.
+The `toc.md` file contains the list of all settings.
+The `setting_name.md` files contain the description of each setting.
+
+To regenerate the settings documentation, run the `QuerySettingsTests` test in the `x-pack/plugin/esql` module.
+
+Documentation is generated only for settings that have `snapshot=false` (See `QuerySettings` class).
 
 ### images
 
@@ -108,7 +121,7 @@ To help differentiate between the static and generated content, the generated co
 ## Version differentiation in Docs V3
 
 > [!IMPORTANT]
-> Starting with 9.0, we no longer publish separate documentation branches for every minor release (`9.0`, `9.1`, `9.2`, etc.). 
+> Starting with 9.0, we no longer publish separate documentation branches for every minor release (`9.0`, `9.1`, `9.2`, etc.).
 > This means there won't be a different page for `9.1`, `9.2`, and so on. Instead, all changes landing in subsequent minor releases **will appear on the same page**.
 
 Because we now publish just one docs set off of the `main` branch, we use the [`applies_to` metadata](https://elastic.github.io/docs-builder/syntax/applies/) to differentiate features and their availability across different versions. This is a [cumulative approach](https://elastic.github.io/docs-builder/contribute/#cumulative-docs): instead of creating separate pages for each product and release, we update a **single page** with product- and version-specific details over time.
@@ -126,6 +139,7 @@ For example, to indicate that a function is in technical preview and applies to 
 ```java
 @FunctionInfo(
     returnType = "boolean",
+    preview = true, // this marks the feature as preview in serverless
     appliesTo = {
         @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.0.0")
     },
@@ -174,26 +188,39 @@ For example, the second item in this list is in technical preview as of version 
 ### Supported lifecycles
 
 - `PREVIEW` - Feature is in technical preview
-- `GA` - Feature is generally available  
+- `GA` - Feature is generally available
 - `DEPRECATED` - Feature is deprecated and will be removed in a future release
 - `UNAVAILABLE` - Feature is not available in the current version, but may be available in future releases
 
-> [!NOTE] 
-> Unreleased version information is automatically sanitized in the docs build output. For example, say you specify `preview 9.3.0`: 
-> - Before `9.3.0` is released, the live documentation will display "Planned for a future release" instead of the specific version number. 
+> [!NOTE]
+> Unreleased version information is automatically sanitized in the docs build output. For example, say you specify `preview 9.3.0`:
+> - Before `9.3.0` is released, the live documentation will display "Planned for a future release" instead of the specific version number.
 >  - This will be updated automatically when the version is released.
 
 ## Tutorials
 
 ### Adding a new command
 
-When adding a new command, for example adding the `CHANGE_POINT` command, do the following:
-1. Create a new file in the `_snippets/commands/layout` directory with the name of the command, for example `change_point.md`.
-2. Ensure to specify what versions the command applies to. See [Version differentiation in Docs V3](#version-differentiation-in-docs-v3) for details. [Example PR](https://github.com/elastic/elasticsearch/pull/130314/files#diff-0ab90b6202c5d9eeea75dc95a7cb71dc4d720230342718bff887816771a5a803R3-R6).
-3. Add the content for the command to the file. See other files in this directory for examples.
-4. Add the command to the list in `_snippets/lists/processing-commands.md`.
-5. Add an include directive to the `commands/processing-commands.md` file to include the new command.
-6. Add tested examples to the `_snippets/commands/examples` directory. See below for details.
+Each command has its own standalone page under `commands/` that includes a layout snippet from `_snippets/commands/layout/`.
+
+To add a new processing command called `<my_command>`:
+
+1. Create the layout snippet `_snippets/commands/layout/<my_command>.md`
+   - Write the command's content here
+   - See existing files in that directory for examples
+   - Add version metadata — see [Version differentiation in Docs V3](#version-differentiation-in-docs-v3)
+2. Add the command to `_snippets/lists/processing-commands.md`
+   - Link to the new standalone page path
+   - Use `source-commands.md` instead if it's a source command
+3. Create the standalone wrapper page `commands/<my-command>.md`
+   - Add frontmatter with `navigation_title`
+   - Add an H1 heading with an anchor
+   - Add an `:::{include}` of the layout snippet
+   - See `commands/change-point.md` as a template
+4. Add the page to `docs/reference/query-languages/toc.yml`
+   - As a child of `processing-commands.md` or `source-commands.md`
+5. Add tested examples
+   - See [Adding examples to commands](#adding-examples-to-commands) below
 
 ### Adding examples to commands
 
@@ -263,3 +290,48 @@ The following example shows the detection of a step change:
 :::{include} ../examples/change_point.csv-spec/changePointForDocs.md
 :::
 ```
+
+### Adding a new function
+
+Each function has its own standalone page under `functions-operators/<group>/` that includes a generated layout snippet from `_snippets/functions/layout/`.
+
+To add a new function called `<my_func>` to the `<group>` group (e.g. `string-functions`):
+
+1. Implement the function's Java class
+   - Add `@FunctionInfo` and `@Param` annotations
+   - Add version metadata — see [Version differentiation in Docs V3](#version-differentiation-in-docs-v3)
+   - If the function name doesn't start with a known prefix (`mv_`, `st_`, `to_`, `date_`, `is_`),
+     add it to the switch statement in `DocsV3Support.functionGroupFor()`.
+     This maps function names to groups for cross-reference link generation.
+     Without it, the test in the next step will fail with `Docs Generation Error: Unknown function group`.
+2. Create a test class extending `AbstractFunctionTestCase`
+3. Run the test to generate all snippets
+   - `./gradlew :x-pack:plugin:esql:test -Dtests.class='<MyFunc>Tests'`
+   - This generates files in `_snippets/functions/` (layout, description, parameters, types, examples) and `images/functions/`
+4. Add the function to `_snippets/lists/<group>.md`
+   - Link to the individual page path: `functions-operators/<group>/<my_func>.md`
+5. Create the standalone wrapper page `functions-operators/<group>/<my_func>.md`
+   - Add frontmatter with `navigation_title`
+   - Add an H1 heading with an anchor
+   - Add an `:::{include}` of the layout snippet
+   - See `functions-operators/aggregation-functions/avg.md` as a template
+6. Add the page to `docs/reference/query-languages/toc.yml`
+   - As a child of the group page entry
+
+## PromQL
+
+PromQL documentation is generated separately and stored in:
+```
+docs/reference/query-languages/promql/kibana/definitions/*.json
+```
+For PromQL function documentation, see: https://prometheus.io/docs/prometheus/latest/querying/functions/
+
+### Generating PromQL Function Definitions
+
+To generate the PromQL definition files, run:
+
+```bash
+./gradlew :x-pack:plugin:esql:test --tests "PromqlKibanaDefinitionGeneratorTests"
+```
+The result will be in `x-pack/plugin/esql/build/testrun/test/temp/promql/kibana/definitions/`.
+

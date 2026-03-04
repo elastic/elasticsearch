@@ -48,8 +48,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -64,6 +62,8 @@ import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_HNSW_VECTOR_INDEX_EXTENSION;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.LUCENE99_VERSION_CURRENT;
 import static org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat.MIN_NUM_VECTORS_FOR_GPU_BUILD;
+import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousMemorySegment;
+import static org.elasticsearch.gpu.codec.MemorySegmentUtils.getContiguousPackedMemorySegment;
 
 /**
  * Writer that builds an Nvidia Carga Graph on GPU and then writes it into the Lucene99 HNSW format,
@@ -79,6 +79,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     private static final long MAX_NUM_VECTORS_FOR_NN_DESCENT = 5_000_000L;
 
     private final CuVSResourceManager cuVSResourceManager;
+    private final long totalDeviceMemory;
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorIndex;
     private final int M;
@@ -91,11 +92,13 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
 
     ES92GpuHnswVectorsWriter(
         CuVSResourceManager cuVSResourceManager,
+        long totalDeviceMemory,
         SegmentWriteState state,
         int M,
         int beamWidth,
         FlatVectorsWriter flatVectorWriter
     ) throws IOException {
+        this.totalDeviceMemory = totalDeviceMemory;
         assert cuVSResourceManager != null : "CuVSResources must not be null";
         this.cuVSResourceManager = cuVSResourceManager;
         this.M = M;
@@ -278,7 +281,7 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             long vectorIndexOffset = vectorIndex.getFilePointer();
             int[][] graphLevelNodeOffsets = new int[1][];
             final HnswGraph graph;
-            try (var index = buildGPUIndex(resourcesHolder.resources(), cagraIndexParams, dataset)) {
+            try (var index = buildGPUIndex(resourcesHolder.resources(), cagraIndexParams, dataset, fieldInfo)) {
                 assert index != null : "GPU index should be built for field: " + fieldInfo.name;
                 var deviceGraph = index.getGraph();
                 var graphSize = deviceGraph.size() * deviceGraph.columns() * Integer.BYTES;
@@ -319,11 +322,44 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
     private CagraIndex buildGPUIndex(
         CuVSResourceManager.ManagedCuVSResources cuVSResources,
         CagraIndexParams cagraIndexParams,
-        CuVSMatrix dataset
+        CuVSMatrix dataset,
+        FieldInfo fieldInfo
     ) throws Throwable {
+        if (logger.isDebugEnabled()) {
+            var algorithm = cagraIndexParams.getCagraGraphBuildAlgo();
+            if (algorithm == CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT) {
+                logger.debug(
+                    "Building CAGRA graph: numVectors=[{}], dims=[{}], algorithm=[{}], similarity=[{}], "
+                        + "graphDegree=[{}], intermediateGraphDegree=[{}], nnDescentIterations=[5], dataType=[{}]",
+                    dataset.size(),
+                    dataset.columns(),
+                    algorithm,
+                    fieldInfo.getVectorSimilarityFunction(),
+                    M,
+                    beamWidth,
+                    dataType
+                );
+            } else {
+                // IVF_PQ algorithm
+                var ivfPqIndexParams = cagraIndexParams.getCuVSIvfPqParams().getIndexParams();
+                logger.debug(
+                    "Building CAGRA graph: numVectors=[{}], dims=[{}], algorithm=[{}], similarity=[{}], "
+                        + "pqDim=[{}], pqBits=[{}], nLists=[{}], dataType=[{}]",
+                    dataset.size(),
+                    dataset.columns(),
+                    algorithm,
+                    fieldInfo.getVectorSimilarityFunction(),
+                    ivfPqIndexParams.getPqDim(),
+                    ivfPqIndexParams.getPqBits(),
+                    ivfPqIndexParams.getnLists(),
+                    dataType
+                );
+            }
+        }
         long startTime = System.nanoTime();
         var indexBuilder = CagraIndex.newBuilder(cuVSResources).withDataset(dataset).withIndexParams(cagraIndexParams);
         var index = indexBuilder.build();
+        GPUSupport.incrementUsageCount();
         cuVSResourceManager.finishedComputation(cuVSResources);
         if (logger.isDebugEnabled()) {
             logger.debug("Carga index created in: {} ms; #num vectors: {}", (System.nanoTime() - startTime) / 1_000_000.0, dataset.size());
@@ -355,7 +391,6 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             useIvfPQ = true;
         } else {
             // Check if we should use IVF_PQ due to insufficient GPU memory for NN_DESCENT
-            long totalDeviceMemory = GPUSupport.getTotalGpuMemory();
             if (totalDeviceMemory > 0) {
                 long requiredMemoryForNnDescent = CuVSResourceManager.estimateNNDescentMemory(numVectors, dims, dataType);
                 if (requiredMemoryForNnDescent > totalDeviceMemory) {
@@ -563,31 +598,27 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
                 // TODO: revert to directly pass data mapped with DatasetUtils.getInstance() to generateGpuGraphAndWriteMeta
                 // when cuvs has fixed this problem
                 int packedRowSize = fieldInfo.getVectorDimension();
-                long packedVectorsDataSize = (long) numVectors * packedRowSize;
-
-                try (var arena = Arena.ofConfined()) {
-                    var packedSegment = arena.allocate(packedVectorsDataSize, 64);
-                    MemorySegment sourceSegment = memorySegmentAccessInput.segmentSliceOrNull(0, memorySegmentAccessInput.length());
-
-                    for (int i = 0; i < numVectors; i++) {
-                        MemorySegment.copy(
-                            sourceSegment,
-                            (long) i * sourceRowPitch,
-                            packedSegment,
-                            (long) i * packedRowSize,
-                            packedRowSize
-                        );
-                    }
-
-                    try (
-                        var dataset = DatasetUtilsImpl.fromMemorySegment(packedSegment, numVectors, packedRowSize, dataType);
-                        var resourcesHolder = new ResourcesHolder(
-                            cuVSResourceManager,
-                            cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
-                        )
-                    ) {
-                        generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
-                    }
+                try (
+                    var packedSegmentHolder = getContiguousPackedMemorySegment(
+                        memorySegmentAccessInput,
+                        mergeState.segmentInfo.dir,
+                        mergeState.segmentInfo.name,
+                        numVectors,
+                        sourceRowPitch,
+                        packedRowSize
+                    );
+                    var dataset = DatasetUtilsImpl.fromMemorySegment(
+                        packedSegmentHolder.memorySegment(),
+                        numVectors,
+                        packedRowSize,
+                        dataType
+                    );
+                    var resourcesHolder = new ResourcesHolder(
+                        cuVSResourceManager,
+                        cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)
+                    )
+                ) {
+                    generateGpuGraphAndWriteMeta(resourcesHolder, fieldInfo, dataset, cagraIndexParams);
                 }
             } else {
                 logger.info(
@@ -658,10 +689,15 @@ final class ES92GpuHnswVectorsWriter extends KnnVectorsWriter {
             IndexInput slice = vectorValues.getSlice();
             var input = FilterIndexInput.unwrapOnlyTest(slice);
             if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
-                // Direct access to mmapped file
+                // Fast path, possible direct access to mmapped file
                 try (
+                    var memorySegmentHolder = getContiguousMemorySegment(
+                        memorySegmentAccessInput,
+                        mergeState.segmentInfo.dir,
+                        mergeState.segmentInfo.name
+                    );
                     var dataset = DatasetUtils.getInstance()
-                        .fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension(), dataType);
+                        .fromInput(memorySegmentHolder.memorySegment(), numVectors, fieldInfo.getVectorDimension(), dataType);
                     var resourcesHolder = new ResourcesHolder(
                         cuVSResourceManager,
                         cuVSResourceManager.acquire(numVectors, fieldInfo.getVectorDimension(), dataType, cagraIndexParams)

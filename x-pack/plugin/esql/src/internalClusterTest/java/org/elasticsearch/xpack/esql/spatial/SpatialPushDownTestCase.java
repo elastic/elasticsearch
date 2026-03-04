@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.spatial;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -30,14 +32,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
- * Base class to check that a query than can be pushed down gives the same result
+ * Base class to check that a query that can be pushed down gives the same result
  * if it is actually pushed down and when it is executed by the compute engine,
  * <p>
- * For doing that we create two indices, one fully indexed and another with index
- * and doc values disabled. Then we index the same data in both indices and we check
+ * For doing that, we create two indices, one fully indexed and another with index
+ * and doc values disabled. Then we index the same data in both indices, and we check
  * that the same ES|QL queries produce the same results in both.
  */
-public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
+public abstract class SpatialPushDownTestCase<T extends Geometry> extends ESIntegTestCase {
 
     protected static final String[] ALL_INDEXES = new String[] { "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values" };
 
@@ -158,8 +160,8 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
 
     protected List<String> getQueries(String query) {
         ArrayList<String> queries = new ArrayList<>();
-        Arrays.stream(ALL_INDEXES).forEach(index -> queries.add(query.replaceAll("FROM (\\w+) \\|", "FROM " + index + " |")));
-        queries.add(query.replaceAll("FROM (\\w+) \\|", "FROM " + String.join(",", ALL_INDEXES) + " |"));
+        Arrays.stream(ALL_INDEXES).forEach(index -> queries.add(query.replaceAll("FROM (\\w+)\\s*\\|", "FROM " + index + " |")));
+        queries.add(query.replaceAll("FROM (\\w+)\\s*\\|", "FROM " + String.join(",", ALL_INDEXES) + " |"));
         return queries;
     }
 
@@ -178,6 +180,50 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
         }
     }
 
+    public void testQuantizedXY() {
+        initIndexes();
+        for (int i = 0; i < random().nextInt(50, 100); i++) {
+            final String value = WellKnownText.toWKT(getIndexGeometry());
+            addToIndexes(i, "\"" + value + "\"", "indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+        }
+
+        refresh("indexed", "not-indexed", "not-indexed-nor-doc-values", "no-doc-values");
+
+        assertQuantizedXY();
+    }
+
+    protected abstract void assertQuantizedXY();
+
+    protected abstract Point quantizePoint(Point point);
+
+    protected abstract T quantize(T shape);
+
+    protected T quantize(String wkt, Class<T> type) {
+        try {
+            return quantize(type.cast(WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt)));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    protected Geometry parse(String wkt) {
+        try {
+            return WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // Get responses as a list of type T (Point or Geometry)
+    protected List<T> getResponsesAsType(TestQueryResponseCollection responses, int index, int column, Class<T> type) {
+        return responses.getResponses(index, column).stream().map(o -> type.cast(parse(o.toString()))).toList();
+    }
+
+    // Get responses as a list of type T (Point or Geometry) with each value quantized
+    protected List<T> getQuantizedResponsesAsType(TestQueryResponseCollection responses, int index, int column, Class<T> type) {
+        return responses.getResponses(index, column).stream().map(o -> quantize(o.toString(), type)).toList();
+    }
+
     protected static class TestQueryResponseCollection implements AutoCloseable {
         private final List<? extends EsqlQueryResponse> responses;
 
@@ -193,6 +239,12 @@ public abstract class SpatialPushDownTestCase extends ESIntegTestCase {
 
         protected Object getResponse(int index, int column) {
             return responses.get(index).response().column(column).iterator().next();
+        }
+
+        protected List<Object> getResponses(int index, int column) {
+            List<Object> results = new ArrayList<>();
+            responses.get(index).response().column(column).iterator().forEachRemaining(results::add);
+            return results;
         }
 
         @Override

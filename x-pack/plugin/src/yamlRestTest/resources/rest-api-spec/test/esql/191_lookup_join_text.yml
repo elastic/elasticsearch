@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      test_runner_features: [capabilities, contains]
+      test_runner_features: [capabilities, contains, allowed_warnings]
       capabilities:
         - method: POST
           path: /_query
@@ -66,10 +66,19 @@ setup:
 
 ---
 keyword-keyword:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup_join_sort_warning]
+      reason: "test expects SORT before LOOKUP JOIN warning"
   - do:
       esql.query:
         body:
           query: 'FROM test | SORT color | LOOKUP JOIN test-lookup ON color.keyword | LIMIT 3'
+      allowed_warnings:
+        - "Line 1:13: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required"
 
   - length: { columns: 4 }
   - length: { values: 3 }
@@ -87,10 +96,19 @@ keyword-keyword:
 
 ---
 text-keyword:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup_join_sort_warning]
+      reason: "test expects SORT before LOOKUP JOIN warning"
   - do:
       esql.query:
         body:
           query: 'FROM test | SORT color | RENAME color AS x | EVAL color.keyword = x | LOOKUP JOIN test-lookup ON color.keyword | LIMIT 3'
+      allowed_warnings:
+        - "Line 1:13: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required"
 
   - length: { columns: 5 }
   - length: { values: 3 }

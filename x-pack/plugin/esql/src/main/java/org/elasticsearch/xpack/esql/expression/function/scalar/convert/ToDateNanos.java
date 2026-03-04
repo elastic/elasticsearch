@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,12 +25,16 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
@@ -38,27 +45,33 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 
-public class ToDateNanos extends AbstractConvertFunction {
+public class ToDateNanos extends AbstractConvertFunction implements ConfigurationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ToDateNanos",
         ToDateNanos::new
     );
 
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+    private static final Map<DataType, BuildFactory> STATIC_EVALUATORS = Map.ofEntries(
         Map.entry(DATETIME, ToDateNanosFromDatetimeEvaluator.Factory::new),
         Map.entry(DATE_NANOS, (source, field) -> field),
         Map.entry(LONG, ToDateNanosFromLongEvaluator.Factory::new),
-        Map.entry(KEYWORD, ToDateNanosFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToDateNanosFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToDateNanosFromDoubleEvaluator.Factory::new),
-        Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new)
+        Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
         /*
          NB: not including an integer conversion, because max int in nanoseconds is like 2 seconds after epoch, and it seems more likely
          a user who tries to convert an int to a nanosecond date has made a mistake that we should catch that at parse time.
          TO_DATE_NANOS(TO_LONG(intVal)) is still possible if someone really needs to do this.
          */
+
+        // Evaluators dynamically created in #factories()
+        Map.entry(KEYWORD, (source, fieldEval) -> null),
+        Map.entry(TEXT, (source, fieldEval) -> null)
     );
+
+    private Map<DataType, BuildFactory> lazyEvaluators = null;
+
+    private final Configuration configuration;
 
     @FunctionInfo(
         returnType = "date_nanos",
@@ -74,13 +87,16 @@ public class ToDateNanos extends AbstractConvertFunction {
             name = "field",
             type = { "date", "date_nanos", "keyword", "text", "double", "long", "unsigned_long" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
-        ) Expression field
+        ) Expression field,
+        Configuration configuration
     ) {
         super(source, field);
+        this.configuration = configuration;
     }
 
     protected ToDateNanos(StreamInput in) throws IOException {
         super(in);
+        this.configuration = ((PlanStreamInput) in).configuration();
     }
 
     @Override
@@ -90,17 +106,41 @@ public class ToDateNanos extends AbstractConvertFunction {
 
     @Override
     protected Map<DataType, BuildFactory> factories() {
-        return EVALUATORS;
+        if (lazyEvaluators == null) {
+            Map<DataType, BuildFactory> evaluators = new HashMap<>(STATIC_EVALUATORS);
+            evaluators.putAll(
+                Map.ofEntries(
+                    Map.entry(
+                        KEYWORD,
+                        (source, fieldEval) -> new ToDateNanosFromStringEvaluator.Factory(
+                            source,
+                            fieldEval,
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                        )
+                    ),
+                    Map.entry(
+                        TEXT,
+                        (source, fieldEval) -> new ToDateNanosFromStringEvaluator.Factory(
+                            source,
+                            fieldEval,
+                            DEFAULT_DATE_NANOS_FORMATTER.withZone(configuration.zoneId())
+                        )
+                    )
+                )
+            );
+            lazyEvaluators = evaluators;
+        }
+        return lazyEvaluators;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToDateNanos(source(), newChildren.get(0));
+        return new ToDateNanos(source(), newChildren.get(0), configuration);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToDateNanos::new, field());
+        return NodeInfo.create(this, ToDateNanos::new, field(), configuration);
     }
 
     @Override
@@ -125,18 +165,42 @@ public class ToDateNanos extends AbstractConvertFunction {
     }
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
-    static long fromKeyword(BytesRef in) {
+    static long fromKeyword(BytesRef in, @Fixed DateFormatter formatter) {
         try {
-            Instant parsed = DateFormatters.from(DEFAULT_DATE_NANOS_FORMATTER.parse(in.utf8ToString())).toInstant();
+            Instant parsed = DateFormatters.from(formatter.parse(in.utf8ToString())).toInstant();
             return DateUtils.toLong(parsed);
         } catch (DateTimeException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
         }
-
     }
 
     @ConvertEvaluator(extraName = "FromDatetime", warnExceptions = { IllegalArgumentException.class })
     static long fromDatetime(long in) {
         return DateUtils.toNanoSeconds(in);
+    }
+
+    @Override
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    @Override
+    public ToDateNanos withConfiguration(Configuration configuration) {
+        return new ToDateNanos(source(), field(), configuration);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), configuration);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        ToDateNanos other = (ToDateNanos) obj;
+
+        return configuration.equals(other.configuration);
     }
 }

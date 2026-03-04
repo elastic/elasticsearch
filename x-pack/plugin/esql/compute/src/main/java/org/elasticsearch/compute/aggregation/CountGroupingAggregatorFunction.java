@@ -64,9 +64,6 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         if (countAll == false) {
             Vector valuesVector = valuesBlock.asVector();
             if (valuesVector == null) {
-                if (valuesBlock.mayHaveNulls()) {
-                    state.enableGroupIdTracking(seenGroupIds);
-                }
                 return new AddInput() {
                     @Override
                     public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -210,14 +207,13 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-        state.enableGroupIdTracking(seenGroupIds);
+        // no need to track seen groups, as count returns 0 for groups without values.
     }
 
     @Override
     public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
-        state.enableGroupIdTracking(new SeenGroupIds.Empty());
         LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert count.getPositionCount() == seen.getPositionCount();
@@ -238,7 +234,6 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
-        state.enableGroupIdTracking(new SeenGroupIds.Empty());
         LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert count.getPositionCount() == seen.getPositionCount();
@@ -259,7 +254,6 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
-        state.enableGroupIdTracking(new SeenGroupIds.Empty());
         LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert count.getPositionCount() == seen.getPositionCount();
@@ -270,7 +264,16 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
 
     @Override
     public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        state.toIntermediate(blocks, offset, selected, driverContext);
+        try (var values = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {
+            for (int i = 0; i < selected.getPositionCount(); i++) {
+                int si = selected.getInt(i);
+                values.appendLong(state.getOrDefault(si));
+            }
+            blocks[offset] = values.build().asBlock();
+            // Unlike other aggregations, we return 0 for groups without values instead of null.
+            // Therefore, we can always return true for seen, and do not need to track seen groups.
+            blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selected.getPositionCount());
+        }
     }
 
     @Override
@@ -278,7 +281,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         try (LongVector.Builder builder = evaluationContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
-                builder.appendLong(state.hasValue(si) ? state.get(si) : 0);
+                builder.appendLong(state.getOrDefault(si));
             }
             blocks[offset] = builder.build().asBlock();
         }

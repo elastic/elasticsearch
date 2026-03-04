@@ -32,7 +32,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         LongRangeBlock,
         TDigestBlock {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
+    public static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
     private final int positionCount;
     private BlockFactory blockFactory;
 
@@ -87,7 +87,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public ConstantNullBlock filter(int... positions) {
+    public ConstantNullBlock filter(boolean mayContainDuplicates, int... positions) {
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
     }
 
@@ -134,7 +134,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED;
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -198,11 +198,11 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         blockFactory().adjustBreaker(-ramBytesUsed());
     }
 
-    static class Builder implements Block.Builder {
+    public static class Builder implements Block.Builder {
 
         final BlockFactory blockFactory;
 
-        Builder(BlockFactory blockFactory) {
+        public Builder(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
         }
 
@@ -252,7 +252,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
         @Override
         public long estimatedBytes() {
-            return BASE_RAM_BYTES_USED;
+            return RAM_BYTES_USED;
         }
 
         @Override

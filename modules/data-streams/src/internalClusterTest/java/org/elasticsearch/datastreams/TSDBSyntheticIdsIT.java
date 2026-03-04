@@ -9,6 +9,8 @@
 
 package org.elasticsearch.datastreams;
 
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
@@ -23,13 +25,16 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -38,11 +43,14 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
@@ -66,6 +74,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -81,6 +90,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
@@ -91,12 +101,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -130,7 +144,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             () -> createIndex(
                 indexName,
                 indexSettings(1, 0).put(IndexSettings.MODE.getKey(), randomNonTsdbIndexMode)
-                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
                     .build()
             )
         );
@@ -138,7 +152,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             exception.getMessage(),
             containsString(
                 "The setting ["
-                    + IndexSettings.USE_SYNTHETIC_ID.getKey()
+                    + IndexSettings.SYNTHETIC_ID.getKey()
                     + "] is only permitted when [index.mode] is set to [TIME_SERIES]. Current mode: ["
                     + randomNonTsdbIndexMode.getName().toUpperCase(Locale.ROOT)
                     + "]."
@@ -163,7 +177,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 indexName,
                 indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "hostname")
-                    .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+                    .put(IndexSettings.SYNTHETIC_ID.getKey(), true)
                     .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), randomNonDefaultCodec)
                     .build()
             )
@@ -172,7 +186,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             exception.getMessage(),
             containsString(
                 "The setting ["
-                    + IndexSettings.USE_SYNTHETIC_ID.getKey()
+                    + IndexSettings.SYNTHETIC_ID.getKey()
                     + "] is only permitted when [index.codec] is set to [default]. Current mode: ["
                     + randomNonDefaultCodec
                     + "]."
@@ -183,7 +197,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     public void testSyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5));
+        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -317,9 +331,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var otherDocs = randomSubsetOf(Sets.difference(docs.keySet(), Sets.newHashSet(deletedDocs)));
         assertSearchById(otherDocs, docs);
 
-        flush(dataStreamName);
-
-        forceMerge();
+        if (randomBoolean()) {
+            flush(dataStreamName);
+        }
+        if (randomBoolean()) {
+            forceMerge();
+        }
 
         if (randomBoolean()) {
             logger.info("--> restarting the cluster");
@@ -377,24 +394,22 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(failedRequest.getFailure().getCause(), is(instanceOf(VersionConflictEngineException.class)));
         }
 
-        // Check that synthetic _id field have no postings on disk
+        // Check that synthetic _id field have no postings on disk but has bloom filter usage
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-            // When _id's are only used to populate the bloom filter,
-            // IndexDiskUsageStats won't account for anything since
-            // the bloom filter it's not exposed through the Reader API and
-            // the analyzer expects to get documents with fields to do the
-            // disk usage accounting.
-            assertThat(diskUsageIdField, nullValue());
+            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+            assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
+
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
     public void testGetFromTranslogBySyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, 1);
+        putDataStreamTemplate(dataStreamName, 1, 0);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -493,20 +508,18 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(metricOffset + doc.getItemId()));
         }
 
-        // Check that synthetic _id field have no postings on disk
+        assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
+
+        // Check that synthetic _id field have no postings on disk but has bloom filter usage
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {
             var diskUsage = diskUsage(index);
             var diskUsageIdField = AnalyzeIndexDiskUsageTestUtils.getPerFieldDiskUsage(diskUsage, IdFieldMapper.NAME);
-            // When _id's are only used to populate the bloom filter,
-            // IndexDiskUsageStats won't account for anything since
-            // the bloom filter it's not exposed through the Reader API and
-            // the analyzer expects to get documents with fields to do the
-            // disk usage accounting.
-            assertThat(diskUsageIdField, nullValue());
+            assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
+            assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
 
-        assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
     public void testRecoveredOperations() throws Exception {
@@ -517,13 +530,15 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         final var dataStreamName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
-        putDataStreamTemplate(dataStreamName, numShards);
+        putDataStreamTemplate(dataStreamName, numShards, 0);
 
         final var docsIndices = new HashSet<String>();
         final var docsIndicesById = new HashMap<String, String>();
         final var docsIdsBySeqNoAndShardId = new HashMap<ShardId, Map<Long, String>>();
 
         var timestamp = Instant.now();
+        // Use `timestamp = Instant.ofEpochMilli(epoch)` to set the timestamp back to a specific value when reproducing a test failure
+        logger.info("--> timestamp is {} (epoch: {})", timestamp, timestamp.toEpochMilli());
 
         final int nbBulks = randomIntBetween(1, 10);
         final int nbDocsPerBulk = randomIntBetween(1, 1000);
@@ -549,7 +564,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 );
                 var previous = docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
                 assertThat(previous, nullValue());
-                docsIndicesById.put(result.getId(), result.getIndex());
+                previous = docsIndicesById.put(result.getId(), result.getIndex());
+                assertThat(previous, nullValue());
                 docsIndices.add(result.getIndex());
             }
         }
@@ -600,16 +616,25 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                                 getTestName(),
                                 0,
                                 Long.MAX_VALUE,
-                                randomBoolean(),
+                                false,
                                 true,
                                 true,
                                 randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                             )
                         ) {
                             assertThat(luceneSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
-                            // TODO Once ES-13603 is implemented, change this to also check operations (and maybe tombstone doc too?)
+
                             if (docsIdsBySeqNo.isEmpty() == false) {
-                                expectThrows(NullPointerException.class, luceneSnapshot::next);
+                                Translog.Operation operation;
+                                while ((operation = luceneSnapshot.next()) != null) {
+                                    assertTranslogOperation(
+                                        indexService.index().getName(),
+                                        indexShard.mapperService().documentMapper(),
+                                        operation,
+                                        docsIdsBySeqNo::get,
+                                        docsIndicesById::get
+                                    );
+                                }
                             }
                         }
                     }
@@ -624,8 +649,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
 
         // Randomly executes a flush, refresh or nothing. If no flush is executed, the peer-recovery that follows will recover operations
-        // from the source shard translog, which load the `_id` field from stored fields (see LuceneSyntheticSourceChangesSnapshot).
-        final var operation = Operation.FLUSH; // TODO Once ES-13603 is implemented, change this to randomFrom(Operation.values())
+        // from the source shard index, which load the `_id` field from stored fields (see LuceneSyntheticSourceChangesSnapshot).
+        final var operation = randomFrom(Operation.values());
         switch (operation) {
             case FLUSH:
                 flush(dataStreamName);
@@ -658,7 +683,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 clusterState -> clusterState.projectState(ProjectId.DEFAULT)
                     .routingTable()
                     .allShards()
-                    .allMatch(shardRouting -> shardRouting.active() && targetNodeId.equals(shardRouting.currentNodeId()))
+                    .allMatch(shardRouting -> shardRouting.started() && targetNodeId.equals(shardRouting.currentNodeId()))
             )
         );
 
@@ -674,7 +699,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     shardRecoveryState.getTranslog().recoveredOperations(),
                     operation == Operation.FLUSH
                         ? equalTo(0)
-                        : equalTo(docsIdsBySeqNoAndShardId.getOrDefault(shardRecoveryState.getShardId(), Map.of()))
+                        : equalTo(docsIdsBySeqNoAndShardId.getOrDefault(shardRecoveryState.getShardId(), Map.of()).size())
                 );
             }
             refresh(index);
@@ -703,6 +728,203 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                         assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
                         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
                     }
+                );
+            }
+        }
+
+        randomDocIds = randomSubsetOf(deletedDocs);
+        for (var docId : randomDocIds) {
+            if (randomBoolean()) {
+                var getResponse = client().prepareGet(docsIndicesById.get(docId), docId)
+                    .setRealtime(randomBoolean())
+                    .setFetchSource(randomBoolean())
+                    .execute()
+                    .actionGet();
+                assertThat("Found deleted doc: " + docId + " " + Uid.encodeId(docId), getResponse.isExists(), equalTo(false));
+                assertThat(getResponse.getVersion(), equalTo(-1L));
+
+            } else {
+                assertHitCount(
+                    client().prepareSearch(docsIndicesById.get(docId))
+                        .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId)))
+                        .setSize(0),
+                    0L
+                );
+            }
+        }
+    }
+
+    public void testRecoverOperationsFromLocalTranslog() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(
+            dataStreamName,
+            1,
+            0,
+            Settings.builder()
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+                .build()
+        );
+
+        final var docsIndices = new HashSet<String>();
+        final var docsIndicesById = new HashMap<String, String>();
+        final var docsIdsBySeqNo = new HashMap<Long, String>();
+
+        var timestamp = Instant.now();
+        // Use `timestamp = Instant.ofEpochMilli(epoch)` to set the timestamp back to a specific value when reproducing a test failure
+        logger.info("--> timestamp is {} (epoch: {})", timestamp, timestamp.toEpochMilli());
+
+        final int nbDocs = randomIntBetween(1, 200);
+
+        var client = client();
+        var bulkRequest = client.prepareBulk();
+        for (int i = 0; i < nbDocs; i++) {
+            var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02", "vm-dev03", "vm-dev04"), "cpu-load", i);
+            bulkRequest.add(client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
+            timestamp = timestamp.plusMillis(1);
+        }
+        var bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        long maxSeqNo = -1L;
+
+        for (var result : bulkResponse.getItems()) {
+            assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(result.getVersion(), equalTo(1L));
+            assertThat(result.getResponse().getPrimaryTerm(), equalTo(1L));
+            var previous = docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
+            assertThat(previous, nullValue());
+            previous = docsIndicesById.put(result.getId(), result.getIndex());
+            assertThat(previous, nullValue());
+            docsIndices.add(result.getIndex());
+            maxSeqNo = Math.max(maxSeqNo, result.getResponse().getSeqNo());
+        }
+
+        // Delete some random docs
+        final List<String> deletedDocs = randomBoolean() ? randomNonEmptySubsetOf(docsIndicesById.keySet()) : List.of();
+        for (var deletedDocId : deletedDocs) {
+            var deletedDocIndex = docsIndicesById.get(deletedDocId);
+            assertThat(deletedDocIndex, notNullValue());
+
+            var deleteResponse = client().prepareDelete(deletedDocIndex, deletedDocId).get();
+            assertThat(deleteResponse.getId(), equalTo(deletedDocId));
+            assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
+            assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
+            assertThat(deleteResponse.getVersion(), equalTo(2L));
+            assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
+            var previous = docsIdsBySeqNo.put(deleteResponse.getSeqNo(), deletedDocId);
+            assertThat(previous, nullValue());
+            maxSeqNo = Math.max(maxSeqNo, deleteResponse.getSeqNo());
+        }
+
+        ensureGreen(dataStreamName);
+
+        // Find the primary shard
+        IndexShard primary = null;
+        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (IndexService indexService : indicesService) {
+                if (docsIndices.contains(indexService.index().getName())) {
+                    for (IndexShard indexShard : indexService) {
+                        assertThat(indexShard.routingEntry().primary(), equalTo(true));
+                        primary = indexShard;
+                        break;
+                    }
+                }
+            }
+        }
+
+        assertThat(primary, notNullValue());
+        IndexShard finalPrimary = primary;
+        long finalMaxSeqNo = maxSeqNo;
+        assertBusy(
+            () -> { assertThat(finalPrimary.withEngine(engine -> engine.getLastSyncedGlobalCheckpoint()), equalTo(finalMaxSeqNo)); }
+        );
+
+        // Check translog operations on primary shard
+        try (var translogSnapshot = getTranslog(primary).newSnapshot()) {
+            assertThat(translogSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
+
+            Translog.Operation operation;
+            while ((operation = translogSnapshot.next()) != null) {
+                assertTranslogOperation(
+                    primary.shardId().getIndex().getName(),
+                    primary.mapperService().documentMapper(),
+                    operation,
+                    docsIdsBySeqNo::get,
+                    docsIndicesById::get
+                );
+            }
+        }
+
+        // Listener to wait for the primary shard to be failed on the master node
+        final var backingIndex = primary.shardId().getIndexName();
+        var waitForPrimaryShardFailed = ClusterServiceUtils.addMasterTemporaryStateListener(
+            state -> state.projectState(ProjectId.DEFAULT).routingTable().index(backingIndex).allPrimaryShardsUnassigned()
+        );
+
+        // Fail the primary shard
+        primary.failShard("failing on purpose", new IOException("failing on purpose"));
+
+        safeAwait(waitForPrimaryShardFailed);
+        ensureGreen(primary.shardId().getIndexName());
+
+        final long expectedRecoveredOperations = maxSeqNo + 1L;
+
+        // Check that operations were successfully recovered locally
+        var recoveryResponse = indicesAdmin().prepareRecoveries(backingIndex).get();
+        assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
+        for (var shardRecoveryState : recoveryResponse.shardRecoveryStates().get(backingIndex)) {
+            assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
+            assertThat(shardRecoveryState.getRecoverySource(), equalTo(RecoverySource.ExistingStoreRecoverySource.INSTANCE));
+            assertThat((long) shardRecoveryState.getTranslog().totalOperationsOnStart(), equalTo(expectedRecoveredOperations));
+            assertThat((long) shardRecoveryState.getTranslog().recoveredOperations(), equalTo(expectedRecoveredOperations));
+            assertThat((long) shardRecoveryState.getTranslog().totalOperations(), equalTo(expectedRecoveredOperations));
+        }
+
+        final var nonDeletedDocs = Sets.difference(docsIndicesById.keySet(), Set.copyOf(deletedDocs));
+        assertHitCount(client().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), nonDeletedDocs.size());
+
+        for (var docId : randomSubsetOf(nonDeletedDocs)) {
+            if (randomBoolean()) {
+                var getResponse = client().prepareGet(docsIndicesById.get(docId), docId)
+                    .setRealtime(randomBoolean())
+                    .setFetchSource(randomBoolean())
+                    .execute()
+                    .actionGet();
+                assertThat("Not found: " + docId + " " + Uid.encodeId(docId), getResponse.isExists(), equalTo(true));
+                assertThat(getResponse.getVersion(), equalTo(1L));
+
+            } else {
+                assertCheckedResponse(
+                    client().prepareSearch(docsIndicesById.get(docId))
+                        .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId))),
+                    searchResponse -> {
+                        assertHitCount(searchResponse, 1L);
+                        assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+                        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
+                    }
+                );
+            }
+        }
+
+        for (var docId : randomSubsetOf(deletedDocs)) {
+            if (randomBoolean()) {
+                var getResponse = client().prepareGet(docsIndicesById.get(docId), docId)
+                    .setRealtime(randomBoolean())
+                    .setFetchSource(randomBoolean())
+                    .execute()
+                    .actionGet();
+                assertThat("Found deleted doc: " + docId + " " + Uid.encodeId(docId), getResponse.isExists(), equalTo(false));
+                assertThat(getResponse.getVersion(), equalTo(-1L));
+
+            } else {
+                assertHitCount(
+                    client().prepareSearch(docsIndicesById.get(docId))
+                        .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId)))
+                        .setSize(0),
+                    0L
                 );
             }
         }
@@ -798,7 +1020,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // create index
         final var dataStreamName = randomIdentifier();
         int shards = randomIntBetween(1, 5);
-        putDataStreamTemplate(dataStreamName, shards);
+        putDataStreamTemplate(dataStreamName, shards, 0);
 
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
         final var timestamp = Instant.now();
@@ -901,6 +1123,56 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertThat(documentSourcesAfterRestore, equalTo(documentSourcesBeforeSnapshot));
     }
 
+    public void testMerge() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(dataStreamName, 1, 0);
+
+        final var docsIndexByIds = new ConcurrentHashMap<String, String>();
+        var timestamp = Instant.now();
+
+        final int nbBulks = randomIntBetween(12, 20);
+        final int nbDocs = randomIntBetween(100, 1_000);
+
+        for (int i = 0; i < nbBulks; i++) {
+            var client = client();
+            var bulkRequest = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int j = 0; j < nbDocs; j++) {
+                bulkRequest.add(
+                    client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(String.format(Locale.ROOT, """
+                        {"@timestamp": "%s", "hostname": "%s", "metric": {"field": "metric_%d", "value": %d}}
+                        """, timestamp, "vm-test-" + randomIntBetween(0, 4), randomIntBetween(0, 1), randomInt()), XContentType.JSON)
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+            for (var result : bulkResponse.getItems()) {
+                assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                assertThat(result.getVersion(), equalTo(1L));
+                docsIndexByIds.put(result.getId(), result.getIndex());
+            }
+        }
+
+        var indices = new HashSet<>(docsIndexByIds.values());
+        for (var index : indices) {
+            long segmentsCount = indicesAdmin().prepareStats(index).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
+            assertThat("index [" + index + "] has " + segmentsCount + " segments", segmentsCount, greaterThan(1L));
+        }
+
+        var forceMerge = indicesAdmin().prepareForceMerge(docsIndexByIds.values().toArray(String[]::new)).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getFailedShards(), equalTo(0));
+
+        for (var index : indices) {
+            long segmentsCount = indicesAdmin().prepareStats(index).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
+            assertThat("index [" + index + "] has " + segmentsCount + " segments", segmentsCount, equalTo(1L));
+        }
+
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+    }
+
     private static long documentCount(String dataStreamName) {
         return indicesAdmin().prepareStats(dataStreamName).setDocs(true).get().getTotal().docs.getCount();
     }
@@ -1000,11 +1272,24 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return bulkResponse.getItems();
     }
 
-    private static void putDataStreamTemplate(String indexPattern, int shards) throws IOException {
-        final var settings = indexSettings(shards, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
+    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas) throws IOException {
+        putDataStreamTemplate(indexPattern, primaries, replicas, Settings.EMPTY);
+    }
+
+    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, Settings extraSettings) throws IOException {
+        final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
-            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), true);
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
+            settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());
+        } else if (rarely()) {
+            settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED);
+        }
+        if (rarely()) {
+            settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
+        }
+        settings.put(extraSettings);
 
         final var mappings = """
             {
@@ -1053,5 +1338,79 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var indexDiskUsageStats = AnalyzeIndexDiskUsageTestUtils.getIndexStats(diskUsageResponse, indexName);
         assertNotNull(indexDiskUsageStats);
         return indexDiskUsageStats;
+    }
+
+    private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) {
+        int nbVisitedShards = 0;
+        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesServices) {
+                if (indices.contains(indexService.index().getName())) {
+                    for (var indexShard : indexService) {
+                        long size = indexShard.withEngineOrNull(engine -> {
+                            if (engine != null) {
+                                try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
+                                    long segmentsTotalSize = 0L;
+
+                                    for (var leaf : searcher.getLeafContexts()) {
+                                        var leafReader = leaf.reader();
+                                        // Get the underlying stored fields reader
+                                        var tsdbStoredFieldsReader = asInstanceOf(
+                                            TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class,
+                                            Lucene.segmentReader(leafReader).getFieldsReader()
+                                        );
+
+                                        // Extract the real (ie, non-synthetic id) stored field reader
+                                        final var defaultStoredFields = tsdbStoredFieldsReader.getStoredFieldsReader();
+                                        assertThat(defaultStoredFields, not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+
+                                        final var fieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
+                                        assertThat(fieldInfo, notNullValue());
+
+                                        // Visit the "_id" field and compute its total size accross all documents
+                                        final var visitor = new StoredFieldVisitor() {
+                                            long segmentSize = 0L;
+                                            int visitedDocs = -1;
+
+                                            @Override
+                                            public Status needsField(FieldInfo fieldInfo) throws IOException {
+                                                return IdFieldMapper.NAME.equals(fieldInfo.getName()) ? Status.YES : Status.NO;
+                                            }
+
+                                            @Override
+                                            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
+                                                segmentSize += value.length;
+                                                if (visitedDocs == -1) {
+                                                    visitedDocs = 1;
+                                                } else {
+                                                    visitedDocs++;
+                                                }
+                                            }
+                                        };
+
+                                        for (int docID = 0; docID < leafReader.maxDoc(); docID++) {
+                                            defaultStoredFields.document(docID, visitor);
+                                        }
+                                        assertThat(visitor.visitedDocs, anyOf(equalTo(leafReader.maxDoc() - 1), equalTo(-1)));
+                                        segmentsTotalSize += visitor.segmentSize;
+                                    }
+                                    return segmentsTotalSize;
+                                } catch (IOException ioe) {
+                                    throw new AssertionError(ioe);
+                                }
+                            }
+                            return 0L;
+                        });
+
+                        assertThat(
+                            "Found non-zero total size for [_id] stored field values on shard " + indexShard.routingEntry(),
+                            size,
+                            equalTo(0L)
+                        );
+                        nbVisitedShards++;
+                    }
+                }
+            }
+        }
+        assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
     }
 }

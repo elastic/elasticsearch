@@ -56,10 +56,10 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -125,7 +125,7 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<ShardSnapshotResult> snapshot1Future = new PlainActionFuture<>();
             IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
             repository.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     store,
                     null,
                     snapshotId,
@@ -168,7 +168,7 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<ShardSnapshotResult> snapshot2future = new PlainActionFuture<>();
             IndexShardSnapshotStatus snapshotStatus2 = IndexShardSnapshotStatus.newInitializing(shardGeneration);
             repository.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     store,
                     null,
                     incSnapshotId,
@@ -309,7 +309,7 @@ public class FsRepositoryTests extends ESTestCase {
             canErrorForWriteBlob.set(true);
             shouldErrorForWriteMetadataBlob.set(false);
             repository.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     store1,
                     null,
                     snapshotId,
@@ -344,7 +344,7 @@ public class FsRepositoryTests extends ESTestCase {
             canErrorForWriteBlob.set(false);
             shouldErrorForWriteMetadataBlob.set(true);
             repository.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     store2,
                     null,
                     snapshotId,

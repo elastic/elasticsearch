@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DefaultTimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -46,6 +47,7 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
     public LogicalPlan rule(TimeSeriesAggregate aggregate) {
         Holder<Boolean> changed = new Holder<>(false);
         List<NamedExpression> newAggregates = aggregate.aggregates().stream().map(agg -> {
+            // The actual aggregation functions in aggregates will be aliases, while the groupings in aggregates will be Attributes
             if (agg instanceof Alias alias) {
                 return alias.replaceChild(addDefaultInnerAggs(alias.child(), aggregate.timestamp(), changed));
             } else {
@@ -69,6 +71,11 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
                 case AggregateFunction af -> af.withField(addDefaultInnerAggs(af.field(), timestamp, changed));
                 // avoid modifying filter conditions, just the delegate
                 case FilteredExpression filtered -> filtered.withDelegate(addDefaultInnerAggs(filtered.delegate(), timestamp, changed));
+                case ConvertFunction convert when expr.allMatch(e -> e instanceof ConvertFunction || e instanceof TypedAttribute) -> {
+                    changed.set(true);
+                    yield new DefaultTimeSeriesAggregateFunction(expr, timestamp);
+                }
+
                 // if we reach a TypedAttribute, it hasn't been wrapped in a TimeSeriesAggregateFunction yet
                 // (otherwise the traversal would have stopped earlier)
                 // so we wrap it with a default one

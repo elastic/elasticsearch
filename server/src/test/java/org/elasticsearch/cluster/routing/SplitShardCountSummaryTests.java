@@ -24,7 +24,7 @@ public class SplitShardCountSummaryTests extends ESTestCase {
     // Test that the ReshardSplitShardCount is calculated correctly w.r.t the current state of resharding-split operation
     public void testReshardShardCountCalculation() {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
 
@@ -107,5 +107,12 @@ public class SplitShardCountSummaryTests extends ESTestCase {
             assertThat(SplitShardCountSummary.forIndexing(indexMetadataSplit, i), equalTo(postSplitSummary));
             assertThat(SplitShardCountSummary.forSearch(indexMetadataSplit, i), equalTo(postSplitSummary));
         }
+    }
+
+    public void testSplitShardCountSummaryComparison() {
+        int n = randomInt(5);
+        int m = randomInt(5);
+
+        assertThat(new SplitShardCountSummary(n).compareTo(new SplitShardCountSummary(m)), equalTo(Integer.compare(n, m)));
     }
 }

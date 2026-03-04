@@ -141,6 +141,11 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return next != null && next.hasNext();
+    }
+
+    @Override
     public final Page getOutput() {
         if (next == null || next.hasNext() == false) {
             return null;
@@ -357,7 +362,7 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
                 // TODO a way to filter with a range please.
                 int[] positions = IntStream.range(start, positionOffset).toArray();
                 for (int b = 0; b < page.getBlockCount(); b++) {
-                    newBlocks[b] = page.getBlock(b).filter(positions);
+                    newBlocks[b] = page.getBlock(b).filter(false, positions);
                 }
                 Page result = new Page(newBlocks);
                 Arrays.fill(newBlocks, null);

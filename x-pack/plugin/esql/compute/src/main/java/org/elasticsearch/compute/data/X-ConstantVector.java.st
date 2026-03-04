@@ -64,7 +64,7 @@ $if(BytesRef)$
 $endif$
 
     @Override
-    public $Type$Vector filter(int... positions) {
+    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstant$Type$Vector(value, positions.length);
     }
 
@@ -184,13 +184,27 @@ $endif$
     }
 
 $if(BytesRef)$
-    public static long ramBytesUsed(BytesRef value) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
+    public static long ramBytesUsedWithLength(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
+    }
+
+    /**
+     * Estimates the RAM usage of this vector, applying an overestimate multiplier when the
+     * value's byte length exceeds {@code overestimateThreshold}. This compensates for heap
+     * overhead that {@link RamUsageEstimator} does not track, such as when loading large text
+     * fields from {@code _source}.
+     */
+    public static long ramBytesEstimated(BytesRef value, long overestimateThreshold, double overestimateFactor) {
+        long valueBytes = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
+        if (valueBytes > overestimateThreshold) {
+            valueBytes = Math.round(valueBytes * overestimateFactor);
+        }
+        return BASE_RAM_BYTES_USED + valueBytes;
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsed(value);
+        return ramBytesEstimated(value, blockFactory().bytesRefRamOverestimateThreshold(), blockFactory().bytesRefRamOverestimateFactor());
     }
 
 $else$

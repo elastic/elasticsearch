@@ -62,7 +62,7 @@ final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final int emitBatchSize;
-    private final BytesRefHashTable bytesRefHash;
+    final BytesRefHashTable bytesRefHash;
     private final int nullTrackingBytes;
     private final BreakingBytesRefBuilder bytes;
     private final List<GroupSpec> specs;
@@ -421,7 +421,12 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()), blockFactory);
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(bytesRefHash.size()));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(bytesRefHash.size());
     }
 
     @Override

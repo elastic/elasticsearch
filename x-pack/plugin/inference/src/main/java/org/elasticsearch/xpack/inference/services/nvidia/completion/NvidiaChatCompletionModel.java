@@ -71,10 +71,20 @@ public class NvidiaChatCompletionModel extends NvidiaModel {
         NvidiaChatCompletionServiceSettings serviceSettings,
         SecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),
             new ModelSecrets(secrets)
         );
+    }
+
+    /**
+     * Constructs a new {@link NvidiaChatCompletionModel} using model configurations and secrets.
+     *
+     * @param modelConfigurations the configurations for the model
+     * @param modelSecrets the secret settings for the model
+     */
+    public NvidiaChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     /**

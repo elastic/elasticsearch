@@ -9,10 +9,6 @@ mapped_pages:
 
 The Notion connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/notion) (branch *main*, compatible with Elastic *9.0*).
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector reference** [es-connectors-notion-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-notion-client-connector-availability-and-prerequisites]

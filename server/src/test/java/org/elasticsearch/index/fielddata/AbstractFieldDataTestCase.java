@@ -173,7 +173,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
             new ByteBuffersDirectory(),
             new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
-        searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap());
+        searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap(), null, null);
     }
 
     protected final List<LeafReaderContext> refreshReader() throws Exception {

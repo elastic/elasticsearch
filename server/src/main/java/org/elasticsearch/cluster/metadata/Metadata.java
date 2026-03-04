@@ -45,6 +45,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.ProjectTags;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -149,6 +150,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * The deserialization method for each implementation must be registered with the {@link NamedXContentRegistry}.
      */
     public interface ProjectCustom extends MetadataCustom<ProjectCustom> {}
+
+    public interface TaggedProjectCustom extends ProjectCustom {
+        ProjectTags tags();
+
+        String tagPrefix();
+    }
 
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting(
         "cluster.blocks.read_only",

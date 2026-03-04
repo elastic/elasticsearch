@@ -137,6 +137,11 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
             }
 
             @Override
+            public String contentType() {
+                return CONTENT_TYPE;
+            }
+
+            @Override
             public FieldMapper build(MapperBuilderContext context) {
                 return new TestInferenceFieldMapper(leafName());
             }

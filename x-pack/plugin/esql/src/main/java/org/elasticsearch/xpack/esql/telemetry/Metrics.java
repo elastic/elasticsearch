@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,6 +41,7 @@ public class Metrics {
 
     protected static final String QUERIES_PREFIX = "queries.";
     protected static final String FEATURES_PREFIX = "features.";
+    protected static final String SETTINGS_PREFIX = "settings.";
     protected static final String FUNC_PREFIX = "functions.";
     protected static final String TOOK_PREFIX = "took.";
 
@@ -44,13 +49,32 @@ public class Metrics {
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
+    // map that holds one counter per esql query setting (unmapped_fields, time_zone, etc.)
+    private final Map<String, CounterMetric> settingsMetrics;
     private final Map<String, CounterMetric> functionMetrics;
     private final TookMetrics tookMetrics = new TookMetrics();
 
     private final EsqlFunctionRegistry functionRegistry;
     private final Map<Class<?>, String> classToFunctionName;
 
-    public Metrics(EsqlFunctionRegistry functionRegistry) {
+    /**
+     * Creates a Metrics instance for production use.
+     * Settings metrics are filtered based on the current build type (snapshot vs release)
+     * and deployment mode (serverless vs stateful).
+     */
+    public Metrics(EsqlFunctionRegistry functionRegistry, Settings settings) {
+        this(functionRegistry, Build.current().isSnapshot(), new CrossProjectModeDecider(settings).crossProjectEnabled());
+    }
+
+    /**
+     * Creates a Metrics instance with explicit environment flags.
+     * This constructor is primarily for testing purposes.
+     *
+     * @param functionRegistry the function registry
+     * @param isSnapshot whether this is a snapshot build
+     * @param isServerless whether cross-project search is enabled (serverless mode)
+     */
+    public Metrics(EsqlFunctionRegistry functionRegistry, boolean isSnapshot, boolean isServerless) {
         this.functionRegistry = functionRegistry.snapshotRegistry();
         this.classToFunctionName = initClassToFunctionType();
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
@@ -69,6 +93,23 @@ public class Metrics {
             fMap.put(featureMetric, new CounterMetric());
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
+
+        // Only register settings metrics for settings that are applicable to the current environment
+        Map<String, CounterMetric> sMap = Maps.newLinkedHashMapWithExpectedSize(QuerySettings.SETTINGS_BY_NAME.size());
+        for (var entry : QuerySettings.SETTINGS_BY_NAME.entrySet()) {
+            String settingName = entry.getKey();
+            QuerySettings.QuerySettingDef<?> def = entry.getValue();
+            // Skip snapshot-only settings in non-snapshot builds
+            if (def.snapshotOnly() && isSnapshot == false) {
+                continue;
+            }
+            // Skip serverless-only settings in stateful (non-serverless) deployments
+            if (def.serverlessOnly() && isServerless == false) {
+                continue;
+            }
+            sMap.put(settingName, new CounterMetric());
+        }
+        settingsMetrics = Collections.unmodifiableMap(sMap);
 
         functionMetrics = initFunctionMetrics();
     }
@@ -114,6 +155,13 @@ public class Metrics {
         this.featuresMetrics.get(metric).inc();
     }
 
+    public void incSetting(String settingName) {
+        CounterMetric counter = this.settingsMetrics.get(settingName);
+        if (counter != null) {
+            counter.inc();
+        }
+    }
+
     public void incFunctionMetric(Class<?> functionType) {
         String functionName = classToFunctionName.get(functionType);
         if (functionName != null) {
@@ -144,6 +192,11 @@ public class Metrics {
         // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {
             counters.inc(FEATURES_PREFIX + entry.getKey().toString(), entry.getValue().count());
+        }
+
+        // settings metrics
+        for (Entry<String, CounterMetric> entry : settingsMetrics.entrySet()) {
+            counters.inc(SETTINGS_PREFIX + entry.getKey(), entry.getValue().count());
         }
 
         // function metrics

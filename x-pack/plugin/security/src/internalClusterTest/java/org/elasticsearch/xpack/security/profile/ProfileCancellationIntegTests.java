@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
 import java.nio.file.Path;
@@ -459,7 +460,11 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                 }
 
                 @Override
-                public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
+                public void getUserPrivileges(
+                    AuthorizationInfo authorizationInfo,
+                    RoleReference.ApiKeyRoleType unwrapLimitedRole,
+                    ActionListener<GetUserPrivilegesResponse> listener
+                ) {
                     listener.onFailure(new UnsupportedOperationException("not implemented"));
                 }
             };

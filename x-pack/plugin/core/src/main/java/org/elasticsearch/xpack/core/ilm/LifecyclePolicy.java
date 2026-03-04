@@ -362,7 +362,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         return Strings.toString(this, true, true);
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
     public boolean maybeAddDeprecationWarningForFreezeAction(String policyName) {
         Phase coldPhase = phases.get(COLD_PHASE);
         if (coldPhase != null) {

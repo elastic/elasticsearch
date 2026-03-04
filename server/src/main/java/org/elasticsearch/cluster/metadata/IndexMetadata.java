@@ -2090,9 +2090,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         /**
          * Builder to create IndexMetadata that has an increased shard count (used for re-shard).
-         * The new shard count must be a multiple of the original shardcount as well as a factor
+         * The new shard count must be a multiple of the original shard count as well as a factor
          * of routingNumShards.
-         * We do not support shrinking the shard count.
          * @param targetShardCount   target shard count after resharding
          */
         public Builder reshardAddShards(int targetShardCount) {
@@ -2113,6 +2112,34 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             var newPrimaryTerms = new long[targetShardCount];
             Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
+            primaryTerms = newPrimaryTerms;
+            routingNumShards = MetadataCreateIndexService.getIndexNumberOfRoutingShards(settings, sourceNumShards, this.routingNumShards);
+            return this;
+        }
+
+        /**
+         * Builder to create IndexMetadata that has descreased shard count (used in scope of resharding functionality).
+         * The new shard count must be a factor of the original shard count as well as a factor
+         * of routingNumShards.
+         * @param targetShardCount   target shard count
+         */
+        public Builder reshardRemoveShards(int targetShardCount) {
+            final int sourceNumShards = numberOfShards();
+            if (sourceNumShards % targetShardCount != 0) {
+                throw new IllegalArgumentException(
+                    "New shard count ["
+                        + targetShardCount
+                        + "] should be a factor"
+                        + " of current shard count ["
+                        + sourceNumShards
+                        + "] for ["
+                        + index
+                        + "]"
+                );
+            }
+            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, targetShardCount).build();
+            var newPrimaryTerms = new long[targetShardCount];
+            System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, newPrimaryTerms.length);
             primaryTerms = newPrimaryTerms;
             routingNumShards = MetadataCreateIndexService.getIndexNumberOfRoutingShards(settings, sourceNumShards, this.routingNumShards);
             return this;
@@ -2537,10 +2564,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             boolean useTimeSeriesSyntheticId = false;
             if (isTsdb
                 && IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG
-                && indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID)) {
-                var setting = settings.get(IndexSettings.USE_SYNTHETIC_ID.getKey());
+                && indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
+                var setting = settings.get(IndexSettings.SYNTHETIC_ID.getKey());
                 if (setting != null && setting.equalsIgnoreCase(Boolean.TRUE.toString())) {
-                    assert IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG;
                     useTimeSeriesSyntheticId = true;
                 }
             }

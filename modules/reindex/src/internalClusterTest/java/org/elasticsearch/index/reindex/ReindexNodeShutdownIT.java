@@ -29,9 +29,10 @@ import static org.elasticsearch.node.ShutdownPrepareService.MAXIMUM_REINDEXING_T
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
- * Test that a wait added during shutdown is necessary for a large reindexing task to complete.
+ * Test that a node waits for a length of time for reindex jobs to complete before shutting down.
+ * Note: Does not cover relocations, which are covered elsewhere.
  * The test works as follows:
- * 1. Start a large (reasonably long running) reindexing request on the coordinator-only node.
+ * 1. Start a large (reasonably long-running) reindexing request on the coordinator-only node.
  * 2. Check that the reindexing task appears on the coordinating node
  * 3. With a 60s timeout value for MAXIMUM_REINDEXING_TIMEOUT_SETTING,
  *    wait for the reindexing task to complete before closing the node

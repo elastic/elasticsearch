@@ -65,6 +65,7 @@ public class SageMakerModelBuilder {
         Map<String, Object> secrets
     ) {
         var validationException = new ValidationException();
+
         var awsSecretSettings = secrets != null
             ? AwsSecretSettings.fromMap(removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS))
             : null;
@@ -89,13 +90,19 @@ public class SageMakerModelBuilder {
         throwIfNotEmptyMap(taskSettingsMap, service);
         throwIfNotEmptyMap(secrets, service);
 
-        var modelConfigurations = new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
+        return fromStorage(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(awsSecretSettings)
+        );
+    }
+
+    public SageMakerModel fromStorage(ModelConfigurations config, ModelSecrets secrets) {
         return new SageMakerModel(
-            modelConfigurations,
-            new ModelSecrets(awsSecretSettings),
-            serviceSettings,
-            taskSettings,
-            awsSecretSettings
+            config,
+            secrets,
+            (SageMakerServiceSettings) config.getServiceSettings(),
+            (SageMakerTaskSettings) config.getTaskSettings(),
+            (AwsSecretSettings) secrets.getSecretSettings()
         );
     }
 

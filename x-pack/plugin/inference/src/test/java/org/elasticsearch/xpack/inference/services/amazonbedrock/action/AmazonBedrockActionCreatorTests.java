@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -172,7 +173,8 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
                 null,
                 null,
                 "accesskey",
-                "secretkey"
+                "secretkey",
+                TaskType.COMPLETION
             );
             var action = creator.create(model, Map.of());
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -205,7 +207,8 @@ public class AmazonBedrockActionCreatorTests extends ESTestCase {
                 null,
                 null,
                 "accesskey",
-                "secretkey"
+                "secretkey",
+                TaskType.COMPLETION
             );
             var action = creator.create(model, Map.of());
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();

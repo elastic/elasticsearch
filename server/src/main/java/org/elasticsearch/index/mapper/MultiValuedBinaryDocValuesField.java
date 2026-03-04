@@ -128,10 +128,19 @@ public abstract class MultiValuedBinaryDocValuesField extends CustomDocValuesFie
         }
 
         public static void addToSeparateCountMultiBinaryFieldInDoc(LuceneDocument doc, String fieldName, BytesRef binaryValue) {
+            addToSeparateCountMultiBinaryFieldInDoc(doc, fieldName, binaryValue, false);
+        }
+
+        public static void addToSeparateCountMultiBinaryFieldInDoc(
+            LuceneDocument doc,
+            String fieldName,
+            BytesRef binaryValue,
+            boolean keepDuplicates
+        ) {
             var field = (SeparateCount) doc.getByKey(fieldName);
             var countField = (NumericDocValuesField) doc.getByKey(fieldName + COUNT_FIELD_SUFFIX);
             if (field == null) {
-                field = new SeparateCount(fieldName, false);
+                field = new SeparateCount(fieldName, keepDuplicates);
                 countField = NumericDocValuesField.indexedField(field.countFieldName(), -1); // dummy value
                 doc.addWithKey(field.name(), field);
                 doc.addWithKey(countField.name(), countField);

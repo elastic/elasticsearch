@@ -17,12 +17,6 @@ public interface MachineLearningExtension {
 
     boolean includeNodeInfo();
 
-    boolean isAnomalyDetectionEnabled();
-
-    boolean isDataFrameAnalyticsEnabled();
-
-    boolean isNlpEnabled();
-
     default boolean disableInferenceProcessCache() {
         return false;
     }

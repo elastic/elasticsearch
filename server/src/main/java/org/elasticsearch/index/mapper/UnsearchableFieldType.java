@@ -1,0 +1,43 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.index.mapper;
+
+import org.apache.lucene.search.Query;
+import org.elasticsearch.index.query.SearchExecutionContext;
+
+import java.util.Map;
+
+/**
+ * MappedFieldType that throws IllegalArgumentException for query or fetch access
+ */
+public final class UnsearchableFieldType extends MappedFieldType {
+
+    private final String type;
+
+    public UnsearchableFieldType(String name, String type, Map<String, String> meta) {
+        super(name, IndexType.NONE, false, meta);
+        this.type = type;
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        throw new IllegalArgumentException("Cannot fetch values for field [" + name() + "]");
+    }
+
+    @Override
+    public String typeName() {
+        return type;
+    }
+
+    @Override
+    public Query termQuery(Object value, SearchExecutionContext context) {
+        throw new IllegalArgumentException("Cannot query field [" + name() + "]");
+    }
+}

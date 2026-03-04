@@ -1,0 +1,55 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.seq_no.unsearchable_when_disabled"]
+      reason: "requires sequence numbers disabled support"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.disable_sequence_numbers: true
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+"term query on _seq_no is rejected":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            term:
+              _seq_no: 0
+
+---
+"range query on _seq_no is rejected":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            range:
+              _seq_no:
+                gte: 0
+
+---
+"sort by _seq_no is rejected":
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          sort: [{ _seq_no: asc }]

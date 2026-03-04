@@ -49,10 +49,10 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
         final long queueLatencyThresholdMillis = randomLongBetween(50_000, 100_000);
         final Settings settings = enabledWriteLoadDeciderSettings(queueLatencyThresholdMillis);
         internalCluster().startMasterOnlyNode(settings);
-        final String dataNodeOne = internalCluster().startDataOnlyNode(settings);
-        final String dataNodeTwo = internalCluster().startDataOnlyNode(settings);
+        final String dataNodeOne = internalCluster().startIndexOnlyNode(settings);
+        final String dataNodeTwo = internalCluster().startIndexOnlyNode(settings);
         // Maintain a third node so that there's always at least one non-hot-spotting node that can receive shards.
-        internalCluster().startDataOnlyNode(settings);
+        internalCluster().startIndexOnlyNode(settings);
 
         // Unmodified cluster info should detect no hot-spotting nodes
         MockLog.awaitLogger(

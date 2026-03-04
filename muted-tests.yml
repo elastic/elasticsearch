@@ -419,6 +419,8 @@ tests:
   method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/pull/142366
   # ROUTING TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId
+- class: org.elasticsearch.cluster.routing.IndexRoutingTests
+  issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.index.mapper.SourceFieldMapperTests
   methods:
     - testRecoverySourceWithTimeSeriesCustom

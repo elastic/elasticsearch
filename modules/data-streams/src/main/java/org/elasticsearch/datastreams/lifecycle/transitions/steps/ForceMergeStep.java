@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.ForceMergeRequestWrapper;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
@@ -159,7 +160,7 @@ public class ForceMergeStep implements DlmStep {
         ForceMergeRequest forceMergeRequest = formForceMergeRequest(index.getName());
         stepContext.executeDeduplicatedRequest(
             ForceMergeAction.NAME,
-            forceMergeRequest,
+            new ForceMergeRequestWrapper(forceMergeRequest),
             Strings.format("DLM service encountered an error trying to force merge index [%s]", index),
             (req, l) -> forceMerge(stepContext.projectId(), forceMergeRequest, l, stepContext)
         );
@@ -215,7 +216,8 @@ public class ForceMergeStep implements DlmStep {
     private ForceMergeRequest formForceMergeRequest(String index) {
         ForceMergeRequest req = new ForceMergeRequest(index);
         req.maxNumSegments(SINGLE_SEGMENT);
-        return new ForceMergeRequestWrapper(req);
+        req.timeout(TimeValue.timeValueHours(6));
+        return req;
     }
 
     /**

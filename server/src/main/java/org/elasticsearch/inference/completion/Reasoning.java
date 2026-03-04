@@ -9,6 +9,7 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.EFFORT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.ENABLE_FIELD;
@@ -200,5 +202,34 @@ public record Reasoning(
                 throw getUnrecognizedTypeException(name, SUMMARY_FIELD, ReasoningSummary.class);
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Reasoning that = (Reasoning) o;
+        return Objects.equals(effort, that.effort)
+            && Objects.equals(maxTokens, that.maxTokens)
+            && Objects.equals(summary, that.summary)
+            && Objects.equals(exclude, that.exclude)
+            && Objects.equals(enable, that.enable);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(effort, maxTokens, summary, exclude, enable);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.format(
+            "Reasoning{effort=%s, maxTokens=%d, summary=%s, exclude=%s, enable=%s}",
+            effort,
+            maxTokens,
+            summary,
+            exclude,
+            enable
+        );
     }
 }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -157,6 +158,38 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
         return builder;
     }
 
+    protected ReasoningDetailType type() {
+        return type;
+    }
+
+    protected String format() {
+        return format;
+    }
+
+    protected String id() {
+        return id;
+    }
+
+    protected Long index() {
+        return index;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReasoningDetail that = (ReasoningDetail) o;
+        return Objects.equals(type, that.type)
+            && Objects.equals(format, that.format)
+            && Objects.equals(id, that.id)
+            && Objects.equals(index, that.index);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, format, id, index);
+    }
+
     /**
      * This class represents a reasoning detail, which contains encrypted reasoning data.
      */
@@ -166,7 +199,7 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
 
         private final String data;
 
-        public EncryptedReasoningDetail(String format, String id, Long index, String data) {
+        public EncryptedReasoningDetail(@Nullable String format, @Nullable String id, @Nullable Long index, String data) {
             super(ReasoningDetailType.ENCRYPTED, format, id, index);
             this.data = Objects.requireNonNull(data);
         }
@@ -194,6 +227,31 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
         public String getWriteableName() {
             return NAME;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            EncryptedReasoningDetail that = (EncryptedReasoningDetail) o;
+            return super.equals(that) && Objects.equals(data, that.data);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), data);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.format(
+                "EncryptedReasoningDetail{data='%s', type=%s, format='%s', id='%s', index=%d}",
+                data,
+                type(),
+                format(),
+                id(),
+                index()
+            );
+        }
     }
 
     /**
@@ -205,7 +263,7 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
 
         private final String summary;
 
-        public SummaryReasoningDetail(String format, String id, Long index, String summary) {
+        public SummaryReasoningDetail(@Nullable String format, @Nullable String id, @Nullable Long index, String summary) {
             super(ReasoningDetailType.SUMMARY, format, id, index);
             this.summary = Objects.requireNonNull(summary);
         }
@@ -233,6 +291,31 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
         public String getWriteableName() {
             return NAME;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SummaryReasoningDetail that = (SummaryReasoningDetail) o;
+            return super.equals(that) && Objects.equals(summary, that.summary);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), summary);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.format(
+                "SummaryReasoningDetail{summary='%s', type=%s, format='%s', id='%s', index=%d}",
+                summary,
+                type(),
+                format(),
+                id(),
+                index()
+            );
+        }
     }
 
     /**
@@ -246,7 +329,13 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
         private final String text;
         private final String signature;
 
-        public TextReasoningDetail(String format, String id, Long index, @Nullable String text, @Nullable String signature) {
+        public TextReasoningDetail(
+            @Nullable String format,
+            @Nullable String id,
+            @Nullable Long index,
+            @Nullable String text,
+            @Nullable String signature
+        ) {
             super(ReasoningDetailType.TEXT, format, id, index);
             this.text = text;
             this.signature = signature;
@@ -299,6 +388,32 @@ public abstract sealed class ReasoningDetail implements NamedWriteable, ToXConte
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TextReasoningDetail that = (TextReasoningDetail) o;
+            return super.equals(that) && Objects.equals(text, that.text) && Objects.equals(signature, that.signature);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), text, signature);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.format(
+                "TextReasoningDetail{text='%s', signature='%s', type=%s, format='%s', id='%s', index=%d}",
+                text,
+                signature,
+                type(),
+                format(),
+                id(),
+                index()
+            );
         }
     }
 }

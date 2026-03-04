@@ -45,6 +45,7 @@ responseTime:histogram           | tdigest:tdigest
 
 Core supported t-digest aggs on histogram field, without grouping
 required_capability: histogram_release_version
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -66,6 +67,7 @@ min:double | max:double | p90:double  | sum:double         | avg:double
 Core supported t-digest aggs on histogram field, without grouping (TS mode)
 required_capability: histogram_release_version
 required_capability: ts_command_v0
+required_capability: tdigest_percentiles_use_merging_digest
 
 
 TS histogram_timeseries_index 
@@ -105,6 +107,7 @@ avg:double
 
 Core supported T-digest aggs on Histogram field, with grouping
 required_capability: histogram_release_version
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -129,6 +132,7 @@ instance-2       | 2.2E-4     | 2.744054   | 0.033..0.052 | 27.7032..27.7088   |
 
 Percentiles on Histogram with Multiple Values and No Grouping
 required_capability: histogram_release_version
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -143,8 +147,25 @@ p0:double | p50:double     | p95:double  | p100:double
 
 // -----------------------------------------
 
+bwcUngroupedPercentile
+required_capability: histogram_release_version
+
+FROM histogram_standard_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | EVAL digest = to_tdigest(responseTime)
+ | STATS p90 = PERCENTILE(digest,90)
+ | KEEP p90
+;
+
+p90:double
+0.08..0.74
+;
+
+// -----------------------------------------
+
 Percentile on Histogram with Multiple Values and Grouping
 required_capability: histogram_release_version
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -164,6 +185,7 @@ instance-2       | 2.2E-4    | 5E-4..7.8E-4    | 0.033..0.052 | 2.744054
 
 Percentile Aggregation on Empty Histogram
 required_capability: histogram_release_version
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index 
  | WHERE instance == "hand-rolled-empty"
@@ -180,6 +202,7 @@ NULL
 
 Core supported t-digest aggregations on histogram with filtering and inline conversion
 required_capability: histogram_release_version
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index 
  | STATS min = MIN(to_tdigest(responseTime)) WHERE instance == "instance-0",
@@ -198,6 +221,7 @@ min:double | max:double | p95:double   | sum:double       | avg:double
 
 Core supported aggs on histogram with filtering and grouping
 required_capability: histogram_release_version
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -221,6 +245,7 @@ instance-2       | null       | null       | null         | null             | 0
 
 Core supported aggs on histogram with non-existant filter group
 required_capability: histogram_release_version
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index 
  | STATS min = MIN(to_tdigest(responseTime)) WHERE instance == "idontexist" ,
@@ -259,6 +284,7 @@ All aggs grouped by TBucket and Instance (time series mode)
 required_capability: histogram_release_version
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS histogram_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -295,6 +321,7 @@ All aggs grouped by Date Trunc and Instance (time series mode)
 required_capability: histogram_release_version
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS histogram_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -332,6 +359,7 @@ All aggs grouped by Bucket and Instance (time series mode)
 required_capability: histogram_release_version
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS histogram_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -366,6 +394,7 @@ instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0022..
 Group Aggs By Date_Trunc and Instance (standard mode)
 required_capability: histogram_release_version
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -404,6 +433,7 @@ instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0022..
 Group Aggs By Bucket and Instance (standard mode)
 required_capability: histogram_release_version
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM histogram_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 

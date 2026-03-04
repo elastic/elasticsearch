@@ -15,6 +15,7 @@ FROM tdigest_standard_index
 
 allAggsUngrouped
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -102,6 +103,7 @@ instance-2       | 3380
 
 allAggsGrouped
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -156,6 +158,7 @@ cnt:long
 
 ungroupedPercentiles
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -167,10 +170,26 @@ p0:double | p50:double      | p95:double   | p100:double
 2.17E-4   | 0.0017..0.0026  | 0.46..0.71   | 6.786232
 ;
 
+// -------------------------------------------------------------------------------
+
+bwcUngroupedPercentile
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS p90 = PERCENTILE(responseTime,90)
+ | KEEP p90
+;
+
+p90:double
+0.08..0.74
+;
+
 
 
 groupedPercentiles
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -189,6 +208,7 @@ instance-2       | 2.2E-4    | 5E-4..7.8E-4    | 0.033..0.052 | 2.744054
 
 percentileOnEmptyTDigest
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE instance == "hand-rolled-empty"
@@ -205,6 +225,7 @@ NULL
 medianOnEmptyTDigest
 required_capability: tdigest_time_series_metric
 required_capability: tdigest_median
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE instance == "hand-rolled-empty"
@@ -221,6 +242,7 @@ NULL
 ungroupedMedian
 required_capability: tdigest_time_series_metric
 required_capability: tdigest_median
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -237,6 +259,7 @@ median:double
 groupedMedian
 required_capability: tdigest_time_series_metric
 required_capability: tdigest_median
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -257,6 +280,7 @@ timeseriesUngroupedMedian
 required_capability: tdigest_time_series_metric
 required_capability: tdigest_median
 required_capability: ts_command_v0
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -274,6 +298,7 @@ timeseriesGroupedMedian
 required_capability: tdigest_time_series_metric
 required_capability: tdigest_median
 required_capability: ts_command_v0
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index
  | WHERE NOT STARTS_WITH(instance, "hand-rolled")
@@ -292,6 +317,7 @@ instance-2       | 5E-4..7.8E-4
 
 allAggsFiltered
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | STATS min = MIN(responseTime) WHERE instance == "instance-0",
@@ -310,6 +336,7 @@ min:double | max:double | p95:double   | sum:double    | avg:double
 
 allAggsGroupedFiltered
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -369,6 +396,7 @@ result:tdigest
 
 allAggsGroupedEmptyGroups
 required_capability: tdigest_time_series_metric
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | STATS min = MIN(responseTime) WHERE instance == "idontexist" ,
@@ -388,6 +416,7 @@ NULL       | NULL       | NULL       | NULL       | NULL
 timeseriesAllAggsUngrouped
 required_capability: tdigest_time_series_metric
 required_capability: ts_command_v0
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -405,6 +434,7 @@ All aggs grouped by TBucket and Instance (time series mode)
 required_capability: tdigest_time_series_metric
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -441,6 +471,7 @@ All aggs grouped by Date Trunc and Instance (time series mode)
 required_capability: tdigest_time_series_metric
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -478,6 +509,7 @@ All aggs grouped by Bucket and Instance (time series mode)
 required_capability: tdigest_time_series_metric
 required_capability: ts_command_v0
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 TS tdigest_timeseries_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -512,6 +544,7 @@ instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0022..
 Group Aggs By Date_Trunc and Instance (standard mode)
 required_capability: tdigest_time_series_metric
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
@@ -551,6 +584,7 @@ instance-2       | 2025-09-25T01:00:00.000Z | 2.45E-4    | 0.008362   | 0.0022..
 Group Aggs By Bucket and Instance (standard mode)
 required_capability: tdigest_time_series_metric
 required_capability: count_of_histogram_types
+required_capability: tdigest_percentiles_use_merging_digest
 
 FROM tdigest_standard_index 
  | WHERE NOT STARTS_WITH(instance, "hand-rolled") 

@@ -123,6 +123,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.Dynamic,
         Property.NodeScope
     );
+    public static final Setting<Double> MINIMUM_SHARD_WRITE_LOAD_TO_MOVE = Setting.doubleSetting(
+        "cluster.routing.allocation.write_load_decider.minimum_shard_write_load_to_move",
+        0.000001,
+        0.000001,
+        Property.Dynamic,
+        Property.NodeScope
+    );
     private static boolean enableInvalidWeightsAssertion = true;
 
     private final BalancerSettings balancerSettings;
@@ -184,7 +191,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancingWeights,
             balancerSettings.completeEarlyOnShardAssignmentChange(),
-            logInvalidWeights
+            logInvalidWeights,
+            balancerSettings
         );
 
         boolean shardAssigned = false, shardMoved = false, shardBalanced = false;
@@ -263,7 +271,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancingWeightsFactory.create(),
             balancerSettings.completeEarlyOnShardAssignmentChange(),
-            logInvalidWeights
+            logInvalidWeights,
+            balancerSettings
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -324,13 +333,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final NodeSorters nodeSorters;
         private final boolean completeEarlyOnShardAssignmentChange;
         private final FrequencyCappedAction logInvalidWeights;
+        private final BalancerSettings balancerSettings;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
             BalancingWeights balancingWeights,
             boolean completeEarlyOnShardAssignmentChange,
-            FrequencyCappedAction logInvalidWeights
+            FrequencyCappedAction logInvalidWeights,
+            BalancerSettings balancerSettings
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
@@ -346,6 +357,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.balancingWeights = balancingWeights;
             this.completeEarlyOnShardAssignmentChange = completeEarlyOnShardAssignmentChange;
             this.logInvalidWeights = logInvalidWeights;
+            this.balancerSettings = balancerSettings;
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -1146,14 +1158,25 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * @return true if the shard is more desirable to move that the current one we stored for this node, false otherwise.
              */
             public boolean shardIsBetterThanCurrent(ShardRouting shardRouting) {
+                PrioritiseByShardWriteLoadComparator nodeComparator = comparatorCache.computeIfAbsent(
+                    shardRouting.currentNodeId(),
+                    nodeId -> new PrioritiseByShardWriteLoadComparator(
+                        allocation.clusterInfo(),
+                        allocation.routingNodes().node(nodeId),
+                        balancerSettings.getWriteLoadMinimumRelocationThreshold()
+                    )
+                );
+
+                if (nodeComparator.hasAnyShardsToMove() == false) {
+                    return false;
+                }
+
                 final var currentShardForNode = bestShardMovementsByNode.get(shardRouting.currentNodeId());
                 if (currentShardForNode == null) {
                     return true;
                 }
-                int comparison = comparatorCache.computeIfAbsent(
-                    shardRouting.currentNodeId(),
-                    nodeId -> new PrioritiseByShardWriteLoadComparator(allocation.clusterInfo(), allocation.routingNodes().node(nodeId))
-                ).compare(shardRouting, currentShardForNode.shardRouting());
+
+                int comparison = nodeComparator.compare(shardRouting, currentShardForNode.shardRouting());
                 // Ignore inferior non-preferred moves
                 return comparison < 0;
             }
@@ -1199,8 +1222,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             private final double maxWriteLoadOnNode;
             private final double threshold;
             private final String nodeId;
+            private final boolean hasAnyShardsToMove;
 
-            public PrioritiseByShardWriteLoadComparator(ClusterInfo clusterInfo, RoutingNode routingNode) {
+            public PrioritiseByShardWriteLoadComparator(
+                ClusterInfo clusterInfo,
+                RoutingNode routingNode,
+                double writeLoadMinimumRelocationThreshold
+            ) {
                 shardWriteLoads = clusterInfo.getShardWriteLoads();
                 double maxWriteLoadOnNode = MISSING_WRITE_LOAD;
                 for (ShardRouting shardRouting : routingNode) {
@@ -1212,6 +1240,27 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 this.maxWriteLoadOnNode = maxWriteLoadOnNode;
                 threshold = maxWriteLoadOnNode * THRESHOLD_RATIO;
                 nodeId = routingNode.nodeId();
+
+                boolean initHasAnyShardsToMove = false;
+                List<ShardRouting> shardsSorted = new ArrayList<>(shardWriteLoads.size());
+                // create double comparator switched for descending order from index 0
+                Collections.sort(shardsSorted, (lhs, rhs) -> Double.compare(shardWriteLoads.get(rhs), shardWriteLoads.get(lhs)));
+                for (ShardRouting shardRouting : shardsSorted) {
+                    double shardWriteLoad = shardWriteLoads.get(shardRouting);
+                    if (shardWriteLoad >= threshold && shardWriteLoad < maxWriteLoadOnNode) {
+                        initHasAnyShardsToMove = true;
+                        break;
+                    }
+                    if (shardWriteLoad < threshold && shardWriteLoad > writeLoadMinimumRelocationThreshold) {
+                        initHasAnyShardsToMove = true;
+                        break;
+                    }
+                }
+                hasAnyShardsToMove = initHasAnyShardsToMove;
+            }
+
+            public boolean hasAnyShardsToMove() {
+                return hasAnyShardsToMove;
             }
 
             @Override

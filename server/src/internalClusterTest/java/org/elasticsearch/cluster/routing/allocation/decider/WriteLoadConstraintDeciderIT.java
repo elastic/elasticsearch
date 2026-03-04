@@ -594,7 +594,8 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator comparator =
             new BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator(
                 desiredBalanceResponse.getClusterInfo(),
-                originalClusterState.getRoutingNodes().node(harness.firstDataNodeId)
+                originalClusterState.getRoutingNodes().node(harness.firstDataNodeId),
+                0.0
             );
 
         final List<ShardRouting> bestShardsToMove = StreamSupport.stream(

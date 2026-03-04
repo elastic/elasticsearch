@@ -21,7 +21,6 @@ public final class PipelineSelector {
     private static final double QUANTIZE_4_DECIMALS = 1e-4;
 
     private static final int FPC_THRESHOLD = 16;
-    private static final double GORILLA_THRESHOLD = 0.4;
 
     public static final PipelineSelector INSTANCE = new PipelineSelector();
 
@@ -115,18 +114,6 @@ public final class PipelineSelector {
                 : PipelineConfig.forDoubles(blockSize).fpcStage().delta().offset().gcd().patchedPFor().bitPack();
         }
 
-        // NOTE: xorZeroCount counts consecutive identical values (XOR = 0). Gorilla's
-        // Case 0 encodes these in just 1 bit — no other algorithm matches this for
-        // repeated values.
-        if (profile.valueCount() > 1) {
-            final double xorZeroFraction = (double) profile.xorZeroCount() / (profile.valueCount() - 1);
-            if (xorZeroFraction >= GORILLA_THRESHOLD) {
-                return maxError > 0
-                    ? PipelineConfig.forDoubles(blockSize).gorilla(maxError)
-                    : PipelineConfig.forDoubles(blockSize).gorilla();
-            }
-        }
-
         // NOTE: STORAGE always uses Chimp128 — the ring buffer captures cross-value
         // correlations better, yielding tighter compression at the cost of index bits
         // per value. All other hints (BALANCED, null) use streaming Chimp — no ring
@@ -182,13 +169,6 @@ public final class PipelineSelector {
     private static PipelineConfig selectXorFloat(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
         if (profile.deltaDeltaMaxBits() <= FPC_THRESHOLD) {
             return PipelineConfig.forFloats(blockSize).fpcStage().delta().offset().gcd().patchedPFor().bitPack();
-        }
-
-        if (profile.valueCount() > 1) {
-            final double xorZeroFraction = (double) profile.xorZeroCount() / (profile.valueCount() - 1);
-            if (xorZeroFraction >= GORILLA_THRESHOLD) {
-                return PipelineConfig.forFloats(blockSize).gorilla();
-            }
         }
 
         if (hint == OptimizeFor.STORAGE) {

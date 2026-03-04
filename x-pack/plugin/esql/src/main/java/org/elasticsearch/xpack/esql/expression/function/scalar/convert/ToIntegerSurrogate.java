@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  * </ul>
  */
 
-public class ToIntegerSurrogate extends EsqlScalarFunction implements SurrogateExpression, OptionalArgument, ConvertFunction {
+public class ToIntegerSurrogate extends EsqlScalarFunction implements OnlySurrogateExpression, OptionalArgument, ConvertFunction {
 
     private final Expression field;
     private final Expression base;

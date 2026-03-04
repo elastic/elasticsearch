@@ -61,6 +61,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_I
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TS_INFO_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
@@ -218,6 +219,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 "METRICS_INFO not supported in CCS",
                 hasCapabilities(remoteClusterClient(), List.of(METRICS_INFO_COMMAND.capabilityName()))
             );
+        }
+
+        if (testCase.requiredCapabilities.contains(TS_INFO_COMMAND.capabilityName())) {
+            assumeFalse("TS_INFO not supported in CCS", hasCapabilities(remoteClusterClient(), List.of(TS_INFO_COMMAND.capabilityName())));
         }
     }
 

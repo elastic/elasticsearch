@@ -177,6 +177,7 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
+    // TODO: Improve memory tracking
     static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MetricInfoKey.class) + RamUsageEstimator.shallowSizeOfInstance(
         MetricInfo.class
     );
@@ -538,7 +539,7 @@ public class MetricsInfoOperator implements Operator {
             parser.nextToken();
             return parser.mapOrdered();
         } catch (Exception e) {
-            return null;
+            throw new IllegalStateException("failed to parse _timeseries_metadata at position [" + position + "]", e);
         }
     }
 

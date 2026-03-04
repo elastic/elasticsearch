@@ -48,13 +48,31 @@ static inline void init_offsets(const T** out, const T* a, int32_t pitch,
     }
 }
 
-// Compile-time loop: calls f(integral_constant<int, 0>{}), f(...<1>{}), ...,
-// f(...<N-1>{}). Each index is a compile-time constant, so it can be used as
-// a template argument or array index that the compiler fully unrolls.
+// Compile-time "loop" (analogous to a for-loop that is fully unrolled by the
+// compiler). Generate calls to f(0), f(1), ..., f(N-1) where each index is a
+// compile-time constant that can be used as a template argument or array subscript that
+// the compiler resolves statically.
+//
+// The "loop" is implemented via compile-time recursion: the compiler recursively instantiates
+// this function, effectively unrolling it. The net result is equivalent to writing f(0); f(1); ... f(N-1);
+// inline, with no loops, branches, or function-call overhead in the compiled output.
 template <int N, typename F, int I = 0>
 static inline void apply_indexed(F&& f) {
+    // This if is a compile-time branch: apply_indexed is compile-time recursive,
+    // meaning the compiler will resolve the constexpr and instantiate the next iteration
+    // of the template (apply_indexed<N, F, I + 1>).
+    // Everything is handled by the compiler, no runtime branch is emitted.
     if constexpr (I < N) {
+        // `std::integral_constant<int, I>` is a lightweight type used to wrap
+        // a compile time constant (I). On the caller side, when the lambda parameter
+        // is declared `auto I`, the compiler recursively instantiates this function and
+        // deduces its type as integral_constant<int, 0>, then <int, 1>, etc.
+        // This lets `I` be used wherever a compile-time constant is required.
         f(std::integral_constant<int, I>{});
+
+        // `std::forward` is a C++ idiom related to modern C++ move semantics; it passes `f`
+        // to the next recursive call preserving its original value category (lvalue
+        // or rvalue). Here it simply avoids an unnecessary copy of the lambda.
         apply_indexed<N, F, I + 1>(std::forward<F>(f));
     }
 }

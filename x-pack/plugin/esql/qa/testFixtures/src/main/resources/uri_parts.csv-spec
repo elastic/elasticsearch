@@ -319,3 +319,29 @@ parts.domain:keyword | parts.port:integer | parts.scheme:keyword
 www.elastic.co       | 443                | https
 www.elastic.co       | 443                | https
 ;
+
+
+nullInputRow
+required_capability: str_commands_accept_null
+
+ROW n = null
+| URI_PARTS parts=n
+;
+
+n:null | parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
+null   | null                 | null                   | null               | null                    | null               | null                | null                 | null                    | null                   | null 
+;
+
+nullInput
+required_capability: str_commands_accept_null
+
+FROM employees
+| EVAL n = null
+| URI_PARTS parts=n
+| WHERE emp_no == 10001
+| KEEP n, parts.*
+;
+
+n:null | parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
+  null | null                 | null                   | null               | null                    | null               | null                | null                 | null                    | null                   | null 
+;

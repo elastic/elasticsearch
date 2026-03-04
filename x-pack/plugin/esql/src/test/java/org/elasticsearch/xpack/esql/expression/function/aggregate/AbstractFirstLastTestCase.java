@@ -16,6 +16,7 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.unlimitedSuppliers;
@@ -79,9 +80,16 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                     }
                 }
 
+                String evaluatorStr = String.format(
+                    Locale.ROOT,
+                    "All%sBy%s",
+                    standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", values.type()),
+                    standardAggregatorNameAllBytesTheSame("", sorts.type())
+                );
+
                 return new TestCaseSupplier.TestCase(
                     List.of(values, sorts),
-                    "All" + standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", values.type()) + "ByTimestamp",
+                    evaluatorStr,
                     values.type(),
                     anyOf(() -> Iterators.map(expected.iterator(), Matchers::equalTo))
                 );

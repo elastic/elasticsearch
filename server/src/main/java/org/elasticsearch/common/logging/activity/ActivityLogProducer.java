@@ -24,34 +24,43 @@ import java.util.concurrent.TimeUnit;
  */
 public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
 
-    String ES_FIELDS_PREFIX = "elasticsearch.activitylog.";
     String X_OPAQUE_ID_FIELD = "http.request.headers.x_opaque_id";
     String EVENT_OUTCOME_FIELD = "event.outcome";
     String EVENT_DURATION_FIELD = "event.duration";
+    String TRACE_ID_FIELD = "trace.id";
 
     /**
      * Produces a {@link ESLogMessage} if the producer decides to log, or nothing otherwise.
      */
     Optional<ESLogMessage> produce(Context context, ActionLoggingFields additionalFields);
 
-    String loggerName();
+    /**
+     * Since we only have query logging for now, set it as the default logger name for convenience.
+     */
+    default String loggerName() {
+        return QueryLogging.QUERY_LOGGER_NAME;
+    }
 
     /**
      * Produces a {@link ESLogMessage} with common fields.
      */
-    default ESLogMessage produceCommon(Context context, ActionLoggingFields additionalFields) {
+    default ESLogMessage produceCommon(Context context, String prefix, ActionLoggingFields additionalFields) {
         var fields = new ESLogMessage();
         fields.withFields(additionalFields.logFields());
         fields.field(X_OPAQUE_ID_FIELD, context.getOpaqueId());
+        fields.field(TRACE_ID_FIELD, context.getTraceId());
         long tookInNanos = context.getTookInNanos();
         fields.field(EVENT_DURATION_FIELD, tookInNanos);
-        fields.field(ES_FIELDS_PREFIX + "took", tookInNanos);
-        fields.field(ES_FIELDS_PREFIX + "took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
         fields.field(EVENT_OUTCOME_FIELD, context.isSuccess() ? "success" : "failure");
-        fields.field(ES_FIELDS_PREFIX + "type", context.getType());
+        fields.field(prefix + "took", tookInNanos);
+        fields.field(prefix + "took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+        fields.field(prefix + "type", context.getType());
         if (context.isSuccess() == false) {
             fields.field("error.type", context.getErrorType());
             fields.field("error.message", context.getErrorMessage());
+        }
+        if (context.isTimedOut()) {
+            fields.field(prefix + "timed_out", true);
         }
         return fields;
     }

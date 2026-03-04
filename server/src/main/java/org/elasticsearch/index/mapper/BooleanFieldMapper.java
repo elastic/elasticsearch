@@ -571,7 +571,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (storeMalformedFields) {
                         // Save a copy of the field so synthetic source can load it
-                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
                     }
                     return;
                 } else {
@@ -659,11 +659,16 @@ public class BooleanFieldMapper extends FieldMapper {
                 )
             );
             if (ignoreMalformed.value()) {
-                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()) {
+            return new SortedNumericDocValuesSyntheticFieldLoader(
+                fullPath(),
+                leafName(),
+                ignoreMalformed.value(),
+                indexSettings.getIndexVersionCreated()
+            ) {
                 @Override
                 protected void writeValue(XContentBuilder b, long value) throws IOException {
                     b.value(value == 1);

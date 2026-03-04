@@ -42,6 +42,10 @@ public abstract class ActivityLoggerContext {
         return error == null;
     }
 
+    public boolean isTimedOut() {
+        return false;
+    }
+
     public String getType() {
         return type;
     }
@@ -56,5 +60,9 @@ public abstract class ActivityLoggerContext {
 
     public String getOpaqueId() {
         return task.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
+    }
+
+    public String getTraceId() {
+        return task.getHeader(Task.TRACE_ID);
     }
 }

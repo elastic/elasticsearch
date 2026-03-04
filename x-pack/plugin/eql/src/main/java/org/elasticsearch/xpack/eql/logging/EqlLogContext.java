@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.eql.logging;
 
-import joptsimple.internal.Strings;
-
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
@@ -37,8 +35,13 @@ public class EqlLogContext extends ActivityLoggerContext {
         return request.query();
     }
 
-    public String getIndices() {
-        return Strings.join(request.indices(), ",");
+    public String[] getIndices() {
+        return request.indices();
+    }
+
+    @Override
+    public boolean isTimedOut() {
+        return response != null && response.isTimeout();
     }
 
     long getHits() {
@@ -47,4 +50,5 @@ public class EqlLogContext extends ActivityLoggerContext {
         }
         return response.hits().totalHits().value();
     }
+
 }

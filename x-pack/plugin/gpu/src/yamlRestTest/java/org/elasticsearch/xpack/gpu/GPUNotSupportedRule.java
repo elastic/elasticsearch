@@ -14,16 +14,20 @@ import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
-public class GPUSupportedRule implements TestRule {
-    private static final Logger log = LogManager.getLogger(GPUSupportedRule.class);
+/**
+ * Inverse of {@link GPUSupportedRule}: skips tests when GPU hardware IS available.
+ * Used for tests that validate behaviour on machines without GPU support.
+ */
+public class GPUNotSupportedRule implements TestRule {
+    private static final Logger log = LogManager.getLogger(GPUNotSupportedRule.class);
 
     @Override
     public Statement apply(Statement base, Description description) {
-        if (CuVSGPUSupport.instance().isSupported() == false) {
+        if (CuVSGPUSupport.instance().isSupported()) {
             return new Statement() {
                 @Override
                 public void evaluate() {
-                    log.info("GPU not supported, skipping {}", description.getDisplayName());
+                    log.info("GPU supported, skipping {}", description.getDisplayName());
                 }
             };
         }

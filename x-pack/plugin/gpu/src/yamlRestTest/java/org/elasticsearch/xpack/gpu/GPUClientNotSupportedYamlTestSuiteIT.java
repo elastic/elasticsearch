@@ -16,42 +16,39 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-public class GPUClientMultiNodeYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-
-    public static GPUSupportedRule gpuSupportedRule = new GPUSupportedRule();
+/**
+ * Runs YAML REST tests under {@code gpu/not-supported} only on machines
+ * where GPU hardware is NOT available. Uses {@link GPUNotSupportedRule}
+ * to skip when a GPU is detected.
+ */
+public class GPUClientNotSupportedYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public static ElasticsearchCluster cluster = createCluster();
+
+    public static GPUNotSupportedRule gpuNotSupportedRule = new GPUNotSupportedRule();
 
     private static ElasticsearchCluster createCluster() {
         var builder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .nodes(2)
+            .nodes(1)
             .module("gpu")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "false")
-            .setting("vectors.indexing.use_gpu", "true")
-            // Needed to get access to raw vectors from Lucene scorers
-            .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server")
-            .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.hnsw=org.elasticsearch.server")
-            .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server");
+            .setting("vectors.indexing.use_gpu", "false");
 
-        var libraryPath = System.getenv("LD_LIBRARY_PATH");
-        if (libraryPath != null) {
-            builder.environment("LD_LIBRARY_PATH", libraryPath);
-        }
         return builder.build();
     }
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(gpuSupportedRule).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(gpuNotSupportedRule).around(cluster);
 
-    public GPUClientMultiNodeYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public GPUClientNotSupportedYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters("gpu/supported");
+        return ESClientYamlSuiteTestCase.createParameters("gpu/not-supported");
     }
 
     @Override

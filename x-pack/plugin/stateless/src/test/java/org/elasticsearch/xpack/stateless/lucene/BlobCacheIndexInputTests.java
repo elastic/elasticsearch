@@ -89,8 +89,10 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.intThat;
 import static org.mockito.ArgumentMatchers.longThat;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
@@ -891,6 +893,53 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             );
             assertFalse("expected buffer to be unavailable after eviction", availableAfter);
         }
+    }
+
+    // Verifies that prefetch on a sliced BlobCacheIndexInput correctly translates the offset
+    // by adding this.offset before forwarding to CacheFileReader.tryPrefetch. Uses a mock
+    // CacheFile to capture the actual offset argument, and doSlice to bypass the buffer-based
+    // fast path (trySliceBuffer) that may return a ByteArrayIndexInput.
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testPrefetchOnSlice() throws IOException {
+        final SharedBlobCacheService.CacheFile cacheFile = mock(SharedBlobCacheService.CacheFile.class);
+        when(cacheFile.copy()).thenReturn(cacheFile);
+        when(cacheFile.tryPrefetch(anyLong(), anyLong())).thenReturn(true);
+        final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
+        final long primaryTerm = randomNonNegativeLong();
+        final long fileLength = randomLongBetween(200, 10_000);
+        final CacheFileReader cacheFileReader = new CacheFileReader(
+            cacheFile,
+            cacheBlobReader,
+            createBlobFileRanges(primaryTerm, 0L, 0, (int) fileLength),
+            null,
+            System::currentTimeMillis
+        );
+        final BlobCacheIndexInput indexInput = new BlobCacheIndexInput(
+            "test-file",
+            randomIOContext(),
+            cacheFileReader,
+            null,
+            fileLength,
+            0
+        );
+
+        // Prefetch on root input (this.offset == 0) — offset passed as-is
+        long prefetchOffset = randomLongBetween(0, fileLength - 2);
+        long prefetchLength = randomLongBetween(1, fileLength - prefetchOffset);
+        indexInput.prefetch(prefetchOffset, prefetchLength);
+        verify(cacheFile).tryPrefetch(prefetchOffset, prefetchLength);
+
+        // Create a slice with non-zero offset (use doSlice to bypass trySliceBuffer)
+        long sliceOffset = randomLongBetween(1, fileLength / 2);
+        long sliceLength = randomLongBetween(1, fileLength - sliceOffset);
+        BlobCacheIndexInput slice = asInstanceOf(BlobCacheIndexInput.class, indexInput.doSlice("test-slice", sliceOffset, sliceLength));
+
+        // Prefetch on slice must translate the offset by adding sliceOffset
+        clearInvocations(cacheFile);
+        long slicePrefetchOffset = randomLongBetween(0, sliceLength - 2);
+        long slicePrefetchLength = randomLongBetween(1, sliceLength - slicePrefetchOffset);
+        slice.prefetch(slicePrefetchOffset, slicePrefetchLength);
+        verify(cacheFile).tryPrefetch(sliceOffset + slicePrefetchOffset, slicePrefetchLength);
     }
 
     private SparseFileTracker.Gap mockGap(long start, long end) {

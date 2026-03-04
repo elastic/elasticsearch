@@ -14,7 +14,12 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-public class GPUClientNoGpuYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+/**
+ * Runs YAML REST tests under {@code gpu/not-enabled} with the GPU setting
+ * explicitly disabled. These tests run on any machine regardless of whether
+ * GPU hardware is present.
+ */
+public class GPUClientNotEnabledYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = createCluster();
@@ -31,13 +36,13 @@ public class GPUClientNoGpuYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return builder.build();
     }
 
-    public GPUClientNoGpuYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
+    public GPUClientNotEnabledYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters("gpu/not-supported");
+        return ESClientYamlSuiteTestCase.createParameters("gpu/not-enabled");
     }
 
     @Override

@@ -1,0 +1,4 @@
+FROM employees
+| SORT emp_no DESC
+| SORT salary DESC
+| LIMIT 5 BY languages

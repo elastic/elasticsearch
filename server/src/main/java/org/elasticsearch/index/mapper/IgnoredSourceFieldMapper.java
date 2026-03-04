@@ -233,16 +233,20 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
 
         public static NameValue decode(Object field) {
-            byte[] bytes = ((BytesRef) field).bytes;
-            int encodedSize = ByteUtils.readIntLE(bytes, 0);
+            BytesRef ref = (BytesRef) field;
+            byte[] bytes = ref.bytes;
+            int off = ref.offset;
+            int len = ref.length;
+
+            int encodedSize = ByteUtils.readIntLE(bytes, off);
             int nameSize = encodedSize % PARENT_OFFSET_IN_NAME_OFFSET;
             int parentOffset = encodedSize / PARENT_OFFSET_IN_NAME_OFFSET;
 
-            String decoded = new String(bytes, 4, bytes.length - 4, StandardCharsets.UTF_8);
+            String decoded = new String(bytes, off + 4, len - 4, StandardCharsets.UTF_8);
             String name = decoded.substring(0, nameSize);
             int nameByteCount = name.getBytes(StandardCharsets.UTF_8).length;
 
-            BytesRef value = new BytesRef(bytes, 4 + nameByteCount, bytes.length - nameByteCount - 4);
+            BytesRef value = new BytesRef(bytes, off + 4 + nameByteCount, len - nameByteCount - 4);
             return new NameValue(name, parentOffset, value, null);
         }
 
@@ -567,16 +571,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                         int count = docValues.docValueCount();
                         for (int i = 0; i < count; i++) {
                             BytesRef encoded = docValues.nextValue();
-                            List<NameValue> nameValues = CoalescedIgnoredSourceEncoding.decode(encoded);
-                            assert nameValues.isEmpty() == false;
-                            for (var nameValue : nameValues) {
-                                if (filter != null
-                                    && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
-                                    continue;
-                                }
-                                objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>())
-                                    .add(nameValue);
+                            NameValue nameValue = LegacyIgnoredSourceEncoding.decode(encoded);
+                            if (filter != null
+                                && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
+                                continue;
                             }
+                            objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
                         }
                         return objectsWithIgnoredFields;
                     }
@@ -594,12 +594,9 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                         int count = docValues.docValueCount();
                         for (int i = 0; i < count; i++) {
                             BytesRef encoded = docValues.nextValue();
-                            List<NameValue> nameValues = CoalescedIgnoredSourceEncoding.decode(encoded);
-                            assert nameValues.isEmpty() == false;
-                            String fieldPath = nameValues.getFirst().name();
-                            if (fieldPaths.contains(fieldPath)) {
-                                assert valuesForFieldAndParents.containsKey(fieldPath) == false;
-                                valuesForFieldAndParents.put(fieldPath, nameValues);
+                            NameValue nameValue = LegacyIgnoredSourceEncoding.decode(encoded);
+                            if (fieldPaths.contains(nameValue.name())) {
+                                valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
                             }
                         }
                         return valuesForFieldAndParents;
@@ -609,48 +606,29 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
             @Override
             public void writeIgnoredFields(Collection<NameValue> ignoredFieldValues) {
-                Map<LuceneDocument, Map<String, List<NameValue>>> entriesMap = new HashMap<>();
-
                 for (NameValue nameValue : ignoredFieldValues) {
-                    entriesMap.computeIfAbsent(nameValue.doc(), d -> new HashMap<>())
-                        .computeIfAbsent(nameValue.name(), n -> new ArrayList<>())
-                        .add(nameValue);
-                }
-
-                for (var docEntry : entriesMap.entrySet()) {
-                    for (var fieldEntry : docEntry.getValue().entrySet()) {
-                        MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
-                            docEntry.getKey(),
-                            NAME,
-                            CoalescedIgnoredSourceEncoding.encode(fieldEntry.getValue())
-                        );
+                    MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) nameValue.doc().getByKey(NAME);
+                    if (field == null) {
+                        field = new MultiValuedBinaryDocValuesField.IntegratedCount(NAME, true);
+                        nameValue.doc().addWithKey(NAME, field);
                     }
+                    field.add(LegacyIgnoredSourceEncoding.encode(nameValue));
                 }
             }
 
             @Override
             public BytesRef filterValue(BytesRef value, Function<Map<String, Object>, Map<String, Object>> filter) throws IOException {
-                List<IgnoredSourceFieldMapper.MappedNameValue> mappedNameValues = CoalescedIgnoredSourceEncoding.decodeAsMap(value);
-                List<IgnoredSourceFieldMapper.MappedNameValue> filteredNameValues = new ArrayList<>(mappedNameValues.size());
-                boolean maybeDidFilter = false;
-                for (var mappedNameValue : mappedNameValues) {
-                    Map<String, Object> transformedField = filter.apply(mappedNameValue.map());
-                    if (transformedField.isEmpty()) {
-                        maybeDidFilter = true;
-                        continue;
-                    }
-                    var topValue = mappedNameValue.map().values().iterator().next();
-                    if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
-                        maybeDidFilter = true;
-                    }
-                    filteredNameValues.add(mappedNameValue.withMap(transformedField));
+                IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = LegacyIgnoredSourceEncoding.decodeAsMap(value);
+                if (mappedNameValue == null) {
+                    return null;
                 }
-                if (maybeDidFilter) {
-                    if (filteredNameValues.isEmpty()) {
-                        return null;
-                    } else {
-                        return CoalescedIgnoredSourceEncoding.encodeFromMap(filteredNameValues);
-                    }
+                Map<String, Object> transformedField = filter.apply(mappedNameValue.map());
+                if (transformedField.isEmpty()) {
+                    return null;
+                }
+                var topValue = mappedNameValue.map().values().iterator().next();
+                if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
+                    return LegacyIgnoredSourceEncoding.encodeFromMap(mappedNameValue.withMap(transformedField));
                 } else {
                     return value;
                 }

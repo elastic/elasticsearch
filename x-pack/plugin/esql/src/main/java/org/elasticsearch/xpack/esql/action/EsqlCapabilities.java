@@ -2247,6 +2247,11 @@ public class EsqlCapabilities {
          */
         TS_INFO_COMMAND,
 
+        /**
+         * FORK with no implicit LIMIT
+         */
+        FORK_NO_IMPLICIT_LIMIT(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

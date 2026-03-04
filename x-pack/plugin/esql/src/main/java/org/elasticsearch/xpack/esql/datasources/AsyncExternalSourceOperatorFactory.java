@@ -292,8 +292,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                             }
                             List<String> cols = projectedColumns(injector);
                             StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                            int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : rowsRemaining;
-                            try (CloseableIterator<Page> pages = formatReader.read(obj, cols, batchSize, fileBudget)) {
+                            boolean skipFirstLine = false;
+                            boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+                            if (fileSplit.offset() > 0) {
+                                obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
+                                boolean isFirstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+                                skipFirstLine = isFirstSplit == false;
+                            }
+                            try (
+                                CloseableIterator<Page> pages = formatReader.readSplit(
+                                    obj,
+                                    cols,
+                                    batchSize,
+                                    skipFirstLine,
+                                    lastSplit,
+                                    attributes
+                                )
+                            ) {
                                 int consumed = drainPagesWithBudget(pages, buffer, injector);
                                 if (rowLimit != FormatReader.NO_LIMIT) {
                                     rowsRemaining -= consumed;

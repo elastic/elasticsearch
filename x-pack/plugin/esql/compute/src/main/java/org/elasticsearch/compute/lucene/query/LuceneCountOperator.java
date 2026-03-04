@@ -59,7 +59,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 queryFunction,
                 // don't enable doc-partitioning for count see #partitioningStrategyForCount
                 dataPartitioning == DataPartitioning.DOC ? DataPartitioning.AUTO : dataPartitioning,
-                partitioningStrategyForCount(),
+                LuceneCountOperator::partitioningStrategyForCount,
                 docThresholdForAutoStrategy,
                 taskConcurrency,
                 limit,
@@ -256,14 +256,12 @@ public class LuceneCountOperator extends LuceneOperator {
      * Under-counting occurs when the first part is not cached but later parts are, causing those parts to be skipped.
      * To make doc-partitioning work properly for count, we would need coordination between threads.
      */
-    static Function<Query, LuceneSliceQueue.PartitioningStrategy> partitioningStrategyForCount() {
-        return q -> {
-            Query unwrapped = LuceneSourceOperator.Factory.unwrapQuery(q);
-            return switch (unwrapped) {
-                case MatchAllDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
-                case MatchNoDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
-                default -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
-            };
+    static LuceneSliceQueue.PartitioningStrategy partitioningStrategyForCount(Query q) {
+        final Query unwrapped = LuceneSourceOperator.Factory.unwrapQuery(q);
+        return switch (unwrapped) {
+            case MatchAllDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
+            case MatchNoDocsQuery unused -> LuceneSliceQueue.PartitioningStrategy.SHARD;
+            default -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
         };
     }
 }

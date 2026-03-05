@@ -165,6 +165,23 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";
     public static final String JOB_AUDIT_DATAFEED_STOPPED_WITH_REASON = "Datafeed stopped with reason [{0}]";
     public static final String JOB_AUDIT_DATAFEED_ISOLATED = "Datafeed isolated";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_LINKED = "Datafeed search scope changed: project(s) [{0}] linked."
+        + " Data distribution may have changed due to new data sources,"
+        + " which can cause temporary anomalies while the model adapts."
+        + " If anomaly quality degrades, consider reviewing recent model snapshots for potential rollback.";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_UNLINKED = "Datafeed search scope changed: project(s) [{0}] unlinked."
+        + " Data distribution may have changed due to removed data sources,"
+        + " which can cause temporary anomalies as patterns the model learned are no longer present."
+        + " If anomaly quality degrades, consider reviewing recent model snapshots for potential rollback.";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGED_BOTH =
+        "Datafeed search scope changed: project(s) [{0}] linked, project(s) [{1}] unlinked."
+            + " Data distribution may have changed, which can cause temporary anomalies while the model adapts."
+            + " If anomaly quality degrades, consider reviewing recent model snapshots for potential rollback.";
+    public static final String JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ANOMALIES =
+        "Elevated anomaly scores detected after project scope change at [{0}]"
+            + " ({1}). [{2}] buckets with anomaly score > 75 observed since the scope change."
+            + " This is likely caused by the data distribution shift."
+            + " Consider reviewing model snapshots if the anomalies are not meaningful.";
     public static final String JOB_AUDIT_DELETING = "Deleting job by task with id ''{0}''";
     public static final String JOB_AUDIT_DELETING_FAILED = "Error deleting job: {0}";
     public static final String JOB_AUDIT_DELETED = "Job deleted";

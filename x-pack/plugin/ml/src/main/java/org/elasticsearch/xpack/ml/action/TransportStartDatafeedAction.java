@@ -716,7 +716,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return new GetDatafeedRunningStateAction.Response.RunningState(
                 endTime == null,
                 datafeedRunner.finishedLookBack(this),
-                datafeedRunner.getSearchInterval(this)
+                datafeedRunner.getSearchInterval(this),
+                datafeedRunner.getCrossProjectStats(this)
             );
         }
     }

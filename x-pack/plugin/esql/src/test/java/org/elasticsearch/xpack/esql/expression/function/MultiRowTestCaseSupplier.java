@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -701,23 +700,40 @@ public final class MultiRowTestCaseSupplier {
      * Generate cases for {@link DataType#DENSE_VECTOR}.
      */
     public static List<TypedDataSupplier> denseVectorCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        cases.addAll(denseVectorCases(minRows, maxRows, TestCaseSupplier::randomDenseVector, "dense vector"));
+        if (maxRows > 1) {
+            cases.addAll(denseVectorCases(minRows, maxRows, (d) -> {
+                List<Float> vector = TestCaseSupplier.randomDenseVector(d, () -> Float.MAX_VALUE);
+                return vector;
+            }, "dense vector with positive overflow"));
+            cases.addAll(denseVectorCases(maxRows, maxRows, (d) -> {
+                List<Float> vector = TestCaseSupplier.randomDenseVector(d, () -> -Float.MAX_VALUE);
+                return vector;
+            }, "dense vector with negative overflow"));
+        }
+        return cases;
+    }
+
+    /**
+     * Generate cases for {@link DataType#DENSE_VECTOR}.
+     */
+    public static List<TypedDataSupplier> denseVectorCases(
+        int minRows,
+        int maxRows,
+        Function<Integer, List<Float>> vectorSupplier,
+        String testCaseName
+    ) {
         Holder<Integer> dimensions = new Holder<>();
         List<TypedDataSupplier> cases = new ArrayList<>();
-        addSuppliers(cases, minRows, maxRows, "<dense vector>", DataType.DENSE_VECTOR, () -> {
+        addSuppliers(cases, minRows, maxRows, testCaseName, DataType.DENSE_VECTOR, () -> {
             if (dimensions.get() == null) {
                 dimensions.set(randomIntBetween(64, 128));
             }
-            return randomDenseVector(dimensions.get());
+            return vectorSupplier.apply(dimensions.get());
         });
 
         return cases;
     }
 
-    private static List<Float> randomDenseVector(int dimensions) {
-        List<Float> vector = new ArrayList<>();
-        for (int i = 0; i < dimensions; i++) {
-            vector.add(randomFloat());
-        }
-        return vector;
-    }
 }

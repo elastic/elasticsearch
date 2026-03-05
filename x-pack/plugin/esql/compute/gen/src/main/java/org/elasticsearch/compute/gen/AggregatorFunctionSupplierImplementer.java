@@ -10,7 +10,6 @@ package org.elasticsearch.compute.gen;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
-import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import org.elasticsearch.compute.ann.Aggregator;
@@ -41,6 +40,7 @@ import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 import static org.elasticsearch.compute.gen.Types.STRING;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
+import static org.elasticsearch.compute.gen.Types.WARNING_SOURCE_LOCATION;
 
 /**
  * Implements "AggregationFunctionSupplier" from a class annotated with both
@@ -99,9 +99,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.addSuperinterface(AGGREGATOR_FUNCTION_SUPPLIER);
 
         if (hasWarnings) {
-            builder.addField(TypeName.INT, "warningsLineNumber");
-            builder.addField(TypeName.INT, "warningsColumnNumber");
-            builder.addField(STRING, "warningsSourceText");
+            builder.addField(WARNING_SOURCE_LOCATION, "warningsSource");
         }
         createParameters.stream().forEach(p -> p.declareField(builder));
         builder.addMethod(ctor());
@@ -116,12 +114,8 @@ public class AggregatorFunctionSupplierImplementer {
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         if (hasWarnings) {
-            builder.addParameter(TypeName.INT, "warningsLineNumber");
-            builder.addParameter(TypeName.INT, "warningsColumnNumber");
-            builder.addParameter(STRING, "warningsSourceText");
-            builder.addStatement("this.warningsLineNumber = warningsLineNumber");
-            builder.addStatement("this.warningsColumnNumber = warningsColumnNumber");
-            builder.addStatement("this.warningsSourceText = warningsSourceText");
+            builder.addParameter(WARNING_SOURCE_LOCATION, "warningsSource");
+            builder.addStatement("this.warningsSource = warningsSource");
         }
         createParameters.stream().forEach(p -> p.buildCtor(builder));
         return builder.build();
@@ -167,11 +161,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.returns(aggregatorImplementer.implementation());
 
         if (hasWarnings) {
-            builder.addStatement(
-                "var warnings = $T.createWarnings(driverContext.warningsMode(), "
-                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)",
-                WARNINGS
-            );
+            builder.addStatement("var warnings = $T.createWarnings(driverContext.warningsMode(), warningsSource)", WARNINGS);
         }
 
         builder.addStatement(
@@ -194,11 +184,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.returns(groupingAggregatorImplementer.implementation());
 
         if (hasWarnings) {
-            builder.addStatement(
-                "var warnings = $T.createWarnings(driverContext.warningsMode(), "
-                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)",
-                WARNINGS
-            );
+            builder.addStatement("var warnings = $T.createWarnings(driverContext.warningsMode(), warningsSource)", WARNINGS);
         }
 
         builder.addStatement(

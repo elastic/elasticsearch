@@ -17,7 +17,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.nativeaccess.NativeAccessUtil;
-import org.elasticsearch.plugins.PluginDescriptor.DeploymentTarget;
 
 import java.io.IOException;
 import java.lang.ModuleLayer.Controller;

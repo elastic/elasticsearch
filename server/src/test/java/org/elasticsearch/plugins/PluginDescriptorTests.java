@@ -221,10 +221,7 @@ public class PluginDescriptorTests extends ESTestCase {
             mockInternalDescriptor("deployment.target", "STATELESS_ONLY").getDeploymentTarget(),
             is(PluginDescriptor.DeploymentTarget.STATELESS_ONLY)
         );
-        assertThat(
-            mockInternalDescriptor("deployment.target", "ALL").getDeploymentTarget(),
-            is(PluginDescriptor.DeploymentTarget.ALL)
-        );
+        assertThat(mockInternalDescriptor("deployment.target", "ALL").getDeploymentTarget(), is(PluginDescriptor.DeploymentTarget.ALL));
     }
 
     public void testReadDeploymentTargetInvalid() throws Exception {

@@ -27,7 +27,7 @@ import java.io.IOException;
  *   | ...              | ...                                    |
  *   | Block N-1        | [bitmap][payload][stage metadata]      |
  *   +------------------+----------------------------------------+
- *   | Block Offsets     | DirectMonotonicWriter encoded offsets  |
+ *   | Block Offsets     | DirectMonotonicWriter encoded offsets |
  *   +------------------+----------------------------------------+
  * </pre>
  *

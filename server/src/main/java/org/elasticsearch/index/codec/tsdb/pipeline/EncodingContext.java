@@ -136,6 +136,9 @@ public final class EncodingContext {
      * metadata directly from the stream with no buffering. By reordering on flush,
      * the on-disk layout matches decode execution order, giving the decoder a free
      * sequential read without seeking or knowing variable-length metadata sizes.
+     *
+     * @param out the data output stream
+     * @throws IOException if an I/O error occurs
      */
     public void writeStageMetadata(final DataOutput out) throws IOException {
         // NOTE: pipelineLength() - 1 excludes the payload stage (last position).

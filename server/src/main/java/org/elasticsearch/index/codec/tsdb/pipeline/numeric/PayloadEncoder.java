@@ -19,7 +19,11 @@ import java.io.IOException;
  */
 public interface PayloadEncoder {
 
-    /** Returns the unique stage identifier. */
+    /**
+     * Returns the unique stage identifier.
+     *
+     * @return the stage ID byte
+     */
     byte id();
 
     /**

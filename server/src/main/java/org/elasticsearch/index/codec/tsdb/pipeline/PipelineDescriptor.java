@@ -37,8 +37,11 @@ public final class PipelineDescriptor {
 
     /** The numeric data type stored in encoded blocks. */
     public enum DataType {
+        /** 64-bit signed integer values. */
         LONG((byte) 0x00),
+        /** 64-bit IEEE 754 floating-point values. */
         DOUBLE((byte) 0x01),
+        /** 32-bit IEEE 754 floating-point values. */
         FLOAT((byte) 0x02);
 
         /** Persisted byte identifier for this data type. */

@@ -93,10 +93,14 @@ public final class DecodingContext implements MetadataReader {
         return blockSize;
     }
 
-    // NOTE: dataInput is intentionally nulled on clear(). Unlike EncodingContext which
-    // owns its MetadataBuffer, DecodingContext does not own the DataInput (it is injected).
-    // Nulling forces the caller to provide a fresh DataInput via setDataInput() before
-    // each block, which is a fail-fast against silently reading garbage from a stale stream.
+    /**
+     * Resets this context for reuse with the next block.
+     *
+     * <p>NOTE: dataInput is intentionally nulled. Unlike EncodingContext which
+     * owns its MetadataBuffer, DecodingContext does not own the DataInput (it is injected).
+     * Nulling forces the caller to provide a fresh DataInput via {@link #setDataInput} before
+     * each block, which is a fail-fast against silently reading garbage from a stale stream.
+     */
     public void clear() {
         positionBitmap = 0;
         dataInput = null;

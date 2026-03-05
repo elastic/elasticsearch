@@ -23,10 +23,14 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
  *
  */
 public enum StageId {
+    /** Delta encoding transform stage. */
     DELTA_STAGE((byte) 0x01, "delta"),
+    /** Offset removal transform stage. */
     OFFSET_STAGE((byte) 0x02, "offset"),
+    /** GCD factoring transform stage. */
     GCD_STAGE((byte) 0x03, "gcd"),
 
+    /** Bit-packing terminal payload stage. */
     BITPACK_PAYLOAD((byte) 0xA1, "bitPack");
 
     /** Persisted byte identifier. Must never change once assigned. */

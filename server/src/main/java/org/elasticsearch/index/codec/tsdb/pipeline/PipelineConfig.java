@@ -19,9 +19,14 @@ import java.util.Objects;
  * <p>Captures the data type, block size, and ordered stage specifications for
  * deferred codec construction. Use {@link #forLongs} to start building a
  * configuration via the fluent builder API.
+ *
+ * @param dataType  the numeric data type
+ * @param blockSize the number of values per block (must be a positive power of 2)
+ * @param specs     the ordered stage specifications
  */
 public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize, List<StageSpec> specs) {
 
+    /** Validates invariants and creates a defensive copy of the specs list. */
     public PipelineConfig {
         Objects.requireNonNull(dataType, "dataType must not be null");
         if (blockSize <= 0 || (blockSize & (blockSize - 1)) != 0) {
@@ -84,21 +89,41 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             this.blockSize = blockSize;
         }
 
+        /**
+         * Adds a delta encoding stage.
+         *
+         * @return this builder
+         */
         public LongBuilder delta() {
             specs.add(new StageSpec.DeltaStage());
             return this;
         }
 
+        /**
+         * Adds an offset removal stage.
+         *
+         * @return this builder
+         */
         public LongBuilder offset() {
             specs.add(new StageSpec.OffsetStage());
             return this;
         }
 
+        /**
+         * Adds a GCD factoring stage.
+         *
+         * @return this builder
+         */
         public LongBuilder gcd() {
             specs.add(new StageSpec.GcdStage());
             return this;
         }
 
+        /**
+         * Adds a bit-packing payload and builds the configuration.
+         *
+         * @return the pipeline configuration
+         */
         public PipelineConfig bitPack() {
             specs.add(new StageSpec.BitPackPayload());
             return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);

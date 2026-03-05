@@ -14,6 +14,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -518,8 +520,9 @@ public final class LuceneSliceQueue {
             final int minDocsPerSlice = Math.max(docsPerSlice * 2 / 3, 1);
             int pendingDocs = 0;
             for (Slice slice : slices) {
-                if (pendingDocs > minDocsPerSlice && (pendingDocs + slice.numDocs) > (docsPerSlice * 3 / 2)) {
-                    results.add(current.values().stream().toList());
+                if (pendingDocs >= docsPerSlice
+                    || (pendingDocs > minDocsPerSlice && (pendingDocs + slice.numDocs) > (docsPerSlice * 3 / 2))) {
+                    results.add(shuffle(current.values()));
                     current.clear();
                     pendingDocs = 0;
                 }
@@ -533,9 +536,15 @@ public final class LuceneSliceQueue {
                 pendingDocs += slice.numDocs;
             }
             if (current.isEmpty() == false) {
-                results.add(current.values().stream().toList());
+                results.add(shuffle(current.values()));
             }
             return results;
+        }
+
+        private List<PartialLeafReaderContext> shuffle(Collection<PartialLeafReaderContext> leaves) {
+            List<PartialLeafReaderContext> shuffled = new ArrayList<>(leaves);
+            Randomness.shuffle(shuffled);
+            return shuffled;
         }
     }
 }

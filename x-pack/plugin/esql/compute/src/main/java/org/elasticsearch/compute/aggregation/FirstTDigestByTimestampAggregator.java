@@ -15,10 +15,12 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.DriverContext;
 
-@Aggregator({
-    @IntermediateState(name = "timestamps", type = "LONG"),
-    @IntermediateState(name = "values", type = "TDIGEST"),
-    @IntermediateState(name = "seen", type = "BOOLEAN") })
+@Aggregator(
+    {
+        @IntermediateState(name = "timestamps", type = "LONG"),
+        @IntermediateState(name = "values", type = "TDIGEST"),
+        @IntermediateState(name = "seen", type = "BOOLEAN") }
+)
 @GroupingAggregator
 public class FirstTDigestByTimestampAggregator {
     public static String describe() {
@@ -30,7 +32,7 @@ public class FirstTDigestByTimestampAggregator {
     }
 
     public static void combine(TDigestStates.WithLongSingleState current, TDigestHolder value, long timestamp) {
-        if (timestamp < current.longValue()) {
+        if (current.isSeen() == false || timestamp < current.longValue()) {
             current.set(timestamp, value);
         }
     }
@@ -71,7 +73,11 @@ public class FirstTDigestByTimestampAggregator {
         }
     }
 
-    public static Block evaluateFinal(TDigestStates.WithLongGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    public static Block evaluateFinal(
+        TDigestStates.WithLongGroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         return state.evaluateFinalTDigests(selected, ctx.driverContext());
     }
 }

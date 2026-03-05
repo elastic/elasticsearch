@@ -411,6 +411,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-irate.Irate_of_double_no_grouping}
   issue: https://github.com/elastic/elasticsearch/issues/143625
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_of_aggregate_metric_double}
+  issue: https://github.com/elastic/elasticsearch/issues/143631
 
 # Examples:
 #

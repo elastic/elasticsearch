@@ -18,6 +18,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ProjectState;
@@ -132,51 +134,55 @@ public class SnapshotStep implements DlmStep {
         getRequest.snapshots(new String[] { snapshotName });
         getRequest.ignoreUnavailable(true);
 
-        stepContext.client().projectClient(projectId).admin().cluster().getSnapshots(getRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(GetSnapshotsResponse response) {
-                List<SnapshotInfo> snapshots = response.getSnapshots();
-                if (snapshots.isEmpty()) {
-                    maybeStartSnapshot(stepContext, repositoryName, snapshotName);
-                    return;
-                }
+        stepContext.executeDeduplicatedRequest(
+            TransportGetSnapshotsAction.TYPE.name(),
+            getRequest,
+            Strings.format("DLM failed to check for existing snapshot [%s] for index [%s]", snapshotName, indexName),
+            (req, listener) -> stepContext.client()
+                .projectClient(projectId)
+                .admin()
+                .cluster()
+                .getSnapshots(getRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(GetSnapshotsResponse response) {
+                        List<SnapshotInfo> snapshots = response.getSnapshots();
+                        listener.onResponse(null);
+                        if (snapshots.isEmpty()) {
+                            maybeStartSnapshot(stepContext, repositoryName, snapshotName);
+                            return;
+                        }
+                        SnapshotInfo existingSnapshot = snapshots.getFirst();
+                        if (existingSnapshot.state() == SnapshotState.SUCCESS && existingSnapshot.failedShards() == 0) {
+                            logger.info(
+                                "DLM found valid orphaned snapshot [{}] for index [{}] without completion marker, marking as complete",
+                                snapshotName,
+                                indexName
+                            );
+                            markSnapshotComplete(stepContext);
+                        } else {
+                            logger.info(
+                                "DLM found invalid orphaned snapshot [{}] for index [{}] (state [{}], failed shards [{}]), "
+                                    + "deleting and recreating",
+                                snapshotName,
+                                indexName,
+                                existingSnapshot.state(),
+                                existingSnapshot.failedShards()
+                            );
+                            deleteAndRestartSnapshot(stepContext, repositoryName, snapshotName);
+                        }
+                    }
 
-                SnapshotInfo existingSnapshot = snapshots.getFirst();
-                if (existingSnapshot.state() == SnapshotState.SUCCESS && existingSnapshot.failedShards() == 0) {
-                    logger.info(
-                        "DLM found valid orphaned snapshot [{}] for index [{}] without completion marker, marking as complete",
-                        snapshotName,
-                        indexName
-                    );
-                    markSnapshotCompleteStandalone(stepContext);
-                } else {
-                    logger.info(
-                        "DLM found invalid orphaned snapshot [{}] for index [{}] (state [{}], failed shards [{}]), deleting and recreating",
-                        snapshotName,
-                        indexName,
-                        existingSnapshot.state(),
-                        existingSnapshot.failedShards()
-                    );
-                    deleteAndRestartSnapshot(stepContext, repositoryName, snapshotName);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof SnapshotMissingException) {
-                    maybeStartSnapshot(stepContext, repositoryName, snapshotName);
-                } else {
-                    stepContext.errorStore()
-                        .recordAndLogError(
-                            projectId,
-                            indexName,
-                            e,
-                            Strings.format("DLM failed to check for existing snapshot [%s] for index [%s]", snapshotName, indexName),
-                            stepContext.signallingErrorRetryThreshold()
-                        );
-                }
-            }
-        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (e instanceof SnapshotMissingException) {
+                            listener.onResponse(null);
+                            maybeStartSnapshot(stepContext, repositoryName, snapshotName);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }
+                })
+        );
     }
 
     private void deleteAndRestartSnapshot(DlmStepContext stepContext, String repositoryName, String snapshotName) {
@@ -184,29 +190,31 @@ public class SnapshotStep implements DlmStep {
         ProjectId projectId = stepContext.projectId();
         DeleteSnapshotRequest deleteRequest = new DeleteSnapshotRequest(INFINITE_MASTER_NODE_TIMEOUT, repositoryName, snapshotName);
 
-        stepContext.client().projectClient(projectId).execute(TransportDeleteSnapshotAction.TYPE, deleteRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse response) {
-                logger.info("DLM deleted stale snapshot [{}] for index [{}], starting new snapshot", snapshotName, indexName);
-                maybeStartSnapshot(stepContext, repositoryName, snapshotName);
-            }
+        stepContext.executeDeduplicatedRequest(
+            TransportDeleteSnapshotAction.TYPE.name(),
+            deleteRequest,
+            Strings.format("DLM failed to delete stale snapshot [%s] for index [%s]", snapshotName, indexName),
+            (req, listener) -> stepContext.client()
+                .projectClient(projectId)
+                .execute(TransportDeleteSnapshotAction.TYPE, deleteRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(AcknowledgedResponse response) {
+                        logger.info("DLM deleted stale snapshot [{}] for index [{}], starting new snapshot", snapshotName, indexName);
+                        listener.onResponse(null);
+                        maybeStartSnapshot(stepContext, repositoryName, snapshotName);
+                    }
 
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof SnapshotMissingException) {
-                    maybeStartSnapshot(stepContext, repositoryName, snapshotName);
-                } else {
-                    stepContext.errorStore()
-                        .recordAndLogError(
-                            projectId,
-                            indexName,
-                            e,
-                            Strings.format("DLM failed to delete stale snapshot [%s] for index [%s]", snapshotName, indexName),
-                            stepContext.signallingErrorRetryThreshold()
-                        );
-                }
-            }
-        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (e instanceof SnapshotMissingException) {
+                            listener.onResponse(null);
+                            maybeStartSnapshot(stepContext, repositoryName, snapshotName);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }
+                })
+        );
     }
 
     private void maybeStartSnapshot(DlmStepContext stepContext, String repositoryName, String snapshotName) {
@@ -226,7 +234,8 @@ public class SnapshotStep implements DlmStep {
                     .createSnapshot(createRequest, listener.delegateFailureAndWrap((l, response) -> {
                         if (response.getSnapshotInfo() != null && response.getSnapshotInfo().failedShards() == 0) {
                             logger.info("DLM successfully created snapshot [{}] for index [{}]", snapshotName, indexName);
-                            markSnapshotComplete(stepContext, l);
+                            l.onResponse(null);
+                            markSnapshotComplete(stepContext);
                         } else {
                             int failedShards = response.getSnapshotInfo() != null ? response.getSnapshotInfo().failedShards() : -1;
                             l.onFailure(
@@ -245,32 +254,7 @@ public class SnapshotStep implements DlmStep {
         );
     }
 
-    /**
-     * Marks the snapshot as complete, recording errors directly to the error store. Used when the snapshot already
-     * exists in the repository and only the completion marker needs to be set (i.e. outside the deduplicated create path).
-     */
-    private void markSnapshotCompleteStandalone(DlmStepContext stepContext) {
-        markSnapshotComplete(stepContext, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                stepContext.errorStore().clearRecordedError(stepContext.projectId(), stepContext.indexName());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                stepContext.errorStore()
-                    .recordAndLogError(
-                        stepContext.projectId(),
-                        stepContext.indexName(),
-                        e,
-                        Strings.format("DLM failed to mark existing snapshot as complete for index [%s]", stepContext.indexName()),
-                        stepContext.signallingErrorRetryThreshold()
-                    );
-            }
-        });
-    }
-
-    private void markSnapshotComplete(DlmStepContext stepContext, ActionListener<Void> listener) {
+    private void markSnapshotComplete(DlmStepContext stepContext) {
         String indexName = stepContext.indexName();
         ProjectId projectId = stepContext.projectId();
 
@@ -278,20 +262,27 @@ public class SnapshotStep implements DlmStep {
         updateSettingsRequest.masterNodeTimeout(INFINITE_MASTER_NODE_TIMEOUT);
         updateSettingsRequest.settings(Settings.builder().put(DLM_SNAPSHOT_COMPLETED_KEY, true).build());
 
-        stepContext.client()
-            .projectClient(projectId)
-            .admin()
-            .indices()
-            .updateSettings(updateSettingsRequest, listener.delegateFailureAndWrap((l, response) -> {
-                if (response.isAcknowledged()) {
-                    logger.info("DLM marked snapshot as complete for index [{}]", indexName);
-                    l.onResponse(null);
-                } else {
-                    l.onFailure(
-                        new ElasticsearchException("request to mark snapshot complete for index [" + indexName + "] was not acknowledged")
-                    );
-                }
-            }));
+        stepContext.executeDeduplicatedRequest(
+            TransportUpdateSettingsAction.TYPE.name(),
+            updateSettingsRequest,
+            Strings.format("DLM failed to mark existing snapshot as complete for index [%s]", indexName),
+            (req, listener) -> stepContext.client()
+                .projectClient(projectId)
+                .admin()
+                .indices()
+                .updateSettings(updateSettingsRequest, listener.delegateFailureAndWrap((l, response) -> {
+                    if (response.isAcknowledged()) {
+                        logger.info("DLM marked snapshot as complete for index [{}]", indexName);
+                        l.onResponse(null);
+                    } else {
+                        l.onFailure(
+                            new ElasticsearchException(
+                                Strings.format("request to mark snapshot complete for index [%s] was not acknowledged", indexName)
+                            )
+                        );
+                    }
+                }))
+        );
     }
 
     /**

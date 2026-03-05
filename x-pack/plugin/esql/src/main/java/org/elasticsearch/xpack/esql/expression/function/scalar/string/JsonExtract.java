@@ -230,28 +230,39 @@ public class JsonExtract extends EsqlScalarFunction {
             if (parser.nextToken() == null) {
                 throw new IllegalArgumentException("empty JSON input");
             }
-
-            // Navigate to the target value by following each path segment.
-            List<JsonPath.Segment> segments = path.segments();
-            String originalPath = path.originalPath();
-            for (int depth = 0; depth < segments.size(); depth++) {
-                XContentParser.Token token = parser.currentToken();
-                if (token == XContentParser.Token.START_OBJECT && segments.get(depth) instanceof JsonPath.Segment.Key key) {
-                    navigateToField(parser, key, originalPath);
-                } else if (token == XContentParser.Token.START_ARRAY && segments.get(depth) instanceof JsonPath.Segment.Index idx) {
-                    navigateToIndex(parser, idx);
-                } else {
-                    throw new IllegalArgumentException("path [" + originalPath + "] does not exist");
-                }
-            }
-
-            // Extract the value — only place that needs raw byte access for zero-copy slicing.
-            // For JSON input, byte-slice directly from the input buffer instead of re-serializing.
+            // For JSON input, pass the raw bytes so extractCurrentValue can byte-slice
+            // instead of re-serializing via copyCurrentStructure.
             byte[] rawBytes = type == XContentType.JSON ? str.bytes : null;
             int rawOffset = type == XContentType.JSON ? str.offset : 0;
-            extractCurrentValue(builder, parser, rawBytes, rawOffset);
+            extractValue(builder, parser, path.segments(), 0, path.originalPath(), rawBytes, rawOffset);
         } catch (IOException | XContentParseException e) {
             throw new IllegalArgumentException("invalid JSON input");
+        }
+    }
+
+    private static void extractValue(
+        BytesRefBlock.Builder builder,
+        XContentParser parser,
+        List<JsonPath.Segment> segments,
+        int depth,
+        String originalPath,
+        byte[] rawBytes,
+        int rawOffset
+    ) throws IOException {
+        if (depth == segments.size()) {
+            extractCurrentValue(builder, parser, rawBytes, rawOffset);
+            return;
+        }
+
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.START_OBJECT && segments.get(depth) instanceof JsonPath.Segment.Key key) {
+            navigateToField(parser, key, originalPath);
+            extractValue(builder, parser, segments, depth + 1, originalPath, rawBytes, rawOffset);
+        } else if (token == XContentParser.Token.START_ARRAY && segments.get(depth) instanceof JsonPath.Segment.Index idx) {
+            navigateToIndex(parser, idx);
+            extractValue(builder, parser, segments, depth + 1, originalPath, rawBytes, rawOffset);
+        } else {
+            throw new IllegalArgumentException("path [" + originalPath + "] does not exist");
         }
     }
 

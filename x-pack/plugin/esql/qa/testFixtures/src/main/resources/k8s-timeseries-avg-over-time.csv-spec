@@ -253,7 +253,7 @@ events:double      | pod:keyword | time_bucket:datetime
 avg_over_time_aggregate_metric_double_implicit_casting
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
-TS k8s* | STATS bytes = sum(avg_over_time(network.eth0.rx)) by time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, time_bucket | LIMIT 10 ;
+TS k8s,k8s-downsampled | STATS bytes = sum(avg_over_time(network.eth0.rx)) by time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, time_bucket | LIMIT 10 ;
 
 bytes:double       | time_bucket:datetime
 8785.733333333334  | 2024-05-10T00:20:00.000Z
@@ -267,7 +267,7 @@ bytes:double       | time_bucket:datetime
 avg_over_time_aggregate_metric_double_implicit_casting_grouping
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0
-TS k8s* | STATS bytes = sum(avg_over_time(network.eth0.rx)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, pod, time_bucket | LIMIT 10 ;
+TS k8s,k8s-downsampled | STATS bytes = sum(avg_over_time(network.eth0.rx)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, pod, time_bucket | LIMIT 10 ;
 
 bytes:double       | pod:keyword | time_bucket:datetime
 3095.5             | one         | 2024-05-10T00:20:00.000Z

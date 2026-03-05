@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;

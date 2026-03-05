@@ -78,11 +78,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             esSourceRules.add(new PushLimitToExternalSource());
             esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushSampleToSource());
-            esSourceRules.add(new EnableSpatialDistancePushdown());
         }
         esSourceRules.add(new ReplaceSampledStatsByExactStats());
         if (optimizeForEsSource) {
             esSourceRules.add(new PushStatsToSource());
+            esSourceRules.add(new EnableSpatialDistancePushdown());
         }
         esSourceRules.add(new ReplaceSampledStatsBySampleAndStats());
         if (optimizeForEsSource) {

@@ -44,22 +44,22 @@ import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
  */
 public class NvidiaActionCreator implements NvidiaActionVisitor {
 
-    private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE = "Failed to send Nvidia %s request from inference entity id [%s]";
-    private static final String COMPLETION_ERROR_PREFIX = "Nvidia completions";
+    private static final String FAILED_TO_SEND_REQUEST_ERROR_MESSAGE = "Failed to send NVIDIA %s request from inference entity id [%s]";
+    private static final String COMPLETION_ERROR_PREFIX = "NVIDIA completions";
     private static final String USER_ROLE = "user";
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new NvidiaEmbeddingsResponseHandler(
-        "Nvidia text embedding",
+        "NVIDIA text embedding",
         OpenAiEmbeddingsResponseEntity::fromResponse
     );
 
     private static final ResponseHandler COMPLETION_HANDLER = new NvidiaCompletionResponseHandler(
-        "Nvidia completion",
+        "NVIDIA completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
     private static final ResponseHandler RERANK_HANDLER = new NvidiaRerankResponseHandler(
-        "Nvidia rerank",
+        "NVIDIA rerank",
         (request, response) -> NvidiaRerankResponseEntity.fromResponse(response)
     );
 

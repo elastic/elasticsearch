@@ -502,7 +502,7 @@ public class ReindexerTests extends ESTestCase {
 
             final ProjectResolver projectResolver = mock(ProjectResolver.class);
             when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
-
+            fail("fix")
             final Reindexer reindexer = new Reindexer(
                 clusterService,
                 projectResolver,
@@ -512,7 +512,10 @@ public class ReindexerTests extends ESTestCase {
                 mock(ReindexSslConfig.class),
                 null,
                 mock(TransportService.class),
-                mock(ReindexRelocationNodePicker.class)
+                mock(ReindexRelocationNodePicker.class),
+                // TODO - Do these tests need updating to set it to true?
+                // Will default REINDEX_PIT_SEARCH_FEATURE to false
+                mock(FeatureService.class)
             );
 
             final ReindexRequest request = new ReindexRequest();
@@ -576,7 +579,9 @@ public class ReindexerTests extends ESTestCase {
                     mock(ReindexSslConfig.class),
                     null,
                     mock(TransportService.class),
-                    mock(ReindexRelocationNodePicker.class)
+                    mock(ReindexRelocationNodePicker.class),
+                    // Will default REINDEX_PIT_SEARCH_FEATURE to false
+                    mock(FeatureService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -805,7 +810,9 @@ public class ReindexerTests extends ESTestCase {
                 sslConfig,
                 null,
                 mock(TransportService.class),
-                mock(ReindexRelocationNodePicker.class)
+                mock(ReindexRelocationNodePicker.class),
+                // Will default REINDEX_PIT_SEARCH_FEATURE to false
+                mock(FeatureService.class)
             );
 
             BulkByScrollTask task = new BulkByScrollTask(

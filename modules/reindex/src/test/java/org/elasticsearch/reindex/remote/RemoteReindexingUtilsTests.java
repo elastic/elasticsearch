@@ -18,6 +18,7 @@ import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
@@ -455,10 +456,13 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         when(response.getEntity()).thenReturn(new StringEntity(json, ContentType.APPLICATION_JSON));
         mockSuccess(response);
 
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
         AtomicBoolean success = new AtomicBoolean(false);
         BytesReference[] capturedPitId = new BytesReference[1];
         RemoteReindexingUtils.openPit(
-            new String[] { randomAlphaOfLength(between(1, 10)) },
+            searchRequest,
+            new String[] { index },
             TimeValue.timeValueMillis(between(1, 60000)),
             RejectAwareActionListener.wrap(pitId -> {
                 capturedPitId[0] = pitId;
@@ -477,9 +481,12 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     public void testOpenPitTooManyRequestsTriggersRejection() throws Exception {
         mockFailure(new ResponseException(rejectionResponse429()));
 
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
         AtomicBoolean rejected = new AtomicBoolean(false);
         RemoteReindexingUtils.openPit(
-            new String[] { randomAlphaOfLength(between(1, 10)) },
+            searchRequest,
+            new String[] { index },
             randomPositiveTimeValue(),
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> fail("unexpected failure"), e -> rejected.set(true)),
             threadPool,
@@ -503,9 +510,12 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         when(response.getRequestLine()).thenReturn(requestLine);
         mockFailure(new ResponseException(response));
 
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
         AtomicBoolean failed = new AtomicBoolean(false);
         RemoteReindexingUtils.openPit(
-            new String[] { randomAlphaOfLength(between(1, 10)) },
+            searchRequest,
+            new String[] { index },
             randomPositiveTimeValue(),
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
                 assertTrue(e instanceof ElasticsearchStatusException);
@@ -527,9 +537,12 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         when(response.getEntity()).thenReturn(new StringEntity(invalidJson, ContentType.APPLICATION_JSON));
         mockSuccess(response);
 
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
         AtomicBoolean failed = new AtomicBoolean(false);
         RemoteReindexingUtils.openPit(
-            new String[] { randomAlphaOfLength(between(1, 10)) },
+            searchRequest,
+            new String[] { index },
             randomPositiveTimeValue(),
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
                 assertTrue(e instanceof ElasticsearchException);
@@ -551,9 +564,12 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
         when(response.getEntity()).thenReturn(new StringEntity(json, ContentType.APPLICATION_JSON));
         mockSuccess(response);
 
+        String index = randomAlphaOfLength(between(1, 10));
+        SearchRequest searchRequest = new SearchRequest().indices(index);
         AtomicBoolean failed = new AtomicBoolean(false);
         RemoteReindexingUtils.openPit(
-            new String[] { randomAlphaOfLength(between(1, 10)) },
+            searchRequest,
+            new String[] { index },
             randomPositiveTimeValue(),
             RejectAwareActionListener.wrap(v -> fail("unexpected success"), e -> {
                 assertTrue(e instanceof ElasticsearchException);
@@ -564,6 +580,56 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
             client
         );
         assertTrue("onFailure should have been called", failed.get());
+    }
+
+    /**
+     * Verifies that openPit throws AssertionError when the SearchRequest has routing set,
+     * since routing is not yet propagated to the PIT open request.
+     */
+    public void testOpenPitFailsWhenRoutingSet() {
+        SearchRequest searchRequest = new SearchRequest().indices("index");
+        searchRequest.routing("some-routing");
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> RemoteReindexingUtils.openPit(
+                searchRequest,
+                new String[] { "index" },
+                randomPositiveTimeValue(),
+                RejectAwareActionListener.wrap(
+                    v -> fail("unexpected success"),
+                    err -> fail("unexpected failure"),
+                    err -> fail("unexpected rejection")
+                ),
+                threadPool,
+                client
+            )
+        );
+        assertThat(e.getMessage(), containsString("Routing is set"));
+    }
+
+    /**
+     * Verifies that openPit throws AssertionError when the SearchRequest has preference set,
+     * since preference is not yet propagated to the PIT open request.
+     */
+    public void testOpenPitFailsWhenPreferenceSet() {
+        SearchRequest searchRequest = new SearchRequest().indices("index");
+        searchRequest.preference("_local");
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> RemoteReindexingUtils.openPit(
+                searchRequest,
+                new String[] { "index" },
+                randomPositiveTimeValue(),
+                RejectAwareActionListener.wrap(
+                    v -> fail("unexpected success"),
+                    err -> fail("unexpected failure"),
+                    err -> fail("unexpected rejection")
+                ),
+                threadPool,
+                client
+            )
+        );
+        assertThat(e.getMessage(), containsString("Preference is set"));
     }
 
     /**

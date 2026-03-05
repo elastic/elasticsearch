@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RetryListener;
 import org.elasticsearch.rest.RestStatus;
@@ -72,12 +74,17 @@ public class RemoteReindexingUtils {
      * @param client   REST client for the remote cluster
      */
     public static void openPit(
+        SearchRequest request,
         String[] indices,
         TimeValue keepAlive,
         RejectAwareActionListener<BytesReference> listener,
         ThreadPool threadPool,
         RestClient client
     ) {
+        // The routing and preference parameters can be set on a PIT request. However, these are currently not used
+        // by either scroll nor PIT, so we assert here in case that changes
+        assert request.routing() == null : "Routing is set in the search request, but is not being used when opening the PIT.";
+        assert request.preference() == null : "Preference is set in the search request, but is not being used when opening the PIT.";
         execute(RemoteRequestBuilders.openPit(indices, keepAlive), OPEN_PIT_PARSER, listener, threadPool, client);
     }
 

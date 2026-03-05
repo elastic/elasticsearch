@@ -372,9 +372,10 @@ public class Reindexer {
         Version remoteVersion,
         long startTime
     ) {
-        String[] indices = request.getSearchRequest().indices();
+        SearchRequest searchRequest = request.getSearchRequest();
+        String[] indices = searchRequest.indices();
         // Sends a REST request to the remote node to open a PIT
-        openPit(indices, pitKeepAlive(request), RejectAwareActionListener.wrap(pitId -> {
+        openPit(searchRequest, indices, pitKeepAlive(request), RejectAwareActionListener.wrap(pitId -> {
             ActionListener<BulkByScrollResponse> listenerWithClosePit = ActionListener.runAfter(
                 listenerWithRelocations,
                 () -> closePit(pitId, RejectAwareActionListener.wrap(v -> closeRestClientAndRun(restClient, () -> {}), e -> {

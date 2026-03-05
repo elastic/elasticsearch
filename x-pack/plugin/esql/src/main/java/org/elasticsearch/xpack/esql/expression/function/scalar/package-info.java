@@ -165,7 +165,8 @@
  *
  *         In order to make your function appear in the docs, you should add a reference to it in the most suitable two md files under the
  *         {@code docs/reference/query-languages/esql/functions-operators} and {@code docs/reference/query-languages/esql/_snippets/lists}
- *         directories.
+ *         directories. To learn more about the ES|QL docs, see the
+ *         <a href="https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/README.md">ES|QL docs README</a>.
  *         <br/><br/>
  *
  *         For example, if you are writing a Math function, you will want to add it in

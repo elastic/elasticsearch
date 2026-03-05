@@ -258,6 +258,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public FlattenedFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             if (multiFields.iterator().hasNext()) {
@@ -545,6 +550,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new KeyedFlattenedDocValuesBlockLoader(name(), key, usesBinaryDocValues);
+            }
+
             var fetcher = new SourceValueFetcher(
                 blContext.sourcePaths(rootName + "." + key),
                 nullValue,

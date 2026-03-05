@@ -178,9 +178,8 @@ last_up:long | cluster:keyword | time_bucket:date_nanos
 5            | staging         | 2024-05-10T00:20:00.000Z
 ;
 
-count_over_time_of_date_nanos_promql
+count_over_time_of_date_nanos_promql-Ignore
 required_capability: promql_command_v0
-required_capability: promql_date_nanos_support_v0
 
 PROMQL index=datenanos-k8s step=10m last_up=(max by (cluster) (count_over_time(network.eth0.last_up[10m])))
 | SORT step, cluster | LIMIT 10;

@@ -29,7 +29,7 @@ import java.util.Map;
  * Implementations typically reuse a FormatReader (e.g., ParquetFormatReader)
  * for actual data reading after planning which files to read.
  */
-public interface TableCatalog extends Closeable {
+public interface TableCatalog extends ExternalSourceFactory, Closeable {
 
     String catalogType();
 
@@ -39,10 +39,26 @@ public interface TableCatalog extends Closeable {
 
     List<DataFile> planScan(String tablePath, Map<String, Object> config, List<Object> predicates) throws IOException;
 
+    @Override
+    default String type() {
+        return catalogType();
+    }
+
+    @Override
+    default SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
+        try {
+            return metadata(location, config);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
+        }
+    }
+
+    @Override
     default FilterPushdownSupport filterPushdownSupport() {
         return null;
     }
 
+    @Override
     default SourceOperatorFactoryProvider operatorFactory() {
         return null;
     }

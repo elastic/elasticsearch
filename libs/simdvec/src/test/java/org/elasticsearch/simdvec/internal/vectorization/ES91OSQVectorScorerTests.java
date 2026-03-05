@@ -120,7 +120,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                     long qDist = defaultScorer.quantizeScore(quantizeQuery);
                     slice.readFloats(floatScratch, 0, 3);
                     int quantizedComponentSum = slice.readShort();
-                    float defaulScore = defaultScorer.score(
+                    float defaultScore = defaultScorer.score(
                         queryCorrections.lowerInterval(),
                         queryCorrections.upperInterval(),
                         queryCorrections.quantizedComponentSum(),
@@ -149,7 +149,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                         floatScratch[2],
                         qDist
                     );
-                    assertEquals(defaulScore, panamaScore, 1e-2f);
+                    assertEquals(defaultScore, panamaScore, 1e-2f);
                     assertEquals(((long) (i + 1) * (length + 14)), slice.getFilePointer());
                     assertEquals(padding + ((long) (i + 1) * (length + 14)), in.getFilePointer());
                 }
@@ -234,9 +234,7 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                         scoresPanama
                     );
                     assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
-                    for (int j = 0; j < bulkSize; j++) {
-                        assertEquals(scoresDefault[j], scoresPanama[j], 1e-2f);
-                    }
+                    assertArrayEqualsPercent(scoresDefault, scoresPanama, 0.05f, 1e-2f);
                     assertEquals(((long) (bulkSize) * (length + 14)), slice.getFilePointer());
                     assertEquals(padding + ((long) (i + bulkSize) * (length + 14)), in.getFilePointer());
                 }

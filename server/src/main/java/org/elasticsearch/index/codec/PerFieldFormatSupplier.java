@@ -22,7 +22,7 @@ import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -67,8 +67,6 @@ public class PerFieldFormatSupplier {
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final KnnVectorsFormat knnVectorsFormat;
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = ES819TSDBDocValuesFormat.getInstance(false);
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormatLargeNumericBlock = ES819TSDBDocValuesFormat.getInstance(true);
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
@@ -197,9 +195,9 @@ public class PerFieldFormatSupplier {
         }
 
         if (useTSDBDocValuesFormat(field)) {
-            return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
-                ? tsdbDocValuesFormatLargeNumericBlock
-                : tsdbDocValuesFormat;
+            var indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
+            boolean useLargeBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize();
+            return TSDBDocValuesFormatFactory.createDocValuesFormat(indexCreatedVersion, useLargeBlockSize);
         }
 
         return docValuesFormat;

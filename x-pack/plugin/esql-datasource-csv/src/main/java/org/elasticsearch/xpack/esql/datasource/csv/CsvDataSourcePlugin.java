@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Data source plugin that provides CSV format support for ESQL external data sources.
@@ -35,6 +36,16 @@ import java.util.Map;
  * the core ESQL plugin free of third-party format libraries.
  */
 public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
+
+    @Override
+    public Set<String> supportedFormats() {
+        return Set.of("csv");
+    }
+
+    @Override
+    public Set<String> supportedExtensions() {
+        return Set.of(".csv", ".tsv");
+    }
 
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {

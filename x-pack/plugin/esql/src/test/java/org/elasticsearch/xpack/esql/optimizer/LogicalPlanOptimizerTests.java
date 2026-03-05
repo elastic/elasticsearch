@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -5383,7 +5384,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Project project = new Project(EMPTY, eval, List.of(aliasA));
 
         // OrderBy sorts on original `a` attribute; after pushing down it should sort on aTemp.
-        OrderBy orderBy = new OrderBy(EMPTY, project, List.of(new Order(EMPTY, a, Order.OrderDirection.ASC, Order.NullsPosition.ANY)));
+        OrderBy orderBy = new OrderBy(EMPTY, project, List.of(new Order(EMPTY, a, Order.OrderDirection.ASC, Order.NullsPosition.FIRST)));
 
         LogicalPlan optimized = new PushDownAndCombineOrderBy().apply(orderBy);
 
@@ -9914,20 +9915,20 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         // Project[[max(max_over_time(network.bytes_in)){r}#420, pod{r}#426, bucket(@timestamp, 1 minute){r}#418]]
         var project = as(plan, Project.class);
-        // Eval[[UNPACKDIMENSION(group_pod_$1{r}#454) AS pod#426]]
+        // Eval[[UNPACKDIMENSION(group_p_$1{r}#454) AS p#426]]
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields(), hasSize(1));
         var unpackAlias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(unpackAlias.name(), equalTo("pod"));
+        assertThat(unpackAlias.name(), equalTo("p"));
         var unpack = as(unpackAlias.child(), UnpackDimension.class);
         var unpackField = as(unpack.field(), ReferenceAttribute.class);
-        assertThat(unpackField.name(), equalTo("group_pod_$1"));
+        assertThat(unpackField.name(), equalTo("group_p_$1"));
         // Limit[1000000[INTEGER],false,false]
         var limit = as(eval.child(), Limit.class);
-        // Aggregate[[pack_pod_$1{r}#453,
+        // Aggregate[[pack_p_$1{r}#453,
         // bucket(@timestamp, 1 minute){r}#418],
         // [MAX(MAXOVERTIME_$1{r}#451,true[BOOLEAN],PT0S[TIME_DURATION]) AS max(max_over_time(network.bytes_in))#420,
-        // pack_pod_$1{r}#453 AS group_pod_$1#454,
+        // pack_p_$1{r}#453 AS group_p_$1#454,
         // bucket(@timestamp, 1 minute){r}#418 AS bucket(@timestamp, 1 minute)#418]]
         var aggregate = as(limit.child(), Aggregate.class);
         assertThat(aggregate.groupings(), hasSize(2));
@@ -9935,19 +9936,19 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(Alias.unwrap(aggregate.aggregates().get(0)), Max.class);
         var podAlias = as(aggregate.aggregates().get(1), Alias.class);
         var podAttribute = as(podAlias.child(), ReferenceAttribute.class);
-        assertThat(podAttribute.name(), equalTo("pack_pod_$1"));
+        assertThat(podAttribute.name(), equalTo("pack_p_$1"));
         assertThat(aggregate.groupings().get(0), is(podAttribute));
         var bucket = as(Alias.unwrap(aggregate.aggregates().get(2)), ReferenceAttribute.class);
         assertThat(aggregate.groupings().get(1), is(bucket));
 
-        // Eval[[PACKDIMENSION(pod{r}#452) AS pack_pod_$1#453]]
+        // Eval[[PACKDIMENSION(p{r}#452) AS pack_p_$1#453]]
         var eval2 = as(aggregate.child(), Eval.class);
         assertThat(eval2.fields(), hasSize(1));
         var packAlias = as(eval2.fields().getFirst(), Alias.class);
-        assertThat(packAlias.name(), equalTo("pack_pod_$1"));
+        assertThat(packAlias.name(), equalTo("pack_p_$1"));
         var pack = as(packAlias.child(), PackDimension.class);
         var packField = as(pack.field(), ReferenceAttribute.class);
-        assertThat(packField.name(), equalTo("pod"));
+        assertThat(packField.name(), equalTo("p"));
 
         // TimeSeriesAggregate[[_tsid{m}#450,
         // bucket(@timestamp, 1 minute){r}#418],
@@ -9968,7 +9969,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownSampleAndLimitThroughUriParts() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         var query = "FROM test | URI_PARTS parts = \"http://example.com/foo/bar?baz=qux\" | SAMPLE .5";
         var optimized = optimizedPlan(query);
         // UriParts should be above Sample and Limit
@@ -9980,7 +9981,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownUriPartsPastProject() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         String query = """
             from test
             | rename first_name as x
@@ -10002,7 +10003,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughUriParts() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         String query = """
             from test
             | sort emp_no
@@ -10015,5 +10016,52 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(orderNames(topN), contains("u.domain"));
         var uriParts = as(topN.child(), UriParts.class);
         as(uriParts.child(), EsRelation.class);
+    }
+
+    public void testPushDownSampleAndLimitThroughRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        var query = "FROM test | registered_domain parts = \"www.example.co.uk\" | SAMPLE .5";
+        var optimized = optimizedPlan(query);
+        var registeredDomain = as(optimized, RegisteredDomain.class);
+        var limit = as(registeredDomain.child(), Limit.class);
+        var sample = as(limit.child(), Sample.class);
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.5));
+        as(sample.child(), EsRelation.class);
+    }
+
+    public void testPushDownRegisteredDomainPastProject() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        String query = """
+            from test
+            | rename first_name as x
+            | keep x
+            | registered_domain rd = x
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        var keep = as(plan, Project.class);
+        var registeredDomain = as(keep.child(), RegisteredDomain.class);
+        assertThat(
+            registeredDomain.output().stream().map(Attribute::name).collect(Collectors.toSet()),
+            hasItems("rd.domain", "rd.registered_domain", "rd.top_level_domain", "rd.subdomain")
+        );
+        var limit = as(registeredDomain.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    public void testCombineOrderByThroughRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        String query = """
+            from test
+            | sort emp_no
+            | registered_domain rd = first_name
+            | sort rd.registered_domain
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        var topN = as(plan, TopN.class);
+        assertThat(orderNames(topN), contains("rd.registered_domain"));
+        var registeredDomain = as(topN.child(), RegisteredDomain.class);
+        as(registeredDomain.child(), EsRelation.class);
     }
 }

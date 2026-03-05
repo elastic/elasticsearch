@@ -370,61 +370,66 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
         final Map<String, BytesReference> blocks = new ConcurrentHashMap<>();
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob"), exchange -> {
 
-            if ("PUT".equals(exchange.getRequestMethod())) {
-                final Map<String, String> params = new HashMap<>();
-                RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
+            try {
+                if ("PUT".equals(exchange.getRequestMethod())) {
+                    final Map<String, String> params = new HashMap<>();
+                    RestUtils.decodeQueryString(exchange.getRequestURI().getRawQuery(), 0, params);
 
-                final String blockId = params.get("blockid");
-                assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
+                    final String blockId = params.get("blockid");
+                    assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
 
-                if (Strings.hasText(blockId) && (countDownUploads.decrementAndGet() % 2 == 0)) {
-                    logger.info("--> succeeding block {}, countDownUploads: {}", blockId, countDownUploads.get());
-                    blocks.put(blockId, Streams.readFully(exchange.getRequestBody()));
-                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
-                    exchange.close();
-                    return;
-                }
-
-                final String complete = params.get("comp");
-                if ("blocklist".equals(complete) && (countDownComplete.countDown())) {
-                    final String blockList = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
-                    final List<String> blockUids = Arrays.stream(blockList.split("<Latest>"))
-                        .filter(line -> line.contains("</Latest>"))
-                        .map(line -> line.substring(0, line.indexOf("</Latest>")))
-                        .collect(Collectors.toList());
-                    logger.info("--> succeeding blocklist, countDownComplete: {}", blockUids);
-
-                    final ByteArrayOutputStream blob = new ByteArrayOutputStream();
-                    for (String blockUid : blockUids) {
-                        BytesReference block = blocks.remove(blockUid);
-                        assert block != null;
-                        block.writeTo(blob);
+                    if (Strings.hasText(blockId) && (countDownUploads.decrementAndGet() % 2 == 0)) {
+                        logger.info("--> succeeding block {}, countDownUploads: {}", blockId, countDownUploads.get());
+                        blocks.put(blockId, Streams.readFully(exchange.getRequestBody()));
+                        exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                        exchange.close();
+                        return;
                     }
-                    assertArrayEquals(data, blob.toByteArray());
-                    exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
-                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
-                    exchange.close();
-                    return;
+
+                    final String complete = params.get("comp");
+                    if ("blocklist".equals(complete) && (countDownComplete.countDown())) {
+                        final String blockList = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
+                        final List<String> blockUids = Arrays.stream(blockList.split("<Latest>"))
+                            .filter(line -> line.contains("</Latest>"))
+                            .map(line -> line.substring(0, line.indexOf("</Latest>")))
+                            .collect(Collectors.toList());
+                        logger.info("--> succeeding blocklist, countDownComplete: {}", blockUids);
+
+                        final ByteArrayOutputStream blob = new ByteArrayOutputStream();
+                        for (String blockUid : blockUids) {
+                            BytesReference block = blocks.remove(blockUid);
+                            assert block != null;
+                            block.writeTo(blob);
+                        }
+                        assertArrayEquals(data, blob.toByteArray());
+                        exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
+                        exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                        exchange.close();
+                        return;
+                    }
+
+                    logger.info(
+                        "--> Got a put that wasn't handled: {}?{}, countdownComplete={}",
+                        exchange.getRequestURI().getPath(),
+                        exchange.getRequestURI().getRawQuery(),
+                        countDownComplete.isCountedDown()
+                    );
                 }
 
-                logger.info(
-                    "--> Got a put that wasn't handled: {}?{}, countdownComplete={}",
-                    exchange.getRequestURI().getPath(),
-                    exchange.getRequestURI().getRawQuery(),
-                    countDownComplete.isCountedDown()
-                );
+                if (randomBoolean()) {
+                    logger.info("--> failing request with error");
+                    Streams.readFully(exchange.getRequestBody());
+                    AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+                } else {
+                    logger.info("--> failing no response");
+                    long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
+                    readFromInputStream(exchange.getRequestBody(), randomLongBetween(0, contentLength));
+                }
+                exchange.close();
+            } catch (Throwable t) {
+                logger.info("--> an error was thrown", t);
+                throw t;
             }
-
-            if (randomBoolean()) {
-                logger.info("--> failing request with error");
-                Streams.readFully(exchange.getRequestBody());
-                AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
-            } else {
-                logger.info("--> failing no response");
-                long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
-                readFromInputStream(exchange.getRequestBody(), randomLongBetween(0, contentLength));
-            }
-            exchange.close();
         });
 
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {

@@ -253,7 +253,7 @@ public final class OutboundHandler {
             throw e;
         } finally {
             if (serializeSuccess == false) {
-                Releasables.close(byteStreamOutput);
+                Releasables.close(byteStreamOutput, onAfter);
             }
         }
         responseStatsConsumer.addResponseStats(message.length());

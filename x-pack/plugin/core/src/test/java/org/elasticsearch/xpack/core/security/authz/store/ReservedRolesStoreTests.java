@@ -638,8 +638,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
         // Alerting V2 views prefix: Kibana system user has create_view only
-        final IndexAbstraction alertingV2ViewsAbstraction = mockIndexAbstraction(ReservedRolesStore.ALERTING_V2_VIEWS
-            + randomAlphaOfLength(randomIntBetween(0, 13)));
+        final IndexAbstraction alertingV2ViewsAbstraction = mockIndexAbstraction(
+            ReservedRolesStore.ALERTING_V2_VIEWS + randomAlphaOfLength(randomIntBetween(0, 13))
+        );
         assertThat(
             kibanaRole.indices().allowedIndicesMatcher(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME).test(alertingV2ViewsAbstraction),
             is(true)

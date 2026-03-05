@@ -19,6 +19,7 @@ import org.elasticsearch.reindex.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -254,6 +255,42 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             assertThat(completions.size(), equalTo(1));
             assertNull(completions.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
             assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("fixed"));
+            assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
+        });
+    }
+
+    public void testReindexMetricsWithManualSlices() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+
+        indexRandom(
+            true,
+            prepareIndex("source").setId("1").setSource("foo", "a"),
+            prepareIndex("source").setId("2").setSource("foo", "b"),
+            prepareIndex("source").setId("3").setSource("foo", "c"),
+            prepareIndex("source").setId("4").setSource("foo", "d")
+        );
+        assertHitCount(prepareSearch("source").setSize(0), 4);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        ReindexRequestBuilder request = reindex().source("source").destination("dest_manual");
+        request.source().slice(new SliceBuilder(0, 2));
+        request.get();
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            List<Measurement> histograms = testTelemetryPlugin.getLongHistogramMeasurement(REINDEX_TIME_HISTOGRAM);
+            assertThat(histograms.size(), equalTo(1));
+            assertThat(histograms.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("manual"));
+            assertThat(histograms.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
+
+            List<Measurement> completions = testTelemetryPlugin.getLongCounterMeasurement(REINDEX_COMPLETION_COUNTER);
+            assertThat(completions.size(), equalTo(1));
+            assertNull(completions.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
+            assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SLICING_MODE), equalTo("manual"));
             assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
         });
     }

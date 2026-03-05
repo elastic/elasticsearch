@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
@@ -537,4 +538,12 @@ class StatelessIndexEventListener implements IndexEventListener {
         }
     }
 
+    @Override
+    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        // Can be null if there was a problem creating the shard.
+        if (indexShard != null) {
+            splitTargetService.cancelSplits(indexShard);
+            splitSourceService.cancelSplits(indexShard);
+        }
+    }
 }

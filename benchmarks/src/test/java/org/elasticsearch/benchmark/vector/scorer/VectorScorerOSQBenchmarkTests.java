@@ -15,6 +15,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
@@ -24,17 +25,22 @@ import java.util.Random;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 
+@TestLogging(
+    reason = "Noisy logging",
+    value = "org.elasticsearch.env.NodeEnvironment:WARN,org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache:WARN"
+)
 public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
+    private static final int REPETITIONS = 10;
     private final float deltaPercent = 0.1f;
     private final int dims;
-    private final int bits;
+    private final byte bits;
     private final VectorScorerOSQBenchmark.DirectoryType directoryType;
     private final VectorSimilarityFunction similarityFunction;
 
     public VectorScorerOSQBenchmarkTests(
         int dims,
-        int bits,
+        byte bits,
         VectorScorerOSQBenchmark.DirectoryType directoryType,
         VectorSimilarityFunction similarityFunction
     ) {
@@ -50,7 +56,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     }
 
     public void testSingleScalarVsVectorized() throws Exception {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
             var scalar = new VectorScorerOSQBenchmark();
@@ -85,7 +91,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     }
 
     public void testBulkScalarVsVectorized() throws Exception {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
             var scalar = new VectorScorerOSQBenchmark();
@@ -128,7 +134,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
             return () -> Arrays.stream(dims)
                 .map(Integer::parseInt)
-                .flatMap(d -> Arrays.stream(bits).map(Integer::parseInt).map(b -> List.<Object>of(d, b)))
+                .flatMap(d -> Arrays.stream(bits).map(Byte::parseByte).map(b -> List.<Object>of(d, b)))
                 .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> appendToCopy(params, dir)))
                 .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> appendToCopy(params, f).toArray()))
                 .iterator();

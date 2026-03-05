@@ -13,6 +13,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
@@ -23,7 +24,6 @@ import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.Sep
  * Block loader for multi-value binary fields which store count in a separate parallel numeric doc value column.
  */
 public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-
     private final String fieldName;
 
     public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName) {
@@ -36,29 +36,43 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-        if (values == null) {
-            return ConstantNull.READER;
-        }
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        breaker.addEstimateBytesAndMaybeBreak(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE, "load blocks");
+        long release = BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE;
+        try {
+            BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
+            if (values == null) {
+                return ConstantNull.READER;
+            }
 
-        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-        assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-        if (countsSkipper.minValue() == 1 && countsSkipper.maxValue() == 1) {
-            return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(values);
-        }
+            String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+            DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+            assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+            if (countsSkipper.minValue() == 1 && countsSkipper.maxValue() == 1) {
+                release = 0;
+                return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(
+                    breaker,
+                    BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE,
+                    values
+                );
+            }
 
-        NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-        return new BytesRefsFromBinarySeparateCount(values, counts);
+            breaker.addWithoutBreaking(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE);
+            release += AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
+            NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+            release = 0;
+            return new BytesRefsFromBinarySeparateCount(breaker, values, counts);
+        } finally {
+            breaker.addWithoutBreaking(-release);
+        }
     }
 
     static class BytesRefsFromBinarySeparateCount extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
         private final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
         private final NumericDocValues counts;
 
-        BytesRefsFromBinarySeparateCount(BinaryDocValues docValues, NumericDocValues counts) {
-            super(docValues);
+        BytesRefsFromBinarySeparateCount(CircuitBreaker breaker, BinaryDocValues docValues, NumericDocValues counts) {
+            super(breaker, docValues);
             this.counts = counts;
         }
 
@@ -83,6 +97,13 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
         @Override
         public String toString() {
             return "BytesRefsFromBinarySeparateCount";
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(
+                -(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE + BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE)
+            );
         }
     }
 }

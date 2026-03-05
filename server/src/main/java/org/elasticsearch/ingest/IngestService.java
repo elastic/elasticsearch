@@ -1292,27 +1292,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
-                    for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(project)) {
-                        if (streamType.matchesStreamPrefix(newIndex)
-                            && ingestDocument.getIndexHistory().contains(streamType.getStreamName()) == false) {
-                            exceptionHandler.accept(
-                                new IngestPipelineException(
-                                    pipelineId,
-                                    new IllegalArgumentException(
-                                        format(
-                                            "Pipeline [%s] can't change the target index (from [%s] to [%s] child stream [%s]) "
-                                                + "History: [%s]",
-                                            pipelineId,
-                                            originalIndex,
-                                            streamType.getStreamName(),
-                                            newIndex,
-                                            String.join(", ", ingestDocument.getIndexHistory())
-                                        )
+                    final StreamType subStream = StreamType.enabledParentStreamOf(project, newIndex);
+                    if (subStream != null && ingestDocument.getIndexHistory().contains(subStream.getStreamName()) == false) {
+                        exceptionHandler.accept(
+                            new IngestPipelineException(
+                                pipelineId,
+                                new IllegalArgumentException(
+                                    format(
+                                        "Pipeline [%s] can't change the target index (from [%s] to [%s] child stream [%s]) "
+                                            + "History: [%s]",
+                                        pipelineId,
+                                        originalIndex,
+                                        subStream.getStreamName(),
+                                        newIndex,
+                                        String.join(", ", ingestDocument.getIndexHistory())
                                     )
                                 )
-                            );
-                            return; // document failed!
-                        }
+                            )
+                        );
+                        return; // document failed!
                     }
 
                     // add the index to the document's index history, and check for cycles in the visited indices

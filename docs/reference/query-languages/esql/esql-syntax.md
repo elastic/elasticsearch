@@ -32,6 +32,19 @@ source-command | processing-command1 | processing-command2
 
 ::::
 
+::::{note}
+In many cases, the {{esql}} optimizer makes the exact order of processing commands irrelevant. For example, the following two queries are optimized and executed the same:
+
+```esql
+FROM idx | EVAL x = 2*y | WHERE y > 0
+```
+
+```esql
+FROM idx | WHERE y > 0 | EVAL x = 2*y
+```
+
+::::
+
 
 
 ### Identifiers [esql-identifiers]

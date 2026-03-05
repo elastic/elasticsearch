@@ -14,12 +14,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
 import java.util.List;
 
 public class TestConfigurationTests extends ESTestCase {
 
-    public void testParameterParsing() throws IOException {
+    public void testParameterParsing() throws Exception {
         String json = """
             {
               "doc_vectors": ["/path/to/docs"],

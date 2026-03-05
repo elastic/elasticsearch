@@ -3617,6 +3617,29 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testMetricsInfoRequiresTsSource() {
+        assertThat(error("FROM test | METRICS_INFO"), containsString("METRICS_INFO can only be used with TS source command"));
+    }
+
+    public void testMetricsInfoWithTsSource() {
+        query("TS k8s | METRICS_INFO", k8s);
+    }
+
+    public void testMetricsInfoCannotBeUsedAfterStats() {
+        assertThat(
+            error("TS k8s | STATS c = count(*) | METRICS_INFO", k8s),
+            containsString("METRICS_INFO cannot be used after STATS command")
+        );
+    }
+
+    public void testMetricsInfoCannotBeUsedAfterLimit() {
+        assertThat(error("TS k8s | LIMIT 10 | METRICS_INFO", k8s), containsString("METRICS_INFO cannot be used after LIMIT command"));
+    }
+
+    public void testMetricsInfoCannotBeUsedAfterSort() {
+        assertThat(error("TS k8s | SORT @timestamp | METRICS_INFO", k8s), containsString("METRICS_INFO cannot be used after SORT command"));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }

@@ -17,6 +17,13 @@ apply plugin: 'elasticsearch.build'
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /google-cloud-.*/, to: 'google-cloud'
+  mapping from: /google-auth-.*/, to: 'google-auth'
+  mapping from: /google-http-.*/, to: 'google-http'
+  mapping from: /opencensus.*/, to: 'opencensus'
+  mapping from: /protobuf.*/, to: 'protobuf'
+  mapping from: /proto-google.*/, to: 'proto-google'
+  mapping from: /jackson.*/, to: 'jackson'
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -30,6 +37,41 @@ repositories {
 }
 
 dependencies {
+  // dependencies consistent with 'com.google.cloud:google-cloud-storage-bom:2.50.0'
+  implementation 'com.google.cloud:google-cloud-storage:2.50.0'
+  implementation 'com.google.cloud:google-cloud-core:2.53.1'
+  implementation 'com.google.cloud:google-cloud-core-http:2.53.1'
+  runtimeOnly 'com.google.guava:guava:33.4.0-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
+  implementation 'com.google.api:api-common:2.46.1'
+  implementation 'com.google.api:gax:2.63.1'
+  implementation 'org.threeten:threetenbp:1.7.0'
+  runtimeOnly "com.google.protobuf:protobuf-java-util:${versions.protobuf}" // 3.25.5 in bom
+  runtimeOnly "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  runtimeOnly 'com.google.code.gson:gson:2.12.1'
+  runtimeOnly 'com.google.api.grpc:proto-google-common-protos:2.54.1'
+  runtimeOnly 'com.google.api.grpc:proto-google-iam-v1:1.49.1'
+  implementation 'com.google.auth:google-auth-library-credentials:1.33.1'
+  implementation 'com.google.auth:google-auth-library-oauth2-http:1.33.1'
+  runtimeOnly "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}" // 1.37.0 in bom
+  implementation 'com.google.api-client:google-api-client:2.7.2'
+  implementation 'com.google.http-client:google-http-client:1.46.3'
+  runtimeOnly 'com.google.http-client:google-http-client-gson:1.46.3'
+  runtimeOnly 'com.google.http-client:google-http-client-appengine:1.46.3'
+  runtimeOnly 'com.google.http-client:google-http-client-jackson2:1.46.3'
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}" // 2.18.2 in bom
+  runtimeOnly 'com.google.api:gax-httpjson:2.63.1'
+  runtimeOnly 'io.opencensus:opencensus-api:0.31.1'
+  runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  implementation 'com.google.apis:google-api-services-storage:v1-rev20250224-2.0.0'
+  implementation 'org.checkerframework:checker-qual:3.49.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.47.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.47.0'
+  runtimeOnly 'com.google.api.grpc:proto-google-cloud-storage-v2:2.50.0'
+  runtimeOnly 'io.grpc:grpc-api:1.70.0'
+
   api "org.apache.lucene:lucene-core:${versions.lucene}"
   api "org.apache.lucene:lucene-queries:${versions.lucene}"
   api "org.apache.lucene:lucene-codecs:${versions.lucene}"
@@ -42,6 +84,153 @@ dependencies {
   testImplementation project(":libs:x-content")
   testImplementation project(":test:framework")
 }
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.common.cache.Striped64',
+    'com.google.common.cache.Striped64$1',
+    'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  )
+
+  ignoreMissingClasses(
+    'com.google.api.client.http.apache.v2.ApacheHttpTransport',
+    'com.google.appengine.api.datastore.Blob',
+    'com.google.appengine.api.datastore.DatastoreService',
+    'com.google.appengine.api.datastore.DatastoreServiceFactory',
+    'com.google.appengine.api.datastore.Entity',
+    'com.google.appengine.api.datastore.Key',
+    'com.google.appengine.api.datastore.KeyFactory',
+    'com.google.appengine.api.datastore.PreparedQuery',
+    'com.google.appengine.api.datastore.Query',
+    'com.google.appengine.api.memcache.Expiration',
+    'com.google.appengine.api.memcache.MemcacheService',
+    'com.google.appengine.api.memcache.MemcacheServiceFactory',
+    'com.google.appengine.api.urlfetch.FetchOptions$Builder',
+    'com.google.appengine.api.urlfetch.FetchOptions',
+    'com.google.appengine.api.urlfetch.HTTPHeader',
+    'com.google.appengine.api.urlfetch.HTTPMethod',
+    'com.google.appengine.api.urlfetch.HTTPRequest',
+    'com.google.appengine.api.urlfetch.HTTPResponse',
+    'com.google.appengine.api.urlfetch.URLFetchService',
+    'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+
+    // optional apache http client dependencies
+    'org.apache.http.ConnectionReuseStrategy',
+    'org.apache.http.Header',
+    'org.apache.http.HttpEntity',
+    'org.apache.http.HttpEntityEnclosingRequest',
+    'org.apache.http.HttpHost',
+    'org.apache.http.HttpRequest',
+    'org.apache.http.HttpResponse',
+    'org.apache.http.HttpVersion',
+    'org.apache.http.RequestLine',
+    'org.apache.http.StatusLine',
+    'org.apache.http.client.AuthenticationHandler',
+    'org.apache.http.client.HttpClient',
+    'org.apache.http.client.HttpRequestRetryHandler',
+    'org.apache.http.client.RedirectHandler',
+    'org.apache.http.client.RequestDirector',
+    'org.apache.http.client.UserTokenHandler',
+    'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
+    'org.apache.http.client.methods.HttpRequestBase',
+    'org.apache.http.config.Registry',
+    'org.apache.http.config.RegistryBuilder',
+    'org.apache.http.conn.ClientConnectionManager',
+    'org.apache.http.conn.ConnectionKeepAliveStrategy',
+    'org.apache.http.conn.params.ConnManagerParams',
+    'org.apache.http.conn.params.ConnRouteParams',
+    'org.apache.http.conn.routing.HttpRoutePlanner',
+    'org.apache.http.conn.scheme.PlainSocketFactory',
+    'org.apache.http.conn.scheme.SchemeRegistry',
+    'org.apache.http.conn.socket.PlainConnectionSocketFactory',
+    'org.apache.http.conn.ssl.SSLSocketFactory',
+    'org.apache.http.conn.ssl.X509HostnameVerifier',
+    'org.apache.http.entity.AbstractHttpEntity',
+    'org.apache.http.impl.client.DefaultHttpClient',
+    'org.apache.http.impl.client.HttpClientBuilder',
+    'org.apache.http.impl.conn.PoolingHttpClientConnectionManager',
+    'org.apache.http.params.HttpConnectionParams',
+    'org.apache.http.params.HttpParams',
+    'org.apache.http.params.HttpProtocolParams',
+    'org.apache.http.protocol.HttpContext',
+    'org.apache.http.protocol.HttpProcessor',
+    'org.apache.http.protocol.HttpRequestExecutor',
+
+    // grpc/proto stuff
+    'com.google.api.gax.grpc.GrpcCallContext',
+    'com.google.api.gax.grpc.GrpcCallSettings',
+    'com.google.api.gax.grpc.GrpcCallSettings$Builder',
+    'com.google.api.gax.grpc.GrpcInterceptorProvider',
+    'com.google.api.gax.grpc.GrpcStatusCode',
+    'com.google.api.gax.grpc.GrpcStubCallableFactory',
+    'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider',
+    'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider$Builder',
+    'com.google.cloud.grpc.GrpcTransportOptions',
+    'com.google.cloud.grpc.GrpcTransportOptions$Builder',
+    'com.google.cloud.opentelemetry.metric.GoogleCloudMetricExporter',
+    'com.google.cloud.opentelemetry.metric.MetricConfiguration',
+    'com.google.cloud.opentelemetry.metric.MetricConfiguration$Builder',
+    'com.google.storage.v2.StorageClient',
+    'com.google.storage.v2.StorageClient$ListBucketsPagedResponse',
+    'com.google.storage.v2.StorageSettings',
+    'com.google.storage.v2.StorageSettings$Builder',
+    'com.google.storage.v2.stub.GrpcStorageStub',
+    'com.google.storage.v2.stub.StorageStubSettings',
+    // opentelemetry implementation stuff
+    'io.grpc.opentelemetry.GrpcOpenTelemetry',
+    'io.grpc.opentelemetry.GrpcOpenTelemetry$Builder',
+    'io.grpc.protobuf.ProtoUtils',
+    'io.opentelemetry.contrib.gcp.resource.GCPResourceProvider',
+    'io.opentelemetry.sdk.OpenTelemetrySdk',
+    'io.opentelemetry.sdk.OpenTelemetrySdkBuilder',
+    'io.opentelemetry.sdk.common.CompletableResultCode',
+    'io.opentelemetry.sdk.common.export.MemoryMode',
+    'io.opentelemetry.sdk.metrics.Aggregation',
+    'io.opentelemetry.sdk.metrics.InstrumentSelector',
+    'io.opentelemetry.sdk.metrics.InstrumentSelectorBuilder',
+    'io.opentelemetry.sdk.metrics.InstrumentType',
+    'io.opentelemetry.sdk.metrics.SdkMeterProvider',
+    'io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder',
+    'io.opentelemetry.sdk.metrics.View',
+    'io.opentelemetry.sdk.metrics.ViewBuilder',
+    'io.opentelemetry.sdk.metrics.data.AggregationTemporality',
+    'io.opentelemetry.sdk.metrics.export.DefaultAggregationSelector',
+    'io.opentelemetry.sdk.metrics.export.MetricExporter',
+    'io.opentelemetry.sdk.metrics.export.PeriodicMetricReader',
+    'io.opentelemetry.sdk.metrics.export.PeriodicMetricReaderBuilder',
+    'io.opentelemetry.sdk.resources.Resource',
+  )
+  
+  if (buildParams.graalVmRuntime == false) {
+    ignoreMissingClasses(
+      'org.graalvm.nativeimage.hosted.Feature',
+      'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
+      'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
+      'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
+      'org.graalvm.nativeimage.hosted.RuntimeReflection'
+    )
+  }
+}
+
 /**
  * Task to run the KnnIndexTester with the provided parameters.
  */

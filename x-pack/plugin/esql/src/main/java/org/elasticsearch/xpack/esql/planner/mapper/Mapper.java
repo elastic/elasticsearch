@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.session.Versioned;
@@ -83,6 +85,8 @@ public class Mapper {
             return new FragmentExec(esRelation);
         }
 
+        // ExternalRelation is handled by MapperUtils.mapLeaf()
+        // which calls toPhysicalExec() to create coordinator-only source operators
         return MapperUtils.mapLeaf(leaf);
     }
 
@@ -147,6 +151,19 @@ public class Mapper {
             }
 
             return topNExec;
+        }
+
+        // MetricsInfo uses a two-phase approach like Aggregate: INITIAL on data nodes extracts
+        // metric metadata from shards, FINAL on the coordinator merges rows from all data nodes.
+        if (unary instanceof MetricsInfo metricsInfo) {
+            mappedChild = addExchangeForFragment(metricsInfo, mappedChild);
+            return new MetricsInfoExec(
+                metricsInfo.source(),
+                mappedChild,
+                metricsInfo.output(),
+                metricsInfo.output(),
+                MetricsInfoExec.Mode.FINAL
+            );
         }
 
         //

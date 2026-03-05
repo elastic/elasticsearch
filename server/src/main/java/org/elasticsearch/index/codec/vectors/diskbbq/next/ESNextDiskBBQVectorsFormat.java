@@ -213,6 +213,15 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             }
             throw new IllegalArgumentException("Unknown QuantEncoding id: " + id);
         }
+
+        public static QuantEncoding fromBits(byte bits) {
+            return switch (bits) {
+                case 1 -> ONE_BIT_4BIT_QUERY;
+                case 2 -> TWO_BIT_4BIT_QUERY;
+                case 4 -> FOUR_BIT_SYMMETRIC;
+                default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
+            };
+        }
     }
 
     private final QuantEncoding quantEncoding;

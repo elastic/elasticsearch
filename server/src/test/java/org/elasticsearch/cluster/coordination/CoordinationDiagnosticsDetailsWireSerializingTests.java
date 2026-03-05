@@ -28,8 +28,7 @@ import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsServ
 /**
  * Wire serialization tests for {@link CoordinationDiagnosticsDetails}.
  */
-public class CoordinationDiagnosticsDetailsWireSerializingTests
-    extends AbstractWireSerializingTestCase<CoordinationDiagnosticsDetails> {
+public class CoordinationDiagnosticsDetailsWireSerializingTests extends AbstractWireSerializingTestCase<CoordinationDiagnosticsDetails> {
 
     @Override
     protected Writeable.Reader<CoordinationDiagnosticsDetails> instanceReader() {
@@ -74,10 +73,7 @@ public class CoordinationDiagnosticsDetailsWireSerializingTests
         Map<String, String> nodeToClusterFormationDescriptionMap = new HashMap<>();
         int size = between(0, 5);
         for (int i = 0; i < size; i++) {
-            nodeToClusterFormationDescriptionMap.put(
-                randomAlphaOfLengthBetween(1, 20),
-                randomAlphaOfLengthBetween(0, 50)
-            );
+            nodeToClusterFormationDescriptionMap.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(0, 50));
         }
         return nodeToClusterFormationDescriptionMap;
     }

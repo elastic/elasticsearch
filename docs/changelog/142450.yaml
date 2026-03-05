@@ -1,0 +1,7 @@
+area: Transform
+issues:
+ - 113156
+pr: 142450
+summary: Fix transform producing empty dest index when source query references runtime
+  fields
+type: bug

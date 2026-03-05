@@ -46,6 +46,11 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -85,14 +90,17 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -103,6 +111,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -117,6 +126,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -1666,11 +1676,20 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedFieldsInUriParts() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
         verifyUnsupported("""
             from test
             | uri_parts p = unsupported
+            """, errorMsg);
+    }
+
+    public void testUnsupportedFieldsInRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
+        verifyUnsupported("""
+            from test
+            | registered_domain rd = unsupported
             """, errorMsg);
     }
 
@@ -2087,7 +2106,7 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
-            line 2:47: argument of [median(x)] must be [exponential_histogram or numeric except unsigned_long or counter types],\
+            line 2:47: argument of [median(x)] must be [exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
@@ -2105,7 +2124,7 @@ public class AnalyzerTests extends ESTestCase {
             line 2:10: argument of [avg(x)] must be [aggregate_metric_double,\
              exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [version]
-            line 2:18: argument of [median(x)] must be [exponential_histogram or numeric except unsigned_long or counter types],\
+            line 2:18: argument of [median(x)] must be [exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
@@ -6197,7 +6216,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUriParts() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         LogicalPlan plan = analyze("ROW uri=\"http://user:pass@host.com:8080/path/file.ext?query=1#frag\" | uri_parts p = uri");
 
         Limit limit = as(plan, Limit.class);
@@ -6224,6 +6243,27 @@ public class AnalyzerTests extends ESTestCase {
         // Test invalid input type
         VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW uri=123 | uri_parts p = uri"));
         assertThat(e.getMessage(), containsString("Input for URI_PARTS must be of type [string] but is [integer]"));
+    }
+
+    public void testRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("ROW fqdn=\"www.example.co.uk\" | registered_domain rd = fqdn");
+
+        Limit limit = as(plan, Limit.class);
+        RegisteredDomain parts = as(limit.child(), RegisteredDomain.class);
+
+        final List<Attribute> attributes = parts.generatedAttributes();
+
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        assertContainsAttribute(attributes, "rd.domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.registered_domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.top_level_domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.subdomain", DataType.KEYWORD);
+        assertEquals(4, attributes.size());
+
+        VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW fqdn=123 | registered_domain rd = fqdn"));
+        assertThat(e.getMessage(), containsString("Input for REGISTERED_DOMAIN must be of type [string] but is [integer]"));
     }
 
     private void assertContainsAttribute(List<Attribute> attributes, String expectedName, DataType expectedType) {
@@ -6267,5 +6307,120 @@ public class AnalyzerTests extends ESTestCase {
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
         return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
+    }
+
+    // ===== ResolveExternalRelations + FileSet tests =====
+
+    public void testResolveExternalRelationPassesFileSet() {
+        var entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH)
+        );
+        var fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+
+        List<Attribute> schema = List.of(
+            new FieldAttribute(EMPTY, "id", new EsField("id", LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+            new FieldAttribute(EMPTY, "name", new EsField("name", KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+
+        var metadata = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return "s3://bucket/data/*.parquet";
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet);
+        var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/*.parquet", resolvedSource));
+
+        var context = new AnalyzerContext(
+            EsqlTestUtils.TEST_CFG,
+            new EsqlFunctionRegistry(),
+            null,
+            Map.of(),
+            Map.of(),
+            defaultEnrichResolution(),
+            defaultInferenceResolution(),
+            externalResolution,
+            TransportVersion.current(),
+            QuerySettings.UNMAPPED_FIELDS.defaultValue()
+        );
+        var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
+
+        var plan = EsqlParser.INSTANCE.parseQuery("EXTERNAL \"s3://bucket/data/*.parquet\" | STATS count = COUNT(*)");
+        var analyzed = testAnalyzer.analyze(plan);
+
+        var externalRelations = new ArrayList<ExternalRelation>();
+        analyzed.forEachDown(ExternalRelation.class, externalRelations::add);
+
+        assertThat("Should have one ExternalRelation", externalRelations, hasSize(1));
+        var externalRelation = externalRelations.get(0);
+
+        assertSame(fileSet, externalRelation.fileSet());
+        assertTrue(externalRelation.fileSet().isResolved());
+        assertEquals(2, externalRelation.fileSet().size());
+        assertEquals("s3://bucket/data/*.parquet", externalRelation.fileSet().originalPattern());
+    }
+
+    public void testResolveExternalRelationUnresolvedFileSet() {
+        List<Attribute> schema = List.of(
+            new FieldAttribute(EMPTY, "id", new EsField("id", LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+
+        var metadata = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return "s3://bucket/data/single.parquet";
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, FileSet.UNRESOLVED);
+        var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/single.parquet", resolvedSource));
+
+        var context = new AnalyzerContext(
+            EsqlTestUtils.TEST_CFG,
+            new EsqlFunctionRegistry(),
+            null,
+            Map.of(),
+            Map.of(),
+            defaultEnrichResolution(),
+            defaultInferenceResolution(),
+            externalResolution,
+            TransportVersion.current(),
+            QuerySettings.UNMAPPED_FIELDS.defaultValue()
+        );
+        var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
+
+        var plan = EsqlParser.INSTANCE.parseQuery("EXTERNAL \"s3://bucket/data/single.parquet\" | STATS count = COUNT(*)");
+        var analyzed = testAnalyzer.analyze(plan);
+
+        var externalRelations = new ArrayList<ExternalRelation>();
+        analyzed.forEachDown(ExternalRelation.class, externalRelations::add);
+
+        assertThat("Should have one ExternalRelation", externalRelations, hasSize(1));
+        var externalRelation = externalRelations.get(0);
+
+        assertTrue(externalRelation.fileSet().isUnresolved());
+        assertSame(FileSet.UNRESOLVED, externalRelation.fileSet());
     }
 }

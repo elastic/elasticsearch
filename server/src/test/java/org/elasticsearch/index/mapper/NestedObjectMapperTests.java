@@ -1569,23 +1569,33 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeNested() {
-        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+        NestedObjectMapper.Builder firstBuilder = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
             throw new UnsupportedOperationException();
-        }, null).includeInParent(true).includeInRoot(true).build(MapperBuilderContext.root(false, false));
-        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+        }, null).includeInParent(true).includeInRoot(true);
+        NestedObjectMapper.Builder secondBuilder = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
             throw new UnsupportedOperationException();
-        }, null).includeInParent(false).includeInRoot(true).build(MapperBuilderContext.root(false, false));
+        }, null).includeInParent(false).includeInRoot(true);
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> firstMapper.merge(secondMapper, MapperMergeContext.root(false, false, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> firstBuilder.mergeWith(secondBuilder, MapperMergeContext.root(false, false, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE))
         );
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
-        NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(
-            secondMapper,
-            MapperMergeContext.root(false, false, MapperService.MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE)
+        NestedObjectMapper.Builder firstBuilder2 = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }, null).includeInParent(true).includeInRoot(true);
+        NestedObjectMapper.Builder secondBuilder2 = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
+            throw new UnsupportedOperationException();
+        }, null).includeInParent(false).includeInRoot(true);
+        MapperMergeContext templateContext = MapperMergeContext.root(
+            false,
+            false,
+            MapperService.MergeReason.INDEX_TEMPLATE,
+            Long.MAX_VALUE
         );
+        NestedObjectMapper result = (NestedObjectMapper) firstBuilder2.mergeWith(secondBuilder2, templateContext)
+            .build(templateContext.getMapperBuilderContext());
         assertFalse(result.isIncludeInParent());
         assertTrue(result.isIncludeInRoot());
     }
@@ -1930,58 +1940,14 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 assertEquals(parentContainsDimensions, context.parentObjectContainsDimensions());
                 return new MockFieldMapper("name");
             }
+
+            @Override
+            public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
+                return incoming;
+            }
         });
         NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
         assertNotNull(nestedObjectMapper.getMapper("name"));
-    }
-
-    public void testNestedMapperMergeContextRootConstructor() {
-        boolean isSourceSynthetic = randomBoolean();
-        boolean isDataStream = randomBoolean();
-        boolean parentContainsDimensions = randomBoolean();
-        MergeReason mergeReason = randomFrom(MergeReason.values());
-        {
-            MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(false, false, mergeReason);
-            NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
-            NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
-            MapperMergeContext mapperMergeContext = MapperMergeContext.root(isSourceSynthetic, isDataStream, mergeReason, randomLong());
-            MapperMergeContext childMergeContext = nestedObjectMapper.createChildContext(mapperMergeContext, "name");
-            MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
-            assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
-            assertEquals(isDataStream, nestedBuilderContext.isDataStream());
-        }
-        {
-            MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
-            MapperMergeContext mapperMergeContext = MapperMergeContext.root(isSourceSynthetic, isDataStream, mergeReason, randomLong());
-            MapperBuilderContext childMapperBuilderContext = mapperBuilderContext.createChildContext(
-                "name",
-                parentContainsDimensions,
-                randomFrom(Dynamic.values())
-            );
-            MapperMergeContext childMergeContext = mapperMergeContext.createChildContext(childMapperBuilderContext);
-            MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
-            assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
-            assertEquals(isDataStream, nestedBuilderContext.isDataStream());
-            assertEquals(parentContainsDimensions, nestedBuilderContext.parentObjectContainsDimensions());
-        }
-    }
-
-    public void testNestedMapperMergeContextFromConstructor() {
-        boolean isSourceSynthetic = randomBoolean();
-        boolean isDataStream = randomBoolean();
-        boolean parentContainsDimensions = randomBoolean();
-        MergeReason mergeReason = randomFrom(MergeReason.values());
-        MapperBuilderContext mapperBuilderContext = MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason);
-        mapperBuilderContext = mapperBuilderContext.createChildContext("name", parentContainsDimensions, randomFrom(Dynamic.values()));
-        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder("name", IndexVersion.current(), query -> null, null);
-        NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
-
-        MapperMergeContext mapperMergeContext = MapperMergeContext.from(mapperBuilderContext, randomLong());
-        MapperMergeContext childMergeContext = nestedObjectMapper.createChildContext(mapperMergeContext, "name");
-        MapperBuilderContext nestedBuilderContext = childMergeContext.getMapperBuilderContext();
-        assertEquals(isSourceSynthetic, nestedBuilderContext.isSourceSynthetic());
-        assertEquals(isDataStream, nestedBuilderContext.isDataStream());
-        assertEquals(parentContainsDimensions, nestedBuilderContext.parentObjectContainsDimensions());
     }
 
     public void testIsInNestedContext() {

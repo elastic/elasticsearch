@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
@@ -424,33 +425,39 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testSerializationWithDifferentContentTypes() throws IOException {
-        Random random = Randomness.get();
+        String text = randomAlphaOfLength(10);
+        UnifiedCompletionRequest.ContentObjectText contentObjectText = new UnifiedCompletionRequest.ContentObjectText(text);
 
-        String randomContentString = "Hello, world! " + random.nextInt(1000);
+        String imageUri = randomAlphaOfLength(10);
+        UnifiedCompletionRequest.ImageUrlDetail detail = randomFrom(UnifiedCompletionRequest.ImageUrlDetail.values());
+        UnifiedCompletionRequest.ContentObjectImage contentObjectImage = new UnifiedCompletionRequest.ContentObjectImage(
+            new UnifiedCompletionRequest.ContentObjectImageUrl(imageUri, detail)
+        );
 
-        String randomText = "Random text " + random.nextInt(1000);
-        String randomType = "type" + random.nextInt(1000);
-        UnifiedCompletionRequest.ContentObject contentObject = new UnifiedCompletionRequest.ContentObject(randomText, randomType);
+        String fileData = randomAlphaOfLength(10);
+        String filename = randomAlphaOfLength(10);
+        UnifiedCompletionRequest.ContentObjectFile contentObjectFile = new UnifiedCompletionRequest.ContentObjectFile(
+            new UnifiedCompletionRequest.ContentObjectFileFields(fileData, null, filename)
+        );
 
-        var contentObjectsList = new ArrayList<UnifiedCompletionRequest.ContentObject>();
-        contentObjectsList.add(contentObject);
-        UnifiedCompletionRequest.ContentObjects contentObjects = new UnifiedCompletionRequest.ContentObjects(contentObjectsList);
+        UnifiedCompletionRequest.ContentObjects contentObjects = new UnifiedCompletionRequest.ContentObjects(
+            List.of(contentObjectText, contentObjectImage, contentObjectFile)
+        );
 
+        UnifiedCompletionRequest.Message messageWithObjects = new UnifiedCompletionRequest.Message(contentObjects, ROLE, null, null);
+
+        String contentString = randomAlphaOfLength(10);
         UnifiedCompletionRequest.Message messageWithString = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString(randomContentString),
+            new UnifiedCompletionRequest.ContentString(contentString),
             ROLE,
             null,
             null
         );
 
-        UnifiedCompletionRequest.Message messageWithObjects = new UnifiedCompletionRequest.Message(contentObjects, ROLE, null, null);
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
-        messageList.add(messageWithString);
-        messageList.add(messageWithObjects);
-
-        UnifiedCompletionRequest unifiedRequest = UnifiedCompletionRequest.of(messageList);
-
-        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(
+            UnifiedCompletionRequest.of(List.of(messageWithString, messageWithObjects)),
+            true
+        );
 
         OpenAiChatCompletionModel model = createCompletionModel("test-endpoint", "organizationId", "api-key", "model-name", null);
 
@@ -471,7 +478,21 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
                         "content": [
                             {
                                 "text": "%s",
-                                "type": "%s"
+                                "type": "text"
+                            },
+                            {
+                                "image_url": {
+                                    "url": "%s",
+                                    "detail": "%s"
+                                },
+                                "type": "image_url"
+                            },
+                            {
+                                "file": {
+                                    "file_data": "%s",
+                                    "filename": "%s"
+                                },
+                                "type": "file"
                             }
                         ],
                         "role": "user"
@@ -484,7 +505,7 @@ public class UnifiedChatCompletionRequestEntityTests extends ESTestCase {
                     "include_usage": true
                 }
             }
-            """, randomContentString, randomText, randomType);
+            """, contentString, text, imageUri, detail, fileData, filename);
         assertJsonEquals(jsonString, expectedJson);
     }
 

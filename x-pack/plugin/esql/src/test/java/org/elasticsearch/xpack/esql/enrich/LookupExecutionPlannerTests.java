@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -74,6 +76,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -109,7 +112,8 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             BigArrays bigArrays,
             BlockFactory blockFactory,
-            ProjectResolver projectResolver
+            ProjectResolver projectResolver,
+            PlannerSettings.Holder plannerSettings
         ) {
             super(
                 clusterService,
@@ -119,7 +123,8 @@ public class LookupExecutionPlannerTests extends ESTestCase {
                 indexNameExpressionResolver,
                 bigArrays,
                 blockFactory,
-                projectResolver
+                projectResolver,
+                plannerSettings
             );
         }
 
@@ -167,9 +172,11 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         ClusterState clusterState = ClusterStateCreationUtils.state(projectId, "test-index", 1, 1);
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
+
+        Set<Setting<?>> clusterSettings = new HashSet<>();
+        clusterSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettings.addAll(PlannerSettings.settings());
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, clusterSettings));
 
         indicesService = mock(IndicesService.class);
         when(indicesService.buildAliasFilter(any(), any(), any())).thenReturn(AliasFilter.EMPTY);
@@ -501,6 +508,7 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         AbstractLookupService.LookupShardContextFactory factory = shardId -> shardContext;
         // Use TestProjectResolvers which provides a proper implementation
         ProjectResolver projectResolver = TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID);
+        PlannerSettings.Holder plannerSettings = new PlannerSettings.Holder(clusterService);
         return new TestLookupService(
             clusterService,
             indicesService,
@@ -509,7 +517,8 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             indexNameExpressionResolver,
             bigArrays,
             blockFactory,
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
     }
 

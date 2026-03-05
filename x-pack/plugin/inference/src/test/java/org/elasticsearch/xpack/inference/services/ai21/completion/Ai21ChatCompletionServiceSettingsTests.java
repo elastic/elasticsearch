@@ -30,23 +30,54 @@ import static org.hamcrest.Matchers.is;
 
 public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<Ai21ChatCompletionServiceSettings> {
 
-    private static final String MODEL_ID = "some model";
-    private static final int RATE_LIMIT = 2;
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var serviceSettings = new Ai21ChatCompletionServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))
+            .updateServiceSettings(
+                new HashMap<>(
+                    Map.of(
+                        ServiceFields.MODEL_ID,
+                        TEST_MODEL_ID,
+                        RateLimitSettings.FIELD_NAME,
+                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+                    )
+                )
+            );
+
+        assertThat(
+            serviceSettings,
+            is(new Ai21ChatCompletionServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = new Ai21ChatCompletionServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))
+            .updateServiceSettings(new HashMap<>());
+
+        assertThat(
+            serviceSettings,
+            is(new Ai21ChatCompletionServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)))
+        );
+    }
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = Ai21ChatCompletionServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
-                    MODEL_ID,
+                    TEST_MODEL_ID,
                     RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
                 )
             ),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new Ai21ChatCompletionServiceSettings(MODEL_ID, new RateLimitSettings(RATE_LIMIT))));
+        assertThat(serviceSettings, is(new Ai21ChatCompletionServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
     public void testFromMap_MissingModelId_ThrowsException() {
@@ -54,7 +85,10 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCWireSeria
             ValidationException.class,
             () -> Ai21ChatCompletionServiceSettings.fromMap(
                 new HashMap<>(
-                    Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT)))
+                    Map.of(
+                        RateLimitSettings.FIELD_NAME,
+                        new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+                    )
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
@@ -68,11 +102,11 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCWireSeria
 
     public void testFromMap_MissingRateLimit_Success() {
         var serviceSettings = Ai21ChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID)),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID)),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new Ai21ChatCompletionServiceSettings(MODEL_ID, null)));
+        assertThat(serviceSettings, is(new Ai21ChatCompletionServiceSettings(TEST_MODEL_ID, null)));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
@@ -80,9 +114,9 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCWireSeria
             new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
-                    MODEL_ID,
+                    TEST_MODEL_ID,
                     RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
                 )
             ),
             ConfigurationParseContext.PERSISTENT
@@ -91,35 +125,35 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCWireSeria
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model_id": "some model",
+                "model_id": "%s",
                 "rate_limit": {
-                    "requests_per_minute": 2
+                    "requests_per_minute": %d
                 }
             }
-            """);
+            """, TEST_MODEL_ID, TEST_RATE_LIMIT));
 
         assertThat(xContentResult, is(expected));
     }
 
     public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
         var serviceSettings = Ai21ChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID)),
+            new HashMap<>(Map.of(ServiceFields.MODEL_ID, TEST_MODEL_ID)),
             ConfigurationParseContext.PERSISTENT
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        var expected = XContentHelper.stripWhitespace("""
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
-                "model_id": "some model",
+                "model_id": "%s",
                 "rate_limit": {
-                    "requests_per_minute": 200
+                    "requests_per_minute": %d
                 }
             }
-            """);
+            """, TEST_MODEL_ID, 200));
         assertThat(xContentResult, is(expected));
     }
 

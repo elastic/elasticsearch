@@ -13,6 +13,8 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 
@@ -22,18 +24,18 @@ import java.io.IOException;
  * style (i.e. non-ordinal single valued).
  */
 public class BytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlockLoader {
-    public BytesRefsFromOrdsBlockLoader(String fieldName) {
-        super(fieldName);
+    public BytesRefsFromOrdsBlockLoader(String fieldName, ByteSizeValue size) {
+        super(fieldName, size);
     }
 
     @Override
-    protected AllReader singletonReader(SortedDocValues docValues) {
-        return new Singleton(docValues);
+    protected AllReader singletonReader(CircuitBreaker breaker, SortedDocValues docValues) {
+        return new Singleton(breaker, docValues);
     }
 
     @Override
-    protected AllReader sortedSetReader(SortedSetDocValues docValues) {
-        return new SortedSet(docValues);
+    protected AllReader sortedSetReader(CircuitBreaker breaker, SortedSetDocValues docValues) {
+        return new SortedSet(breaker, docValues);
     }
 
     @Override

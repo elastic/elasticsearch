@@ -299,7 +299,7 @@ Some concepts are applicable to both cluster and project scopes, e.g. [persisten
 
 #### Cluster State Publication
 
-(Majority concensus to apply, what happens if a master-eligible node falls behind / is incommunicado.)
+(Majority consensus to apply, what happens if a master-eligible node falls behind / is incommunicado.)
 
 #### Cluster State Application
 
@@ -403,7 +403,7 @@ Flushes may also be automatically initiated by Elasticsearch, e.g., if the trans
 A bulk request will repeateadly call ultimately the Engine methods such as [`index()` or `delete()`] which adds operations to the Translog.
 Finally, the AfterWrite action of the [`TransportWriteAction`] will call [`indexShard.syncAfterWrite()`] which will put the last written translog [`Location`] of the bulk request into a [`AsyncIOProcessor`] that is responsible for gradually fsync'ing the Translog and notifying any waiters.
 Ultimately the bulk request is notified that the translog has fsync'ed past the requested location, and can continue to acknowledge the bulk request.
-This process involes multiple writes to the translog before the next fsync(), and this is done so that we amortize the cost of the translog's fsync() operations across all writes.
+This process involves multiple writes to the translog before the next fsync(), and this is done so that we amortize the cost of the translog's fsync() operations across all writes.
 
 #### Translog internals
 
@@ -632,7 +632,7 @@ of shards, and an incentive to distribute shards within the same index across di
 `NodeAllocationStatsAndWeightsCalculator` classes for more details on the weight calculations that support the `DesiredBalanceComputer`
 decisions.
 
-### Inter-Node Communicaton
+### Inter-Node Communication
 
 The elected master node creates a shard allocation plan with the `DesiredBalanceShardsAllocator` and then selects incremental shard
 movements towards the target allocation plan with the `DesiredBalanceReconciler`. The results of the `DesiredBalanceReconciler` is an

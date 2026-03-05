@@ -19,9 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -2668,73 +2666,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 )
             );
         }
-    }
-
-    public void testMergeSubfieldWhileBuildingMappers() throws Exception {
-        MapperService mapperService = createMapperService();
-        /*
-        We had a bug (https://github.com/elastic/elasticsearch/issues/88573) building an object mapper (ObjectMapper.Builder#buildMappers).
-        A sub-field that already exists is merged with the existing one. As a result, the leaf field would get the wrong field path
-        (missing the first portion of its path). The only way to trigger this scenario for dynamic mappings is to either allow duplicate
-        JSON keys or ingest the same field with dots collapsed as well as expanded within the same document. Note that the two fields with
-        same name need to be part  of the same mappings (hence the same document). If they are in two distinct mappings they are properly
-        merged as part of RootObjectMapper#merge.
-         */
-        ParsedDocument doc = mapperService.documentMapper().parse(source("""
-            {
-              "foo" : {
-                "bar" : {
-                  "baz" : 1
-                }
-              },
-              "foo.bar.baz" : 2
-            }
-            """));
-        Mapping mapping = doc.dynamicMappingsUpdate();
-        assertNotNull(mapping);
-        Mapper fooMapper = mapping.getRoot().getMapper("foo");
-        assertNotNull(fooMapper);
-        assertTrue(fooMapper instanceof ObjectMapper);
-        Mapper barMapper = ((ObjectMapper) fooMapper).getMapper("bar");
-        assertTrue(barMapper instanceof ObjectMapper);
-        Mapper baz = ((ObjectMapper) barMapper).getMapper("baz");
-        assertNotNull(baz);
-        assertEquals("foo.bar.baz", baz.fullPath());
-        assertEquals("baz", baz.leafName());
-        List<IndexableField> fields = doc.rootDoc().getFields("foo.bar.baz");
-        assertEquals(2, fields.size());
-        String[] fieldStrings = fields.stream().map(Object::toString).toArray(String[]::new);
-        assertArrayEquals(new String[] { "LongField <foo.bar.baz:1>", "LongField <foo.bar.baz:2>" }, fieldStrings);
-
-        // merge without going through toXContent and reparsing, otherwise the potential leaf path issue gets fixed on its own
-        Mapping newMapping = MapperService.mergeMappings(
-            mapperService.documentMapper(),
-            mapping,
-            MapperService.MergeReason.MAPPING_UPDATE,
-            mapperService.getIndexSettings()
-        );
-        DocumentMapper newDocMapper = new DocumentMapper(
-            mapperService.documentParser(),
-            newMapping,
-            newMapping.toCompressedXContent(),
-            IndexVersion.current(),
-            MapperMetrics.NOOP,
-            "myIndex",
-            randomFrom(IndexMode.values())
-        );
-        ParsedDocument doc2 = newDocMapper.parse(source("""
-            {
-              "foo" : {
-                "bar" : {
-                  "baz" : 10
-                }
-              }
-            }
-            """));
-        assertNull(doc2.dynamicMappingsUpdate());
-        List<IndexableField> fields2 = doc2.rootDoc().getFields("foo.bar.baz");
-        assertEquals(1, fields2.size());
-        assertEquals("LongField <foo.bar.baz:10>", fields2.get(0).toString());
     }
 
     public void testDeeplyNestedDocument() throws Exception {

@@ -19,10 +19,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingHashBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
@@ -87,7 +89,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
-    BlockLoader blockLoader();
+    BlockLoader blockLoader(long ordinalsByteSize);
 
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
@@ -177,14 +179,14 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
 
         @Override
-        public BlockLoader blockLoader() {
+        public BlockLoader blockLoader(long ordinalsByteSize) {
             return new BlockDocValuesReader.DocValuesBlockLoader() {
                 @Override
-                public AllReader reader(LeafReaderContext context) throws IOException {
+                public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
                     if (indexRouting != null) {
-                        return new LegacyTsIdFieldReader(context.reader(), indexRouting, routingPaths);
+                        return new LegacyTsIdFieldReader(breaker, ordinalsByteSize, context.reader(), indexRouting, routingPaths);
                     } else {
-                        return new TsIdFieldReader(context.reader(), useSyntheticId);
+                        return new TsIdFieldReader(breaker, ordinalsByteSize, context.reader(), useSyntheticId);
                     }
                 }
 
@@ -196,12 +198,17 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
 
         private static class TsIdFieldReader extends BlockDocValuesReader {
+            final long ordinalsByteSize;
             final SortedDocValues tsidDVs;
             final SortedNumericDocValues timestampDVs;
             final SortedDocValues routingHashDVs;
             final boolean useSyntheticId;
 
-            TsIdFieldReader(LeafReader leafReader, boolean useSyntheticId) throws IOException {
+            TsIdFieldReader(CircuitBreaker breaker, long ordinalsByteSize, LeafReader leafReader, boolean useSyntheticId)
+                throws IOException {
+                super(breaker);
+                this.ordinalsByteSize = ordinalsByteSize;
+                breaker.addWithoutBreaking(estimatedSize(ordinalsByteSize));
                 this.tsidDVs = DocValues.getSorted(leafReader, TimeSeriesIdFieldMapper.NAME);
                 this.timestampDVs = DocValues.getSortedNumeric(leafReader, DataStream.TIMESTAMP_FIELD_NAME);
                 this.routingHashDVs = DocValues.getSorted(leafReader, TimeSeriesRoutingHashFieldMapper.NAME);
@@ -251,9 +258,21 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 }
                 ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(id));
             }
+
+            @Override
+            public void close() {
+                breaker.addWithoutBreaking(-estimatedSize(ordinalsByteSize));
+            }
+
+            private static long estimatedSize(long ordinalsByteSize) {
+                return AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE + ordinalsByteSize
+                    + AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
+            }
+
         }
 
         private static class LegacyTsIdFieldReader extends BlockDocValuesReader {
+            final long ordinalsByteSize;
             final RoutingHashBuilder routingBuilder;
             final SortedDocValues tsidDVs;
             final SortedNumericDocValues timestampDVs;
@@ -262,10 +281,15 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             final byte[] scratch = new byte[16];
 
             LegacyTsIdFieldReader(
+                CircuitBreaker breaker,
+                long ordinalsByteSize,
                 LeafReader leafReader,
                 IndexRouting.ExtractFromSource.ForRoutingPath indexRouting,
                 List<String> routingPaths
             ) throws IOException {
+                super(breaker);
+                this.ordinalsByteSize = ordinalsByteSize;
+                breaker.addEstimateBytesAndMaybeBreak(estimatedSize(ordinalsByteSize, routingPaths.size()), "load blocks");
                 this.routingBuilder = indexRouting.builder();
                 this.routingPaths = routingPaths;
                 this.routingHashDVs = new SortedDocValues[routingPaths.size()];
@@ -316,6 +340,15 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 var id = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, scratch);
                 ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(id));
             }
+
+            @Override
+            public void close() {
+                breaker.addWithoutBreaking(-estimatedSize(ordinalsByteSize, routingPaths.size()));
+            }
+
+            private static long estimatedSize(long ordinalsByteSize, int routingPathCount) {
+                return routingPathCount * ordinalsByteSize + ordinalsByteSize + AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
+            }
         }
     }
 
@@ -330,7 +363,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
 
         @Override
-        public BlockLoader blockLoader() {
+        public BlockLoader blockLoader(long ordinalsByteSize) {
             return new BlockStoredFieldsReader.IdBlockLoader();
         }
     }

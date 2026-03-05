@@ -1124,11 +1124,6 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         );
     }
 
-    @FunctionalInterface
-    private interface TestBlockConverter {
-        Block convert(Block block);
-    }
-
     /**
      * Blocks that should be converted from some type to a string (keyword) can use this converter.
      */

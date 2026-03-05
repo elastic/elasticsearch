@@ -1181,12 +1181,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         String message = "test exception message";
         RuntimeException exception = new RuntimeException(message);
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails details =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(
-                node1,
-                List.of(node1),
-                exception,
-                Map.of()
-            );
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, List.of(node1), exception, Map.of());
         assertThat(details.currentMaster(), equalTo(node1));
         assertThat(details.recentMasters(), equalTo(List.of(node1)));
         assertThat(details.remoteExceptionMessage(), equalTo(message));
@@ -1206,10 +1201,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(clusterService, masterHistoryService);
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = service.diagnoseMasterStability(false);
-        assertThat(
-            result.details(),
-            equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsDetails.EMPTY)
-        );
+        assertThat(result.details(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsDetails.EMPTY));
     }
 
     public void testRandomMasterEligibleNode() throws Exception {

@@ -7,18 +7,24 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.inference.UnifiedCompletionRequest.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
+import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionAction.Request> {
@@ -70,17 +76,53 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
 
     @Override
     protected UnifiedCompletionAction.Request mutateInstanceForVersion(UnifiedCompletionAction.Request instance, TransportVersion version) {
+        InferenceContext context = instance.getContext();
         if (version.supports(INFERENCE_CONTEXT) == false) {
-            return new UnifiedCompletionAction.Request(
-                instance.getInferenceEntityId(),
-                instance.getTaskType(),
-                instance.getUnifiedCompletionRequest(),
-                InferenceContext.EMPTY_INSTANCE,
-                instance.getTimeout()
-            );
+            context = InferenceContext.EMPTY_INSTANCE;
         }
 
-        return instance;
+        return new UnifiedCompletionAction.Request(
+            instance.getInferenceEntityId(),
+            instance.getTaskType(),
+            instance.getUnifiedCompletionRequest(),
+            context,
+            instance.getTimeout()
+        );
+    }
+
+    // Versions before MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED throw an exception when serializing non-text content
+    // Those are tested in testMultimodalContentIsNotBackwardsCompatible
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)).toList();
+    }
+
+    public void testMultimodalContentIsNotBackwardsCompatible() throws IOException {
+        var unsupportedVersions = DEFAULT_BWC_VERSIONS.stream()
+            .filter(Predicate.not(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)))
+            .toList();
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            var testInstance = createTestInstance();
+            for (var unsupportedVersion : unsupportedVersions) {
+                if (testInstance.getUnifiedCompletionRequest().containsMultimodalContent()) {
+                    var statusException = assertThrows(
+                        ElasticsearchStatusException.class,
+                        () -> copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), unsupportedVersion)
+                    );
+                    assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
+                    assertThat(
+                        statusException.getMessage(),
+                        is(
+                            "Cannot send a multimodal chat completion request to an older node. "
+                                + "Please wait until all nodes are upgraded before using multimodal chat completion inputs"
+                        )
+                    );
+                } else {
+                    // If the instance doesn't contain multimodal content, assert that it can still be serialized
+                    assertBwcSerialization(testInstance, unsupportedVersion);
+                }
+            }
+        }
     }
 
     @Override

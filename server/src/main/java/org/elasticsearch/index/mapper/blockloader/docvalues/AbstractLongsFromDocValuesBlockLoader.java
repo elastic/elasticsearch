@@ -13,6 +13,8 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
@@ -21,6 +23,12 @@ import java.io.IOException;
  * Loads {@code long}s from doc values.
  */
 public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+    /**
+     * Circuit breaker space reserved for each reader. Measured in heap dumps
+     * around 500 bytes and this is an intention overestimate.
+     */
+    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(2).getBytes();
+
     protected final String fieldName;
 
     public AbstractLongsFromDocValuesBlockLoader(String fieldName) {
@@ -33,30 +41,52 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
     }
 
     @Override
-    public final AllReader reader(LeafReaderContext context) throws IOException {
-        SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
-        if (docValues != null) {
-            NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
-            if (singleton != null) {
-                return singletonReader(singleton);
+    public final AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+        boolean release = true;
+        try {
+            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
+            if (docValues != null) {
+                release = false;
+                NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
+                if (singleton != null) {
+                    return singletonReader(breaker, singleton);
+                }
+                return sortedReader(breaker, docValues);
             }
-            return sortedReader(docValues);
+            NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
+            if (singleton != null) {
+                release = false;
+                return singletonReader(breaker, singleton);
+            }
+            return ConstantNull.READER;
+        } finally {
+            if (release) {
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            }
         }
-        NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
-        if (singleton != null) {
-            return singletonReader(singleton);
-        }
-        return ConstantNull.READER;
     }
 
-    protected abstract AllReader singletonReader(NumericDocValues docValues);
+    protected abstract AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues);
 
-    protected abstract AllReader sortedReader(SortedNumericDocValues docValues);
+    protected abstract AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues);
 
-    public static class Singleton extends BlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
+    protected abstract static class LongsBlockDocValuesReader extends BlockDocValuesReader {
+        public LongsBlockDocValuesReader(CircuitBreaker breaker) {
+            super(breaker);
+        }
+
+        @Override
+        public final void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+        }
+    }
+
+    public static class Singleton extends LongsBlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
         final NumericDocValues numericDocValues;
 
-        public Singleton(NumericDocValues numericDocValues) {
+        public Singleton(CircuitBreaker breaker, NumericDocValues numericDocValues) {
+            super(breaker);
             this.numericDocValues = numericDocValues;
         }
 
@@ -107,10 +137,11 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
         }
     }
 
-    public static class Sorted extends BlockDocValuesReader {
+    public static class Sorted extends LongsBlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
-        Sorted(SortedNumericDocValues numericDocValues) {
+        Sorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
+            super(breaker);
             this.numericDocValues = numericDocValues;
         }
 

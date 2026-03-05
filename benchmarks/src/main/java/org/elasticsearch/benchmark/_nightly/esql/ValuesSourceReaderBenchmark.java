@@ -237,7 +237,7 @@ public class ValuesSourceReaderBenchmark {
                     break;
             }
             ft.freeze();
-            return new KeywordFieldMapper.KeywordFieldType(w.name, ft, syntheticSource).blockLoader(blContext());
+            return new KeywordFieldMapper.KeywordFieldType(w.name, ft, syntheticSource).blockLoader(new BenchContext());
         }
         throw new IllegalArgumentException("can't read [" + name + "]");
     }
@@ -279,7 +279,7 @@ public class ValuesSourceReaderBenchmark {
             null,
             null,
             false
-        ).blockLoader(blContext());
+        ).blockLoader(new BenchContext());
     }
 
     /**
@@ -586,52 +586,60 @@ public class ValuesSourceReaderBenchmark {
         IOUtils.close(reader, directory);
     }
 
-    private static MappedFieldType.BlockLoaderContext blContext() {
-        return new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return "benchmark";
-            }
+    private static class BenchContext implements MappedFieldType.BlockLoaderContext {
+        @Override
+        public String indexName() {
+            return "benchmark";
+        }
 
-            @Override
-            public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
-            }
+        @Override
+        public IndexSettings indexSettings() {
+            throw new UnsupportedOperationException();
+        }
 
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
+        @Override
+        public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+            return MappedFieldType.FieldExtractPreference.NONE;
+        }
 
-            @Override
-            public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
-            }
+        @Override
+        public SearchLookup lookup() {
+            throw new UnsupportedOperationException();
+        }
 
-            @Override
-            public Set<String> sourcePaths(String name) {
-                return Set.of(name);
-            }
+        @Override
+        public Set<String> sourcePaths(String name) {
+            return Set.of(name);
+        }
 
-            @Override
-            public String parentField(String field) {
-                throw new UnsupportedOperationException();
-            }
+        @Override
+        public String parentField(String field) {
+            throw new UnsupportedOperationException();
+        }
 
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
-            }
+        @Override
+        public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+            return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+        }
 
-            @Override
-            public MappingLookup mappingLookup() {
-                return null;
-            }
+        @Override
+        public MappingLookup mappingLookup() {
+            return null;
+        }
 
-            @Override
-            public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
-                return null;
-            }
-        };
+        @Override
+        public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+            return null;
+        }
+
+        @Override
+        public ByteSizeValue ordinalsByteSize() {
+            return DEFAULT_ORDINALS_BYTE_SIZE;
+        }
+
+        @Override
+        public ByteSizeValue scriptByteSize() {
+            return DEFAULT_SCRIPT_BYTE_SIZE;
+        }
     }
 }

@@ -100,8 +100,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @Override
-    public void testBlockLoaderOfMultiField() {
-        assumeTrue("flattened fields do not support multi fields", false);
+    protected boolean supportsMultiField() {
+        return false;
     }
-
 }

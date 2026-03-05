@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -476,12 +477,17 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType, int offset)
-        throws IOException {
-        return blockLoaderReadValuesFromColumnAtATimeReader(Settings.EMPTY, reader, fieldType, offset);
+    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(
+        CircuitBreaker breaker,
+        DirectoryReader reader,
+        MappedFieldType fieldType,
+        int offset
+    ) throws IOException {
+        return blockLoaderReadValuesFromColumnAtATimeReader(breaker, Settings.EMPTY, reader, fieldType, offset);
     }
 
     protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(
+        CircuitBreaker breaker,
         Settings settings,
         DirectoryReader reader,
         MappedFieldType fieldType,
@@ -490,22 +496,26 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
-            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx)
-                .get()
-                .read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
-            for (int i = 0; i < block.size(); i++) {
-                all.add(block.get(i));
+            try (BlockLoader.ColumnAtATimeReader columnReader = loader.columnAtATimeReader(ctx).apply(breaker)) {
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
+                for (int i = 0; i < block.size(); i++) {
+                    all.add(block.get(i));
+                }
             }
         }
         return all;
     }
 
-    protected final List<Object> blockLoaderReadValuesFromRowStrideReader(DirectoryReader reader, MappedFieldType fieldType)
-        throws IOException {
-        return blockLoaderReadValuesFromRowStrideReader(Settings.EMPTY, reader, fieldType, false);
+    protected final List<Object> blockLoaderReadValuesFromRowStrideReader(
+        CircuitBreaker breaker,
+        DirectoryReader reader,
+        MappedFieldType fieldType
+    ) throws IOException {
+        return blockLoaderReadValuesFromRowStrideReader(breaker, Settings.EMPTY, reader, fieldType, false);
     }
 
     protected final List<Object> blockLoaderReadValuesFromRowStrideReader(
+        CircuitBreaker breaker,
         Settings settings,
         DirectoryReader reader,
         MappedFieldType fieldType,
@@ -514,22 +524,25 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         BlockLoader loader = fieldType.blockLoader(blContext(settings, fieldOnlyMappedAsRuntimeField));
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
-            BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(ctx);
-            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), ctx.reader().numDocs());
+            try (
+                BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(breaker, ctx);
+                BlockLoader.Builder builder = loader.builder(TestBlock.factory(), ctx.reader().numDocs());
+            ) {
 
-            assert loader.rowStrideStoredFieldSpec().requiresSource() == false
-                || loader.rowStrideStoredFieldSpec().sourcePaths().isEmpty() == false;
-            BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
-                null
-            );
-            for (int i = 0; i < ctx.reader().numDocs(); i++) {
-                storedFields.advanceTo(i);
-                blockReader.read(i, storedFields, builder);
-            }
-            TestBlock block = (TestBlock) builder.build();
-            for (int i = 0; i < block.size(); i++) {
-                all.add(block.get(i));
+                assert loader.rowStrideStoredFieldSpec().requiresSource() == false
+                    || loader.rowStrideStoredFieldSpec().sourcePaths().isEmpty() == false;
+                BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
+                    StoredFieldLoader.fromSpec(loader.rowStrideStoredFieldSpec()).getLoader(ctx, null),
+                    null
+                );
+                for (int i = 0; i < ctx.reader().numDocs(); i++) {
+                    storedFields.advanceTo(i);
+                    blockReader.read(i, storedFields, builder);
+                }
+                TestBlock block = (TestBlock) builder.build();
+                for (int i = 0; i < block.size(); i++) {
+                    all.add(block.get(i));
+                }
             }
         }
         return all;

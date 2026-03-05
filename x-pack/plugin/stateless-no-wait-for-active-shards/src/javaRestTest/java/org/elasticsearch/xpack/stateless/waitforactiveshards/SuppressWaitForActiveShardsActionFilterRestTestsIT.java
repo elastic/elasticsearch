@@ -23,7 +23,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.cluster.serverless.ServerlessElasticsearchCluster;
+import org.elasticsearch.test.cluster.stateless.StatelessElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Rule;
 
@@ -35,9 +35,7 @@ import java.io.IOException;
 public class SuppressWaitForActiveShardsActionFilterRestTestsIT extends ESRestTestCase {
 
     @Rule
-    public ServerlessElasticsearchCluster cluster = ServerlessElasticsearchCluster.local()
-        .user("admin-user", "x-pack-test-password")
-        .build();
+    public StatelessElasticsearchCluster cluster = StatelessElasticsearchCluster.local().user("admin-user", "x-pack-test-password").build();
 
     @Override
     protected Settings restClientSettings() {

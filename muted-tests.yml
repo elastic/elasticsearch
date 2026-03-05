@@ -345,24 +345,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.compute.aggregation.TimeSeriesFirstDocIdDeduplicationTests
-  method: testSimpleWithCranky
-  issue: https://github.com/elastic/elasticsearch/issues/143128
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
-- class: org.elasticsearch.xpack.security.apikey.ApiKeyWorkflowsRestrictionRestIT
-  method: testWorkflowsRestrictionAllowsAccess
-  issue: https://github.com/elastic/elasticsearch/issues/143130
-- class: org.elasticsearch.snapshots.SnapshotStressTestsIT
-  method: testRandomActivities
-  issue: https://github.com/elastic/elasticsearch/issues/143199
-- class: org.elasticsearch.index.mapper.GeoPointFieldMapperTests
-  method: testSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/143201
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_aggregate_metric_double_implicit_casting}
-  issue: https://github.com/elastic/elasticsearch/issues/143292
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testTsIndexConflictingTypes {null}
   issue: https://github.com/elastic/elasticsearch/issues/142410

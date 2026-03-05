@@ -353,12 +353,14 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
     public void testWriteLargeBlob() throws Exception {
         final int maxRetries = randomIntBetween(2, 5);
+        logger.info("--> max retries: {}", maxRetries);
 
         final byte[] data = randomBytes(ByteSizeUnit.MB.toIntBytes(10) + randomIntBetween(0, ByteSizeUnit.MB.toIntBytes(1)));
         int nbBlocks = data.length / ByteSizeUnit.MB.toIntBytes(1);
         if (data.length % ByteSizeUnit.MB.toIntBytes(1) != 0) {
             nbBlocks += 1;
         }
+        logger.info("--> data size: {} ({} blocks, {} last size)", data.length, nbBlocks, data.length % ByteSizeUnit.MB.toIntBytes(1));
 
         final int nbErrors = 2; // we want all requests to fail at least once
         final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * nbBlocks);
@@ -376,6 +378,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                 assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
 
                 if (Strings.hasText(blockId) && (countDownUploads.decrementAndGet() % 2 == 0)) {
+                    logger.info("--> succeeding block {}, countDownUploads: {}", blockId, countDownUploads.get());
                     blocks.put(blockId, Streams.readFully(exchange.getRequestBody()));
                     exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
                     exchange.close();
@@ -389,6 +392,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                         .filter(line -> line.contains("</Latest>"))
                         .map(line -> line.substring(0, line.indexOf("</Latest>")))
                         .collect(Collectors.toList());
+                    logger.info("--> succeeding blocklist, countDownComplete: {}", blockUids);
 
                     final ByteArrayOutputStream blob = new ByteArrayOutputStream();
                     for (String blockUid : blockUids) {
@@ -402,12 +406,21 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                     exchange.close();
                     return;
                 }
+
+                logger.info(
+                    "--> Got a put that wasn't handled: {}?{}, countdownComplete={}",
+                    exchange.getRequestURI().getPath(),
+                    exchange.getRequestURI().getRawQuery(),
+                    countDownComplete.isCountedDown()
+                );
             }
 
             if (randomBoolean()) {
+                logger.info("--> failing request with error");
                 Streams.readFully(exchange.getRequestBody());
                 AzureHttpHandler.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
             } else {
+                logger.info("--> failing no response");
                 long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
                 readFromInputStream(exchange.getRequestBody(), randomLongBetween(0, contentLength));
             }

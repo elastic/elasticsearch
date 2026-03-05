@@ -201,6 +201,9 @@ For example, the second item in this list is in technical preview as of version 
 
 ### Adding a new command
 
+
+For the full implementation checklist (grammar, parser, logical and physical plan, mapper, execution planner, tests, etc.), see the internal developer guide [Writing ES|QL commands](../../../../x-pack/plugin/esql/docs/writing-commands.md).
+
 Each command has its own standalone page under `commands/` that includes a layout snippet from `_snippets/commands/layout/`.
 
 To add a new processing command called `<my_command>`:
@@ -221,6 +224,7 @@ To add a new processing command called `<my_command>`:
    - As a child of `processing-commands.md` or `source-commands.md`
 5. Add tested examples
    - See [Adding examples to commands](#adding-examples-to-commands) below
+
 
 ### Adding examples to commands
 

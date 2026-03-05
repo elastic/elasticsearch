@@ -10,17 +10,16 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
@@ -29,6 +28,7 @@ import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MMROperator;
@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -109,7 +110,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -205,22 +205,18 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        CircuitBreaker circuitBreaker = services.indicesService().getBigArrays().breakerService().getBreaker("request");
-        Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");
         Settings settings = services.clusterService().getSettings();
-        ByteSizeValue maxPrimitiveArrayBlockSize = settings.getAsBytesSize(
-            BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
-            BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
-        );
-        long bytesRefRamOverestimateThreshold = PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.get(settings).getBytes();
-        double bytesRefRamOverestimateFactor = PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.get(settings);
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(
-            circuitBreaker,
-            bigArrays,
-            maxPrimitiveArrayBlockSize,
-            bytesRefRamOverestimateThreshold,
-            bytesRefRamOverestimateFactor
+            BlockFactory.builder(bigArrays)
+                .maxPrimitiveArraySize(
+                    settings.getAsBytesSize(
+                        BlockFactory.MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING,
+                        BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
+                    )
+                )
+                .bytesRefRamOverestimateThreshold(PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.get(settings))
+                .bytesRefRamOverestimateFactor(PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.get(settings))
         );
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
@@ -281,16 +277,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return components;
     }
 
-    protected BlockFactoryProvider blockFactoryProvider(
-        CircuitBreaker breaker,
-        BigArrays bigArrays,
-        ByteSizeValue maxPrimitiveArraySize,
-        long bytesRefRamOverestimateThreshold,
-        double bytesRefRamOverestimateFactor
-    ) {
-        return new BlockFactoryProvider(
-            new BlockFactory(breaker, bigArrays, maxPrimitiveArraySize, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor)
-        );
+    protected BlockFactoryProvider blockFactoryProvider(BlockFactoryBuilder builder) {
+        return new BlockFactoryProvider(builder.build());
     }
 
     // to be overriden by tests
@@ -405,6 +393,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
+        entries.add(GroupedLimitOperator.Status.ENTRY);
         entries.add(LuceneOperator.Status.ENTRY);
         entries.add(TopNOperatorStatus.ENTRY);
         entries.add(MvExpandOperator.Status.ENTRY);
@@ -419,6 +408,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(MMROperator.Status.ENTRY);
 
         entries.add(FileSplit.ENTRY);
+        entries.add(CoalescedSplit.ENTRY);
 
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);

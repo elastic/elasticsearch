@@ -32,7 +32,6 @@ import org.junit.BeforeClass;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;

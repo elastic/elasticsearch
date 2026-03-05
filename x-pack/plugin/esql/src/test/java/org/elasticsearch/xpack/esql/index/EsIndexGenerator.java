@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.ESTestCase.randomFrom;

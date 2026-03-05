@@ -421,6 +421,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             return "#" + idMap.getId(originalId);
         });
     }
+
     /**
      * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
      * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.

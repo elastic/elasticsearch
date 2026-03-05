@@ -387,13 +387,10 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testTimeSeriesRateUnmapped() throws Exception {
-        runTestsNullifyOnly(
-            """
-                TS k8s
-                | STATS r = RATE(does_not_exist) BY tbucket(1 hour)
-                """,
-            STAGES
-        );
+        runTestsNullifyOnly("""
+            TS k8s
+            | STATS r = RATE(does_not_exist) BY tbucket(1 hour)
+            """, STAGES);
     }
 
     public void testTimeSeriesFirstOverTimeUnmapped() throws Exception {
@@ -432,14 +429,11 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     }
 
     public void testMappedToNonKeywordInOneIndexOnlyCast() throws Exception {
-        runTestsLoadOnly(
-            """
-                FROM sample_data, no_mapping_sample_data
-                | EVAL event_duration = event_duration :: DOUBLE
-                | KEEP event_duration
-                """,
-            EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION, Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION)
-        );
+        runTestsLoadOnly("""
+            FROM sample_data, no_mapping_sample_data
+            | EVAL event_duration = event_duration :: DOUBLE
+            | KEEP event_duration
+            """, EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION, Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
     }
 
     public void testDifferentTypesAndUnmapped() throws Exception {

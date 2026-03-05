@@ -351,12 +351,12 @@ public class SplitTargetService {
 
         private void validateStateTransition(State newState) {
             var validCurrentStates = newStateToValidCurrentStates.get(newState.getClass());
-            if (validCurrentStates.contains(currentState.getClass()) == false) {
+            if (validCurrentStates == null || validCurrentStates.contains(currentState.getClass()) == false) {
                 // It's possible that this exception is not observed by anyone since we are inside a runnable on generic thread pool.
                 // So we log as well.
-                var message = String.format(Locale.ROOT, "Unexpected state transition %s -> %s", currentState, newState);
-                assert false : message;
+                var message = String.format(Locale.ROOT, "Unexpected split target shard state transition %s -> %s", currentState, newState);
                 logger.error(message);
+                assert false : message;
                 throw new IllegalStateException(message);
             }
         }

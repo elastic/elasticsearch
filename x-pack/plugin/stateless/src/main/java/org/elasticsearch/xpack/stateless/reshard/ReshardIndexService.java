@@ -790,7 +790,7 @@ public class ReshardIndexService {
                     .count();
                 // Last source shard to finish deletes the resharding metadata
                 if (ongoingSourceShards == 1) {
-                    assert currentState == IndexReshardingState.Split.SourceShardState.SOURCE;
+                    assert currentState == IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP;
                     assert split.targetsDone(shardId.id()) : "can only move source shard to DONE when all targets are DONE";
                     var projectMetadata = metadataRemoveReshardingState(projectState, index);
                     return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata).build(), null);

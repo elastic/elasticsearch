@@ -182,12 +182,14 @@ final class RemoteRequestBuilders {
         return request;
     }
 
+    // TODO - Do we need to set the IndexFilter field here? https://github.com/elastic/elasticsearch-team/issues/2392
     static Request openPit(String[] indices, TimeValue keepAlive) {
         StringBuilder path = new StringBuilder("/");
         addIndices(path, indices);
         path.append("_pit");
         Request request = new Request("POST", path.toString());
         request.addParameter("keep_alive", keepAlive.getStringRep());
+        request.addParameter("allow_partial_search_results", "false");
         return request;
     }
 

@@ -633,6 +633,31 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     }
 
     /**
+     * Verifies that openPit throws AssertionError when the SearchRequest has allowPartialSearchResults set to true
+     * since scroll search defaults to false
+     */
+    public void testOpenPitFailsWhenAllowPartialSearchResultsTrue() {
+        SearchRequest searchRequest = new SearchRequest().indices("index");
+        searchRequest.allowPartialSearchResults(true);
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> RemoteReindexingUtils.openPit(
+                searchRequest,
+                new String[] { "index" },
+                randomPositiveTimeValue(),
+                RejectAwareActionListener.wrap(
+                    v -> fail("unexpected success"),
+                    err -> fail("unexpected failure"),
+                    err -> fail("unexpected rejection")
+                ),
+                threadPool,
+                client
+            )
+        );
+        assertThat(e.getMessage(), containsString("allow_partial_search_results"));
+    }
+
+    /**
      * Verifies that closePit invokes onResponse when the remote returns a successful close PIT response.
      */
     public void testClosePitSuccess() {

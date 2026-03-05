@@ -346,6 +346,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertEquals("POST", request.getMethod());
         assertEquals("/" + index + "/_pit", request.getEndpoint());
         assertThat(request.getParameters(), hasEntry("keep_alive", keepAlive.getStringRep()));
+        assertThat(request.getParameters(), hasEntry("allow_partial_search_results", "false"));
     }
 
     /**
@@ -368,6 +369,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertEquals("POST", request.getMethod());
         assertEquals(expectedPath.toString(), request.getEndpoint());
         assertThat(request.getParameters(), hasEntry("keep_alive", keepAlive.getStringRep()));
+        assertThat(request.getParameters(), hasEntry("allow_partial_search_results", "false"));
     }
 
     /**
@@ -379,11 +381,13 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertEquals("POST", nullRequest.getMethod());
         assertEquals("/_pit", nullRequest.getEndpoint());
         assertThat(nullRequest.getParameters(), hasEntry("keep_alive", keepAlive.getStringRep()));
+        assertThat(nullRequest.getParameters(), hasEntry("allow_partial_search_results", "false"));
 
         Request emptyRequest = openPit(new String[] {}, keepAlive);
         assertEquals("POST", emptyRequest.getMethod());
         assertEquals("/_pit", emptyRequest.getEndpoint());
         assertThat(emptyRequest.getParameters(), hasEntry("keep_alive", keepAlive.getStringRep()));
+        assertThat(emptyRequest.getParameters(), hasEntry("allow_partial_search_results", "false"));
     }
 
     /**
@@ -395,6 +399,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         Request request = openPit(new String[] { prefix1 + ",", prefix2 + "/" }, randomPositiveTimeValue());
         assertEquals("POST", request.getMethod());
         assertEquals("/" + prefix1 + "%2C," + prefix2 + "%2F/_pit", request.getEndpoint());
+        assertThat(request.getParameters(), hasEntry("allow_partial_search_results", "false"));
     }
 
     /**
@@ -403,10 +408,9 @@ public class RemoteRequestBuildersTests extends ESTestCase {
     public void testOpenPitKeepAliveParameter() {
         String index = randomAlphaOfLength(between(1, 10));
         long millis = between(1, 100000);
-        assertThat(
-            openPit(new String[] { index }, timeValueMillis(millis)).getParameters(),
-            hasEntry("keep_alive", TimeValue.timeValueMillis(millis).getStringRep())
-        );
+        var params = openPit(new String[] { index }, timeValueMillis(millis)).getParameters();
+        assertThat(params, hasEntry("allow_partial_search_results", "false"));
+        assertThat(params, hasEntry("keep_alive", TimeValue.timeValueMillis(millis).getStringRep()));
         int minutes = between(1, 60);
         assertThat(
             openPit(new String[] { index }, TimeValue.timeValueMinutes(minutes)).getParameters(),

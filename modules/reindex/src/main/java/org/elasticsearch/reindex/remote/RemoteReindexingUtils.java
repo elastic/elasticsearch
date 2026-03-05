@@ -85,6 +85,8 @@ public class RemoteReindexingUtils {
         // by either scroll nor PIT, so we assert here in case that changes
         assert request.routing() == null : "Routing is set in the search request, but is not being used when opening the PIT.";
         assert request.preference() == null : "Preference is set in the search request, but is not being used when opening the PIT.";
+        assert request.allowPartialSearchResults() == false
+            : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
         execute(RemoteRequestBuilders.openPit(indices, keepAlive), OPEN_PIT_PARSER, listener, threadPool, client);
     }
 

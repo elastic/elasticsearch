@@ -32,7 +32,7 @@ final class MetadataBuffer implements MetadataWriter {
     private byte[] data;
     private int dataSize;
 
-    public MetadataBuffer() {
+    MetadataBuffer() {
         this(DEFAULT_CAPACITY);
     }
 
@@ -41,7 +41,7 @@ final class MetadataBuffer implements MetadataWriter {
      *
      * @param initialCapacity the initial buffer capacity in bytes
      */
-    public MetadataBuffer(int initialCapacity) {
+    MetadataBuffer(int initialCapacity) {
         this.data = new byte[initialCapacity];
         this.dataSize = 0;
     }

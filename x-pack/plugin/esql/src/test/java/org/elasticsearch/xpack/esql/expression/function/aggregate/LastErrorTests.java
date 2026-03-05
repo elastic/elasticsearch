@@ -16,7 +16,6 @@ import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -29,13 +28,6 @@ public class LastErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Last(source, args.get(0), args.get(1));
-    }
-
-    @Override
-    protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
-        // Filter-out the NULL type from the second param (the sort field): it always passes type resolution
-        // and the supplier handles it
-        return super.testCandidates(cases, valid).filter(sig -> sig.get(1) != DataType.NULL);
     }
 
     @Override

@@ -40,6 +40,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.IndexLimitExceededException;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -205,6 +206,11 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
                 }
             }
         }
+
+        @Override
+        public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+            return softwareTenets.stream().map(tenet -> new AssociatedIndexDescriptor(tenet + "*", "Description")).toList();
+        }
     }
 
     private void testCreateIndex(String indexPattern, String suffix, boolean expectedSuccess) throws IOException {
@@ -290,12 +296,20 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
             testCreateIndex(indexName, "-" + i, true);
         }
 
+        // Associated feature indices are not affected.
+        for (int i = 0; i < randomIntBetween(2, 3); i++) {
+            testCreateIndex(randomFrom(softwareTenets), randomIndexName(), true);
+        }
+
         // Case 3: all subsequent attempts should fail.
         var failedAttempts = randomIntBetween(1, 2);
         for (int i = 0; i < failedAttempts; i++) {
             var suffix = userIndicesLimit + i;
             testCreateIndex(indexName, "-" + suffix, false);
         }
+
+        // Associated feature indices are not affected.
+        testCreateIndex(randomFrom(softwareTenets), randomIndexName(), true);
 
         var suffix = systemIndicesCounter.addAndGet(1);
 
@@ -321,4 +335,14 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
         }
         ensureGreen();
     }
+
+    public static final Collection<String> softwareTenets = List.of(
+        ".design",
+        ".implementation",
+        ".testing",
+        ".requirement-elicitation",
+        ".deployment",
+        ".ambiguity",
+        ".process"
+    );
 }

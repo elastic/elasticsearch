@@ -502,7 +502,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertThat(taskStatus.getSearchRetries(), is(0L));
         assertThat(taskStatus.getThrottled(), greaterThanOrEqualTo(TimeValue.ZERO));
         // sliced leader only reports on completed slices, so the status is completely empty until some slices complete
-        // assertThat(taskStatus.getRequestsPerSecond(), equalTo(isSliced(slices, shards) ? 0.0f : requestsPerSecond));
+        assertThat(taskStatus.getRequestsPerSecond(), equalTo(isSliced(slices, shards) ? 0.0f : requestsPerSecond));
         assertThat(taskStatus.getReasonCancelled(), is(nullValue()));
         assertThat(taskStatus.getThrottledUntil(), greaterThanOrEqualTo(TimeValue.ZERO));
 

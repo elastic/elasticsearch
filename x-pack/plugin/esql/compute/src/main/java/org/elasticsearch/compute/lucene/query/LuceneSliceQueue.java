@@ -320,7 +320,7 @@ public final class LuceneSliceQueue {
             @Override
             List<List<PartialLeafReaderContext>> groups(IndexSearcher searcher, int taskConcurrency) {
                 final int totalDocCount = searcher.getIndexReader().maxDoc();
-                final int docsPerSlice = Math.max(Math.ceilDiv(totalDocCount, taskConcurrency), 1);
+                final int docsPerSlice = Math.clamp(Math.ceilDiv(totalDocCount, taskConcurrency), 1, MAX_DOCS_PER_SLICE * 4);
                 try {
                     return new TimeSeriesPartitioner().partition(searcher, docsPerSlice);
                 } catch (IOException e) {

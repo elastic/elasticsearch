@@ -105,7 +105,6 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
 import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED;
 import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.closePit;
 import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.openPit;
-import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE;
 
 public class Reindexer {
 
@@ -269,8 +268,18 @@ public class Reindexer {
 
         SearchRequest searchRequest = request.getSearchRequest();
         String[] indices = searchRequest.indices();
+
+        // The routing and preference parameters can be set for a PIT request. However, scroll currently does not use these,
+        // so for parity we assert here in case that changes
+        assert searchRequest.routing() == null : "Routing is set in the search request, but is not being used when opening the PIT.";
+        assert searchRequest.preference() == null : "Preference is set in the search request, but is not being used when opening the PIT.";
+        assert searchRequest.allowPartialSearchResults() == null || searchRequest.allowPartialSearchResults() == false
+            : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
+
+        // TODO - Do we need to set the IndexFilter field here? https://github.com/elastic/elasticsearch-team/issues/2392
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
-            .keepAlive(pitKeepAlive(request));
+            .keepAlive(pitKeepAlive(request))
+            .allowPartialSearchResults(false);
 
         // NB this is a local request, so we call the TransportAction rather than issuing a REST call
         client.execute(TransportOpenPointInTimeAction.TYPE, pitRequest, listenerWithMetrics.delegateFailureAndWrap((l, pitResponse) -> {

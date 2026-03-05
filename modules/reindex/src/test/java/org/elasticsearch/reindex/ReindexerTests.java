@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -502,7 +503,7 @@ public class ReindexerTests extends ESTestCase {
 
             final ProjectResolver projectResolver = mock(ProjectResolver.class);
             when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
-            fail("fix")
+
             final Reindexer reindexer = new Reindexer(
                 clusterService,
                 projectResolver,
@@ -513,8 +514,6 @@ public class ReindexerTests extends ESTestCase {
                 null,
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
-                // TODO - Do these tests need updating to set it to true?
-                // Will default REINDEX_PIT_SEARCH_FEATURE to false
                 mock(FeatureService.class)
             );
 
@@ -580,7 +579,6 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    // Will default REINDEX_PIT_SEARCH_FEATURE to false
                     mock(FeatureService.class)
                 );
 
@@ -622,6 +620,288 @@ public class ReindexerTests extends ESTestCase {
     }
 
     /**
+     * Verifies that the OpenPointInTimeRequest built in openPitAndExecute has routing and preference unset,
+     * and allowPartialSearchResults explicitly set to false.
+     */
+    public void testLocalOpenPitRequestHasExpectedProperties() {
+        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
+        try {
+            final TestThreadPool threadPool = new TestThreadPool(getTestName()) {
+                @Override
+                public ExecutorService executor(String name) {
+                    return DIRECT_EXECUTOR_SERVICE;
+                }
+            };
+            try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+
+                final ProjectResolver projectResolver = mock(ProjectResolver.class);
+                when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
+
+                final Reindexer reindexer = new Reindexer(
+                    clusterService,
+                    projectResolver,
+                    client,
+                    threadPool,
+                    mock(ScriptService.class),
+                    mock(ReindexSslConfig.class),
+                    null,
+                    mock(TransportService.class),
+                    mock(ReindexRelocationNodePicker.class),
+                    mock(FeatureService.class)
+                );
+
+                final ReindexRequest request = new ReindexRequest();
+                request.setSourceIndices("source");
+                request.setDestIndex("dest");
+                request.setSlices(1);
+
+                final BulkByScrollTask task = new BulkByScrollTask(
+                    randomLong(),
+                    "reindex",
+                    "reindex",
+                    "test",
+                    TaskId.EMPTY_TASK_ID,
+                    Collections.emptyMap(),
+                    false
+                );
+
+                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
+                initFuture.actionGet();
+
+                OpenPointInTimeRequest pitRequest = client.getCapturedPitRequest();
+                assertNotNull("Expected OpenPointInTimeRequest to have been captured", pitRequest);
+                assertNull("routing should not be set", pitRequest.routing());
+                assertNull("preference should not be set", pitRequest.preference());
+                assertFalse("allowPartialSearchResults should be false", pitRequest.allowPartialSearchResults());
+            } finally {
+                terminate(threadPool);
+            }
+        } finally {
+            client.shutdown();
+        }
+    }
+
+    /**
+     * Verifies that openPitAndExecute throws AssertionError when the SearchRequest has routing set.
+     */
+    public void testLocalOpenPitFailsWhenRoutingSet() {
+        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
+        try {
+            final TestThreadPool threadPool = new TestThreadPool(getTestName()) {
+                @Override
+                public ExecutorService executor(String name) {
+                    return DIRECT_EXECUTOR_SERVICE;
+                }
+            };
+            try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+
+                final ProjectResolver projectResolver = mock(ProjectResolver.class);
+                when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
+
+                final Reindexer reindexer = new Reindexer(
+                    clusterService,
+                    projectResolver,
+                    client,
+                    threadPool,
+                    mock(ScriptService.class),
+                    mock(ReindexSslConfig.class),
+                    null,
+                    mock(TransportService.class),
+                    mock(ReindexRelocationNodePicker.class),
+                    mock(FeatureService.class)
+                );
+
+                final ReindexRequest request = new ReindexRequest();
+                request.setSourceIndices("source");
+                request.setDestIndex("dest");
+                request.setSlices(1);
+                request.getSearchRequest().routing("r1");
+
+                final BulkByScrollTask task = new BulkByScrollTask(
+                    randomLong(),
+                    "reindex",
+                    "reindex",
+                    "test",
+                    TaskId.EMPTY_TASK_ID,
+                    Collections.emptyMap(),
+                    false
+                );
+
+                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                Throwable e = expectThrows(
+                    Throwable.class,
+                    () -> reindexer.initTask(
+                        task,
+                        request,
+                        initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l))
+                    )
+                );
+                assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("Routing is set in the search request"));
+            } finally {
+                terminate(threadPool);
+            }
+        } finally {
+            client.shutdown();
+        }
+    }
+
+    /**
+     * Verifies that openPitAndExecute throws AssertionError when the SearchRequest has preference set.
+     */
+    public void testLocalOpenPitFailsWhenPreferenceSet() {
+        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
+        try {
+            final TestThreadPool threadPool = new TestThreadPool(getTestName()) {
+                @Override
+                public ExecutorService executor(String name) {
+                    return DIRECT_EXECUTOR_SERVICE;
+                }
+            };
+            try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+
+                final ProjectResolver projectResolver = mock(ProjectResolver.class);
+                when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
+
+                final Reindexer reindexer = new Reindexer(
+                    clusterService,
+                    projectResolver,
+                    client,
+                    threadPool,
+                    mock(ScriptService.class),
+                    mock(ReindexSslConfig.class),
+                    null,
+                    mock(TransportService.class),
+                    mock(ReindexRelocationNodePicker.class),
+                    mock(FeatureService.class)
+                );
+
+                final ReindexRequest request = new ReindexRequest();
+                request.setSourceIndices("source");
+                request.setDestIndex("dest");
+                request.setSlices(1);
+                request.getSearchRequest().preference("_local");
+
+                final BulkByScrollTask task = new BulkByScrollTask(
+                    randomLong(),
+                    "reindex",
+                    "reindex",
+                    "test",
+                    TaskId.EMPTY_TASK_ID,
+                    Collections.emptyMap(),
+                    false
+                );
+
+                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                Throwable e = expectThrows(
+                    Throwable.class,
+                    () -> reindexer.initTask(
+                        task,
+                        request,
+                        initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l))
+                    )
+                );
+                assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), containsString("Preference is set in the search request"));
+            } finally {
+                terminate(threadPool);
+            }
+        } finally {
+            client.shutdown();
+        }
+    }
+
+    /**
+     * Verifies that openPitAndExecute throws AssertionError when the SearchRequest has allowPartialSearchResults set to true.
+     */
+    public void testLocalOpenPitFailsWhenAllowPartialSearchResultsTrue() {
+        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
+        try {
+            final TestThreadPool threadPool = new TestThreadPool(getTestName()) {
+                @Override
+                public ExecutorService executor(String name) {
+                    return DIRECT_EXECUTOR_SERVICE;
+                }
+            };
+            try {
+                final ClusterService clusterService = mock(ClusterService.class);
+                final DiscoveryNode localNode = DiscoveryNodeUtils.builder("local-node").build();
+                when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+                when(clusterService.localNode()).thenReturn(localNode);
+
+                final ProjectResolver projectResolver = mock(ProjectResolver.class);
+                when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
+
+                final Reindexer reindexer = new Reindexer(
+                    clusterService,
+                    projectResolver,
+                    client,
+                    threadPool,
+                    mock(ScriptService.class),
+                    mock(ReindexSslConfig.class),
+                    null,
+                    mock(TransportService.class),
+                    mock(ReindexRelocationNodePicker.class),
+                    mock(FeatureService.class)
+                );
+
+                final ReindexRequest request = new ReindexRequest();
+                request.setSourceIndices("source");
+                request.setDestIndex("dest");
+                request.setSlices(1);
+                request.getSearchRequest().allowPartialSearchResults(true);
+
+                final BulkByScrollTask task = new BulkByScrollTask(
+                    randomLong(),
+                    "reindex",
+                    "reindex",
+                    "test",
+                    TaskId.EMPTY_TASK_ID,
+                    Collections.emptyMap(),
+                    false
+                );
+
+                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                Throwable e = expectThrows(
+                    Throwable.class,
+                    () -> reindexer.initTask(
+                        task,
+                        request,
+                        initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l))
+                    )
+                );
+                assertThat(
+                    ExceptionsHelper.unwrapCause(e).getMessage(),
+                    containsString("allow_partial_search_results must be false when opening a PIT")
+                );
+            } finally {
+                terminate(threadPool);
+            }
+        } finally {
+            client.shutdown();
+        }
+    }
+
+    /**
      * Client that succeeds on OpenPointInTime and Search (empty results) but fails on ClosePointInTime.
      * Used to verify that PIT close failures are logged but don't propagate to the main listener.
      */
@@ -652,6 +932,7 @@ public class ReindexerTests extends ESTestCase {
                     SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0)
                 );
                 listener.onResponse((Response) response);
+                response.decRef();
                 return;
             }
             if (action == TransportClosePointInTimeAction.TYPE && request instanceof ClosePointInTimeRequest) {
@@ -690,6 +971,56 @@ public class ReindexerTests extends ESTestCase {
             } else {
                 super.doExecute(action, request, listener);
             }
+        }
+
+        void shutdown() {
+            terminate(threadPool);
+        }
+    }
+
+    /**
+     * Client that captures the OpenPointInTimeRequest when received and returns success.
+     * Used to verify the local PIT request has the expected properties.
+     */
+    private static final class OpenPitCapturingClient extends NoOpClient {
+        private final TestThreadPool threadPool;
+        private volatile OpenPointInTimeRequest capturedPitRequest;
+
+        OpenPitCapturingClient(String threadPoolName) {
+            super(new TestThreadPool(threadPoolName), TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+            this.threadPool = (TestThreadPool) super.threadPool();
+        }
+
+        OpenPointInTimeRequest getCapturedPitRequest() {
+            return capturedPitRequest;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            if (action == TransportOpenPointInTimeAction.TYPE && request instanceof OpenPointInTimeRequest pitRequest) {
+                capturedPitRequest = pitRequest;
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(new BytesArray("pit-id"), 1, 1, 0, 0);
+                listener.onResponse((Response) response);
+                return;
+            }
+            if (action == TransportSearchAction.TYPE && request instanceof SearchRequest) {
+                SearchResponse response = SearchResponseUtils.successfulResponse(
+                    SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0)
+                );
+                listener.onResponse((Response) response);
+                response.decRef();
+                return;
+            }
+            if (action == TransportClosePointInTimeAction.TYPE && request instanceof ClosePointInTimeRequest) {
+                listener.onResponse((Response) new ClosePointInTimeResponse(true, 1));
+                return;
+            }
+            super.doExecute(action, request, listener);
         }
 
         void shutdown() {
@@ -811,7 +1142,6 @@ public class ReindexerTests extends ESTestCase {
                 null,
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
-                // Will default REINDEX_PIT_SEARCH_FEATURE to false
                 mock(FeatureService.class)
             );
 
@@ -891,7 +1221,6 @@ public class ReindexerTests extends ESTestCase {
             null,
             transportService,
             mock(ReindexRelocationNodePicker.class),
-            // Will default REINDEX_PIT_SEARCH_FEATURE to false
             mock(FeatureService.class)
         );
     }
@@ -907,7 +1236,6 @@ public class ReindexerTests extends ESTestCase {
             metrics,
             mock(TransportService.class),
             mock(ReindexRelocationNodePicker.class),
-            // Will default REINDEX_PIT_SEARCH_FEATURE to false
             mock(FeatureService.class)
         );
     }

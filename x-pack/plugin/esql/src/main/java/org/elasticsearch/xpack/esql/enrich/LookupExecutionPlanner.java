@@ -298,7 +298,7 @@ public class LookupExecutionPlanner {
 
         // Create a factory that builds ShardContext and BlockLoader dynamically from LookupDriverContext
         // to avoid caching stale IndexReader references when PhysicalOperation is cached
-        ByteSizeValue jumboSize = ByteSizeValue.ofBytes(Long.MAX_VALUE);
+        ByteSizeValue jumboSize = plannerSettings.valuesLoadingJumboSize();
         return source.with(new OperatorFactory() {
             @Override
             public Operator get(DriverContext driverContext) {

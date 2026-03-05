@@ -28,14 +28,14 @@ import static org.hamcrest.Matchers.is;
 /**
  * Unit tests for circuit breaker release logic used by SearchService and SearchTransportService.
  * <p>
- * For transport paths (fetch, scroll-fetch), the circuit-breaker reservation is atomically
- * extracted right after serialization inside {@code SearchTransportService.asBytesResponse} and
- * attached to the ref-counted serialized bytes. The actual release happens when the refcount
- * drops to zero — i.e. after Netty completes the write.
- * <p>
- * For the query phase (which may produce a {@code QueryFetchSearchResult} consumed locally by
+ * For transport paths (fetch, scroll-fetch), the circuit-breaker reservation is released right
+ * after serialization inside {@code SearchTransportService.asBytesResponse}. For the query phase
+ * (which may produce a {@code QueryFetchSearchResult} consumed locally by
  * {@code SearchQueryThenFetchAsyncAction}), the circuit breaker is released after the listener
  * consumes the response via {@code SearchService.releaseCircuitBreakerOnResponse}.
+ * <p>
+ * Because {@code FetchSearchResult.releaseCircuitBreakerBytes} uses {@code AtomicLong.getAndSet(0)},
+ * multiple releases from different paths are idempotent.
  */
 public class SearchServiceCircuitBreakerTests extends ESTestCase {
 

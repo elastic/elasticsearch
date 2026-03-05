@@ -24,6 +24,7 @@ import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportResponse;
+import org.elasticsearch.transport.TestDirectResponseChannel;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
@@ -43,14 +44,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Tests for {@link SearchTransportService#asBytesResponse}, covering the network-channel path
- * that pre-serializes responses into {@link BytesTransportResponse} and the associated
- * {@code afterSerialize} callback. These tests exercise the actual method (not a mirror helper)
- * and verify {@link BytesTransportResponse} creation, round-trip deserialization, and cleanup
+ * Tests for {@link SearchTransportService#asBytesResponse}, covering both the network-channel path
+ * (pre-serializes into {@link BytesTransportResponse}) and the direct-channel path (forwards the
+ * original response as-is for local/same-node requests). Tests verify {@link BytesTransportResponse}
+ * creation, round-trip deserialization, {@code afterSerialize} callback semantics, and cleanup
  * on serialization failure.
- * <p>
- * {@link TestTransportChannel} is not a {@code DirectResponseChannel}, so the method takes the
- * network (pre-serialization) path for all tests here.
  */
 public class AsBytesResponseTests extends ESTestCase {
 
@@ -223,6 +221,92 @@ public class AsBytesResponseTests extends ESTestCase {
 
         assertFalse("afterSerialize must not be called on upstream failure", afterSerializeCalled.get());
         assertThat(sentException.get(), notNullValue());
+    }
+
+    public void testDirectPathForwardsOriginalResponse() {
+        var afterSerializeCalled = new AtomicBoolean(false);
+        var sentResponse = new AtomicReference<TransportResponse>();
+
+        var channel = new TestDirectResponseChannel(ActionListener.wrap(sentResponse::set, e -> fail("unexpected failure: " + e)));
+
+        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
+            transportService,
+            channel,
+            response -> afterSerializeCalled.set(true)
+        );
+
+        var original = new SimpleTestResponse("direct-test");
+        listener.onResponse(original);
+
+        assertTrue("afterSerialize must be called on direct path", afterSerializeCalled.get());
+        assertSame("direct path must forward the original response, not BytesTransportResponse", original, sentResponse.get());
+    }
+
+    public void testDirectPathCallsAfterSerializeAfterOnResponse() {
+        var callOrder = new java.util.ArrayList<String>();
+
+        var channel = new TestDirectResponseChannel(
+            ActionListener.wrap(resp -> callOrder.add("onResponse"), e -> fail("unexpected failure: " + e))
+        );
+
+        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
+            transportService,
+            channel,
+            response -> callOrder.add("afterSerialize")
+        );
+
+        listener.onResponse(new SimpleTestResponse("order-test"));
+
+        assertThat(callOrder, equalTo(java.util.List.of("onResponse", "afterSerialize")));
+    }
+
+    public void testDirectPathOnFailureDoesNotCallAfterSerialize() {
+        var afterSerializeCalled = new AtomicBoolean(false);
+        var sentException = new AtomicReference<Exception>();
+
+        var channel = new TestDirectResponseChannel(ActionListener.wrap(resp -> fail("should not succeed"), sentException::set));
+
+        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
+            transportService,
+            channel,
+            response -> afterSerializeCalled.set(true)
+        );
+
+        listener.onFailure(new RuntimeException("upstream failure"));
+
+        assertFalse("afterSerialize must not be called on upstream failure", afterSerializeCalled.get());
+        assertThat(sentException.get(), notNullValue());
+    }
+
+    public void testDirectPathReleasesCircuitBreakerBytesAfterResponse() {
+        var breakerUsed = new AtomicLong(5000);
+        CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
+
+        var sentResponse = new AtomicReference<TransportResponse>();
+
+        var channel = new TestDirectResponseChannel(ActionListener.wrap(sentResponse::set, e -> fail("unexpected failure: " + e)));
+
+        var contextId = new ShardSearchContextId("test-session", 1);
+        var fetchResult = new FetchSearchResult(contextId, null);
+        try {
+            var hits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f);
+            fetchResult.shardResult(hits, null);
+            fetchResult.setSearchHitsSizeBytes(5000L);
+
+            ActionListener<FetchSearchResult> listener = SearchTransportService.asBytesResponse(
+                transportService,
+                channel,
+                response -> response.releaseCircuitBreakerBytes(breaker)
+            );
+
+            listener.onResponse(fetchResult);
+
+            assertThat("breaker bytes should be released after response on direct path", breakerUsed.get(), equalTo(0L));
+            assertThat(fetchResult.getSearchHitsSizeBytes(), equalTo(0L));
+            assertSame("direct path must forward original response", fetchResult, sentResponse.get());
+        } finally {
+            fetchResult.decRef();
+        }
     }
 
     static class SimpleTestResponse extends TransportResponse {

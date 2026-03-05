@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -48,6 +49,42 @@ final class CompressionDelegatingFormatReader implements FormatReader {
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize, int rowLimit)
         throws IOException {
         return inner.read(new DecompressingStorageObject(object, codec), projectedColumns, batchSize, rowLimit);
+    }
+
+    @Override
+    public CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        List<Attribute> resolvedAttributes
+    ) throws IOException {
+        return inner.readSplit(
+            new DecompressingStorageObject(object, codec),
+            projectedColumns,
+            batchSize,
+            skipFirstLine,
+            resolvedAttributes
+        );
+    }
+
+    @Override
+    public CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        boolean lastSplit,
+        List<Attribute> resolvedAttributes
+    ) throws IOException {
+        return inner.readSplit(
+            new DecompressingStorageObject(object, codec),
+            projectedColumns,
+            batchSize,
+            skipFirstLine,
+            lastSplit,
+            resolvedAttributes
+        );
     }
 
     @Override

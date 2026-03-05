@@ -275,7 +275,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             commitService,
             hollowShardsService,
             sharedBlobCacheWarmingService,
-            RefreshThrottler.Noop::new,
+            new RefreshManagerService.Noop(),
             mockReshardIndexService(),
             commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
             documentParsingProvider,

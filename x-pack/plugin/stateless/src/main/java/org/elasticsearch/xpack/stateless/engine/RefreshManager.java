@@ -22,25 +22,22 @@ import org.elasticsearch.index.engine.Engine;
 
 import java.util.function.Consumer;
 
-public interface RefreshThrottler {
+public interface RefreshManager {
 
     /**
-     * Receives a request that might get throttled.
+     * Handles an external refresh request.
      *
-     * @param request to handle
-     * @return true if throttled, false otherwise.
+     * @param request the refresh request to handle
      */
-    boolean maybeThrottle(Request request);
+    void onExternalRefresh(Request request);
 
     // A refresh request
     record Request(String source, ActionListener<Engine.RefreshResult> listener) {}
 
-    @FunctionalInterface
-    interface Factory {
-        RefreshThrottler create(Consumer<Request> refresh);
-    }
-
-    class Noop implements RefreshThrottler {
+    /**
+     * A no-op implementation that immediately executes all refresh requests.
+     */
+    class Noop implements RefreshManager {
         private final Consumer<Request> refresh;
 
         public Noop(Consumer<Request> refresh) {
@@ -48,10 +45,8 @@ public interface RefreshThrottler {
         }
 
         @Override
-        public boolean maybeThrottle(Request request) {
+        public void onExternalRefresh(Request request) {
             refresh.accept(request);
-            return false;
         }
     }
-
 }

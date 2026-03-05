@@ -582,7 +582,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mockCommitService(indexConfig.getIndexSettings().getNodeSettings()),
                 mock(HollowShardsService.class),
                 mock(SharedBlobCacheWarmingService.class),
-                RefreshThrottler.Noop::new,
+                new RefreshManagerService.Noop(),
                 mock(ReshardIndexService.class),
                 commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
                 DocumentParsingProvider.EMPTY_INSTANCE,

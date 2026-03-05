@@ -119,7 +119,7 @@ import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
-import org.elasticsearch.xpack.stateless.engine.RefreshThrottler;
+import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
@@ -271,7 +271,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             StatelessCommitService statelessCommitService,
             HollowShardsService hollowShardsService,
             SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
-            RefreshThrottler.Factory refreshThrottlerFactory,
+            RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
             IndexEngine.EngineMetrics engineMetrics
@@ -291,7 +291,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 statelessCommitService,
                 hollowShardsService,
                 sharedBlobCacheWarmingService,
-                refreshThrottlerFactory,
+                refreshManagerService,
                 reshardIndexService,
                 documentParsingProvider,
                 engineMetrics

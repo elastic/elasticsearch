@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -510,7 +511,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
             boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
             boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES);
-            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo);
+            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
 
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
                 return new TimeSeriesAggregate(
@@ -1349,6 +1350,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx) {
         return input -> new MetricsInfo(source(ctx), input);
+    }
+
+    @Override
+    public PlanFactory visitTsInfoCommand(EsqlBaseParser.TsInfoCommandContext ctx) {
+        return input -> new TsInfo(source(ctx), input);
     }
 
     private String getValueColumnName(EsqlBaseParser.ValueNameContext ctx, String promqlQuery) {

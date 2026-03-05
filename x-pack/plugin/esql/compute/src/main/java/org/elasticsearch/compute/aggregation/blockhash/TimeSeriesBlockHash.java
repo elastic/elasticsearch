@@ -41,7 +41,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
     private final int tsidChannel;
     private final int timestampChannel;
     private final boolean reverseOutput;
-    private final BytesRefHashTable tsidHash;
+    public final BytesRefHashTable tsidHash;
     private final LongLongHashTable finalHash;
     private final BytesRef scratch = new BytesRef();
     private long minTimestamp = Long.MAX_VALUE;

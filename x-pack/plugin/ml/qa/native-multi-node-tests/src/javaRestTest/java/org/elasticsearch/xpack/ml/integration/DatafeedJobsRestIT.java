@@ -1548,6 +1548,49 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"acknowledged\":true}"));
     }
 
+    public void testNonCpsDatafeedStatsOmitsCrossProjectStats() throws Exception {
+        String jobId = "job-no-cps-stats";
+        createJob(jobId, "airline");
+        String datafeedId = jobId + "-datafeed";
+        new DatafeedBuilder(datafeedId, jobId, "airline-data").setFrequency(TimeValue.timeValueSeconds(5)).build();
+        openJob(client(), jobId);
+
+        Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
+        startRequest.addParameter("start", "2016-06-01T00:00:00Z");
+        Response response = client().performRequest(startRequest);
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
+
+        // While running: running_state should be present but cross_project_stats should be absent
+        assertBusy(() -> {
+            try {
+                Response statsResponse = client().performRequest(
+                    new Request("GET", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats")
+                );
+                String body = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(body, containsString("\"real_time_configured\":true"));
+                assertThat(body, containsString("\"running_state\""));
+                assertFalse("cross_project_stats should not appear for non-CPS datafeed", body.contains("cross_project_stats"));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        Response stopResponse = client().performRequest(
+            new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop")
+        );
+        assertThat(EntityUtils.toString(stopResponse.getEntity()), equalTo("{\"stopped\":true}"));
+
+        // After stopping: neither running_state nor cross_project_stats should appear
+        Response stoppedStatsResponse = client().performRequest(
+            new Request("GET", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats")
+        );
+        String stoppedBody = EntityUtils.toString(stoppedStatsResponse.getEntity());
+        assertThat(stoppedBody, containsString("\"state\":\"stopped\""));
+        assertFalse("cross_project_stats should not appear for stopped non-CPS datafeed", stoppedBody.contains("cross_project_stats"));
+
+        client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_close"));
+    }
+
     public void testForceDeleteWhileDatafeedIsRunning() throws Exception {
         String jobId = "job-realtime-2";
         createJob(jobId, "airline");

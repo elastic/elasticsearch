@@ -426,6 +426,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
   method: testAccumulateSearchLoad
   issue: https://github.com/elastic/elasticsearch/issues/143708
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testTsIndexConflictingTypes {NONE}
+  issue: https://github.com/elastic/elasticsearch/issues/142477
 
 # Examples:
 #

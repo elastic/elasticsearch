@@ -192,41 +192,6 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         );
     }
 
-    private List<List<Object>> runGroupedTopN(
-        List<Page> pages,
-        int topCount,
-        List<ElementType> elementTypes,
-        List<TopNEncoder> encoders,
-        List<SortOrder> sortOrders,
-        int[] groupKeys
-    ) {
-        DriverContext driverContext = driverContext();
-        List<List<Object>> actual = new ArrayList<>();
-        try (
-            Driver driver = TestDriverFactory.create(
-                driverContext,
-                new CannedSourceOperator(pages.iterator()),
-                List.of(
-                    new GroupedTopNOperator(
-                        driverContext.blockFactory(),
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        topCount,
-                        elementTypes,
-                        encoders,
-                        sortOrders,
-                        groupKeys,
-                        randomPageSize(),
-                        Long.MAX_VALUE
-                    )
-                ),
-                new PageConsumerOperator(p -> readInto(actual, p))
-            )
-        ) {
-            new TestDriverRunner().run(driver);
-        }
-        return actual;
-    }
-
     /**
      * Tests that the SORTED input ordering optimization short-circuiting addInput() doesn't incorrectly skip rows
      * belonging to groups not yet populated when another group's row is rejected.
@@ -452,6 +417,41 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             .collect(Collectors.groupingBy(s -> s, Collectors.counting()));
 
         assertThat(actualCounts, equalTo(expectedCounts));
+    }
+
+    private List<List<Object>> runGroupedTopN(
+        List<Page> pages,
+        int topCount,
+        List<ElementType> elementTypes,
+        List<TopNEncoder> encoders,
+        List<SortOrder> sortOrders,
+        int[] groupKeys
+    ) {
+        DriverContext driverContext = driverContext();
+        List<List<Object>> actual = new ArrayList<>();
+        try (
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(pages.iterator()),
+                List.of(
+                    new GroupedTopNOperator(
+                        driverContext.blockFactory(),
+                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        topCount,
+                        elementTypes,
+                        encoders,
+                        sortOrders,
+                        groupKeys,
+                        randomPageSize(),
+                        Long.MAX_VALUE
+                    )
+                ),
+                new PageConsumerOperator(p -> readInto(actual, p))
+            )
+        ) {
+            new TestDriverRunner().run(driver);
+        }
+        return actual;
     }
 
     private static Comparator<List<Object>> comparatorFromSortOrders(List<SortOrder> sortOrders) {

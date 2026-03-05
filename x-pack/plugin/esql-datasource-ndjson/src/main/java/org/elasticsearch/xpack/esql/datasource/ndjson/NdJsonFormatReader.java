@@ -11,18 +11,20 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 /**
  * FormatReader implementation for NDJSON files.
+ * Implements {@link SegmentableFormatReader} for intra-file parallel parsing.
  */
-public class NdJsonFormatReader implements FormatReader {
+public class NdJsonFormatReader implements SegmentableFormatReader {
 
     private final BlockFactory blockFactory;
 
@@ -74,6 +76,29 @@ public class NdJsonFormatReader implements FormatReader {
             trimLastPartialLine,
             resolvedAttributes
         );
+    }
+
+    @Override
+    public long findNextRecordBoundary(InputStream stream) throws IOException {
+        long consumed = 0;
+        int b;
+        while ((b = stream.read()) != -1) {
+            consumed++;
+            if (b == '\n') {
+                return consumed;
+            }
+            if (b == '\r') {
+                int next = stream.read();
+                if (next == -1) {
+                    return consumed;
+                }
+                consumed++;
+                if (next == '\n') {
+                    return consumed;
+                }
+            }
+        }
+        return -1;
     }
 
     @Override

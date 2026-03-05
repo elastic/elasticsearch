@@ -890,6 +890,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         // we don't check currentToken here because it returns START_OBJECT that is inconsistent with returning a value
         assertEquals("text", multiFieldParser.textOrNull());
         assertEquals(documentParser.getTokenLocation(), multiFieldParser.getTokenLocation());
+        assertEquals(documentParser.getTokenLocation(), multiFieldParser.getCurrentLocation());
         assertEquals(documentParser.currentName(), multiFieldParser.currentName());
     }
 
@@ -918,6 +919,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             assertEquals(expectedParser.currentToken(), token);
             assertEquals(expectedParser.currentToken(), multiFieldParser.currentToken());
             assertEquals(expectedTokenLocation, multiFieldParser.getTokenLocation());
+            assertEquals(expectedTokenLocation, multiFieldParser.getCurrentLocation());
             assertEquals(documentParser.nextToken(), multiFieldParser.currentToken());
             assertEquals(documentParser.currentName(), multiFieldParser.currentName());
         }

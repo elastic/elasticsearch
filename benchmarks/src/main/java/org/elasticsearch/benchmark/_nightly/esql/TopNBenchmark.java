@@ -134,7 +134,6 @@ public class TopNBenchmark {
             List.of(),
             ClusterSettings.createBuiltInClusterSettings()
         );
-        int[] groupKeys = new int[0];
         SharedMinCompetitive.Supplier minCompetitive = new SharedMinCompetitive.Supplier(
             blockFactory.breaker(),
             IntStream.range(0, encoders.size())
@@ -155,11 +154,10 @@ public class TopNBenchmark {
             elementTypes,
             encoders,
             sortOrders,
-            groupKeys,
             8 * 1024,
             Long.MAX_VALUE,
             sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED,
-            minCompetitive // This is optional, but doesn't add much overhead either way
+            minCompetitive
         );
     }
 

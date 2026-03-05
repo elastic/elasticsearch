@@ -209,8 +209,8 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     }
 
     /**
-     * Checks the existence of another 'visible' non-grouping Limit, that exists behind an operation that doesn't produce output more data than
-     * its input (that is not a relation/source nor aggregation).
+     * Checks the existence of another 'visible' non-grouping Limit, that exists behind an operation that doesn't produce more output data
+     * than its input (that is not a relation/source nor aggregation).
      * P.S. Typically an aggregation produces less data than the input.
      */
     private static Limit descendantLimit(UnaryPlan unary) {

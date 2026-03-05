@@ -379,17 +379,6 @@ tests:
     - test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
     - test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
   issue: https://github.com/elastic/elasticsearch/pull/142366
-# error={reason=cannot change field "_id" from doc values type=NONE to inconsistent doc values type=BINARY, type=illegal_argument_exception}
-- class: org.elasticsearch.xpack.logsdb.TsdbIndexingRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.logsdb.TsdbIT
-  method: testTsdbDataStream
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-# TsidExtractingIdFieldMapper.createField(TsidExtractingIdFieldMapper.java:88)
-# _id must be unset or set to [0XbnnsE9AoHbGpRryIzXGQ0wf_8Zlt1Ce_8AAAAH] but was [BwAAAEk383E-IPhiAADmaSK9hAA] because [index] is in time_series mode
-- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
-  issue: https://github.com/elastic/elasticsearch/pull/142366
 # TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(TsidExtractingIdFieldMapper.java:179) assert id.length > Long.BYTES + Integer.BYTES;
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testProcessOnceOnPrimary

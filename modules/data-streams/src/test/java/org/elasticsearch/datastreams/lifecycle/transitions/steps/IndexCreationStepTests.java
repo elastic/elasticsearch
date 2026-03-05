@@ -38,7 +38,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -173,7 +172,6 @@ public class IndexCreationStepTests extends ESTestCase {
         indexCreationStep.maybeMountSnapshot(stepContext);
         assertThat(capturedMountListener.get(), is(notNullValue()));
 
-        // RestoreSnapshotResponse with a non-null RestoreInfo → status() == OK
         RestoreInfo restoreInfo = new RestoreInfo("test-snap", List.of(DLM_FROZEN_INDEX_PREFIX + indexName), 1, 1);
         capturedMountListener.get().onResponse(new RestoreSnapshotResponse(restoreInfo));
 
@@ -187,65 +185,9 @@ public class IndexCreationStepTests extends ESTestCase {
         indexCreationStep.maybeMountSnapshot(stepContext);
         assertThat(capturedMountListener.get(), is(notNullValue()));
 
-        // null RestoreInfo → status() == ACCEPTED
         capturedMountListener.get().onResponse(new RestoreSnapshotResponse((RestoreInfo) null));
 
         assertThat(errorStore.getError(projectId, indexName), is(nullValue()));
-    }
-
-    public void testMountSnapshotWithUnexpectedStatusRecordsError() {
-        ProjectState projectState = projectStateBuilder().build();
-        DlmStepContext stepContext = createStepContext(projectState);
-
-        // Override client so we can inject a bad-status response directly
-        AtomicReference<ActionListener<RestoreSnapshotResponse>> listenerRef = new AtomicReference<>();
-        Client badStatusClient = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
-            @Override
-            @SuppressWarnings("unchecked")
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                if (request instanceof MountSearchableSnapshotRequest) {
-                    listenerRef.set((ActionListener<RestoreSnapshotResponse>) listener);
-                }
-            }
-        };
-        DlmStepContext badStatusContext = new DlmStepContext(
-            index,
-            projectState,
-            deduplicator,
-            errorStore,
-            randomIntBetween(1, 10),
-            badStatusClient,
-            Clock.systemDefaultZone()
-        );
-
-        indexCreationStep.maybeMountSnapshot(badStatusContext);
-        assertThat(listenerRef.get(), is(notNullValue()));
-
-        // Simulate a bad-status response by calling onFailure with a suitable exception.
-        // (The production code calls l.onFailure for non-OK/ACCEPTED, so we verify error recording.)
-        listenerRef.get()
-            .onFailure(
-                new ElasticsearchException(
-                    "DLM failed to mount frozen index ["
-                        + DLM_FROZEN_INDEX_PREFIX
-                        + indexName
-                        + "] for original index ["
-                        + indexName
-                        + "], got response ["
-                        + RestStatus.INTERNAL_SERVER_ERROR
-                        + "]"
-                )
-            );
-
-        assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
-        assertThat(
-            Objects.requireNonNull(errorStore.getError(projectId, indexName)).error(),
-            containsString("DLM failed to mount frozen index")
-        );
     }
 
     public void testMountSnapshotFailureRecordsErrorInStore() {

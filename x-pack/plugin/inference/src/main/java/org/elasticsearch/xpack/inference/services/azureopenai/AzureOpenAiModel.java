@@ -114,4 +114,6 @@ public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
     public abstract String apiVersion();
 
     public abstract String[] operationPathSegments();
+
+    public abstract void validate();
 }

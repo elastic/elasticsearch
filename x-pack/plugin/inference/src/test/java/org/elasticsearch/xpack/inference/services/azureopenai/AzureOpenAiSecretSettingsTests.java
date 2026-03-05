@@ -17,95 +17,113 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.ENTRA_ID;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsSettings.API_KEY;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsSettings.ENTRA_ID;
+import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiSecretSettings> {
+public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AzureOpenAiEntraIdApiKeySecrets> {
 
-    public static AzureOpenAiSecretSettings createRandom() {
-        boolean isApiKeyNotEntraId = randomBoolean();
-        return new AzureOpenAiSecretSettings(
-            isApiKeyNotEntraId ? randomSecureStringOfLength(15) : null,
-            isApiKeyNotEntraId == false ? randomSecureStringOfLength(15) : null
-        );
+    public static AzureOpenAiEntraIdApiKeySecrets createRandomEntraIdApiKeySecrets() {
+        if (randomBoolean()) {
+            return new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
+        }
+        return new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
     }
 
     public void testNewSecretSettingsApiKey() {
-        AzureOpenAiSecretSettings initialSettings = createRandom();
-        AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(randomSecureStringOfLength(15), null);
-        AzureOpenAiSecretSettings finalSettings = (AzureOpenAiSecretSettings) initialSettings.newSecretSettings(
-            Map.of(API_KEY, newSettings.apiKey().toString())
+        var initialSettings = createRandomEntraIdApiKeySecrets();
+        var apiKey = randomSecureStringOfLength(15);
+        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(apiKey, null);
+        var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(
+            Map.of(API_KEY, apiKey.toString())
         );
 
         assertEquals(newSettings, finalSettings);
     }
 
     public void testNewSecretSettingsEntraId() {
-        AzureOpenAiSecretSettings initialSettings = createRandom();
-        AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(null, randomSecureStringOfLength(15));
-        AzureOpenAiSecretSettings finalSettings = (AzureOpenAiSecretSettings) initialSettings.newSecretSettings(
-            Map.of(ENTRA_ID, newSettings.entraId().toString())
+        var initialSettings = createRandomEntraIdApiKeySecrets();
+        var entraId = randomSecureStringOfLength(15);
+        var newSettings = new AzureOpenAiEntraIdApiKeySecrets(null, entraId);
+        var finalSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(
+            Map.of(ENTRA_ID, entraId.toString())
         );
 
         assertEquals(newSettings, finalSettings);
     }
 
     public void testFromMap_ApiKey_Only() {
-        var serviceSettings = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiSecretSettings.API_KEY, "abc")));
-        assertThat(new AzureOpenAiSecretSettings(new SecureString("abc".toCharArray()), null), is(serviceSettings));
+        var result = AzureOpenAiSecretsSettings.fromMap(new HashMap<>(Map.of(API_KEY, "abc")));
+        assertThat(result, instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(new SecureString("abc".toCharArray()), null)));
     }
 
     public void testFromMap_EntraId_Only() {
-        var serviceSettings = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "xyz")));
-        assertThat(new AzureOpenAiSecretSettings(null, new SecureString("xyz".toCharArray())), is(serviceSettings));
+        var result = AzureOpenAiSecretsSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "xyz")));
+        assertThat(result, instanceOf(AzureOpenAiEntraIdApiKeySecrets.class));
+        assertThat(result, is(new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString("xyz".toCharArray()))));
+    }
+
+    public void testFromMap_ClientSecret_Only() {
+        var result = AzureOpenAiSecretsSettings.fromMap(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "clientsecret")));
+        assertThat(result, instanceOf(AzureOpenAiOAuth2Secrets.class));
+        assertThat(
+            ((AzureOpenAiOAuth2Secrets) result).getClientSecret().toString(),
+            is("clientsecret")
+        );
     }
 
     public void testFromMap_ReturnsNull_WhenMapIsNull() {
-        assertNull(AzureOpenAiSecretSettings.fromMap(null));
+        assertNull(AzureOpenAiSecretsSettings.fromMap(null));
     }
 
     public void testFromMap_MissingApiKeyAndEntraId_ThrowsError() {
-        var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>()));
-
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "[secret_settings] must have either the [%s] or the [%s] key set",
-                    AzureOpenAiSecretSettings.API_KEY,
-                    ENTRA_ID
-                )
-            )
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiSecretsSettings.fromMap(new HashMap<>())
         );
+
+        assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
+        assertThat(thrownException.getMessage(), containsString(API_KEY));
+        assertThat(thrownException.getMessage(), containsString(ENTRA_ID));
+        assertThat(thrownException.getMessage(), containsString(CLIENT_SECRET_FIELD));
     }
 
     public void testFromMap_HasBothApiKeyAndEntraId_ThrowsError() {
-        var mapValues = getAzureOpenAiSecretSettingsMap("apikey", "entraid");
-        var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiSecretSettings.fromMap(mapValues));
-
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "[secret_settings] must have only one of the [%s] or the [%s] key set",
-                    AzureOpenAiSecretSettings.API_KEY,
-                    ENTRA_ID
-                )
-            )
+        var mapValues = getAzureOpenAiSecretSettingsMap("apikey", "entraid", null);
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiSecretsSettings.fromMap(mapValues)
         );
+
+        assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
+        assertThat(thrownException.getMessage(), containsString("received:"));
+    }
+
+    public void testFromMap_TwoOrMoreSecrets_ThrowsError() {
+        var mapWithApiKeyAndClientSecret = getAzureOpenAiSecretSettingsMap("apikey", null, "clientsecret");
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiSecretsSettings.fromMap(mapWithApiKeyAndClientSecret)
+        );
+
+        assertThat(thrownException.getMessage(), containsString("must have exactly one of"));
+        assertThat(thrownException.getMessage(), containsString("received:"));
     }
 
     public void testFromMap_EmptyApiKey_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiSecretSettings.API_KEY, "")))
+            () -> AzureOpenAiSecretsSettings.fromMap(new HashMap<>(Map.of(API_KEY, "")))
         );
 
         assertThat(
@@ -113,7 +131,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
             containsString(
                 Strings.format(
                     "[secret_settings] Invalid value empty string. [%s] must be a non-empty string",
-                    AzureOpenAiSecretSettings.API_KEY
+                    API_KEY
                 )
             )
         );
@@ -122,7 +140,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     public void testFromMap_EmptyEntraId_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "")))
+            () -> AzureOpenAiSecretsSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "")))
         );
 
         assertThat(
@@ -131,9 +149,8 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
         );
     }
 
-    // test toXContent
-    public void testToXContext_WritesApiKeyOnlyWhenEntraIdIsNull() throws IOException {
-        var testSettings = new AzureOpenAiSecretSettings(new SecureString("apikey"), null);
+    public void testToXContext_WritesApiKeyOnlyWhenApiKeySet() throws IOException {
+        var testSettings = new AzureOpenAiEntraIdApiKeySecrets(new SecureString("apikey".toCharArray()), null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         testSettings.toXContent(builder, null);
@@ -143,8 +160,8 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
         assertThat(xContentResult, is(expectedResult));
     }
 
-    public void testToXContext_WritesEntraIdOnlyWhenApiKeyIsNull() throws IOException {
-        var testSettings = new AzureOpenAiSecretSettings(null, new SecureString("entraid"));
+    public void testToXContext_WritesEntraIdOnlyWhenEntraIdSet() throws IOException {
+        var testSettings = new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString("entraid".toCharArray()));
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         testSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
@@ -153,50 +170,71 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
         assertThat(xContentResult, is(expectedResult));
     }
 
-    @Override
-    protected Writeable.Reader<AzureOpenAiSecretSettings> instanceReader() {
-        return AzureOpenAiSecretSettings::new;
+    public void testToXContent_WritesClientSecretOnlyWhenSet() throws IOException {
+        var result = AzureOpenAiSecretsSettings.fromMap(
+            new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "clientsecret"))
+        );
+        assertThat(result, instanceOf(AzureOpenAiOAuth2Secrets.class));
+        var testSettings = (AzureOpenAiOAuth2Secrets) result;
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        testSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        var expectedResult = Strings.format("{\"%s\":\"clientsecret\"}", CLIENT_SECRET_FIELD);
+        assertThat(xContentResult, is(expectedResult));
     }
 
     @Override
-    protected AzureOpenAiSecretSettings createTestInstance() {
-        return createRandom();
+    protected Writeable.Reader<AzureOpenAiEntraIdApiKeySecrets> instanceReader() {
+        return AzureOpenAiEntraIdApiKeySecrets::new;
     }
 
     @Override
-    protected AzureOpenAiSecretSettings mutateInstance(AzureOpenAiSecretSettings instance) throws IOException {
-        SecureString apiKey = instance.apiKey();
-        SecureString entraId = instance.entraId();
-        if (apiKey == null || entraId == null) {
-            if (randomBoolean()) {
-                apiKey = randomValueOtherThan(instance.apiKey(), () -> randomSecureStringOfLength(15));
-            } else {
-                entraId = randomValueOtherThan(instance.entraId(), () -> randomSecureStringOfLength(15));
-            }
-        } else {
-            if (randomBoolean()) {
-                apiKey = randomBoolean() ? null : randomValueOtherThan(instance.apiKey(), () -> randomSecureStringOfLength(15));
-            } else {
-                entraId = randomBoolean() ? null : randomValueOtherThan(instance.entraId(), () -> randomSecureStringOfLength(15));
-            }
+    protected AzureOpenAiEntraIdApiKeySecrets createTestInstance() {
+        return createRandomEntraIdApiKeySecrets();
+    }
+
+    @Override
+    protected AzureOpenAiEntraIdApiKeySecrets mutateInstance(AzureOpenAiEntraIdApiKeySecrets instance) throws IOException {
+        if (instance.apiKey() != null) {
+            return new AzureOpenAiEntraIdApiKeySecrets(
+                randomValueOtherThan(instance.apiKey(), () -> randomSecureStringOfLength(15)),
+                null
+            );
         }
-        return new AzureOpenAiSecretSettings(apiKey, entraId);
+        return new AzureOpenAiEntraIdApiKeySecrets(
+            null,
+            randomValueOtherThan(instance.entraId(), () -> randomSecureStringOfLength(15))
+        );
     }
 
     @Override
-    protected AzureOpenAiSecretSettings mutateInstanceForVersion(AzureOpenAiSecretSettings instance, TransportVersion version) {
+    protected AzureOpenAiEntraIdApiKeySecrets mutateInstanceForVersion(
+        AzureOpenAiEntraIdApiKeySecrets instance,
+        TransportVersion version
+    ) {
         return instance;
     }
 
     public static Map<String, Object> getAzureOpenAiSecretSettingsMap(@Nullable String apiKey, @Nullable String entraId) {
+        return getAzureOpenAiSecretSettingsMap(apiKey, entraId, null);
+    }
+
+    public static Map<String, Object> getAzureOpenAiSecretSettingsMap(
+        @Nullable String apiKey,
+        @Nullable String entraId,
+        @Nullable String clientSecret
+    ) {
         var map = new HashMap<String, Object>();
         if (apiKey != null) {
-            map.put(AzureOpenAiSecretSettings.API_KEY, apiKey);
+            map.put(API_KEY, apiKey);
         }
         if (entraId != null) {
             map.put(ENTRA_ID, entraId);
         }
+        if (clientSecret != null) {
+            map.put(CLIENT_SECRET_FIELD, clientSecret);
+        }
         return map;
     }
-
 }

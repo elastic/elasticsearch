@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
 
@@ -48,7 +48,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
             service,
             AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiCompletionTaskSettings.fromMap(taskSettings),
-            AzureOpenAiSecretSettings.fromMap(secrets)
+            AzureOpenAiSecretsSettings.fromMap(secrets)
         );
     }
 
@@ -59,7 +59,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         String service,
         AzureOpenAiCompletionServiceSettings serviceSettings,
         AzureOpenAiCompletionTaskSettings taskSettings,
-        @Nullable AzureOpenAiSecretSettings secrets
+        @Nullable AzureOpenAiSecretsSettings secrets
     ) {
         this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
     }
@@ -92,8 +92,8 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
     }
 
     @Override
-    public AzureOpenAiSecretSettings getSecretSettings() {
-        return (AzureOpenAiSecretSettings) super.getSecretSettings();
+    public AzureOpenAiSecretsSettings getSecretSettings() {
+        return (AzureOpenAiSecretsSettings) super.getSecretSettings();
     }
 
     @Override

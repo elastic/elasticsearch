@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
 
@@ -51,7 +51,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            AzureOpenAiSecretSettings.fromMap(secrets)
+            AzureOpenAiSecretsSettings.fromMap(secrets)
         );
     }
 
@@ -63,7 +63,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         AzureOpenAiEmbeddingsServiceSettings serviceSettings,
         AzureOpenAiEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable AzureOpenAiSecretSettings secrets
+        @Nullable AzureOpenAiSecretsSettings secrets
     ) {
         this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
@@ -99,8 +99,8 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
     }
 
     @Override
-    public AzureOpenAiSecretSettings getSecretSettings() {
-        return (AzureOpenAiSecretSettings) super.getSecretSettings();
+    public AzureOpenAiSecretsSettings getSecretSettings() {
+        return (AzureOpenAiSecretsSettings) super.getSecretSettings();
     }
 
     @Override
@@ -126,5 +126,12 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
     @Override
     public String[] operationPathSegments() {
         return new String[] { AzureOpenAiUtils.EMBEDDINGS_PATH };
+    }
+
+    @Override
+    public void validate() {
+        var serviceSettings = getServiceSettings();
+        var secretSettings = getSecretSettings();
+
     }
 }

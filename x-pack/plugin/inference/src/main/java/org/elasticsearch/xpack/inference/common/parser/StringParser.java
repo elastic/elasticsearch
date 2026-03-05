@@ -18,7 +18,12 @@ import static org.elasticsearch.xpack.inference.common.parser.ObjectParserUtils.
 
 public final class StringParser {
 
-    public static List<String> extractStringList(Map<String, Object> map, String field, String root, ValidationException validationException) {
+    public static List<String> extractStringList(
+        Map<String, Object> map,
+        String field,
+        String root,
+        ValidationException validationException
+    ) {
         try {
             return StringParser.extractStringList(map, field, root);
         } catch (IllegalArgumentException e) {

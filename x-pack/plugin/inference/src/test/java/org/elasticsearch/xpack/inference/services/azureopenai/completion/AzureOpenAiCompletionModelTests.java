@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiEntraIdApiKeySecrets;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
 
 import java.net.URISyntaxException;
@@ -163,16 +163,16 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
         String inferenceEntityId,
         TaskType taskType
     ) {
-        var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
-        var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
-
+        var secretSettings = apiKey != null
+            ? new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null)
+            : new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
         return new AzureOpenAiCompletionModel(
             inferenceEntityId,
             taskType,
             "service",
             new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null),
             new AzureOpenAiCompletionTaskSettings(user),
-            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
+            secretSettings
         );
     }
 

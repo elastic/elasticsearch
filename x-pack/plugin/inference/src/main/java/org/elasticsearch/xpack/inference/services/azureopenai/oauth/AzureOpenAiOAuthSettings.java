@@ -7,180 +7,153 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.oauth;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class AzureOpenAiOAuthSettings implements ToXContentObject, Writeable {
-    public static final String OAUTH_FIELD = "oauth";
+import static org.elasticsearch.xpack.inference.common.parser.StringParser.extractStringList;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsSettings.EXACTLY_ONE_CONFIG_DESCRIPTION;
+
+public class AzureOpenAiOAuthSettings implements ToXContentFragment, Writeable {
+
+    public static final TransportVersion AZURE_OPENAI_OAUTH_SETTINGS = TransportVersion.fromName("azure_openai_oauth_settings");
+
     public static final String CLIENT_ID_FIELD = "client_id";
     public static final String TENANT_ID_FIELD = "tenant_id";
     public static final String SCOPES_FIELD = "scopes";
 
-    private record UpdateRequestSettings(@Nullable String clientId, @Nullable String tenantId, @Nullable List<String> scopes) {}
+    public static final String REQUIRED_FIELDS = String.join(",", CLIENT_ID_FIELD, TENANT_ID_FIELD, SCOPES_FIELD);
 
-    // TODO let's not have an object, instead we'll flatten this so it isn't within oauth. When parsing from storage we'll need to do it
-    // in AzureOpenAiEmbeddingsServiceSettings
+    public static final String REQUIRED_FIELDS_DESCRIPTION = Strings.format("OAuth2 requires the fields [%s], to be set.", REQUIRED_FIELDS);
 
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<UpdateRequestSettings, Void> UPDATE_PARSER = new ConstructingObjectParser<>(
-        "azure_openai_oauth_settings_update",
-        true,
-        args -> new UpdateRequestSettings((String) args[0], (String) args[1], (List<String>) args[2])
-    );
+    private record UpdateSettings(@Nullable String clientId, @Nullable String tenantId, @Nullable List<String> scopes) {}
 
-    public record SettingsWithCounter(Settings settings, int offest) implements AzureOpenAiOAuthRequestServiceSettings.Offset {
-        public SettingsWithCounter {
-            Objects.requireNonNull(settings);
-        }
+    private final String clientId;
+    private final String tenantId;
+    private final List<String> scopes;
 
-        public static SettingsWithCounter create(Object[] args, int offset) {
-            var index = offset;
-            return new SettingsWithCounter(Settings.create(args[index++], args[index++], args[index++]), index);
-        }
+    public static AzureOpenAiOAuthSettings fromMap(Map<String, Object> map, ValidationException validationException) {
+        var clientId = extractOptionalString(map, CLIENT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var tenantId = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var scopes = extractStringList(map, SCOPES_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        @Override
-        public int offset() {
-            return offest;
-        }
+        validateFields(clientId, tenantId, scopes, validationException);
+
+        return new AzureOpenAiOAuthSettings(clientId, tenantId, scopes);
     }
 
-    // TODO see if this ends up adding any value, if now just inline the fields in this class instead
-    public record Settings(String clientId, String tenantId, List<String> scopes) {
-        public Settings {
-            Objects.requireNonNull(clientId);
-            Objects.requireNonNull(tenantId);
-            Objects.requireNonNull(scopes);
+    private static void validateFields(
+        @Nullable String clientId,
+        @Nullable String tenantId,
+        @Nullable List<String> scopes,
+        ValidationException validationException
+    ) {
+        boolean anyFieldProvided = clientId != null || tenantId != null || scopes != null;
+        boolean allFieldsProvided = clientId != null && tenantId != null && scopes != null;
+
+        if (anyFieldProvided && allFieldsProvided == false) {
+            validationException.addValidationError(
+                Strings.format(
+                    "[%s] all OAuth2 fields must be provided together, received client_id=%s tenant_id=%s scopes=%s",
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    clientId,
+                    tenantId,
+                    scopes
+                )
+            );
         }
 
-        @SuppressWarnings("unchecked")
-        public static Settings create(Object clientId, Object tenantId, Object scope) {
-            return new Settings((String) clientId, (String) tenantId, (List<String>) scope);
-        }
-
-        public static Settings create(Object[] args, int offset) {
-            return create(args[offset], args[offset + 1], args[offset + 2]);
-        }
+        validationException.throwIfValidationErrorsExist();
     }
 
-    private static final ConstructingObjectParser<Settings, Void> STORAGE_PARSER = new ConstructingObjectParser<>(
-        "azure_openai_oauth_settings",
-        true,
-        args -> Settings.create(args[0], args[1], args[2])
-    );
-
-    static {
-        initParserFieldsAsRequired(STORAGE_PARSER);
-        initParser(UPDATE_PARSER, true);
-    }
-
-    public static <Value, Context> void initParserFieldsAsRequired(ConstructingObjectParser<Value, Context> parser) {
-        initParser(parser, false);
-    }
-
-    private static <Value, Context> void initParser(ConstructingObjectParser<Value, Context> parser, boolean isForUpdate) {
-        parser.declareString(
-            isForUpdate ? ConstructingObjectParser.optionalConstructorArg() : ConstructingObjectParser.constructorArg(),
-            new ParseField(CLIENT_ID_FIELD)
-        );
-        parser.declareString(
-            isForUpdate ? ConstructingObjectParser.optionalConstructorArg() : ConstructingObjectParser.constructorArg(),
-            new ParseField(TENANT_ID_FIELD)
-        );
-        parser.declareStringArray(
-            isForUpdate ? ConstructingObjectParser.optionalConstructorArg() : ConstructingObjectParser.constructorArg(),
-            new ParseField(SCOPES_FIELD)
-        );
-    }
-
-    public static AzureOpenAiOAuthSettings fromMap(Map<String, Object> map) {
-        try {
-            try (
-                var xContent = XContentBuilder.builder(JsonXContent.jsonXContent).map(map);
-                var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, Strings.toString(xContent))
-            ) {
-                return new AzureOpenAiOAuthSettings(STORAGE_PARSER.parse(parser, null));
-            }
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to parse Azure OpenAI OAuth settings", e);
-        }
-    }
-
-    private final Settings settings;
-
-    AzureOpenAiOAuthSettings(Settings settings) {
-        this.settings = Objects.requireNonNull(settings);
+    AzureOpenAiOAuthSettings(String clientId, String tenantId, List<String> scopes) {
+        this.clientId = Objects.requireNonNull(clientId);
+        this.tenantId = Objects.requireNonNull(tenantId);
+        this.scopes = Objects.requireNonNull(scopes);
     }
 
     public AzureOpenAiOAuthSettings(StreamInput in) throws IOException {
-        this(new Settings(in.readString(), in.readString(), in.readStringCollectionAsImmutableList()));
+        this(in.readString(), in.readString(), in.readStringCollectionAsImmutableList());
     }
 
     public String getClientId() {
-        return settings.clientId();
+        return clientId;
     }
 
     public String getTenantId() {
-        return settings.tenantId();
+        return tenantId;
     }
 
     public List<String> getScopes() {
-        return settings.scopes();
+        return scopes;
     }
 
     public AzureOpenAiOAuthSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var updated = fromMapForUpdate(serviceSettings);
+        var validationException = new ValidationException();
+        var updated = fromMapForUpdate(serviceSettings, validationException);
 
-        // It is not possible to remove a field because all fields are required, so a user can only update existing fields
-        return new AzureOpenAiOAuthSettings(
-            new Settings(
-                Objects.requireNonNullElse(updated.clientId(), settings.clientId()),
-                Objects.requireNonNullElse(updated.tenantId(), settings.tenantId()),
-                Objects.requireNonNullElse(updated.scopes(), settings.scopes())
-            )
-        );
+        var clientIdToUpdate = updated.clientId() != null ? updated.clientId() : clientId;
+        var tenantIdToUpdate = updated.tenantId() != null ? updated.tenantId() : tenantId;
+        var scopesToUpdate = updated.scopes() != null ? updated.scopes() : scopes;
+
+        validateFields(clientIdToUpdate, tenantIdToUpdate, scopesToUpdate, validationException);
+
+        return new AzureOpenAiOAuthSettings(clientIdToUpdate, tenantIdToUpdate, scopesToUpdate);
     }
 
-    private static UpdateRequestSettings fromMapForUpdate(Map<String, Object> map) {
-        try {
-            try (
-                var xContent = XContentBuilder.builder(JsonXContent.jsonXContent).map(map);
-                var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, Strings.toString(xContent))
-            ) {
-                return UPDATE_PARSER.parse(parser, null);
-            }
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to parse Azure OpenAI OAuth settings during update", e);
-        }
+    private static UpdateSettings fromMapForUpdate(Map<String, Object> map, ValidationException validationException) {
+        var clientId = extractOptionalString(map, CLIENT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var tenant_id = extractOptionalString(map, TENANT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var scopes = extractStringList(map, SCOPES_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new UpdateSettings(clientId, tenant_id, scopes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(settings.clientId());
-        out.writeString(settings.tenantId());
-        out.writeStringCollection(settings.scopes());
+        out.writeString(clientId);
+        out.writeString(tenantId);
+        out.writeStringCollection(scopes);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(CLIENT_ID_FIELD, settings.clientId());
-        builder.field(TENANT_ID_FIELD, settings.tenantId());
-        builder.field(SCOPES_FIELD, settings.scopes());
-        builder.endObject();
+        builder.field(CLIENT_ID_FIELD, clientId);
+        builder.field(TENANT_ID_FIELD, tenantId);
+        builder.field(SCOPES_FIELD, scopes);
         return builder;
+    }
+
+    public static Map<String, SettingsConfiguration> getClientSecretConfiguration() {
+        return Map.of(
+            AzureOpenAiOAuth2Secrets.CLIENT_SECRET_FIELD,
+            new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
+                .setDescription(EXACTLY_ONE_CONFIG_DESCRIPTION)
+                .setLabel("OAuth2 Client Secret")
+                .setRequired(false)
+                .setSensitive(true)
+                .setUpdatable(true)
+                .setType(SettingsConfigurationFieldType.STRING)
+                .build()
+        );
     }
 }

@@ -13,7 +13,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiEntraIdApiKeySecrets;
 
 import java.net.URISyntaxException;
 import java.util.Map;
@@ -106,8 +106,9 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         @Nullable String entraId,
         String inferenceEntityId
     ) {
-        var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
-        var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+        var secretSettings = apiKey != null
+            ? new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null)
+            : new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
@@ -115,7 +116,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
             new AzureOpenAiEmbeddingsTaskSettings(user),
             chunkingSettings,
-            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
+            secretSettings
         );
     }
 
@@ -128,8 +129,9 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         @Nullable String entraId,
         String inferenceEntityId
     ) {
-        var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
-        var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+        var secretSettings = apiKey != null
+            ? new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null)
+            : new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
@@ -137,7 +139,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
             new AzureOpenAiEmbeddingsTaskSettings(user),
             null,
-            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
+            secretSettings
         );
     }
 
@@ -154,9 +156,9 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         @Nullable String entraId,
         String inferenceEntityId
     ) {
-        var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
-        var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
-
+        var secretSettings = apiKey != null
+            ? new AzureOpenAiEntraIdApiKeySecrets(new SecureString(apiKey.toCharArray()), null)
+            : new AzureOpenAiEntraIdApiKeySecrets(null, new SecureString(entraId.toCharArray()));
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
@@ -173,7 +175,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             ),
             new AzureOpenAiEmbeddingsTaskSettings(user),
             null,
-            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
+            secretSettings
         );
     }
 }

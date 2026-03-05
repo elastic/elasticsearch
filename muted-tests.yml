@@ -432,6 +432,9 @@ tests:
 - class: org.elasticsearch.xpack.eql.action.EqlLoggingIT
   method: testEqlLoggingPartialShardFailure
   issue: https://github.com/elastic/elasticsearch/issues/143659
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/143023
 
 # Examples:
 #

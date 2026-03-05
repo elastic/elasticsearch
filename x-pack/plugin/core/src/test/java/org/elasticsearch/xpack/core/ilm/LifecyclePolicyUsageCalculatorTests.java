@@ -221,7 +221,6 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
     }
 
     public void testGetUsageWhenDataStreamHasNoTemplate() {
-        // Test when a data stream does not use the policy anymore because of a higher template
         IndexMetadata index = IndexMetadata.builder("myindex")
             .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
             .build();

@@ -22,32 +22,12 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
  * final step of the encode pipeline. ID {@code 0xA0} is reserved for test-only payload stages.
  *
  */
-// NOTE: This enum declares the complete set of stage IDs for the pipeline codec.
-// Concrete stage implementations are introduced in subsequent PRs; the IDs are declared
-// here upfront because they are the wire format contract - adding them now locks in the
-// byte assignments and ensures the registry is self-consistent from day one.
-// A subset (e.g., DELTA_STAGE, OFFSET_STAGE, GCD_STAGE, BITPACK_PAYLOAD) is used by
-// framework-level tests to exercise the pipeline without depending on real stage code.
 public enum StageId {
     DELTA_STAGE((byte) 0x01, "delta"),
     OFFSET_STAGE((byte) 0x02, "offset"),
     GCD_STAGE((byte) 0x03, "gcd"),
-    PATCHED_PFOR_STAGE((byte) 0x04, "pfor"),
-    XOR_STAGE((byte) 0x05, "xor"),
-    ALP_DOUBLE_STAGE((byte) 0x06, "alpDouble"),
-    ALP_FLOAT_STAGE((byte) 0x07, "alpFloat"),
-    FPC_DOUBLE_STAGE((byte) 0x08, "fpcDouble"),
-    FPC_FLOAT_STAGE((byte) 0x09, "fpcFloat"),
 
-    BITPACK_PAYLOAD((byte) 0xA1, "bitPack"),
-    ZSTD_PAYLOAD((byte) 0xA2, "zstd"),
-    LZ4_PAYLOAD((byte) 0xA3, "lz4"),
-    GORILLA_DOUBLE_PAYLOAD((byte) 0xA4, "gorillaDouble"),
-    GORILLA_FLOAT_PAYLOAD((byte) 0xA5, "gorillaFloat"),
-    CHIMP_DOUBLE_PAYLOAD((byte) 0xA6, "chimpDouble"),
-    CHIMP_FLOAT_PAYLOAD((byte) 0xA7, "chimpFloat"),
-    CHIMP128_DOUBLE_PAYLOAD((byte) 0xA8, "chimp128Double"),
-    CHIMP128_FLOAT_PAYLOAD((byte) 0xA9, "chimp128Float");
+    BITPACK_PAYLOAD((byte) 0xA1, "bitPack");
 
     /** Persisted byte identifier. Must never change once assigned. */
     public final byte id;
@@ -76,21 +56,7 @@ public enum StageId {
             case (byte) 0x01 -> DELTA_STAGE;
             case (byte) 0x02 -> OFFSET_STAGE;
             case (byte) 0x03 -> GCD_STAGE;
-            case (byte) 0x04 -> PATCHED_PFOR_STAGE;
-            case (byte) 0x05 -> XOR_STAGE;
-            case (byte) 0x06 -> ALP_DOUBLE_STAGE;
-            case (byte) 0x07 -> ALP_FLOAT_STAGE;
-            case (byte) 0x08 -> FPC_DOUBLE_STAGE;
-            case (byte) 0x09 -> FPC_FLOAT_STAGE;
             case (byte) 0xA1 -> BITPACK_PAYLOAD;
-            case (byte) 0xA2 -> ZSTD_PAYLOAD;
-            case (byte) 0xA3 -> LZ4_PAYLOAD;
-            case (byte) 0xA4 -> GORILLA_DOUBLE_PAYLOAD;
-            case (byte) 0xA5 -> GORILLA_FLOAT_PAYLOAD;
-            case (byte) 0xA6 -> CHIMP_DOUBLE_PAYLOAD;
-            case (byte) 0xA7 -> CHIMP_FLOAT_PAYLOAD;
-            case (byte) 0xA8 -> CHIMP128_DOUBLE_PAYLOAD;
-            case (byte) 0xA9 -> CHIMP128_FLOAT_PAYLOAD;
             default -> throw new IllegalArgumentException("Unknown stage ID: 0x" + Integer.toHexString(id & 0xFF));
         };
     }

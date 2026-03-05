@@ -17,8 +17,8 @@ import java.util.Objects;
  * Immutable specification for a field's encoding pipeline.
  *
  * <p>Captures the data type, block size, and ordered stage specifications for
- * deferred codec construction. Use {@link #forLongs}, {@link #forDoubles}, or
- * {@link #forFloats} to start building a configuration via the fluent builder API.
+ * deferred codec construction. Use {@link #forLongs} to start building a
+ * configuration via the fluent builder API.
  */
 public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize, List<StageSpec> specs) {
 
@@ -39,26 +39,6 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
      */
     public static LongBuilder forLongs(int blockSize) {
         return new LongBuilder(blockSize);
-    }
-
-    /**
-     * Starts building a double (floating-point) pipeline configuration.
-     *
-     * @param blockSize the number of values per block
-     * @return a new builder for double pipelines
-     */
-    public static DoubleBuilder forDoubles(int blockSize) {
-        return new DoubleBuilder(blockSize);
-    }
-
-    /**
-     * Starts building a float (single-precision floating-point) pipeline configuration.
-     *
-     * @param blockSize the number of values per block
-     * @return a new builder for float pipelines
-     */
-    public static FloatBuilder forFloats(int blockSize) {
-        return new FloatBuilder(blockSize);
     }
 
     /**
@@ -94,7 +74,7 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
 
     /**
      * Builder for long (integral) pipelines.
-     * Provides transform stages and terminal payload stages.
+     * Provides transform stages and a terminal payload stage.
      */
     public static final class LongBuilder {
         private final int blockSize;
@@ -119,269 +99,9 @@ public record PipelineConfig(PipelineDescriptor.DataType dataType, int blockSize
             return this;
         }
 
-        public LongBuilder patchedPFor() {
-            specs.add(new StageSpec.PatchedPForStage());
-            return this;
-        }
-
-        public LongBuilder xor() {
-            specs.add(new StageSpec.XorStage());
-            return this;
-        }
-
         public PipelineConfig bitPack() {
             specs.add(new StageSpec.BitPackPayload());
             return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
-        }
-
-        public PipelineConfig zstd() {
-            specs.add(new StageSpec.ZstdPayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
-        }
-
-        public PipelineConfig zstd(int compressionLevel) {
-            specs.add(new StageSpec.ZstdPayload(compressionLevel));
-            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
-        }
-
-        public PipelineConfig lz4() {
-            specs.add(new StageSpec.Lz4Payload());
-            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
-        }
-
-        public PipelineConfig lz4HighCompression() {
-            specs.add(new StageSpec.Lz4Payload(true));
-            return new PipelineConfig(PipelineDescriptor.DataType.LONG, blockSize, specs);
-        }
-    }
-
-    /**
-     * Builder for double (floating-point) pipelines.
-     * Includes all transform stages from {@link LongBuilder} plus double-specific stages.
-     */
-    public static final class DoubleBuilder {
-        private final int blockSize;
-        private final List<StageSpec> specs = new ArrayList<>();
-
-        private DoubleBuilder(int blockSize) {
-            this.blockSize = blockSize;
-        }
-
-        public DoubleBuilder delta() {
-            specs.add(new StageSpec.DeltaStage());
-            return this;
-        }
-
-        public DoubleBuilder offset() {
-            specs.add(new StageSpec.OffsetStage());
-            return this;
-        }
-
-        public DoubleBuilder gcd() {
-            specs.add(new StageSpec.GcdStage());
-            return this;
-        }
-
-        public DoubleBuilder patchedPFor() {
-            specs.add(new StageSpec.PatchedPForStage());
-            return this;
-        }
-
-        public DoubleBuilder xor() {
-            specs.add(new StageSpec.XorStage());
-            return this;
-        }
-
-        public DoubleBuilder alp() {
-            specs.add(new StageSpec.AlpDoubleStage());
-            return this;
-        }
-
-        public DoubleBuilder alp(double maxError) {
-            specs.add(new StageSpec.AlpDoubleStage(maxError));
-            return this;
-        }
-
-        public DoubleBuilder fpc() {
-            specs.add(new StageSpec.FpcDoubleStage());
-            return this;
-        }
-
-        public DoubleBuilder fpc(int tableSize) {
-            specs.add(new StageSpec.FpcDoubleStage(tableSize));
-            return this;
-        }
-
-        public DoubleBuilder fpc(double maxError) {
-            specs.add(new StageSpec.FpcDoubleStage(0, maxError));
-            return this;
-        }
-
-        public DoubleBuilder fpc(int tableSize, double maxError) {
-            specs.add(new StageSpec.FpcDoubleStage(tableSize, maxError));
-            return this;
-        }
-
-        public PipelineConfig bitPack() {
-            specs.add(new StageSpec.BitPackPayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
-        }
-
-        public PipelineConfig zstd() {
-            specs.add(new StageSpec.ZstdPayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
-        }
-
-        public PipelineConfig zstd(int compressionLevel) {
-            specs.add(new StageSpec.ZstdPayload(compressionLevel));
-            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
-        }
-
-        public PipelineConfig lz4() {
-            specs.add(new StageSpec.Lz4Payload());
-            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
-        }
-
-        public PipelineConfig lz4HighCompression() {
-            specs.add(new StageSpec.Lz4Payload(true));
-            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
-        }
-
-        public PipelineConfig gorilla() {
-            specs.add(new StageSpec.GorillaDoublePayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
-        }
-
-        public PipelineConfig gorilla(double maxError) {
-            specs.add(new StageSpec.GorillaDoublePayload(maxError));
-            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
-        }
-
-        public PipelineConfig chimp() {
-            specs.add(new StageSpec.ChimpDoublePayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
-        }
-
-        public PipelineConfig chimp(double maxError) {
-            specs.add(new StageSpec.ChimpDoublePayload(maxError));
-            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
-        }
-
-        public PipelineConfig chimp128() {
-            specs.add(new StageSpec.Chimp128DoublePayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
-        }
-
-        public PipelineConfig chimp128(double maxError) {
-            specs.add(new StageSpec.Chimp128DoublePayload(maxError));
-            return new PipelineConfig(PipelineDescriptor.DataType.DOUBLE, blockSize, specs);
-        }
-    }
-
-    /**
-     * Builder for float (single-precision floating-point) pipelines.
-     */
-    public static final class FloatBuilder {
-        private final int blockSize;
-        private final List<StageSpec> specs = new ArrayList<>();
-
-        private FloatBuilder(int blockSize) {
-            this.blockSize = blockSize;
-        }
-
-        public FloatBuilder delta() {
-            specs.add(new StageSpec.DeltaStage());
-            return this;
-        }
-
-        public FloatBuilder offset() {
-            specs.add(new StageSpec.OffsetStage());
-            return this;
-        }
-
-        public FloatBuilder gcd() {
-            specs.add(new StageSpec.GcdStage());
-            return this;
-        }
-
-        public FloatBuilder patchedPFor() {
-            specs.add(new StageSpec.PatchedPForStage());
-            return this;
-        }
-
-        public FloatBuilder xor() {
-            specs.add(new StageSpec.XorStage());
-            return this;
-        }
-
-        public FloatBuilder alp() {
-            specs.add(new StageSpec.AlpFloatStage());
-            return this;
-        }
-
-        public FloatBuilder alp(double maxError) {
-            specs.add(new StageSpec.AlpFloatStage(maxError));
-            return this;
-        }
-
-        public FloatBuilder fpc() {
-            specs.add(new StageSpec.FpcFloatStage());
-            return this;
-        }
-
-        public FloatBuilder fpc(int tableSize) {
-            specs.add(new StageSpec.FpcFloatStage(tableSize));
-            return this;
-        }
-
-        public FloatBuilder fpc(double maxError) {
-            specs.add(new StageSpec.FpcFloatStage(0, maxError));
-            return this;
-        }
-
-        public FloatBuilder fpc(int tableSize, double maxError) {
-            specs.add(new StageSpec.FpcFloatStage(tableSize, maxError));
-            return this;
-        }
-
-        public PipelineConfig bitPack() {
-            specs.add(new StageSpec.BitPackPayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
-        }
-
-        public PipelineConfig zstd() {
-            specs.add(new StageSpec.ZstdPayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
-        }
-
-        public PipelineConfig zstd(int compressionLevel) {
-            specs.add(new StageSpec.ZstdPayload(compressionLevel));
-            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
-        }
-
-        public PipelineConfig lz4() {
-            specs.add(new StageSpec.Lz4Payload());
-            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
-        }
-
-        public PipelineConfig lz4HighCompression() {
-            specs.add(new StageSpec.Lz4Payload(true));
-            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
-        }
-
-        public PipelineConfig gorilla() {
-            specs.add(new StageSpec.GorillaFloatPayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
-        }
-
-        public PipelineConfig chimp() {
-            specs.add(new StageSpec.ChimpFloatPayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
-        }
-
-        public PipelineConfig chimp128() {
-            specs.add(new StageSpec.Chimp128FloatPayload());
-            return new PipelineConfig(PipelineDescriptor.DataType.FLOAT, blockSize, specs);
         }
     }
 }

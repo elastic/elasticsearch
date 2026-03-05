@@ -30,27 +30,9 @@ public class PipelineConfigTests extends ESTestCase {
         assertEquals(4, config.specs().size());
     }
 
-    public void testDoubleBuilderFluency() {
-        final int blockSize = randomBlockSize();
-        final PipelineConfig config = PipelineConfig.forDoubles(blockSize).alp().gorilla();
-        assertEquals(PipelineDescriptor.DataType.DOUBLE, config.dataType());
-        assertEquals(blockSize, config.blockSize());
-        assertEquals(2, config.specs().size());
-    }
-
-    public void testFloatBuilderFluency() {
-        final int blockSize = randomBlockSize();
-        final PipelineConfig config = PipelineConfig.forFloats(blockSize).alp().gorilla();
-        assertEquals(PipelineDescriptor.DataType.FLOAT, config.dataType());
-        assertEquals(blockSize, config.blockSize());
-        assertEquals(2, config.specs().size());
-    }
-
     public void testBlockSizePreserved() {
         final int blockSize = randomBlockSize();
         assertEquals(blockSize, PipelineConfig.forLongs(blockSize).delta().bitPack().blockSize());
-        assertEquals(blockSize, PipelineConfig.forDoubles(blockSize).alp().gorilla().blockSize());
-        assertEquals(blockSize, PipelineConfig.forFloats(blockSize).alp().gorilla().blockSize());
     }
 
     public void testEquality() {
@@ -69,7 +51,11 @@ public class PipelineConfigTests extends ESTestCase {
 
     public void testInequalityByDataType() {
         final int blockSize = randomBlockSize();
-        assertNotEquals(PipelineConfig.forLongs(blockSize).delta().bitPack(), PipelineConfig.forDoubles(blockSize).delta().bitPack());
+        final List<StageSpec> stages = List.of(new StageSpec.DeltaStage(), new StageSpec.BitPackPayload());
+        assertNotEquals(
+            PipelineConfig.of(PipelineDescriptor.DataType.LONG, blockSize, stages),
+            PipelineConfig.of(PipelineDescriptor.DataType.DOUBLE, blockSize, stages)
+        );
     }
 
     public void testInequalityByBlockSize() {
@@ -79,8 +65,6 @@ public class PipelineConfigTests extends ESTestCase {
     public void testDataTypePreserved() {
         final int blockSize = randomBlockSize();
         assertEquals(PipelineDescriptor.DataType.LONG, PipelineConfig.forLongs(blockSize).delta().bitPack().dataType());
-        assertEquals(PipelineDescriptor.DataType.DOUBLE, PipelineConfig.forDoubles(blockSize).alp().gorilla().dataType());
-        assertEquals(PipelineDescriptor.DataType.FLOAT, PipelineConfig.forFloats(blockSize).alp().gorilla().dataType());
     }
 
     public void testSpecsPreserved() {
@@ -125,156 +109,13 @@ public class PipelineConfigTests extends ESTestCase {
     }
 
     public void testAllLongTransformStages() {
-        final PipelineConfig config = PipelineConfig.forLongs(randomBlockSize()).delta().offset().gcd().patchedPFor().xor().bitPack();
+        final PipelineConfig config = PipelineConfig.forLongs(randomBlockSize()).delta().offset().gcd().bitPack();
 
-        assertEquals(6, config.specs().size());
+        assertEquals(4, config.specs().size());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.DeltaStage.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.OffsetStage.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.GcdStage.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPForStage.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.XorStage.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPackPayload.class)));
-    }
-
-    public void testLongTerminalStages() {
-        final int blockSize = randomBlockSize();
-        assertThat(PipelineConfig.forLongs(blockSize).bitPack().specs(), hasItem(instanceOf(StageSpec.BitPackPayload.class)));
-        assertThat(PipelineConfig.forLongs(blockSize).zstd().specs(), hasItem(instanceOf(StageSpec.ZstdPayload.class)));
-        assertThat(PipelineConfig.forLongs(blockSize).lz4().specs(), hasItem(instanceOf(StageSpec.Lz4Payload.class)));
-    }
-
-    public void testDoubleTerminalStages() {
-        final int blockSize = randomBlockSize();
-        assertThat(PipelineConfig.forDoubles(blockSize).gorilla().specs(), hasItem(instanceOf(StageSpec.GorillaDoublePayload.class)));
-        assertThat(PipelineConfig.forDoubles(blockSize).chimp().specs(), hasItem(instanceOf(StageSpec.ChimpDoublePayload.class)));
-        assertThat(PipelineConfig.forDoubles(blockSize).chimp128().specs(), hasItem(instanceOf(StageSpec.Chimp128DoublePayload.class)));
-    }
-
-    public void testFloatTerminalStages() {
-        final int blockSize = randomBlockSize();
-        assertThat(PipelineConfig.forFloats(blockSize).gorilla().specs(), hasItem(instanceOf(StageSpec.GorillaFloatPayload.class)));
-        assertThat(PipelineConfig.forFloats(blockSize).chimp().specs(), hasItem(instanceOf(StageSpec.ChimpFloatPayload.class)));
-        assertThat(PipelineConfig.forFloats(blockSize).chimp128().specs(), hasItem(instanceOf(StageSpec.Chimp128FloatPayload.class)));
-    }
-
-    public void testZstdCompressionLevel() {
-        final int blockSize = randomBlockSize();
-        final int compressionLevel = randomIntBetween(
-            StageSpec.ZstdPayload.MIN_COMPRESSION_LEVEL,
-            StageSpec.ZstdPayload.MAX_COMPRESSION_LEVEL
-        );
-        final PipelineConfig config = switch (randomIntBetween(0, 2)) {
-            case 0 -> PipelineConfig.forLongs(blockSize).delta().zstd(compressionLevel);
-            case 1 -> PipelineConfig.forDoubles(blockSize).zstd(compressionLevel);
-            default -> PipelineConfig.forFloats(blockSize).zstd(compressionLevel);
-        };
-        final StageSpec.ZstdPayload zstd = config.specs()
-            .stream()
-            .filter(s -> s instanceof StageSpec.ZstdPayload)
-            .map(s -> (StageSpec.ZstdPayload) s)
-            .findFirst()
-            .orElseThrow();
-        assertEquals(compressionLevel, zstd.compressionLevel());
-    }
-
-    public void testLz4HighCompression() {
-        final int blockSize = randomBlockSize();
-        final PipelineConfig config = switch (randomIntBetween(0, 2)) {
-            case 0 -> PipelineConfig.forLongs(blockSize).delta().lz4HighCompression();
-            case 1 -> PipelineConfig.forDoubles(blockSize).lz4HighCompression();
-            default -> PipelineConfig.forFloats(blockSize).lz4HighCompression();
-        };
-        final StageSpec.Lz4Payload lz4 = config.specs()
-            .stream()
-            .filter(s -> s instanceof StageSpec.Lz4Payload)
-            .map(s -> (StageSpec.Lz4Payload) s)
-            .findFirst()
-            .orElseThrow();
-        assertTrue(lz4.highCompression());
-    }
-
-    public void testAlpDoubleWithMaxError() {
-        final int blockSize = randomBlockSize();
-        final double maxError = randomDoubleBetween(0.001, 1.0, true);
-        final PipelineConfig config = PipelineConfig.forDoubles(blockSize).alp(maxError).gorilla();
-        final StageSpec.AlpDoubleStage alp = (StageSpec.AlpDoubleStage) config.specs().getFirst();
-        assertEquals(maxError, alp.maxError(), 0.0);
-    }
-
-    public void testAlpFloatWithMaxError() {
-        final int blockSize = randomBlockSize();
-        final double maxError = randomDoubleBetween(0.001, 1.0, true);
-        final PipelineConfig config = PipelineConfig.forFloats(blockSize).alp(maxError).gorilla();
-        final StageSpec.AlpFloatStage alp = (StageSpec.AlpFloatStage) config.specs().getFirst();
-        assertEquals(maxError, alp.maxError(), 0.0);
-    }
-
-    public void testFpcDoubleVariants() {
-        final int blockSize = randomBlockSize();
-        final int tableSize = randomIntBetween(0, 2048);
-        final double maxError = randomDoubleBetween(0.0, 1.0, true);
-
-        assertThat(PipelineConfig.forDoubles(blockSize).fpc().bitPack().specs(), hasItem(instanceOf(StageSpec.FpcDoubleStage.class)));
-        assertEquals(
-            tableSize,
-            ((StageSpec.FpcDoubleStage) PipelineConfig.forDoubles(blockSize).fpc(tableSize).bitPack().specs().getFirst()).tableSize()
-        );
-        assertEquals(
-            maxError,
-            ((StageSpec.FpcDoubleStage) PipelineConfig.forDoubles(blockSize).fpc(maxError).bitPack().specs().getFirst()).maxError(),
-            0.0
-        );
-        final StageSpec.FpcDoubleStage fpc = (StageSpec.FpcDoubleStage) PipelineConfig.forDoubles(blockSize)
-            .fpc(tableSize, maxError)
-            .bitPack()
-            .specs()
-            .getFirst();
-        assertEquals(tableSize, fpc.tableSize());
-        assertEquals(maxError, fpc.maxError(), 0.0);
-    }
-
-    public void testFpcFloatVariants() {
-        final int blockSize = randomBlockSize();
-        final int tableSize = randomIntBetween(0, 2048);
-        final double maxError = randomDoubleBetween(0.0, 1.0, true);
-
-        assertThat(PipelineConfig.forFloats(blockSize).fpc().bitPack().specs(), hasItem(instanceOf(StageSpec.FpcFloatStage.class)));
-        assertEquals(
-            tableSize,
-            ((StageSpec.FpcFloatStage) PipelineConfig.forFloats(blockSize).fpc(tableSize).bitPack().specs().getFirst()).tableSize()
-        );
-        assertEquals(
-            maxError,
-            ((StageSpec.FpcFloatStage) PipelineConfig.forFloats(blockSize).fpc(maxError).bitPack().specs().getFirst()).maxError(),
-            0.0
-        );
-        final StageSpec.FpcFloatStage fpc = (StageSpec.FpcFloatStage) PipelineConfig.forFloats(blockSize)
-            .fpc(tableSize, maxError)
-            .bitPack()
-            .specs()
-            .getFirst();
-        assertEquals(tableSize, fpc.tableSize());
-        assertEquals(maxError, fpc.maxError(), 0.0);
-    }
-
-    public void testDoublePayloadMaxError() {
-        final int blockSize = randomBlockSize();
-        final double maxError = randomDoubleBetween(0.0, 1.0, true);
-        assertEquals(
-            maxError,
-            ((StageSpec.GorillaDoublePayload) PipelineConfig.forDoubles(blockSize).gorilla(maxError).specs().getFirst()).maxError(),
-            0.0
-        );
-        assertEquals(
-            maxError,
-            ((StageSpec.ChimpDoublePayload) PipelineConfig.forDoubles(blockSize).chimp(maxError).specs().getFirst()).maxError(),
-            0.0
-        );
-        assertEquals(
-            maxError,
-            ((StageSpec.Chimp128DoublePayload) PipelineConfig.forDoubles(blockSize).chimp128(maxError).specs().getFirst()).maxError(),
-            0.0
-        );
     }
 
     public void testStageSpecsHaveCorrectStageIds() {

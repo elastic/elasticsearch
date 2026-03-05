@@ -61,6 +61,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -1772,6 +1773,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             });
 
             logger.info("--> Deleting shard {}", shardId);
+            commitService.markIndexDeleting(List.of(testHarness.shardId));
             testHarness.commitService.delete(testHarness.shardId);
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
@@ -2497,6 +2499,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             assertThat(deletedCommits, is(empty()));
 
+            commitService.markIndexDeleting(List.of(testHarness.shardId));
             commitService.delete(shardId);
             commitService.closeShard(testHarness.shardId);
             commitService.unregister(shardId);
@@ -2643,6 +2646,116 @@ public class StatelessCommitServiceTests extends ESTestCase {
             final var virtualBcc = testHarness.commitService.getCurrentVirtualBcc(testHarness.shardId);
             assertThat(virtualBcc.getLastPendingCompoundCommit().getCommitReference(), sameInstance(commitRef));
             verify(commitRef, never()).close();
+        }
+    }
+
+    public void testResourcesNotClearedWhenShardClosedWithoutDelete() throws Exception {
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
+                return new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
+                    @Override
+                    void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                        deletedCommits.add(staleCompoundCommit);
+                    }
+                };
+            }
+        }) {
+            var shardId = testHarness.shardId;
+            var commitService = testHarness.commitService;
+
+            var numberOfCommits = randomIntBetween(2, 4);
+            List<StatelessCommitRef> commits = testHarness.generateIndexCommits(numberOfCommits, randomBoolean());
+            if (randomBoolean()) {
+                commits.addAll(testHarness.generateIndexCommits(1, true));
+            }
+            for (StatelessCommitRef commitRef : commits) {
+                commitService.onCommitCreation(commitRef);
+                commitService.ensureMaxGenerationToUploadForFlush(shardId, commitRef.getGeneration());
+                waitUntilBCCIsUploaded(commitService, shardId, commitRef.getGeneration());
+            }
+
+            // Inc-ref on each blob reference, but otherwise release all other references so that we can focus on dec-ref after close
+            final var shardCommitState = (StatelessCommitService.ShardCommitState) commitService.getCommitBCCResolverForShard(shardId);
+            final var releasables = commits.stream()
+                .map(commit -> shardCommitState.incRef(new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration())))
+                .toList();
+            shardCommitState.updateUnpromotableShardAssignedNodes(Set.of(), Long.MAX_VALUE, Set.of()); // release search nodes
+            markDeletedAndLocalUnused(List.of(), commits, commitService, shardId); // release local refs and readers
+
+            // Close without delete, releases all references, no commit should be deleted because the shard is closed and not deleted
+            commitService.closeShard(testHarness.shardId);
+            releasables.forEach(Releasable::close);
+            assertThat(deletedCommits, is(empty()));
+
+            // Unregister the shard, still no commit deletion
+            commitService.unregister(shardId);
+            assertThat(deletedCommits, is(empty()));
+        }
+    }
+
+    public void testResourcesClearedWhenShardDeletedAndClosed() throws Exception {
+        Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected StatelessCommitCleaner createCommitCleaner(
+                StatelessClusterConsistencyService consistencyService,
+                ThreadPool threadPool,
+                ObjectStoreService objectStoreService
+            ) {
+                return new StatelessCommitCleaner(null, null, mock(ObjectStoreService.class)) {
+                    @Override
+                    void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
+                        deletedCommits.add(staleCompoundCommit);
+                    }
+                };
+            }
+        }) {
+            var shardId = testHarness.shardId;
+            var commitService = testHarness.commitService;
+
+            var numberOfCommits = randomIntBetween(2, 4);
+            List<StatelessCommitRef> commits = testHarness.generateIndexCommits(numberOfCommits, randomBoolean());
+            if (randomBoolean()) {
+                commits.addAll(testHarness.generateIndexCommits(1, true));
+            }
+            for (StatelessCommitRef commitRef : commits) {
+                commitService.onCommitCreation(commitRef);
+                commitService.ensureMaxGenerationToUploadForFlush(shardId, commitRef.getGeneration());
+                waitUntilBCCIsUploaded(commitService, shardId, commitRef.getGeneration());
+            }
+
+            // Inc-ref on each blob reference, but otherwise release all other references so that we can focus on dec-ref after close
+            final var shardCommitState = (StatelessCommitService.ShardCommitState) commitService.getCommitBCCResolverForShard(shardId);
+            final var releasables = commits.stream()
+                .map(commit -> shardCommitState.incRef(new PrimaryTermAndGeneration(commit.getPrimaryTerm(), commit.getGeneration())))
+                .toList();
+            shardCommitState.updateUnpromotableShardAssignedNodes(Set.of(), Long.MAX_VALUE, Set.of()); // release search nodes
+            markDeletedAndLocalUnused(List.of(), commits, commitService, shardId); // release local refs and readers
+
+            // Mark index as deleting and close the shard
+            final boolean releaseBeforeShardMarkedDeleted = randomBoolean();
+            commitService.markIndexDeleting(List.of(testHarness.shardId));
+            commitService.closeShard(testHarness.shardId);
+            assertThat(deletedCommits, is(empty()));
+
+            // Commits are deleted once all references are released since the index/shard is deleted
+            if (releaseBeforeShardMarkedDeleted) {
+                releasables.forEach(Releasable::close);
+                assertBusy(() -> assertThat(deletedCommits, is(equalTo(staleCommits(commits, shardId)))));
+                commitService.delete(shardId);
+            } else {
+                commitService.delete(shardId);
+                releasables.forEach(Releasable::close);
+                assertBusy(() -> assertThat(deletedCommits, is(equalTo(staleCommits(commits, shardId)))));
+            }
+            commitService.unregister(shardId);
+
         }
     }
 

@@ -461,7 +461,7 @@ public class SystemIndices {
             .toList();
 
         if (automata.isEmpty()) {
-            return new CharacterRunAutomaton(Automata.makeEmpty());
+            return new CharacterRunAutomaton(EMPTY);
         }
 
         return new CharacterRunAutomaton(Operations.determinize(Operations.union(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));

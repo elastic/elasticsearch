@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -332,25 +333,18 @@ public class SystemIndicesTests extends ESTestCase {
     }
 
     public void testBuildAssociatedIndicesAutomaton() {
-        Collection<String> models = List.of(
-            ".DeepSeek-V32",
-            ".MiMo-V2-Flash",
-            ".Kimi-K25",
-            ".GLM-47",
-            ".gpt-oss-120b",
-            ".Qwen3-235B-A22B-Instruct-2507",
-            ".MiniMax-M21",
-            ".Ling-1T",
-            ".Llama-4-Scout-and-Maverick"
-        );
+        List<String> patterns = new ArrayList<>();
+        for (int i = 0; i < randomIntBetween(10, 20); i++) {
+            patterns.add(randomIdentifier("."));
+        }
 
-        List<SystemIndices.Feature> features = models.stream()
+        List<SystemIndices.Feature> features = patterns.stream()
             .map(pattern -> newFeature(List.of(new AssociatedIndexDescriptor(pattern + "*", "Description"))))
             .toList();
         SystemIndices systemIndices = new SystemIndices(features);
 
         for (int i = 0; i < randomIntBetween(20, 30); i++) {
-            assertThat(systemIndices.isFeatureAssociatedIndex(randomFrom(models) + randomIndexName()), equalTo(true));
+            assertThat(systemIndices.isFeatureAssociatedIndex(randomFrom(patterns) + randomIndexName()), equalTo(true));
             // with prefix "index-"
             assertThat(systemIndices.isFeatureAssociatedIndex(randomIndexName()), equalTo(false));
         }

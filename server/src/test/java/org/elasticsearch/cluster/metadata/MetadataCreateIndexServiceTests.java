@@ -328,7 +328,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .metadata(Metadata.builder().put(tuple.v1()))
                 .build();
 
-            Collection<String> patterns = List.of(".Mesopotamia", ".Sumerians", ".Indus", ".Yangtze", ".Theban", ".Euphrates");
+            List<String> patterns = new ArrayList<>();
+            for (int i = 0; i < randomIntBetween(10, 20); i++) {
+                patterns.add(randomIdentifier("."));
+            }
 
             List<SystemIndices.Feature> features = patterns.stream()
                 .map(pattern -> newFeature(List.of(new AssociatedIndexDescriptor(pattern + "*", "Description"))))

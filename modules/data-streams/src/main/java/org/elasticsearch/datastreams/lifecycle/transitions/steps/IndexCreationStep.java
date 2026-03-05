@@ -28,14 +28,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 public class IndexCreationStep implements DlmStep {
 
     private static final Logger logger = LogManager.getLogger(IndexCreationStep.class);
-    public static final String DLM_FROZEN_INDEX_PREFIX = "dlm-partial-";
+    public static final String DLM_FROZEN_INDEX_PREFIX = "dlm-frozen-";
 
     /**
      * Determines if the step has been completed for the given index and project state by checking whether the searchable snapshot
@@ -89,16 +88,16 @@ public class IndexCreationStep implements DlmStep {
             resolveRepositoryName(stepContext),
             snapshotName(stepContext.indexName()),
             stepContext.indexName(),
-            Settings.builder().build(),
+            Settings.EMPTY,
             ignoredIndexSettings(),
-            false,
+            true,
             MountSearchableSnapshotRequest.Storage.SHARED_CACHE
         );
         stepContext.executeDeduplicatedRequest(
             MountSearchableSnapshotAction.NAME,
             mountRequest,
-            "DLM service encountered an error trying to mount the frozen index for data stream [" + stepContext.indexName() + "]",
-            (req, reqListener) -> mountSnapshot(mountRequest, reqListener, stepContext)
+            "DLM service encountered an error trying to mount the frozen index for original index [" + stepContext.indexName() + "]",
+            (req, reqListener) -> mountSnapshot((MountSearchableSnapshotRequest) req.v2(), reqListener, stepContext)
         );
     }
 
@@ -120,6 +119,7 @@ public class IndexCreationStep implements DlmStep {
                     );
                     ElasticsearchException e = new ElasticsearchException(errorMessage);
                     l.onFailure(e);
+                    return;
                 }
                 logger.info(
                     "DLM successfully mounted frozen index [{}] for original index [{}]",
@@ -142,9 +142,7 @@ public class IndexCreationStep implements DlmStep {
      * setting when moving to frozen.
      */
     String[] ignoredIndexSettings() {
-        ArrayList<String> ignoredSettings = new ArrayList<>();
-        ignoredSettings.add(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey());
-        return ignoredSettings.toArray(new String[0]);
+        return new String[] { ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() };
     }
 
     // todo: remove everything below this line when #143490 merges

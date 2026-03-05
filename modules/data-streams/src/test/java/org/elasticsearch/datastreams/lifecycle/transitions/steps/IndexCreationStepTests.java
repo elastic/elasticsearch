@@ -38,6 +38,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -136,7 +137,7 @@ public class IndexCreationStepTests extends ESTestCase {
         assertThat(req.snapshotName(), equalTo(SNAPSHOT_NAME_PREFIX + indexName));
         assertThat(req.snapshotIndexName(), equalTo(indexName));
         assertThat(req.storage(), equalTo(MountSearchableSnapshotRequest.Storage.SHARED_CACHE));
-        assertThat(req.waitForCompletion(), equalTo(false));
+        assertThat(req.waitForCompletion(), equalTo(true));
     }
 
     public void testMaybeMountSnapshotIgnoresCorrectSettings() {
@@ -149,6 +150,60 @@ public class IndexCreationStepTests extends ESTestCase {
         String[] ignored = capturedMountRequest.get().ignoreIndexSettings();
         assertThat(ignored.length, equalTo(1));
         assertThat(ignored[0], equalTo("index.routing.allocation.total_shards_per_node"));
+    }
+
+    public void testMountSnapshotWithUnexpectedStatusRecordsError() {
+        ProjectState projectState = projectStateBuilder().build();
+        DlmStepContext stepContext = createStepContext(projectState);
+
+        AtomicReference<ActionListener<RestoreSnapshotResponse>> listenerRef = new AtomicReference<>();
+        Client badStatusClient = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (request instanceof MountSearchableSnapshotRequest) {
+                    listenerRef.set((ActionListener<RestoreSnapshotResponse>) listener);
+                }
+            }
+        };
+        DlmStepContext badStatusContext = new DlmStepContext(
+            index,
+            projectState,
+            deduplicator,
+            errorStore,
+            randomIntBetween(1, 10),
+            badStatusClient,
+            Clock.systemDefaultZone()
+        );
+
+        indexCreationStep.maybeMountSnapshot(badStatusContext);
+        assertThat(listenerRef.get(), is(notNullValue()));
+
+        // Simulate a bad-status response by calling onFailure with a suitable exception.
+        // (The production code calls l.onFailure for non-OK/ACCEPTED, so we verify error recording.)
+        listenerRef.get()
+            .onFailure(
+                new ElasticsearchException(
+                    "DLM failed to mount frozen index ["
+                        + DLM_FROZEN_INDEX_PREFIX
+                        + indexName
+                        + "] for original index ["
+                        + indexName
+                        + "], got response ["
+                        + RestStatus.INTERNAL_SERVER_ERROR
+                        + "]"
+                )
+            );
+
+        assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
+        assertThat(
+            Objects.requireNonNull(errorStore.getError(projectId, indexName)).error(),
+            containsString("DLM failed to mount frozen index")
+        );
     }
 
     public void testMaybeMountSnapshotWithFailureRecordsError() {

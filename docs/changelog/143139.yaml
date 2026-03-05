@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 138798
+summary: Fix incorrect error message for double division overflow in ESQL
+type: bug

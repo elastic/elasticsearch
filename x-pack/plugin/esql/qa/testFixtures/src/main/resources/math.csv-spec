@@ -1883,3 +1883,15 @@ emp_no:integer | salary:integer | salary_change:double | cs1:integer
 10003          | 61805          | [12.82, 14.68]       | 61805
 // end::copy_sign-result[]
 ;
+
+# division overflow positive
+ROW x = 1e308 / 0.1
+----
+null
+;
+
+# division overflow negative
+ROW x = -1e308 / 0.1
+----
+null
+;

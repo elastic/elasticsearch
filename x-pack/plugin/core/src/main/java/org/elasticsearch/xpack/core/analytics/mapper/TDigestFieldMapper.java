@@ -19,8 +19,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -64,7 +62,6 @@ import org.elasticsearch.xcontent.XContentSubParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -152,7 +149,13 @@ public class TDigestFieldMapper extends FieldMapper {
         public TDigestFieldMapper build(MapperBuilderContext context) {
             return new TDigestFieldMapper(
                 leafName(),
-                new TDigestFieldType(context.buildFullName(leafName()), meta.getValue(), this.metric.getValue()),
+                new TDigestFieldType(
+                    context.buildFullName(leafName()),
+                    meta.getValue(),
+                    this.metric.getValue(),
+                    this.digestType.getValue(),
+                    this.compression.getValue()
+                ),
                 builderParams(this, context),
                 this
             );
@@ -211,10 +214,20 @@ public class TDigestFieldMapper extends FieldMapper {
 
     public static class TDigestFieldType extends MappedFieldType {
         private final TimeSeriesParams.MetricType metricType;
+        private final TDigestExecutionHint digestExecutionHint;
+        private final Double compression;
 
-        public TDigestFieldType(String name, Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
+        public TDigestFieldType(
+            String name,
+            Map<String, String> meta,
+            TimeSeriesParams.MetricType metricType,
+            TDigestExecutionHint digestExecutionHint,
+            Double compression
+        ) {
             super(name, IndexType.docValuesOnly(), false, meta);
             this.metricType = metricType;
+            this.digestExecutionHint = digestExecutionHint;
+            this.compression = compression;
         }
 
         @Override
@@ -225,6 +238,14 @@ public class TDigestFieldMapper extends FieldMapper {
         @Override
         public TimeSeriesParams.MetricType getMetricType() {
             return metricType;
+        }
+
+        public TDigestExecutionHint getDigestExecutionHint() {
+            return digestExecutionHint;
+        }
+
+        public Double getCompression() {
+            return compression;
         }
 
         @Override
@@ -272,12 +293,8 @@ public class TDigestFieldMapper extends FieldMapper {
 
                                     @Override
                                     public HistogramValue histogram() throws IOException {
-                                        try {
-                                            value.reset(values.binaryValue());
-                                            return value;
-                                        } catch (IOException e) {
-                                            throw new IOException("Cannot load doc value", e);
-                                        }
+                                        value.reset(values.binaryValue());
+                                        return value;
                                     }
                                 };
                             } catch (IOException e) {
@@ -409,7 +426,7 @@ public class TDigestFieldMapper extends FieldMapper {
                 XContentParserUtils::parsingException
             );
 
-            BytesRef docValue = encodeCentroidsAndCounts(parsedTDigest.centroids(), parsedTDigest.counts());
+            BytesRef docValue = EncodedTDigest.encodeCentroids(parsedTDigest.centroids(), parsedTDigest.counts());
             Field digestField = new BinaryDocValuesField(fullPath(), docValue);
 
             // Add numeric doc values fields for the summary data
@@ -485,23 +502,6 @@ public class TDigestFieldMapper extends FieldMapper {
         context.path().remove();
     }
 
-    private static BytesRef encodeCentroidsAndCounts(List<Double> centroids, List<Long> counts) throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-
-        for (int i = 0; i < centroids.size(); i++) {
-            long count = counts.get(i);
-            assert count >= 0;
-            // we do not add elements with count == 0
-            if (count > 0) {
-                streamOutput.writeVLong(count);
-                streamOutput.writeDouble(centroids.get(i));
-            }
-        }
-
-        BytesRef docValue = streamOutput.bytes().toBytesRef();
-        return docValue;
-    }
-
     private static String valuesCountSubFieldName(String fullPath) {
         return fullPath + "._values_count";
     }
@@ -520,49 +520,34 @@ public class TDigestFieldMapper extends FieldMapper {
 
     /** re-usable {@link HistogramValue} implementation */
     static class InternalTDigestValue extends HistogramValue {
-        double value;
-        long count;
-        boolean isExhausted;
 
-        final ByteArrayStreamInput streamInput;
+        final EncodedTDigest encodedTDigest;
+        EncodedTDigest.CentroidIterator centroidIterator;
 
         InternalTDigestValue() {
-            streamInput = new ByteArrayStreamInput();
+            encodedTDigest = new EncodedTDigest();
         }
 
         /** reset the value for the histogram */
-        void reset(BytesRef bytesRef) throws IOException {
-            streamInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-            isExhausted = false;
-            value = 0;
-            count = 0;
+        void reset(BytesRef bytesRef) {
+            encodedTDigest.reset(bytesRef);
+            centroidIterator = encodedTDigest.centroidIterator();
         }
 
         @Override
         public boolean next() throws IOException {
-            if (streamInput.available() > 0) {
-                count = streamInput.readVLong();
-                value = streamInput.readDouble();
-                return true;
-            }
-            isExhausted = true;
-            return false;
+            assert centroidIterator != null : "reset must be called before iterating over the centroids";
+            return centroidIterator.next();
         }
 
         @Override
         public double value() {
-            if (isExhausted) {
-                throw new IllegalArgumentException("histogram already exhausted");
-            }
-            return value;
+            return centroidIterator.currentMean();
         }
 
         @Override
         public long count() {
-            if (isExhausted) {
-                throw new IllegalArgumentException("histogram already exhausted");
-            }
-            return count;
+            return centroidIterator.currentCount();
         }
     }
 

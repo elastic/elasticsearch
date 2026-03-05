@@ -25,6 +25,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -89,11 +90,16 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     public void testBlendedRewriteMethod() throws IOException {
         String rewrite = "top_terms_blended_freqs_10";
-        Query parsedQuery = parseQuery(prefixQuery(TEXT_FIELD_NAME, "val").rewrite(rewrite)).toQuery(createSearchExecutionContext());
-        assertThat(parsedQuery, instanceOf(PrefixQuery.class));
-        PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
-        assertThat(prefixQuery.getPrefix(), equalTo(new Term(TEXT_FIELD_NAME, "val")));
-        assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), createCircuitBreakerService());
+        try {
+            Query parsedQuery = parseQuery(prefixQuery(TEXT_FIELD_NAME, "val").rewrite(rewrite)).toQuery(context);
+            assertThat(parsedQuery, instanceOf(PrefixQuery.class));
+            PrefixQuery prefixQuery = (PrefixQuery) parsedQuery;
+            assertThat(prefixQuery.getPrefix(), equalTo(new Term(TEXT_FIELD_NAME, "val")));
+            assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
     }
 
     public void testFromJson() throws IOException {
@@ -210,4 +216,21 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
     }
 
+    public void testPrefixQueryCircuitBreakerAccounting() throws IOException {
+        assertCircuitBreakerAccountsForQuery(new PrefixQueryBuilder(TEXT_FIELD_NAME, "test"));
+    }
+
+    public void testPrefixCircuitBreakerTripsWithLowLimit() {
+        assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
+            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+            IntStream.range(0, 100).forEach(i -> {
+                PrefixQueryBuilder prefixQuery = new PrefixQueryBuilder(TEXT_FIELD_NAME, "prefix" + i);
+                if (randomBoolean()) {
+                    prefixQuery.caseInsensitive(true);
+                }
+                boolQuery.should(prefixQuery);
+            });
+            return boolQuery;
+        });
+    }
 }

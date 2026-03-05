@@ -38,6 +38,7 @@ import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
@@ -126,6 +127,12 @@ public class CloneStep implements DlmStep {
     @Override
     public String stepName() {
         return "Clone Index";
+    }
+
+    @Override
+    public List<String> possibleOutputIndexNamePatterns(String indexName) {
+        // The clone index name pattern should be checked before the original index name pattern
+        return List.of(getDLMCloneIndexName(indexName), indexName);
     }
 
     /**

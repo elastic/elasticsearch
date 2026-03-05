@@ -9,6 +9,7 @@ setup:
         body:
           settings:
             index.disable_sequence_numbers: true
+            index.seq_no.index_options: doc_values_only
             index.number_of_shards: 1
             index.number_of_replicas: 0
 
@@ -32,6 +33,8 @@ setup:
           query:
             term:
               _seq_no: 0
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Cannot query field [_seq_no]: _seq_no cannot be queried when [index.disable_sequence_numbers] is [true]" }
 
 ---
 "range query on _seq_no is rejected":
@@ -44,6 +47,8 @@ setup:
             range:
               _seq_no:
                 gte: 0
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Cannot query field [_seq_no]: _seq_no cannot be queried when [index.disable_sequence_numbers] is [true]" }
 
 ---
 "sort by _seq_no is rejected":
@@ -53,3 +58,5 @@ setup:
         index: test
         body:
           sort: [{ _seq_no: asc }]
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Cannot query field [_seq_no]: _seq_no cannot be queried when [index.disable_sequence_numbers] is [true]" }

@@ -36,7 +36,7 @@ public class SeqNoFieldTypeTests extends FieldTypeTestCase {
         assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
         MappedFieldType ft = SeqNoFieldMapper.UNSEARCHABLE.fieldType();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> seqNoRangeQuery(ft, 0, 10));
-        assertThat(e.getMessage(), containsString("does not support range queries"));
+        assertThat(e.getMessage(), containsString("_seq_no cannot be queried when [index.disable_sequence_numbers] is [true]"));
     }
 
     public void testTermQueryDisabled() {

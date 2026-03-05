@@ -10,8 +10,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.time.ZoneId;
 import java.util.Map;
 
 /**
@@ -40,6 +45,25 @@ public final class UnsearchableFieldType extends MappedFieldType {
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
+        throw new IllegalArgumentException("Cannot query field [" + name() + "]: " + reason);
+    }
+
+    @Override
+    public Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        ShapeRelation relation,
+        ZoneId timeZone,
+        DateMathParser parser,
+        SearchExecutionContext context
+    ) {
+        throw new IllegalArgumentException("Cannot query field [" + name() + "]: " + reason);
+    }
+
+    @Override
+    public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         throw new IllegalArgumentException("Cannot query field [" + name() + "]: " + reason);
     }
 }

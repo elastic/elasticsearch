@@ -107,11 +107,13 @@ public final class EncodedTDigest implements TDigestReadView {
 
             @Override
             public long currentCount() {
+                assert centroid != null : "next() must be called and return true before accessing current centroid";
                 return centroid.count();
             }
 
             @Override
             public double currentMean() {
+                assert centroid != null : "next() must be called and return true before accessing current centroid";
                 return centroid.mean();
             }
 
@@ -140,11 +142,13 @@ public final class EncodedTDigest implements TDigestReadView {
 
                 @Override
                 public long currentCount() {
+                    assert index >= 0 : "next() must be called and return true before accessing current centroid";
                     return counts.get(index);
                 }
 
                 @Override
                 public double currentMean() {
+                    assert index >= 0 : "next() must be called and return true before accessing current centroid";
                     return means.get(index);
                 }
 

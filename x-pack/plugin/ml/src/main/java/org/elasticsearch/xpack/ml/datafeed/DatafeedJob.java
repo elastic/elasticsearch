@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
@@ -45,6 +46,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -69,6 +71,7 @@ class DatafeedJob {
     private final DelayedDataDetector delayedDataDetector;
     private final Integer maxEmptySearches;
     private final long delayedDataCheckFreq;
+    private final CrossProjectSearchStats crossProjectSearchStats;
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
@@ -97,7 +100,8 @@ class DatafeedJob {
         long latestFinalBucketEndTimeMs,
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
-        long delayedDataCheckFreq
+        long delayedDataCheckFreq,
+        CrossProjectSearchStats crossProjectSearchStats
     ) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
@@ -118,6 +122,7 @@ class DatafeedJob {
         }
         this.haveEverSeenData = haveSeenDataPreviously;
         this.delayedDataCheckFreq = delayedDataCheckFreq;
+        this.crossProjectSearchStats = Objects.requireNonNull(crossProjectSearchStats);
     }
 
     void isolate() {
@@ -362,6 +367,7 @@ class DatafeedJob {
         RuntimeException error = null;
 
         long recordCount = 0;
+        List<LinkedProjectState> linkedProjectStates = List.of();
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(start, end);
         try {
             while (dataExtractor.hasNext()) {
@@ -377,6 +383,9 @@ class DatafeedJob {
                     DataExtractor.Result result = dataExtractor.next();
                     extractedData = result.data();
                     searchInterval = result.searchInterval();
+                    if (result.linkedProjectStates().isEmpty() == false) {
+                        linkedProjectStates = result.linkedProjectStates();
+                    }
                 } catch (Exception e) {
                     LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
                     // When extraction problems are encountered, we do not want to advance time.
@@ -453,6 +462,8 @@ class DatafeedJob {
                 dataExtractor.isCancelled()
             );
 
+            CrossProjectSearchStats.CycleResult scopeChange = updateCrossProjectSearchStats(linkedProjectStates);
+
             // We can now throw any stored error as we have updated time.
             if (error != null) {
                 throw error;
@@ -466,6 +477,10 @@ class DatafeedJob {
                 if (lastFinalizedBucketEnd != null) {
                     this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
                 }
+
+                if (scopeChange != null) {
+                    checkForAnomaliesAfterScopeChange(scopeChange);
+                }
             }
 
             if (recordCount == 0) {
@@ -474,6 +489,90 @@ class DatafeedJob {
         } finally {
             // Ensure the extractor is always destroyed to clean up scroll contexts
             dataExtractor.destroy();
+        }
+    }
+
+    /**
+     * Updates cross-project search stats with linked project states from this cycle.
+     * If a scope change is confirmed, persists an annotation and emits a warning.
+     *
+     * @return the scope change result if one was confirmed this cycle, or {@code null}
+     */
+    @Nullable
+    private CrossProjectSearchStats.CycleResult updateCrossProjectSearchStats(List<LinkedProjectState> linkedProjectStates) {
+        CrossProjectSearchStats.CycleResult cycleResult = crossProjectSearchStats.update(linkedProjectStates);
+        if (cycleResult.scopeChanged()) {
+            String message = CrossProjectSearchStats.buildScopeChangeMessage(cycleResult);
+            LOGGER.info("[{}] {}", jobId, message);
+            auditor.warning(jobId, message);
+            persistScopeChangeAnnotation(cycleResult, message);
+            return cycleResult;
+        }
+        return null;
+    }
+
+    private void persistScopeChangeAnnotation(CrossProjectSearchStats.CycleResult cycleResult, String message) {
+        Date changeTime = Date.from(cycleResult.changeTimestamp());
+        Date now = new Date(currentTimeSupplier.get());
+        Annotation annotation = new Annotation.Builder().setAnnotation(message)
+            .setCreateTime(now)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
+            .setTimestamp(changeTime)
+            .setEndTimestamp(changeTime)
+            .setJobId(jobId)
+            .setModifiedTime(now)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
+            .setType(Annotation.Type.ANNOTATION)
+            .setEvent(Annotation.Event.PROJECT_SCOPE_CHANGED)
+            .build();
+        annotationPersister.persistAnnotation(null, annotation);
+    }
+
+    /**
+     * One-shot backward anomaly lookback after a scope change has been confirmed and the job
+     * has been flushed. Queries finalized buckets from the scope change timestamp to now for
+     * elevated anomaly scores (>= 75). If found, emits a warning correlating the anomalies
+     * with the scope change.
+     */
+    private void checkForAnomaliesAfterScopeChange(CrossProjectSearchStats.CycleResult scopeChange) {
+        try {
+            GetBucketsAction.Request request = new GetBucketsAction.Request(jobId);
+            request.setStart(String.valueOf(scopeChange.changeTimestamp().toEpochMilli()));
+            request.setEnd(String.valueOf(currentTimeSupplier.get()));
+            request.setAnomalyScore(75.0);
+            request.setExcludeInterim(true);
+
+            GetBucketsAction.Response response;
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+                response = client.execute(GetBucketsAction.INSTANCE, request).actionGet();
+            }
+
+            long elevatedBucketCount = response.getBuckets().count();
+            if (elevatedBucketCount > 0) {
+                String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(scopeChange.changeTimestamp().toEpochMilli());
+                String changeSummary = buildScopeChangeSummary(scopeChange);
+                String anomalyMessage = Messages.getMessage(
+                    Messages.JOB_AUDIT_DATAFEED_SCOPE_CHANGE_ANOMALIES,
+                    timestamp,
+                    changeSummary,
+                    elevatedBucketCount
+                );
+                auditor.warning(jobId, anomalyMessage);
+            }
+        } catch (Exception e) {
+            LOGGER.warn(() -> "[" + jobId + "] error checking for anomalies after scope change", e);
+        }
+    }
+
+    private static String buildScopeChangeSummary(CrossProjectSearchStats.CycleResult result) {
+        String linked = String.join(", ", new TreeSet<>(result.newlyStabilizedProjects()));
+        String unlinked = String.join(", ", new TreeSet<>(result.confirmedRemovals()));
+        if (linked.isEmpty() == false && unlinked.isEmpty() == false) {
+            return linked + " linked; " + unlinked + " unlinked";
+        } else if (linked.isEmpty() == false) {
+            return linked + " linked";
+        } else {
+            return unlinked + " unlinked";
         }
     }
 
@@ -547,6 +646,10 @@ class DatafeedJob {
      */
     Long lastEndTimeMs() {
         return lastEndTimeMs;
+    }
+
+    CrossProjectSearchStats getCrossProjectSearchStats() {
+        return crossProjectSearchStats;
     }
 
     static class AnalysisProblemException extends ElasticsearchException implements ElasticsearchWrapperException {

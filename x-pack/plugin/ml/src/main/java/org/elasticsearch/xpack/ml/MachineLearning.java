@@ -313,6 +313,7 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
+import org.elasticsearch.xpack.ml.datafeed.CrossProjectSearchStats;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
@@ -755,6 +756,31 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Minimum number of consecutive search cycles a cross-project scope change must persist before being
+     * confirmed. Lowering this value (together with {@link #CPS_STABILIZATION_FLOOR}) enables faster
+     * detection in integration tests without waiting for production timeouts.
+     */
+    public static final Setting<Integer> CPS_STABILIZATION_CYCLES = Setting.intSetting(
+        "xpack.ml.cps_stabilization_cycles",
+        CrossProjectSearchStats.DEFAULT_STABILIZATION_CYCLES,
+        1,
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Minimum wall-clock duration since a cross-project scope change was first observed before it can
+     * be confirmed. Works in conjunction with {@link #CPS_STABILIZATION_CYCLES}.
+     */
+    public static final Setting<TimeValue> CPS_STABILIZATION_FLOOR = Setting.timeSetting(
+        "xpack.ml.cps_stabilization_floor",
+        CrossProjectSearchStats.DEFAULT_STABILIZATION_FLOOR_TIMEVALUE,
+        TimeValue.ZERO,
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
      * The time that has to pass after scaling up, before scaling down is allowed.
      * Note that the ML autoscaling has its own cooldown time to release the hardware.
      */
@@ -870,6 +896,8 @@ public class MachineLearning extends Plugin
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
+            CPS_STABILIZATION_CYCLES,
+            CPS_STABILIZATION_FLOOR,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
             SCALE_UP_COOLDOWN_TIME,

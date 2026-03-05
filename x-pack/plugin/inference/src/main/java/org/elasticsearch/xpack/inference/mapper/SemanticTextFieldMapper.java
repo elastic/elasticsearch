@@ -123,6 +123,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChun
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOffsetsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
 import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_JINA_V5_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_ELSER_ID;
 
@@ -159,6 +160,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;
+    public static final String DEFAULT_EIS_ELSER_INFERENCE_ID = DEFAULT_ELSER_ENDPOINT_ID_V2;
     public static final String DEFAULT_EIS_JINA_V5_INFERENCE_ID = DEFAULT_JINA_V5_ENDPOINT_ID;
 
     public static final String UNSUPPORTED_INDEX_MESSAGE = "["
@@ -171,17 +173,29 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     /**
      * Determines the default inference ID for semantic_text fields when none is explicitly provided.
-     * Returns .jina-embeddings-v5-text-small (EIS) for indices created on or after
-     * {@code SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5} when jina-v5 is available on EIS,
-     * otherwise falls back to .elser-2-elasticsearch (ML nodes).
-     * Gating on index version ensures all semantic_text fields in an existing index use the same
-     * default model, avoiding mixed embedding types within a single index.
+     * <p>
+     * If no model registry is available (e.g. self-managed, no EIS), falls back immediately to
+     * {@link #DEFAULT_FALLBACK_ELSER_INFERENCE_ID} (.elser-2-elasticsearch, ML nodes).
+     * <p>
+     * For indices created on or after {@code SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5}, prefers
+     * {@link #DEFAULT_EIS_JINA_V5_INFERENCE_ID} when available, then
+     * {@link #DEFAULT_EIS_ELSER_INFERENCE_ID} when available, then ML-node ELSER.
+     * <p>
+     * If jina-v5 is unavailable or the index predates the version gate,
+     * falls back to {@link #DEFAULT_EIS_ELSER_INFERENCE_ID} when available, then
+     * {@link #DEFAULT_FALLBACK_ELSER_INFERENCE_ID}. The version gate applies only to jina-v5,
+     * preserving the legacy EIS ELSER → ML-node ELSER fallback behavior for all other cases.
      */
     private static String getDefaultInferenceId(ModelRegistry modelRegistry, IndexSettings indexSettings) {
-        if (modelRegistry != null
-            && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_JINA_V5_INFERENCE_ID)
-            && indexSettings.getIndexVersionCreated().onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)) {
+        if (modelRegistry == null) {
+            return DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
+        }
+        if (indexSettings.getIndexVersionCreated().onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
+            && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_JINA_V5_INFERENCE_ID)) {
             return DEFAULT_EIS_JINA_V5_INFERENCE_ID;
+        }
+        if (modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
+            return DEFAULT_EIS_ELSER_INFERENCE_ID;
         }
         return DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
     }

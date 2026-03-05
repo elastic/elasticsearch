@@ -114,6 +114,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_EIS_ELSER_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_EIS_JINA_V5_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.DEFAULT_RESCORE_OVERSAMPLE;
@@ -366,6 +367,42 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         PlainActionFuture<Boolean> removalFuture = new PlainActionFuture<>();
         globalModelRegistry.removeDefaultConfigs(Set.of(DEFAULT_EIS_JINA_V5_INFERENCE_ID), removalFuture);
         assertTrue("Failed to remove default EIS endpoint", removalFuture.actionGet(TEST_REQUEST_TIMEOUT));
+    }
+
+    private void registerDefaultEisElserEndpoint() {
+        globalModelRegistry.putDefaultIdIfAbsent(
+            new InferenceService.DefaultConfigId(
+                DEFAULT_EIS_ELSER_INFERENCE_ID,
+                MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                mock(InferenceService.class)
+            )
+        );
+    }
+
+    public void testDefaultInferenceIdFallsBackToEisElserWhenJinaV5Unavailable() throws Exception {
+        // When jina-v5 is unavailable but EIS ELSER is available, a new index should default to EIS ELSER.
+        final String fieldName = "field";
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+
+        removeDefaultEisEndpoint();
+        registerDefaultEisElserEndpoint();
+
+        MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat, IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID);
+    }
+
+    public void testDefaultInferenceIdUsesEisElserForPreJinaV5Indices() throws Exception {
+        // The version gate applies only to jina-v5. EIS ELSER → ML-node ELSER was the legacy
+        // fallback behavior and should be preserved for pre-Jina v5 indices.
+        final String fieldName = "field";
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+
+        removeDefaultEisEndpoint();
+        registerDefaultEisElserEndpoint();
+
+        IndexVersion preJinaV5Version = IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5);
+        MapperService mapperService = createMapperServiceWithIndexVersion(fieldMapping, useLegacyFormat, preJinaV5Version);
+        assertInferenceEndpoints(mapperService, fieldName, DEFAULT_EIS_ELSER_INFERENCE_ID, DEFAULT_EIS_ELSER_INFERENCE_ID);
     }
 
     @Override

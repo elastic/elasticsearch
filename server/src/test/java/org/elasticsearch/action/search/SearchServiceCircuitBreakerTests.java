@@ -26,26 +26,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Tests that circuit-breaker bytes reserved for search fetch results are correctly released.
- *
- * <p><b>Background:</b> when a fetch phase produces {@link org.elasticsearch.search.SearchHits}, the
- * serialized size is reserved on the request circuit breaker. That reservation must be released once
- * the response has been serialized (transport path) or consumed (local path), otherwise the breaker
- * stays artificially inflated and blocks future requests.
- *
- * <p><b>Release happens in two places:</b>
- * <ol>
- *   <li>{@code SearchTransportService.asBytesResponse} -- releases right after the response is
- *       serialized to bytes, before sending over the network. This covers fetch, scroll-fetch,
- *       and the single-shard query+fetch transport paths.</li>
- *   <li>{@code SearchService.releaseCircuitBreakerOnResponse} -- releases after the listener
- *       consumes the response. This is a safety net for the query phase; on transport paths the
- *       bytes are already gone so this call is a no-op.</li>
- * </ol>
- *
- * <p>Both paths are safe to call on the same result because
- * {@code FetchSearchResult.releaseCircuitBreakerBytes} uses {@code AtomicLong.getAndSet(0)},
- * making repeated calls idempotent.
+ * Unit tests for circuit breaker release logic in SearchService.
+ * Tests the generic helper method that releases circuit breaker bytes
+ * after search results are sent to the coordinator.
  */
 public class SearchServiceCircuitBreakerTests extends ESTestCase {
 
@@ -155,6 +138,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
 
         assertThat(successCalled.get(), is(true));
         assertThat(failureCalled.get(), is(false));
+        // No breaker to release, should complete normally
     }
 
     public void testMultipleReleasesAreIdempotent() {
@@ -165,10 +149,12 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         try {
             result.setSearchHitsSizeBytes(2000L);
 
+            // First release
             result.releaseCircuitBreakerBytes(breaker);
             assertThat(breakerUsed.get(), equalTo(0L));
             assertThat(result.getSearchHitsSizeBytes(), equalTo(0L));
 
+            // Next release - should be no-op
             result.releaseCircuitBreakerBytes(breaker);
             assertThat(breakerUsed.get(), equalTo(0L));
             assertThat(result.getSearchHitsSizeBytes(), equalTo(0L));
@@ -252,16 +238,24 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         CircuitBreaker breaker,
         Function<T, FetchSearchResult> fetchResultExtractor
     ) {
-        return ActionListener.wrap(response -> {
-            try {
-                listener.onResponse(response);
-            } finally {
-                FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
-                if (fetchResult != null) {
-                    fetchResult.releaseCircuitBreakerBytes(breaker);
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T response) {
+                try {
+                    listener.onResponse(response);
+                } finally {
+                    FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
+                    if (fetchResult != null) {
+                        fetchResult.releaseCircuitBreakerBytes(breaker);
+                    }
                 }
             }
-        }, listener::onFailure);
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
     }
 
     private ActionListener<QuerySearchResult> querySearchResultListener(

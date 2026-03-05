@@ -11,11 +11,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 
-/**
- * A test-only {@link TransportService.DirectResponseChannel} that delegates to an {@link ActionListener}
- * instead of interacting with a real {@link TransportService}. This allows testing code paths that branch
- * on {@link TransportService#isDirectResponseChannel}.
- */
 public class TestDirectResponseChannel extends TransportService.DirectResponseChannel {
 
     private final ActionListener<TransportResponse> listener;

@@ -400,4 +400,5 @@ public class AsBytesResponseTests extends ESTestCase {
             return used.get();
         }
     }
+
 }

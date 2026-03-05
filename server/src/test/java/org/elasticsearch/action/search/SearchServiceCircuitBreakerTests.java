@@ -12,8 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
@@ -170,68 +168,6 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         }
     }
 
-    public void testExtractCircuitBreakerRelease() {
-        AtomicLong breakerUsed = new AtomicLong(3000);
-        CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
-
-        FetchSearchResult result = new FetchSearchResult();
-        try {
-            result.setSearchHitsSizeBytes(3000L);
-
-            Releasable release = result.extractCircuitBreakerRelease(breaker);
-            assertThat(result.getSearchHitsSizeBytes(), equalTo(0L));
-            assertThat(breakerUsed.get(), equalTo(3000L));
-
-            Releasables.close(release);
-            assertThat(breakerUsed.get(), equalTo(0L));
-        } finally {
-            result.decRef();
-        }
-    }
-
-    public void testExtractCircuitBreakerReleaseIsIdempotent() {
-        AtomicLong breakerUsed = new AtomicLong(2000);
-        CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
-
-        FetchSearchResult result = new FetchSearchResult();
-        try {
-            result.setSearchHitsSizeBytes(2000L);
-
-            Releasable first = result.extractCircuitBreakerRelease(breaker);
-            Releasable second = result.extractCircuitBreakerRelease(breaker);
-
-            assertThat(result.getSearchHitsSizeBytes(), equalTo(0L));
-            assertThat(breakerUsed.get(), equalTo(2000L));
-
-            Releasables.close(first);
-            assertThat(breakerUsed.get(), equalTo(0L));
-
-            Releasables.close(second);
-            assertThat(breakerUsed.get(), equalTo(0L));
-        } finally {
-            result.decRef();
-        }
-    }
-
-    public void testExtractAndDirectReleaseAreIdempotent() {
-        AtomicLong breakerUsed = new AtomicLong(4000);
-        CircuitBreaker breaker = new TestCircuitBreaker(breakerUsed);
-
-        FetchSearchResult result = new FetchSearchResult();
-        try {
-            result.setSearchHitsSizeBytes(4000L);
-
-            Releasable release = result.extractCircuitBreakerRelease(breaker);
-            result.releaseCircuitBreakerBytes(breaker);
-            assertThat(breakerUsed.get(), equalTo(4000L));
-
-            Releasables.close(release);
-            assertThat(breakerUsed.get(), equalTo(0L));
-        } finally {
-            result.decRef();
-        }
-    }
-
     public void testLargeAllocation() {
         long largeBytes = randomLongBetween(1_000_000, 10_000_000);
         AtomicLong breakerUsed = new AtomicLong(largeBytes);
@@ -320,28 +256,6 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         }, listener::onFailure);
     }
 
-    /**
-     * Wrap a listener with deferred circuit breaker release, mirroring the {@code asBytesResponse}
-     * callback in {@code SearchTransportService} (used for transport fetch paths). The reservation
-     * is atomically extracted before {@code onResponse} and released afterwards, simulating the
-     * Netty write-completion callback that would close the deferred releasable in production.
-     */
-    private <T> ActionListener<T> withDeferredCircuitBreakerRelease(
-        ActionListener<T> listener,
-        CircuitBreaker breaker,
-        Function<T, FetchSearchResult> fetchResultExtractor
-    ) {
-        return ActionListener.wrap(response -> {
-            FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
-            Releasable cbRelease = (fetchResult != null) ? fetchResult.extractCircuitBreakerRelease(breaker) : () -> {};
-            try {
-                listener.onResponse(response);
-            } finally {
-                Releasables.close(cbRelease);
-            }
-        }, listener::onFailure);
-    }
-
     private ActionListener<QuerySearchResult> querySearchResultListener(
         AtomicBoolean successCalled,
         AtomicBoolean failureCalled,
@@ -355,7 +269,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled,
         CircuitBreaker breaker
     ) {
-        return withDeferredCircuitBreakerRelease(trackingListener(successCalled, failureCalled), breaker, Function.identity());
+        return withCircuitBreakerReleaseAfterResponse(trackingListener(successCalled, failureCalled), breaker, Function.identity());
     }
 
     private ActionListener<QueryFetchSearchResult> queryFetchSearchResultListener(
@@ -375,7 +289,11 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled,
         CircuitBreaker breaker
     ) {
-        return withDeferredCircuitBreakerRelease(trackingListener(successCalled, failureCalled), breaker, sr -> sr.result().fetchResult());
+        return withCircuitBreakerReleaseAfterResponse(
+            trackingListener(successCalled, failureCalled),
+            breaker,
+            sr -> sr.result().fetchResult()
+        );
     }
 
     /**

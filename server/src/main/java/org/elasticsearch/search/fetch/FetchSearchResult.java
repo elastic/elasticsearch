@@ -13,7 +13,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -27,8 +26,6 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class FetchSearchResult extends SearchPhaseResult {
-
-    private static final Releasable NOOP_RELEASE = () -> {};
 
     private SearchHits hits;
 
@@ -104,23 +101,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
         if (bytes > 0L) {
             circuitBreaker.addWithoutBreaking(-bytes);
         }
-    }
-
-    /**
-     * Atomically takes the circuit-breaker reservation tracked by this result and returns a {@link Releasable}
-     * that will release those bytes when closed. Subsequent calls return a no-op releasable.
-     * <p>
-     * This is used by the transport layer to defer the circuit-breaker release until after Netty
-     * completes the write, by attaching the returned releasable to the ref-counted serialized bytes.
-     * The returned releasable captures only the byte count and the breaker reference, not this result,
-     * so the result (and its search hits) can be freed independently.
-     */
-    public Releasable extractCircuitBreakerRelease(CircuitBreaker circuitBreaker) {
-        long bytes = searchHitsSizeBytes.getAndSet(0L);
-        if (bytes > 0L) {
-            return () -> circuitBreaker.addWithoutBreaking(-bytes);
-        }
-        return NOOP_RELEASE;
     }
 
     public FetchSearchResult initCounter() {

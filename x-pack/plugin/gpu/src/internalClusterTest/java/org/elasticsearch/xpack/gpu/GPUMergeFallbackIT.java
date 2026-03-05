@@ -137,7 +137,9 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
                   "dims": %d,
                   "similarity": "%s",
                   "index_options": {
-                    "type": "%s"
+                    "type": "%s",
+                    "ef_construction": 200,
+                    "m": 24
                   }
                 }
               }
@@ -147,7 +149,7 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
         assertAcked(prepareCreate(indexName).setSettings(indexSettings).setMapping(mapping));
         ensureGreen();
 
-        int docsPerBatch = randomIntBetween(500, 999);
+        int docsPerBatch = randomIntBetween(1000, 2000);
         int numBatches = randomIntBetween(2, 4);
         int totalDocs = 0;
 
@@ -202,6 +204,7 @@ public class GPUMergeFallbackIT extends ESIntegTestCase {
         long segmentsAfter = indicesAdmin().prepareStats(indexName).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
         assertThat("expected a single segment after merge", segmentsAfter, equalTo(1L));
 
+        numCandidates = k * 10;
         var responseAfter = prepareSearch(indexName).setSize(k)
             .setFetchSource(false)
             .setKnnSearch(List.of(new KnnSearchBuilder("my_vector", queryVector, k, numCandidates, null, null, null)))

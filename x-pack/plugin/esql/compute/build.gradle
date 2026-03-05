@@ -1025,6 +1025,23 @@ tasks.named('stringTemplates').configure {
   generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st")
   generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-AllValueByTimestampAggregator.java.st", true, true, "All")
 
+  def generateAggregatorClassesOnConstantType = { inputFilename ->
+    def inputFile = file(inputFilename)
+    def props = [intProperties, longProperties, floatProperties, doubleProperties, booleanProperties, bytesRefProperties]
+
+    props.forEach { p ->
+      def properties = [:]
+      p.forEach { k, v -> properties["v_" + k] = v }
+      template {
+        it.properties = properties
+        it.inputFile = inputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/Any${p.Type}Aggregator.java"
+      }
+    }
+  }
+
+  generateAggregatorClassesOnConstantType("src/main/java/org/elasticsearch/compute/aggregation/X-AnyValueAggregator.java.st")
+
   File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateGroupingAggregatorFunction.java.st")
   template {
     it.properties = intProperties

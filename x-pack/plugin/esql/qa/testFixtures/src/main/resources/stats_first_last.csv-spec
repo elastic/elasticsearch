@@ -275,3 +275,98 @@ FROM voyager
 x:datetime                                                                     | y:long
 [2025-12-25T00:00:10.000Z, 2025-12-25T00:00:20.000Z, 2025-12-25T00:00:30.000Z] | 21190910706
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing foldables in the search field
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM voyager 
+| SORT row_no DESC
+| EVAL p = 3, q = null
+| STATS
+    a1 = FIRST(p, @timestamp), 
+    a2 = LAST(p, @timestamp),
+    b1 = FIRST(null, @timestamp),
+    b2 = LAST(null, @timestamp)
+;
+
+a1:integer | a2:integer | b1:null | b2:null
+3          | 3          | null    | null
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing foldables in the sort field
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM voyager
+| SORT row_no ASC
+| LIMIT 1000
+| EVAL p = 7::long, q = null
+| STATS
+    # queries that run the regular "type1"-by-long aggregator and does nothing unusual (type1 is the search field's type)
+    
+    x01 = FIRST(@timestamp, p),
+    x02 = LAST(@timestamp, p),
+    
+    x03 = FIRST(active_instruments, p),
+    x04 = LAST(active_instruments, p),
+    
+    x05 = FIRST(low_power_mode, p),
+    x06 = LAST(low_power_mode, p),
+    
+    # queries that run the new any-value-by-long aggregator which returns the first value it encounters
+    
+    x07 = FIRST(distance_to_earth, 7::long), 
+    x08 = LAST(distance_to_earth, 7::long),
+    
+    x09 = FIRST(status, 7::long),    
+    x10 = LAST(status, 7::long),
+    
+    x11 = FIRST(collision_risk, null),
+    x12 = LAST(collision_risk, null),
+    
+    x13 = FIRST(ack_station_ip, q),   
+    x14 = LAST(ack_station_ip, q),
+    
+    x15 = FIRST(low_power_mode, q),   
+    x16 = LAST(low_power_mode, q)
+;
+
+x01:datetime | x02:datetime | x03:integer | x04:integer | x05:boolean | x06:boolean | x07:long    | x08:long    | x09:keyword | x10:keyword | x11:double | x12:double | x13:ip      | x14:ip      | x15:boolean | x16:boolean
+null         | null         | [3, 4]      | [3, 4]      | false       | false       | 21190910703 | 21190910703 | yellow      | yellow      | 0.0011     | 0.0011     | 173.21.3.13 | 173.21.3.13 | false       | false
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing foldables with grouping
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM voyager 
+| SORT row_no ASC
+| EVAL p = 3.14
+| STATS x = FIRST(p, null) BY status
+| SORT status ASC NULLS FIRST
+;
+
+x:double | status:keyword
+3.14     | null
+3.14     | OK
+3.14     | green
+3.14     | red
+3.14     | yellow
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test passing foldables with agg as pipeline breaker
+required_capability: fix_agg_first_last_foldables_in_sort_field
+
+FROM employees 
+| STATS x = FIRST(emp_no, null)
+;
+
+x:integer
+10001..10100
+;

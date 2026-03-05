@@ -191,6 +191,15 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         waitUntilReady();
     }
 
+    @Override
+    public void upgradeToVersion(Version version, Runnable onNodeUpgradeComplete) {
+        int numNodes = getNumNodes();
+        for (int index = 0; index < numNodes; index++) {
+            upgradeNodeToVersion(index, version);
+            onNodeUpgradeComplete.run();
+        }
+    }
+
     public String getName(int index) {
         return nodes.get(index).getName();
     }

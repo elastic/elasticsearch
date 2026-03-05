@@ -445,7 +445,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
                              ]
                          },
                          "model_id": {
-                             "description": "The model ID to use for FireworksAI requests.",
+                             "description": "The model ID to use for Fireworks AI requests.",
                              "label": "Model ID",
                              "required": true,
                              "sensitive": false,
@@ -458,7 +458,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
                              ]
                          },
                          "url": {
-                             "description": "The URL of the FireworksAI endpoint. Useful for on-demand deployments.",
+                             "description": "The URL of the Fireworks AI endpoint. Useful for on-demand deployments.",
                              "label": "URL",
                              "required": false,
                              "sensitive": false,

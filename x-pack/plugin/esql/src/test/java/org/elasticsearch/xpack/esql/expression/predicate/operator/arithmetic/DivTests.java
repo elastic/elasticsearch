@@ -211,6 +211,38 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                 .withWarning("Line 1:1: java.lang.ArithmeticException: / by zero");
         }));
 
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(DataType.DOUBLE, DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(1e308, DataType.DOUBLE, "lhs"),
+                        new TestCaseSupplier.TypedData(0.1, DataType.DOUBLE, "rhs")
+                    ),
+                    "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                    DataType.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.ArithmeticException: double overflow")
+            )
+        );
+
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(DataType.DOUBLE, DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(-1e308, DataType.DOUBLE, "lhs"),
+                        new TestCaseSupplier.TypedData(0.1, DataType.DOUBLE, "rhs")
+                    ),
+                    "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                    DataType.DOUBLE,
+                    equalTo(null)
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.ArithmeticException: double overflow")
+            )
+        );
+
         suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
 
         // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
@@ -238,21 +270,5 @@ public class DivTests extends AbstractScalarFunctionTestCase {
             result.add(left.get(i) / right.get(i));
         }
         return result;
-    }
-
-    public void testDoubleOverflowPositive() {
-        ArithmeticException e = expectThrows(
-            ArithmeticException.class,
-            () -> Div.processDoubles(1e308, 0.1)
-        );
-        assertEquals("double overflow", e.getMessage());
-    }
-
-    public void testDoubleOverflowNegative() {
-        ArithmeticException e = expectThrows(
-            ArithmeticException.class,
-            () -> Div.processDoubles(-1e308, 0.1)
-        );
-        assertEquals("double overflow", e.getMessage());
     }
 }

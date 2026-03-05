@@ -278,7 +278,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     public DelayableWriteable<InternalAggregations> next() {
                         return aggsList.pollFirst();
                     }
-                }, resultSize, aggReduceContext);
+                }, resultSize, aggReduceContext, mergeResult != null);
             } else {
                 aggs = null;
             }
@@ -397,7 +397,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     toConsume.iterator(),
                     lastMerge == null ? Collections.emptyIterator() : Iterators.single(lastMerge.reducedAggs),
                     resultSetSize,
-                    aggReduceContextBuilder.forPartialReduction(topHitsToRelease)
+                    aggReduceContextBuilder.forPartialReduction(topHitsToRelease),
+                    lastMerge != null
                 )
                 : null;
             for (QuerySearchResult querySearchResult : toConsume) {
@@ -423,21 +424,41 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         );
     }
 
+    /**
+     * Reduces shard and partial aggregation results. When {@code skipAddFromTreeForFirstPartial} is true,
+     * the first element in {@code partialResults} is the local merge (in-memory); we do not add its
+     * top_hits to the release list here because those refs are already registered during this same
+     * reduce via {@link org.elasticsearch.search.aggregations.metrics.InternalTopHits} and
+     * {@link AggregationReduceContext#registerTopHitsForRelease}. Adding them again would double-release
+     * and corrupt ref counts. All other partials are from the wire; their top_hits are added so the
+     * coordinator takes ownership for release.
+     */
     private static InternalAggregations aggregate(
         Iterator<QuerySearchResult> toConsume,
         Iterator<DelayableWriteable<InternalAggregations>> partialResults,
         int resultSetSize,
-        AggregationReduceContext reduceContext
+        AggregationReduceContext reduceContext,
+        boolean skipAddFromTreeForFirstPartial
     ) {
         try {
             Iterator<InternalAggregations> aggsIter = Iterators.map(toConsume, r -> {
                 try (var res = r.consumeAggs()) {
-                    return res.expand();
+                    InternalAggregations aggs = res.expand();
+                    reduceContext.addTopHitsFromAggregationTree(aggs);
+                    r.clearTopHitsToRelease();
+                    return aggs;
                 }
             });
+            boolean[] isFirstPartial = { true };
             return InternalAggregations.topLevelReduce(partialResults.hasNext() ? Iterators.concat(Iterators.map(partialResults, r -> {
+                boolean first = isFirstPartial[0];
+                isFirstPartial[0] = false;
                 try (r) {
-                    return r.expand();
+                    InternalAggregations aggs = r.expand();
+                    if ((skipAddFromTreeForFirstPartial && first) == false) {
+                        reduceContext.addTopHitsFromAggregationTree(aggs);
+                    }
+                    return aggs;
                 }
             }), aggsIter) : aggsIter, resultSetSize, reduceContext);
         } finally {

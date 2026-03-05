@@ -19,6 +19,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
@@ -65,6 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTopHits> {
@@ -320,6 +323,37 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             () -> InternalAggregationTestCase.reduce(List.of(stringShard, longShard3), reduceContext)
         );
         assertThat(e.getMessage(), containsString("incompatible sort types"));
+    }
+
+    /**
+     * Round-trip serialization reads SearchHits with pooled=true so that coordinator can release them.
+     * This test ensures deserialized InternalTopHits has pooled hits when they have source, and content equality is preserved.
+     */
+    public void testRoundTripDeserializesWithPooledHits() throws IOException {
+        // Build an instance with at least one hit that has source; SearchHit isPooled is true only when pooled && source != null
+        SearchHit hit = SearchHit.unpooled(0, "id");
+        hit.sourceRef(Source.fromMap(Map.of("f", "v"), XContentType.JSON).internalSourceRef());
+        hit.score(1.0f);
+        SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(
+            new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1.0f) }),
+            1.0f
+        );
+        InternalTopHits instance = new InternalTopHits("test", 0, 1, topDocsAndMaxScore, searchHits, null);
+
+        InternalTopHits roundTripped = (InternalTopHits) ESTestCase.copyNamedWriteable(
+            instance,
+            getNamedWriteableRegistry(),
+            InternalAggregation.class,
+            TransportVersion.current()
+        );
+        try {
+            assertTrue("Round-tripped InternalTopHits should have pooled SearchHits", roundTripped.getHits().isPooled());
+            assertTrue("Hit with source should be pooled after round-trip", roundTripped.getHits().getHits()[0].isPooled());
+            assertEquals("Round-trip should preserve content equality", instance, roundTripped);
+        } finally {
+            roundTripped.getHits().decRef();
+        }
     }
 
     private static void releaseTopHits(List<SearchHits> list) {

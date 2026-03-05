@@ -106,7 +106,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.aggregations = InternalAggregations.readFrom(
                 DelayableWriteable.wrapWithDeduplicatorStreamInput(in, in.getTransportVersion(), in.namedWriteableRegistry())
             );
-            this.topHitsToRelease = collectTopHitsFromAggregations(this.aggregations);
+            this.topHitsToRelease = collectTopHitsFromAggregations(this.aggregations, false);
         } else {
             this.aggregations = null;
             this.topHitsToRelease = List.of();
@@ -226,7 +226,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         if (topHitsToRelease != null) {
             this.topHitsToRelease = topHitsToRelease;
         } else if (aggregations != null) {
-            this.topHitsToRelease = collectTopHitsFromAggregations(aggregations);
+            this.topHitsToRelease = collectTopHitsFromAggregations(aggregations, true);
         } else {
             this.topHitsToRelease = List.of();
         }
@@ -249,20 +249,22 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     // Collect SearchHits from top_hits aggregations in the tree
-    private static List<SearchHits> collectTopHitsFromAggregations(InternalAggregations aggs) {
+    private static List<SearchHits> collectTopHitsFromAggregations(InternalAggregations aggs, boolean incRef) {
         List<SearchHits> out = new ArrayList<>();
-        collectTopHitsFromAggregations(aggs, out);
+        collectTopHitsFromAggregations(aggs, out, incRef);
         return out;
     }
 
-    private static void collectTopHitsFromAggregations(InternalAggregations aggs, List<SearchHits> out) {
+    private static void collectTopHitsFromAggregations(InternalAggregations aggs, List<SearchHits> out, boolean incRef) {
         for (InternalAggregation agg : aggs.asList()) {
             if (agg instanceof InternalTopHits topHits) {
                 SearchHits h = topHits.getHits();
-                h.incRef();
+                if (incRef) {
+                    h.incRef();
+                }
                 out.add(h);
             }
-            agg.forEachBucket(sub -> collectTopHitsFromAggregations(sub, out));
+            agg.forEachBucket(sub -> collectTopHitsFromAggregations(sub, out, incRef));
         }
     }
 

@@ -109,6 +109,16 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     }
 
     /**
+     * Append SearchHits from all top_hits aggregations in the given tree to this context's release list.
+     * Use when the tree was deserialized from stream (e.g. expanded from a MergeResult) so those hits are released.
+     */
+    public final void addTopHitsFromAggregationTree(InternalAggregations aggs) {
+        if (topHitsToRelease != null && aggs != null) {
+            InternalAggregations.addTopHitsToReleaseList(aggs, topHitsToRelease);
+        }
+    }
+
+    /**
      * Returns <code>true</code> iff the current reduce phase is the final
      * reduce phase. This indicates if operations like pipeline aggregations
      * should be applied or if specific features like {@code minDocCount}

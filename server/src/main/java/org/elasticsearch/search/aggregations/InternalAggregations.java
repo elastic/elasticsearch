@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -144,6 +146,24 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
         return from(in.readNamedWriteableCollectionAsList(InternalAggregation.class));
+    }
+
+    /**
+     * Appends SearchHits from all top_hits aggregations in the tree to the given list.
+     * Does not incRef; use when the aggregations were just deserialized (refcount 1) and the list
+     * owner will decRef on release.
+     */
+    public static void addTopHitsToReleaseList(InternalAggregations aggs, List<SearchHits> out) {
+        if (aggs == null) {
+            return;
+        }
+        for (InternalAggregation agg : aggs.asList()) {
+            if (agg instanceof InternalTopHits topHits) {
+                SearchHits h = topHits.getHits();
+                out.add(h);
+            }
+            agg.forEachBucket(sub -> addTopHitsToReleaseList(sub, out));
+        }
     }
 
     @Override

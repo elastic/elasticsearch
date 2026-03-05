@@ -297,6 +297,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         assert this.aggregations == null : "aggregations already set to [" + this.aggregations + "]";
         this.aggregations = aggregations == null ? null : DelayableWriteable.referencing(aggregations);
         hasAggs = aggregations != null;
+        // On the shard, register top_hits for release when there was no partial reduce (list empty).
+        // When there was a partial reduce, the reduce context already registered merged refs here.
+        if (aggregations != null && (topHitsToRelease == null || topHitsToRelease.isEmpty())) {
+            InternalAggregations.addTopHitsToReleaseList(aggregations, getOrCreateTopHitsToReleaseList());
+        }
         releaseAggsContext();
     }
 
@@ -584,6 +589,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
             topHitsToRelease = new ArrayList<>();
         }
         return topHitsToRelease;
+    }
+
+    /**
+     * Clears the top-hits release list because ownership has been transferred (e.g. to the reduce
+     * context). Call this when the consumer has registered this result's aggregation tree's
+     * top_hits elsewhere so we do not double-release on decRef().
+     */
+    public void clearTopHitsToRelease() {
+        topHitsToRelease = null;
     }
 
     @Override

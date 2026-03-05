@@ -65,8 +65,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.clearShutdownMetadata;
-import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownForRemovalMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.clearShutdownMetadata;
+import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownForRemovalMetadata;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;

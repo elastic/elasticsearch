@@ -55,7 +55,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.isUnassignedOrMisassigned;
 import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
@@ -511,7 +511,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         if (hasExecutorNode) {
             assertNotNull(task.getExecutorNode());
-            assertFalse(needsReassignment(task.getAssignment(), clusterState.nodes()));
+            assertFalse(isUnassignedOrMisassigned(task.getAssignment(), clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
             assertThat(node.getAttributes(), hasEntry(equalTo(MachineLearning.MACHINE_MEMORY_NODE_ATTR), notNullValue()));
 

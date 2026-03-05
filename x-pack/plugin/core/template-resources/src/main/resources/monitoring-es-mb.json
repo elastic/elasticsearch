@@ -2020,6 +2020,14 @@
                   "ignore_above": 1024,
                   "type": "keyword"
                 },
+                "mode": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "codec": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
                 "recovery": {
                   "properties": {
                     "stop_time": {

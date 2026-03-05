@@ -226,14 +226,6 @@ struct cosine_results_t {
     int32_t sum;
     int32_t norm1;
     int32_t norm2;
-
-    cosine_results_t& operator+=(const cosine_results_t& o) {
-        sum += o.sum; norm1 += o.norm1; norm2 += o.norm2;
-        return *this;
-    }
-    explicit operator f32_t() const {
-        return (f32_t)((double)sum / sqrt((double)norm1 * norm2));
-    }
 };
 
 static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -270,10 +262,6 @@ static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, con
     };
 }
 
-static inline cosine_results_t cosi8_scalar(int8_t a, int8_t b) {
-    return { a * b, a * a, b * b };
-}
-
 EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     cosine_results_t res = cosine_results_t { 0, 0, 0 };
     int i = 0;
@@ -292,16 +280,105 @@ EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     return (f32_t) ((double) res.sum / sqrt((double) res.norm1 * res.norm2));
 }
 
+template <int64_t(*mapper)(int32_t, const int32_t*)>
+static inline void cosi8_inner_bulk(
+    const int8_t* a,
+    const int8_t* b,
+    const int32_t dims,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    const int blk = dims & ~(sizeof(__m128i) - 1);
+    const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
+    int c = 0;
+
+    // First of all, calculate the b norm
+    __m256i b_norms = _mm256_setzero_si256();
+
+    int bi = 0;
+    for(; bi < blk; bi += sizeof(__m128i)) {
+        __m128i vb8 = _mm_loadu_si128((const __m128i*)(b + bi));
+        __m256i vb16 = _mm256_cvtepi8_epi16(vb8);
+        b_norms = _mm256_add_epi32(b_norms, _mm256_madd_epi16(vb16, vb16));
+    }
+    int32_t b_norm = mm256_reduce_epi32<_mm_add_epi32>(b_norms);
+    for (; bi < dims; bi++) {
+        b_norm += b[bi] * b[bi];
+    }
+
+    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
+    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
+
+    // Process a batch of 2 vectors at a time, after instructing the CPU to
+    // prefetch the next batch.
+    // Prefetching multiple memory locations while computing keeps the CPU
+    // execution units busy. For this "older" generation of x64 processors
+    // (supporting AVX2, but not AVX-512), benchmarks show that a batch of 2
+    // is ideal -- more, and it starts to hurt performances due to bandwidth
+    for (; c + 3 < count; c += 2) {
+        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
+        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
+
+        prefetch(next_a0, lines_to_fetch);
+        prefetch(next_a1, lines_to_fetch);
+
+        __m256i sums0 = _mm256_setzero_si256();
+        __m256i sums1 = _mm256_setzero_si256();
+        __m256i norms0 = _mm256_setzero_si256();
+        __m256i norms1 = _mm256_setzero_si256();
+        int i = 0;
+        for (; i < blk; i += sizeof(__m128i)) {
+            __m128i va08 = _mm_loadu_si128((const __m128i*)(a0 + i));
+            __m128i va18 = _mm_loadu_si128((const __m128i*)(a1 + i));
+            __m128i vb8 = _mm_loadu_si128((const __m128i*)(b + i));
+            __m256i va016 = _mm256_cvtepi8_epi16(va08);
+            __m256i va116 = _mm256_cvtepi8_epi16(va18);
+            __m256i vb16 = _mm256_cvtepi8_epi16(vb8);
+
+            sums0 = _mm256_add_epi32(_mm256_madd_epi16(va016, vb16), sums0);
+            sums1 = _mm256_add_epi32(_mm256_madd_epi16(va116, vb16), sums1);
+            norms0 = _mm256_add_epi32(_mm256_madd_epi16(va016, va016), norms0);
+            norms1 = _mm256_add_epi32(_mm256_madd_epi16(va116, va116), norms1);
+        }
+
+        int32_t sum0 = mm256_reduce_epi32<_mm_add_epi32>(sums0);
+        int32_t sum1 = mm256_reduce_epi32<_mm_add_epi32>(sums1);
+        int32_t norm0 = mm256_reduce_epi32<_mm_add_epi32>(norms0);
+        int32_t norm1 = mm256_reduce_epi32<_mm_add_epi32>(norms1);
+
+        for (; i < dims; i++) {
+            int32_t a0i = (int32_t) a0[i];
+            int32_t a1i = (int32_t) a1[i];
+            int32_t bi = (int32_t) b[i];
+            sum0 += a0i * bi;
+            sum1 += a1i * bi;
+            norm0 += a0i * a0i;
+            norm1 += a1i * a1i;
+        }
+
+        __m128 sum = _mm_setr_ps(sum0, sum1, 0.0f, 0.0f);
+        __m128 a_norm = _mm_setr_ps(norm0, norm1, 0.0f, 0.0f);
+
+        // sum / sqrt(a_norm * b_norm)
+        __m128 res = _mm_div_ps(sum, _mm_sqrt_ps(_mm_mul_ps(a_norm, _mm_setr_ps(b_norm, b_norm, 0.0f, 0.0f))));
+        // write directly to results
+        _mm_maskstore_ps(results + c, _mm_setr_epi32(-1, -1, 0, 0), res);
+
+        a0 = next_a0;
+        a1 = next_a1;
+    }
+
+    // Tail-handling: remaining vectors
+    for (; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = vec_cosi8(a0, b, dims);
+    }
+}
+
 EXPORT void vec_cosi8_bulk(const int8_t* a, const int8_t* b, const int32_t dims, const int32_t count, f32_t* results) {
-    call_i8_bulk<identity_mapper, cosi8_inner, cosi8_scalar, vec_cosi8, 2, sizeof(__m128i)>(
-        a,
-        b,
-        dims,
-        dims,
-        NULL,
-        count,
-        results
-    );
+    cosi8_inner_bulk<identity_mapper>(a, b, dims, dims, NULL, count, results);
 }
 
 EXPORT void vec_cosi8_bulk_offsets(
@@ -312,15 +389,7 @@ EXPORT void vec_cosi8_bulk_offsets(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_i8_bulk<array_mapper, cosi8_inner, cosi8_scalar, vec_cosi8, 2, sizeof(__m128i)>(
-        a,
-        b,
-        dims,
-        pitch,
-        offsets,
-        count,
-        results
-    );
+    cosi8_inner_bulk<array_mapper>(a, b, dims, pitch, offsets, count, results);
 }
 
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {

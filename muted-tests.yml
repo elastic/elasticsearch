@@ -420,6 +420,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.grpc.EmployeeFlightServerTests
   method: testMultiEndpointReturnsCorrectEndpointCount
   issue: https://github.com/elastic/elasticsearch/issues/143636
+- class: org.elasticsearch.search.SearchLoggingIT
+  method: testSearchLogShardInfoPartialFailure
+  issue: https://github.com/elastic/elasticsearch/issues/143638
 
 # Examples:
 #

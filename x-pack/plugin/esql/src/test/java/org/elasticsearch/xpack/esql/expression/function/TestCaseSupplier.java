@@ -673,16 +673,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         float upperBound
     ) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        cases.add(new TypedDataSupplier("<dense vector>", () -> randomDenseVector(lowerBound, upperBound), DataType.DENSE_VECTOR));
+        cases.add(
+            new TypedDataSupplier(
+                "<dense vector>",
+                () -> randomDenseVector(randomIntBetween(64, 128), () -> randomFloatBetween(lowerBound, upperBound, true)),
+                DataType.DENSE_VECTOR
+            )
+        );
 
         unary(suppliers, expectedEvaluatorToString, cases, expectedType, v -> expectedValue.apply((List<Float>) v), List.of());
     }
 
-    private static List<Float> randomDenseVector(float lower, float upper) {
-        int dimensions = randomIntBetween(64, 128);
+    public static List<Float> randomDenseVector(int dimensions, Supplier<Float> vectorElementSupplier) {
         List<Float> vector = new ArrayList<>();
         for (int i = 0; i < dimensions; i++) {
-            vector.add(randomFloatBetween(lower, upper, true));
+            vector.add(vectorElementSupplier.get());
         }
         return vector;
     }

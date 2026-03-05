@@ -420,6 +420,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-delta.Delta_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/143634
+- class: org.elasticsearch.xpack.esql.datasource.grpc.EmployeeFlightServerTests
+  method: testMultiEndpointReturnsCorrectEndpointCount
+  issue: https://github.com/elastic/elasticsearch/issues/143636
 
 # Examples:
 #

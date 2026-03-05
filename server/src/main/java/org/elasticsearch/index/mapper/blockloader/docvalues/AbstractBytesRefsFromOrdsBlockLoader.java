@@ -96,6 +96,17 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
         }
 
         @Override
+        public boolean readSingleDoc(int docId, Builder builder) throws IOException {
+            BytesRefBuilder b = (BytesRefBuilder) builder;
+            if (ordinals.docValues().advanceExact(docId)) {
+                b.appendBytesRef(ordinals.docValues().lookupOrd(ordinals.docValues().ordValue()));
+            } else {
+                b.appendNull();
+            }
+            return true;
+        }
+
+        @Override
         public int docId() {
             return ordinals.docValues().docID();
         }
@@ -167,6 +178,12 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
                 builder.endPositionEntry();
                 return builder.build();
             }
+        }
+
+        @Override
+        public boolean readSingleDoc(int docId, Builder builder) throws IOException {
+            read(docId, (BytesRefBuilder) builder);
+            return true;
         }
 
         private void read(int docId, BytesRefBuilder builder) throws IOException {

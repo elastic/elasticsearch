@@ -76,6 +76,12 @@ public class ConstantNull implements BlockLoader {
         }
 
         @Override
+        public boolean readSingleDoc(int docId, Builder builder) {
+            builder.appendNull();
+            return true;
+        }
+
+        @Override
         public boolean canReuse(int startingDocID) {
             return true;
         }

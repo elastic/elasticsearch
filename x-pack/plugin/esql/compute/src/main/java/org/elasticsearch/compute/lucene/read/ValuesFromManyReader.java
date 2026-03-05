@@ -8,8 +8,10 @@
 package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -33,31 +35,43 @@ class ValuesFromManyReader extends ValuesReader {
 
     private final int[] forwards;
     private final int[] backwards;
-    private final boolean nonDecreasing;
 
     private BlockLoaderStoredFieldsFromLeafLoader storedFields;
+
+    /**
+     * Cumulative circuit breaker reservation held across partial pages produced
+     * by {@link Run#loadDocSequence}. Each partial page's block data is tracked
+     * on the breaker while the blocks exist, but downstream operators release
+     * them before the next partial page is produced. This reservation keeps the
+     * breaker aware of the total data produced so it can trip when the
+     * accumulated output exceeds the limit.
+     */
+    private long docSequenceReservation;
 
     ValuesFromManyReader(ValuesSourceReaderOperator operator, DocVector docs) {
         super(operator, docs);
         forwards = docs.shardSegmentDocMapForwards();
         backwards = docs.shardSegmentDocMapBackwards();
-        nonDecreasing = isIdentity(forwards);
-        log.debug("initializing {} positions, nonDecreasing={}", docs.getPositionCount(), nonDecreasing);
-    }
-
-    private static boolean isIdentity(int[] array) {
-        for (int i = 0; i < array.length; i++) {
-            if (array[i] != i) {
-                return false;
-            }
-        }
-        return true;
+        log.debug(
+            "initializing {} positions, singleSegment={}, singleShardSingleSegment={}",
+            docs.getPositionCount(),
+            docs.singleSegment(),
+            docs.singleShardSingleSegment()
+        );
     }
 
     @Override
     protected void load(Block[] target, int offset) throws IOException {
         try (Run run = new Run(target)) {
             run.run(offset);
+        }
+    }
+
+    @Override
+    public void close() {
+        if (docSequenceReservation > 0) {
+            operator.driverContext.blockFactory().breaker().addWithoutBreaking(-docSequenceReservation);
+            docSequenceReservation = 0;
         }
     }
 
@@ -106,6 +120,145 @@ class ValuesFromManyReader extends ValuesReader {
                 finalBuilders[f] = operator.fields[f].info.type()
                     .newBlockBuilder(docs.getPositionCount() - offset, operator.driverContext.blockFactory());
             }
+            int bytesRefFieldCount = bytesRefFieldCount();
+            if (docs.singleShardSingleSegment() && bytesRefFieldCount > 100) {
+                if (log.isDebugEnabled()) {
+                    log.debug("load according to doc sequence, the number of BytesRef fields is {}", bytesRefFieldCount);
+                }
+                loadDocSequence(offset);
+            } else {
+                if (log.isDebugEnabled()) {
+                    log.debug("load according to forward sequence");
+                }
+                loadForwardSequence(offset);
+            }
+        }
+
+        /**
+         * Like {@link #loadForwardSequence(int)} but iterates in original page order instead of
+         * {@code forwards} order. This avoids the {@code backwards} reorder at the end and
+         * supports partial pages bounded by {@code jumboBytes}. Both row-stride and
+         * column-at-a-time fields are read inside the loop so their sizes are included in
+         * the {@code jumboBytes} check. Readers are recreated when doc IDs go backwards.
+         * <p>
+         *     Partial pages may produce single-position blocks whose memory is freed by
+         *     downstream operators between pages. To prevent the circuit breaker from
+         *     losing track of cumulative output, a reservation equal to each partial
+         *     page's block size is held on the breaker (see
+         *     {@link ValuesFromManyReader#docSequenceReservation}). This reservation
+         *     accumulates across partial pages, ensuring the breaker trips when the
+         *     total data produced exceeds its limit.
+         * </p>
+         */
+        private void loadDocSequence(int offset) throws IOException {
+            int shard = docs.shards().getInt(offset);
+            int segment = docs.segments().getInt(offset);
+            int firstDoc = docs.docs().getInt(offset);
+            operator.positionFieldWork(shard, segment, firstDoc);
+            LeafReaderContext ctx = operator.ctx(shard, segment);
+            resetReaders(ctx);
+            fieldsMoved(ctx, shard);
+            readRowStride(firstDoc);
+            readColumnAtATimeSingleDoc(offset);
+            int prevDoc = firstDoc;
+            int i = offset + 1;
+            long estimated = estimatedRamBytesUsed();
+            while (i < docs.getPositionCount() && estimated < operator.jumboBytes) {
+                int doc = docs.docs().getInt(i);
+                if (doc < prevDoc) {
+                    resetReaders(ctx);
+                    fieldsMoved(ctx, shard);
+                }
+                readRowStride(doc);
+                readColumnAtATimeSingleDoc(i);
+                prevDoc = doc;
+                i++;
+                estimated = estimatedRamBytesUsed();
+                log.trace("{}: bytes loaded {}/{}", i, estimated, operator.jumboBytes);
+            }
+            int count = i - offset;
+            buildBlocksDirect(count);
+            long actualBytes = 0;
+            for (Block b : target) {
+                actualBytes += b.ramBytesUsed();
+            }
+            if (count < docs.getPositionCount() - offset) {
+                CircuitBreaker breaker = operator.driverContext.blockFactory().breaker();
+                breaker.addEstimateBytesAndMaybeBreak(actualBytes, "loadDocSequence");
+                docSequenceReservation += actualBytes;
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("loaded {} positions doc sequence estimated/actual {}/{} bytes", count, estimated, actualBytes);
+            }
+        }
+
+        /**
+         * Force-closes and recreates all row-stride and column-at-a-time readers.
+         * Needed because we read in original page order which may start at a lower
+         * doc ID than the reader's current position.
+         */
+        private void resetReaders(LeafReaderContext ctx) throws IOException {
+            for (CurrentWork c : rowStride) {
+                if (c.field.rowStride != null) {
+                    c.field.rowStride.close();
+                    c.field.rowStride = null;
+                }
+                c.rowStride = c.field.rowStride(ctx);
+            }
+            for (CurrentWork c : columnAtATime) {
+                if (c.field.columnAtATime != null) {
+                    c.field.columnAtATime.close();
+                    c.field.columnAtATime = null;
+                }
+                c.columnAtATime = c.field.columnAtATime(ctx);
+            }
+        }
+
+        /**
+         * Reads column-at-a-time fields for a single position in the doc vector.
+         * Prefers {@link BlockLoader.ColumnAtATimeReader#readSingleDoc} which writes
+         * directly into the builder, falling back to the Block-based path when unsupported.
+         */
+        private void readColumnAtATimeSingleDoc(int position) throws IOException {
+            if (columnAtATime.isEmpty()) {
+                return;
+            }
+            /*
+            int docId = docs.docs().getInt(position);
+            ValuesReaderDocs readerDocs = null;
+            for (CurrentWork c : columnAtATime) {
+                assert c.rowStride == null;
+                if (c.columnAtATime.readSingleDoc(docId, (BlockLoader.Builder) c.builder)) {
+                    continue;
+                }
+                if (readerDocs == null) {
+                    readerDocs = new ValuesReaderDocs(docs);
+                    readerDocs.setCount(position + 1);
+                }
+                try (Block read = (Block) c.columnAtATime.read(blockFactory, readerDocs, position, c.field.info.nullsFiltered())) {
+                    assert read.getPositionCount() == 1 : read.getPositionCount() + " != 1 " + read;
+                    c.builder.copyFrom(read, 0, 1);
+                }
+            }
+             */
+            ValuesReaderDocs readerDocs = new ValuesReaderDocs(docs);
+            readerDocs.setCount(position + 1);
+            for (CurrentWork c : columnAtATime) {
+                assert c.rowStride == null;
+                try (Block read = (Block) c.columnAtATime.read(blockFactory, readerDocs, position, c.field.info.nullsFiltered())) {
+                    assert read.getPositionCount() == 1 : read.getPositionCount() + " != 1 " + read;
+                    c.builder.copyFrom(read, 0, 1);
+                }
+            }
+
+        }
+
+        /**
+         * General path that iterates in forwards (shard/segment/doc sorted) order, handling
+         * multiple shards/segments and column-at-a-time readers. Always loads the full page.
+         */
+        private void loadForwardSequence(int offset) throws IOException {
+            assert offset == 0; // TODO allow non-0 offset to support splitting pages
             int p = forwards[offset];
             int shard = docs.shards().getInt(p);
             int segment = docs.segments().getInt(p);
@@ -118,8 +271,8 @@ class ValuesFromManyReader extends ValuesReader {
             int segmentStart = offset;
             int i = offset + 1;
             long estimated = estimatedRamBytesUsed();
-            long dangerZoneBytes = nonDecreasing ? operator.jumboBytes : Long.MAX_VALUE;
-            while (i < forwards.length && (rowStride.isEmpty() || estimated < dangerZoneBytes)) {
+            long dangerZoneBytes = Long.MAX_VALUE; // TODO danger_zone if ascending
+            while (i < forwards.length && estimated < dangerZoneBytes) {
                 p = forwards[i];
                 shard = docs.shards().getInt(p);
                 segment = docs.segments().getInt(p);
@@ -135,30 +288,45 @@ class ValuesFromManyReader extends ValuesReader {
                 estimated = estimatedRamBytesUsed();
                 log.trace("{}: bytes loaded {}/{}", p, estimated, dangerZoneBytes);
             }
-            int count = i - offset;
             readColumnAtATime(segmentStart, i);
-            buildBlocks(count);
+            buildBlocksReordered();
             if (log.isDebugEnabled()) {
                 long actual = 0;
                 for (Block b : target) {
                     actual += b.ramBytesUsed();
                 }
-                log.debug("loaded {} positions total estimated/actual {}/{} bytes", count, estimated, actual);
+                log.debug("loaded {} positions total estimated/actual {}/{} bytes", p + 1, estimated, actual);
             }
         }
 
-        private void buildBlocks(int count) {
+        /**
+         * Builds blocks and reorders from forwards (sorted) order back to original page order
+         * using the backwards map. Large pages are not split into smaller ones.
+         */
+        private void buildBlocksReordered() {
             convertAndAccumulate();
             for (int f = 0; f < target.length; f++) {
-                if (nonDecreasing) {
-                    target[f] = finalBuilders[f].build();
-                } else {
-                    try (Block targetBlock = finalBuilders[f].build()) {
-                        target[f] = targetBlock.filter(false, backwards);
-                    }
+                try (Block targetBlock = finalBuilders[f].build()) {
+                    assert targetBlock.getPositionCount() == backwards.length
+                        : targetBlock.getPositionCount() + " == " + backwards.length + " " + targetBlock;
+                    target[f] = targetBlock.filter(false, backwards);
                 }
-                assert target[f].getPositionCount() == count
-                    : target[f].getPositionCount() + " == " + count + " " + target[f];
+                operator.sanityCheckBlock(current[f].rowStride, backwards.length, target[f], f);
+            }
+            if (target[0].getPositionCount() != docs.getPositionCount()) {
+                throw new IllegalStateException("partial pages not yet supported");
+            }
+        }
+
+        /**
+         * Builds blocks directly from the builders without reordering.
+         * This is used when fetching according to doc sequence in the DocVector.
+         */
+        private void buildBlocksDirect(int count) {
+            convertAndAccumulate();
+            for (int f = 0; f < target.length; f++) {
+                target[f] = finalBuilders[f].build();
+                assert target[f].getPositionCount() == count : target[f].getPositionCount() + " == " + count + " " + target[f];
                 operator.sanityCheckBlock(current[f].rowStride, count, target[f], f);
             }
         }
@@ -195,7 +363,9 @@ class ValuesFromManyReader extends ValuesReader {
             long sum = 0;
             for (int f = 0; f < current.length; f++) {
                 sum += finalBuilders[f].estimatedBytes();
-                sum += current[f].builder.estimatedBytes();
+                if (current[f].builder != finalBuilders[f]) {
+                    sum += current[f].builder.estimatedBytes();
+                }
             }
             return sum;
         }
@@ -263,6 +433,20 @@ class ValuesFromManyReader extends ValuesReader {
                 // NOTE: This relies on the operator.fields being positioned on the new shard.
                 current[f] = new CurrentWork(blockFactory, docs, operator.fields[f], finalBuilders[f]);
             }
+        }
+
+        /**
+         * Returns the number of fields whose element type is {@link ElementType#BYTES_REF},
+         * which covers keyword and text fields.
+         */
+        int bytesRefFieldCount() {
+            int count = 0;
+            for (ValuesSourceReaderOperator.FieldWork field : operator.fields) {
+                if (field.info.type() == ElementType.BYTES_REF) {
+                    count++;
+                }
+            }
+            return count;
         }
     }
 

@@ -1041,7 +1041,9 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testSourceDescriptionWithRoutingPath() throws IOException {
-        IndexVersion minimalVersion = useSyntheticId ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT : IndexVersions.TIME_SERIES_ID_HASHING;
+        IndexVersion minimalVersion = useSyntheticId
+            ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT
+            : IndexVersions.TIME_SERIES_ID_HASHING;
         IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(minimalVersion);
         assertThat(
             TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, false)),
@@ -1067,7 +1069,9 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testSourceDescriptionWithIndexDimensions() throws IOException {
-        IndexVersion minimalVersion = useSyntheticId ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT : IndexVersions.TIME_SERIES_ID_HASHING;
+        IndexVersion minimalVersion = useSyntheticId
+            ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT
+            : IndexVersions.TIME_SERIES_ID_HASHING;
         IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(minimalVersion);
         assertThat(
             TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, true)),

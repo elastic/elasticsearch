@@ -175,10 +175,36 @@ public class DockerTests extends PackagingTestCase {
 
     /**
      * Checks that dotted env vars are respected
-    */
+     */
     public void test013DottedEnvVarsPersist() throws Exception {
-        installation = runContainer(distribution(), builder().envVar("discovery.seed_hosts", "host1").envVar("ELASTIC_PASSWORD", PASSWORD));
-        waitForElasticsearch(installation);
+        // Populate tempDir with config from the running container so the bind-mounted config has
+        // required files (e.g. log4j2.properties). Otherwise ServerCli fails with "Missing logging config file".
+        copyFromContainer(installation.config("elasticsearch.yml"), tempDir.resolve("elasticsearch.yml"));
+        copyFromContainer(installation.config("elasticsearch.keystore"), tempDir.resolve("elasticsearch.keystore"));
+        copyFromContainer(installation.config("log4j2.properties"), tempDir.resolve("log4j2.properties"));
+        copyFromContainer(installation.config("jvm.options"), tempDir.resolve("jvm.options"));
+        final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"certs\"");
+        if (autoConfigurationDir != null) {
+            final String autoConfigurationDirName = autoConfigurationDir.getFileName().toString();
+            copyFromContainer(autoConfigurationDir, tempDir.resolve(autoConfigurationDirName));
+            Files.setPosixFilePermissions(tempDir.resolve(autoConfigurationDirName), p750);
+        }
+
+        Files.setPosixFilePermissions(tempDir, fromString("rwxrwxrwx"));
+        Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.yml"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("elasticsearch.keystore"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("log4j2.properties"), p644);
+        Files.setPosixFilePermissions(tempDir.resolve("jvm.options"), p644);
+
+        ServerUtils.removeSettingFromExistingConfiguration(tempDir, "cluster.initial_master_nodes");
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/usr/share/elasticsearch/config")
+                .envVar("ELASTIC_PASSWORD", PASSWORD)
+                .envVar("discovery.seed_hosts", "host1")
+                .envVar("discovery.type", "single-node")
+        );
+        waitForElasticsearch(installation, "elastic", PASSWORD);
         Result result = sh.run("env | grep discovery");
         assertThat(result.stdout(), containsString("discovery.seed_hosts=host1"));
     }

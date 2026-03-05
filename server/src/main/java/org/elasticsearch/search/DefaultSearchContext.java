@@ -23,6 +23,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -170,7 +171,8 @@ final class DefaultSearchContext extends SearchContext {
         Executor executor,
         SearchService.ResultsType resultsType,
         boolean enableQueryPhaseParallelCollection,
-        int minimumDocsPerSlice
+        int minimumDocsPerSlice,
+        @Nullable CircuitBreaker circuitBreaker
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -213,7 +215,7 @@ final class DefaultSearchContext extends SearchContext {
             releasables.addAll(List.of(engineSearcher, searcher));
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.timeout = timeout;
-            searchExecutionContext = indexService.newSearchExecutionContext(
+            SearchExecutionContext baseContext = indexService.newSearchExecutionContext(
                 request.shardId().id(),
                 request.shardRequestIndex(),
                 searcher,
@@ -222,6 +224,7 @@ final class DefaultSearchContext extends SearchContext {
                 request.getRuntimeMappings(),
                 request.source() == null ? null : request.source().size()
             );
+            searchExecutionContext = circuitBreaker != null ? new SearchExecutionContext(baseContext, circuitBreaker) : baseContext;
             queryBoost = request.indexBoost();
             this.lowLevelCancellation = lowLevelCancellation;
             success = true;

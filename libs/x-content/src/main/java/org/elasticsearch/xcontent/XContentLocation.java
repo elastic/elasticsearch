@@ -25,17 +25,26 @@ public record XContentLocation(int lineNumber, int columnNumber, long byteOffset
     public static final XContentLocation UNKNOWN = new XContentLocation(-1, -1, -1L);
 
     /**
-     * Sentinel for parsers that have no underlying stream (e.g. {@code MapXContentParser}).
-     * Line and column are zero (outside the valid 1-based range), byte offset is {@code -1}.
-     */
-    public static final XContentLocation INVALID = new XContentLocation(0, 0, -1L);
-
-    /**
      * Backward-compatible constructor that sets {@code byteOffset} to {@code -1}
      * (not available).
      */
     public XContentLocation(int lineNumber, int columnNumber) {
         this(lineNumber, columnNumber, -1L);
+    }
+
+    /** Returns {@code true} if the line number is valid (1-based, so must be &ge; 1). */
+    public boolean hasValidLineNumber() {
+        return lineNumber >= 1;
+    }
+
+    /** Returns {@code true} if the column number is valid (1-based, so must be &ge; 1). */
+    public boolean hasValidColumnNumber() {
+        return columnNumber >= 1;
+    }
+
+    /** Returns {@code true} if the byte offset is available (non-negative). */
+    public boolean hasValidByteOffset() {
+        return byteOffset >= 0;
     }
 
     @Override

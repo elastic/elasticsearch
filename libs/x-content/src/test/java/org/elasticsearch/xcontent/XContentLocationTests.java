@@ -42,10 +42,28 @@ public class XContentLocationTests extends ESTestCase {
         assertEquals(a.hashCode(), c.hashCode());
     }
 
-    public void testInvalidHasZeroLineColumnAndMinusOneByteOffset() {
-        assertEquals(0, XContentLocation.INVALID.lineNumber());
-        assertEquals(0, XContentLocation.INVALID.columnNumber());
-        assertEquals(-1L, XContentLocation.INVALID.byteOffset());
+    public void testHasValidLineNumber() {
+        assertTrue(new XContentLocation(1, 5, 0L).hasValidLineNumber());
+        assertTrue(new XContentLocation(100, 1).hasValidLineNumber());
+        assertFalse(new XContentLocation(0, 1).hasValidLineNumber());
+        assertFalse(new XContentLocation(-1, 1).hasValidLineNumber());
+        assertFalse(XContentLocation.UNKNOWN.hasValidLineNumber());
+    }
+
+    public void testHasValidColumnNumber() {
+        assertTrue(new XContentLocation(1, 1, 0L).hasValidColumnNumber());
+        assertTrue(new XContentLocation(1, 99).hasValidColumnNumber());
+        assertFalse(new XContentLocation(1, 0).hasValidColumnNumber());
+        assertFalse(new XContentLocation(1, -1).hasValidColumnNumber());
+        assertFalse(XContentLocation.UNKNOWN.hasValidColumnNumber());
+    }
+
+    public void testHasValidByteOffset() {
+        assertTrue(new XContentLocation(1, 1, 0L).hasValidByteOffset());
+        assertTrue(new XContentLocation(1, 1, 999L).hasValidByteOffset());
+        assertFalse(new XContentLocation(1, 1).hasValidByteOffset());
+        assertFalse(new XContentLocation(1, 1, -1L).hasValidByteOffset());
+        assertFalse(XContentLocation.UNKNOWN.hasValidByteOffset());
     }
 
     public void testToStringOmitsByteOffset() {

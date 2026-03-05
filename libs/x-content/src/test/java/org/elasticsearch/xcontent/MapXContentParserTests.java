@@ -131,7 +131,7 @@ public class MapXContentParserTests extends ESTestCase {
         }
     }
 
-    public void testLocationReturnsInvalid() throws IOException {
+    public void testLocationReturnsZeros() throws IOException {
         try (
             MapXContentParser parser = new MapXContentParser(
                 xContentRegistry(),
@@ -141,8 +141,16 @@ public class MapXContentParserTests extends ESTestCase {
             )
         ) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentLocation.INVALID, parser.getTokenLocation());
-            assertEquals(XContentLocation.INVALID, parser.getCurrentLocation());
+            XContentLocation tokenLoc = parser.getTokenLocation();
+            assertEquals(0, tokenLoc.lineNumber());
+            assertEquals(0, tokenLoc.columnNumber());
+            assertFalse(tokenLoc.hasValidLineNumber());
+            assertFalse(tokenLoc.hasValidColumnNumber());
+            assertFalse(tokenLoc.hasValidByteOffset());
+            XContentLocation currentLoc = parser.getCurrentLocation();
+            assertEquals(0, currentLoc.lineNumber());
+            assertEquals(0, currentLoc.columnNumber());
+            assertFalse(currentLoc.hasValidByteOffset());
         }
     }
 

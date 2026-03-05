@@ -211,12 +211,12 @@ public class MapXContentParser extends AbstractXContentParser {
 
     @Override
     public XContentLocation getTokenLocation() {
-        return XContentLocation.INVALID;
+        return new XContentLocation(0, 0);
     }
 
     @Override
     public XContentLocation getCurrentLocation() {
-        return XContentLocation.INVALID;
+        return new XContentLocation(0, 0);
     }
 
     @Override

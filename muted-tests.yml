@@ -358,27 +358,6 @@ tests:
   method: testTsIndexConflictingTypes {null}
   issue: https://github.com/elastic/elasticsearch/issues/142410
   # START TSDB synthetic ID / feature flag removal - PR 142366
-  # NESTED DOCS
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  methods:
-    - test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
-    - test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  methods:
-    - test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
-    - test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  methods:
-    - test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
-    - test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  methods:
-    - test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
-    - test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
 # TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(TsidExtractingIdFieldMapper.java:179) assert id.length > Long.BYTES + Integer.BYTES;
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testProcessOnceOnPrimary

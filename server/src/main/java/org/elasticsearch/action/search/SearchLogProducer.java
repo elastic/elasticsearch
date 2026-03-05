@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogger.ACTIVITY_LOGGER_SETTINGS_PREFIX;
+import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
 
 public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> {
 
@@ -58,7 +59,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
         if (logSystemSearches == false && isSystemSearch) {
             return Optional.empty();
         }
-        ESLogMessage msg = produceCommon(context, additionalFields);
+        ESLogMessage msg = produceCommon(context, ES_QUERY_FIELDS_PREFIX, additionalFields);
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
         msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getHits());

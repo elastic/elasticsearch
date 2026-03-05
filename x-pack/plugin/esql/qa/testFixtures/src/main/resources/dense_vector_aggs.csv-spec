@@ -69,7 +69,7 @@ FROM dense_vector
 ;
 
 total:dense_vector
-[14.054, 15.032, 16.012]
+[14.0625, 15.25, 16.75]
 ;
 
 sumDenseVectorWithCount

@@ -90,24 +90,29 @@ public class ReshardIndexServiceTests extends ESTestCase {
                 for (int targetId = sourceId + numShards; targetId < numShards * multiple; targetId += numShards) {
                     clusterState = transitionSplitTargetToNewState(new ShardId(index, targetId), newTargetState, clusterState, projectId);
 
-                    ActionListener<Void> listener = ActionListener.wrap(unused -> {}, ESTestCase::fail);
                     var shardId = new ShardId(index, sourceId);
                     boolean allTargetsDone = targetId + numShards >= numShards * multiple;
                     boolean expectSuccess = newTargetState == IndexReshardingState.Split.TargetShardState.DONE && allTargetsDone;
-                    var transitionSourceStateTask = new ReshardIndexService.TransitionSourceStateTask(
+                    var transitionSourceToReadyForCleanup = new ReshardIndexService.TransitionSourceStateTask(
                         shardId,
-                        IndexReshardingState.Split.SourceShardState.DONE,
-                        listener
+                        IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP,
+                        ActionListener.wrap(unused -> {}, ESTestCase::fail)
                     );
                     if (expectSuccess) {
-                        clusterState = transitionSourceStateExecutor.executeTask(transitionSourceStateTask, clusterState).v1();
+                        clusterState = transitionSourceStateExecutor.executeTask(transitionSourceToReadyForCleanup, clusterState).v1();
+                        var transitionSourceToDone = new ReshardIndexService.TransitionSourceStateTask(
+                            shardId,
+                            IndexReshardingState.Split.SourceShardState.DONE,
+                            ActionListener.wrap(unused -> {}, ESTestCase::fail)
+                        );
+                        clusterState = transitionSourceStateExecutor.executeTask(transitionSourceToDone, clusterState).v1();
                     } else {
                         var finalClusterState = clusterState;
                         var error = expectThrows(
                             AssertionError.class,
-                            () -> transitionSourceStateExecutor.executeTask(transitionSourceStateTask, finalClusterState)
+                            () -> transitionSourceStateExecutor.executeTask(transitionSourceToReadyForCleanup, finalClusterState)
                         );
-                        assertThat(error.getMessage(), containsString("can only move source shard to DONE when all targets are DONE"));
+                        assertThat(error.getMessage(), containsString("can only move source shard above SOURCE when all targets are DONE"));
                     }
                 }
             }

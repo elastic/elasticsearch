@@ -3244,16 +3244,16 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         createIndex(indexName, indexSettings(numShards, 1).build());
         ensureGreen(indexName);
 
-        var moveToDoneAttempts = new CyclicBarrier(numShards + 1); // source shards and the test itself
+        var changeSourceShardStateAttempts = new CyclicBarrier(numShards + 1); // source shards and the test itself
         var moveToDoneFailures = new CountDownLatch(numShards);
         var sourceShardMoveToDoneBlocked = new AtomicBoolean(true);
 
-        // Wait for the source shards to observe target shards being DONE but don't allow them to proceed to DONE.
+        // Wait for the source shards to observe target shards being DONE but don't allow them to proceed to READY_FOR_CLEANUP.
         var indexNodeTransportService = MockTransportService.getInstance(indexNode);
         indexNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (TransportUpdateSplitSourceShardStateAction.TYPE.name().equals(action)) {
                 try {
-                    moveToDoneAttempts.await();
+                    changeSourceShardStateAttempts.await();
                 } catch (InterruptedException | BrokenBarrierException e) {
                     throw new RuntimeException(e);
                 }
@@ -3268,9 +3268,9 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
 
-        // Wait for all search shards to attempt to transition to DONE meaning that all target shards (for all sources)
+        // Wait for all search shards to attempt to transition to READY_FOR_CLEANUP meaning that all target shards (for all sources)
         // are now DONE.
-        moveToDoneAttempts.await();
+        changeSourceShardStateAttempts.await();
         // Make sure we completed this "round" of source shard logic.
         moveToDoneFailures.await();
 
@@ -3280,9 +3280,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // of using `waitForNextChange` on a newly created `ClusterStateObserver` instead of `ClusterStateObserver#waitForState`.
         // The latter checks the predicate on the current state but the former does not which would make us stall here.
 
-        // So we expect all source shards to arrive at the transition to DONE state again and this time we'll allow them to proceed.
+        // So we expect all source shards to arrive at the transition to READY_FOR_CLEANUP state again and this time we'll allow them to
+        // proceed.
         sourceShardMoveToDoneBlocked.set(false);
-        moveToDoneAttempts.await();
+        changeSourceShardStateAttempts.await();
+        // After READY_FOR_CLEANUP all source shards will proceed to DONE.
+        changeSourceShardStateAttempts.await();
 
         waitForReshardCompletion(indexName);
     }

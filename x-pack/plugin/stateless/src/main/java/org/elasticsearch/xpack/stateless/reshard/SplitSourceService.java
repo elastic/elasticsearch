@@ -20,8 +20,11 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedRequest;
+import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,6 +32,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -55,6 +59,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -79,7 +84,7 @@ public class SplitSourceService {
     /// This means however that we can't delete unowned data on the source shard as soon as possible because in that case
     /// stale requests described above will see a big chunk of the documents being missing - the now-unowned documents.
     /// We can allow search results for such requests to be stale, but we can't allow such a major discrepancy.
-    /// Once we know that unowned documents are deleted after the grace period we need to reject such stale search requests.
+    /// Once we know that unowned documents are about to be deleted after the grace period we will reject such stale search requests.
     ///
     /// In indexing logic we currently read resharding metadata in order to figure out the corresponding target shard
     /// for the source shard when we forward broadcast requests like flush.
@@ -764,6 +769,17 @@ public class SplitSourceService {
                     monitorTargetShardsState();
                 }
                 case State.TargetShardsDone ignored -> {
+                    /// This code already runs on generic thread pool.
+                    /// We use `scheduleUnlessShuttingDown` just to implement a delay.
+                    /// See [RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD] for the explanation of this delay.
+                    clusterService.threadPool()
+                        .scheduleUnlessShuttingDown(
+                            deleteUnownedDelay,
+                            clusterService.threadPool().generic(),
+                            this::changeStateToReadyForCleanup
+                        );
+                }
+                case State.ReadyForCleanup ignored -> {
                     deleteUnownedData();
                 }
                 case State.CleanupComplete ignored -> {
@@ -804,12 +820,12 @@ public class SplitSourceService {
 
         private void validateStateTransition(State newState) {
             var validCurrentStates = newStateToValidCurrentStates.get(newState.getClass());
-            if (validCurrentStates.contains(currentState.getClass()) == false) {
+            if (validCurrentStates == null || validCurrentStates.contains(currentState.getClass()) == false) {
                 // It's possible that this exception is not observed by anyone since we are inside a runnable on generic thread pool.
                 // So we log as well.
-                var message = String.format(Locale.ROOT, "Unexpected state transition %s -> %s", currentState, newState);
-                assert false : message;
+                var message = String.format(Locale.ROOT, "Unexpected split source shard state transition %s -> %s", currentState, newState);
                 logger.error(message);
+                assert false : message;
                 throw new IllegalStateException(message);
             }
         }
@@ -819,17 +835,20 @@ public class SplitSourceService {
                 // Can go Failed -> MonitoringTargetShards due to retries.
                 put(State.MonitoringTargetShards.class, Set.of(State.MonitoringTargetShards.class, State.Failed.class));
                 put(State.TargetShardsDone.class, Set.of(State.MonitoringTargetShards.class));
-                put(State.CleanupComplete.class, Set.of(State.TargetShardsDone.class));
+                put(State.ReadyForCleanup.class, Set.of(State.TargetShardsDone.class));
+                put(State.CleanupComplete.class, Set.of(State.ReadyForCleanup.class));
                 put(State.Done.class, Set.of(State.CleanupComplete.class));
-                put(State.Failed.class, Set.of(State.TargetShardsDone.class, State.CleanupComplete.class));
+                put(State.Failed.class, Set.of(State.TargetShardsDone.class, State.ReadyForCleanup.class, State.CleanupComplete.class));
             }
         };
 
-        sealed interface State permits State.MonitoringTargetShards, State.TargetShardsDone, State.CleanupComplete, State.Done,
-            State.Failed {
+        sealed interface State permits State.MonitoringTargetShards, State.TargetShardsDone, State.ReadyForCleanup, State.CleanupComplete,
+            State.Done, State.Failed {
             record MonitoringTargetShards() implements State {}
 
             record TargetShardsDone() implements State {}
+
+            record ReadyForCleanup() implements State {}
 
             record CleanupComplete() implements State {}
 
@@ -907,19 +926,138 @@ public class SplitSourceService {
             );
         }
 
-        private void deleteUnownedData() {
-            /// This code already runs on generic thread pool.
-            /// We use `scheduleUnlessShuttingDown` just to implement a delay.
-            /// See [RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD] for the explanation of this delay.
-            clusterService.threadPool()
-                .scheduleUnlessShuttingDown(
-                    deleteUnownedDelay,
-                    clusterService.threadPool().generic(),
-                    () -> reshardIndexService.deleteUnownedDocuments(
+        /// Signals to the search shards that they should start rejecting search requests that do not have current shard count summary.
+        /// We are going to delete unowned data in the next step and if search shards still served requests with stale summaries
+        /// such requests would now return incorrect results.
+        /// That is because unowned data is deleted _and_ target shards are not included in the search since the request is stale.
+        private void changeStateToReadyForCleanup() {
+            SubscribableListener.newForked(
+                l -> client.execute(
+                    TransportUpdateSplitSourceShardStateAction.TYPE,
+                    new TransportUpdateSplitSourceShardStateAction.Request(
                         indexShard.shardId(),
-                        new StateAdvancingListener<>(new State.CleanupComplete())
+                        IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP
+                    ),
+                    // the response is empty
+                    l.map(ignored -> null)
+                )
+            )
+                // We need to observe the change we just made since we need the cluster state version to await below.
+                .<ClusterState>andThen(
+                    clusterService.threadPool().generic(),
+                    clusterService.threadPool().getThreadContext(),
+                    (stepListener, ignored) -> ClusterStateObserver.waitForState(
+                        clusterService,
+                        clusterService.threadPool().getThreadContext(),
+                        new ClusterStateObserver.Listener() {
+                            @Override
+                            public void onNewClusterState(ClusterState state) {
+                                if (cancelled.get()) {
+                                    stepListener.onFailure(new CancellationException());
+                                    return;
+                                }
+
+                                IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
+                                if (split == null) {
+                                    // If there is no metadata anymore, there is nothing for us to do.
+                                    // An example situation is a relocation that happens during final steps of the workflow
+                                    // (e.g. moving to DONE).
+                                    // The relocated shard is able to move to DONE since the primary term doesn't change during relocation.
+                                    // Then during recovery of the relocation target shard we'll see that there is no metadata.
+                                    // TODO this will be fixed with the grace period before moving source shards to DONE.
+                                    stepListener.onFailure(new CancellationException());
+                                } else {
+                                    stepListener.onResponse(state);
+                                }
+                            }
+
+                            @Override
+                            public void onClusterServiceClose() {
+                                // Nothing to do, shard will be closed when the node closes.
+                            }
+
+                            @Override
+                            public void onTimeout(TimeValue timeout) {
+                                // There is no timeout.
+                            }
+                        },
+                        state -> {
+                            if (cancelled.get()) {
+                                return true;
+                            }
+
+                            // If the index is deleted or this split has completed concurrently
+                            // (maybe we've received a batch of cluster state updates) we need to exit.
+                            IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
+                            return split == null
+                                || split.getSourceShardState(indexShard.shardId().id())
+                                    .ordinal() >= IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP.ordinal();
+                        },
+                        // No timeout.
+                        // We know we have just submitted this cluster state update,
+                        // so we will either see it shortly or we are not in the cluster anymore
+                        // and there is probably another instance of the shard being allocated.
+                        // In the latter case we may as well wait since we are not blocking any user operations.
+                        null,
+                        logger
                     )
-                );
+                )
+                .andThen(
+                    clusterService.threadPool().generic(),
+                    clusterService.threadPool().getThreadContext(),
+                    (stepListener, clusterState) -> {
+                        Index index = indexShard.shardId().getIndex();
+                        var indexRoutingTable = clusterState.metadata()
+                            .lookupProject(index)
+                            .flatMap(pm -> Optional.ofNullable(clusterState.routingTable(pm.id()).index(index)));
+                        if (indexRoutingTable.isEmpty()) {
+                            // The index was deleted, nothing to do.
+                            stepListener.onFailure(new CancellationException());
+                            return;
+                        }
+
+                        // If a search shard is not assigned in this cluster state then it is going to be assigned
+                        // in some subsequent cluster state version.
+                        // As such it will also observe the needed READY_FOR_CLEANUP state of the source shard since it is already applied
+                        // in this version.
+                        var assignedUnpromotableShards = indexRoutingTable.get()
+                            .shard(indexShard.shardId().id())
+                            .assignedUnpromotableShards();
+                        if (assignedUnpromotableShards.isEmpty()) {
+                            stepListener.onResponse(null);
+                            return;
+                        }
+
+                        var nodes = assignedUnpromotableShards.stream()
+                            .map(shardRouting -> clusterState.nodes().get(shardRouting.currentNodeId()))
+                            .toArray(DiscoveryNode[]::new);
+                        client.execute(
+                            TransportAwaitClusterStateVersionAppliedAction.TYPE,
+                            new AwaitClusterStateVersionAppliedRequest(
+                                clusterState.version(),
+                                // We don't need a strict timeout here since all target shards are done, and we are not delaying
+                                // any impactful operations.
+                                TimeValue.MINUS_ONE,
+                                nodes
+                            ),
+                            stepListener.delegateFailure((responseHandlingListener, response) -> {
+                                if (response.hasFailures()) {
+                                    // We'll retry the entire workflow for simplicity.
+                                    responseHandlingListener.onFailure(new ElasticsearchException("""
+                                        {} Failed to await the application of READY_FOR_CLEANUP\
+                                         split source shard state on search shards, will retry""", indexShard.shardId()));
+                                } else {
+                                    responseHandlingListener.onResponse(null);
+                                }
+                            })
+                        );
+                    }
+                )
+                .addListener(new StateAdvancingListener<>(new State.ReadyForCleanup()));
+        }
+
+        private void deleteUnownedData() {
+            reshardIndexService.deleteUnownedDocuments(indexShard.shardId(), new StateAdvancingListener<>(new State.CleanupComplete()));
         }
 
         private void changeStateToDone() {

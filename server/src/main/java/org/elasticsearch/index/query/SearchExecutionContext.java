@@ -429,16 +429,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, boolean forceSyntheticSource) {
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, boolean forceSyntheticSource, boolean includeMetadata) {
         if (forceSyntheticSource) {
             return new SourceLoader.Synthetic(
                 filter,
-                () -> mappingLookup.getMapping().syntheticFieldLoader(null),
+                () -> mappingLookup.getMapping().syntheticFieldLoader(null, true),
                 mapperMetrics.sourceFieldMetrics(),
                 IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
             );
         }
-        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics());
+        return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics(), includeMetadata);
     }
 
     /**

@@ -171,7 +171,7 @@ public final class FetchPhase {
             context.fetchFieldsContext(newFetchFieldsContext);
         }
 
-        SourceLoader sourceLoader = context.newSourceLoader(res.v2());
+        SourceLoader sourceLoader = context.newSourceLoader(res.v2(), true);
         FetchContext fetchContext = new FetchContext(context, sourceLoader);
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();

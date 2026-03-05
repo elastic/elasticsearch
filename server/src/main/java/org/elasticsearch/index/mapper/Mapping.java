@@ -152,9 +152,9 @@ public final class Mapping implements ToXContentFragment {
         return root.syntheticVectorsLoader(filter);
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter, boolean includeMetadata) {
         var mappers = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream()).collect(Collectors.toList());
-        return root.syntheticFieldLoader(filter, mappers, false);
+        return root.syntheticFieldLoader(filter, mappers, false, includeMetadata);
     }
 
     public IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat() {

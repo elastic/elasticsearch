@@ -538,7 +538,7 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public SourceLoader newSourceLoader(@Nullable SourceFilter filter) {
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, boolean includeMetadata) {
         throw new UnsupportedOperationException();
     }
 

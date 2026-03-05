@@ -35,7 +35,7 @@ public class StoredFieldsSpecTests extends ESTestCase {
         SearchSourceBuilder search = new SearchSourceBuilder();
         var context = searchContext(search);
         // defaults - return source and metadata fields
-        FetchContext fc = new FetchContext(context, context.newSourceLoader(null));
+        FetchContext fc = new FetchContext(context, context.newSourceLoader(null, true));
 
         FetchSubPhaseProcessor sourceProcessor = new FetchSourcePhase().getProcessor(fc);
         assertNotNull(sourceProcessor);
@@ -58,7 +58,7 @@ public class StoredFieldsSpecTests extends ESTestCase {
         SearchSourceBuilder search = new SearchSourceBuilder();
         search.storedField("_none_");
         var context = searchContext(search);
-        FetchContext fc = new FetchContext(context, context.newSourceLoader(null));
+        FetchContext fc = new FetchContext(context, context.newSourceLoader(null, true));
 
         assertNull(new StoredFieldsPhase().getProcessor(fc));
         assertNull(new FetchSourcePhase().getProcessor(fc));

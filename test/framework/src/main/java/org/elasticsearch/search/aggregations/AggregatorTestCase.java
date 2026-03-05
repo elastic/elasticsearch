@@ -528,7 +528,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(ctx.indexShard()).thenReturn(indexShard);
-        when(ctx.newSourceLoader(null)).thenAnswer(inv -> searchExecutionContext.newSourceLoader(null, false));
+        when(ctx.newSourceLoader(null, true)).thenAnswer(inv -> searchExecutionContext.newSourceLoader(null, false, true));
         when(ctx.newIdLoader()).thenReturn(IdLoader.fromLeafStoredFieldLoader());
         when(ctx.innerHits()).thenReturn(new InnerHitsContext());
         var res = new SubSearchContext(ctx);

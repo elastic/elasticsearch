@@ -966,7 +966,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             int[] docIds = new int[] { docId };
             SourceLoader sourceLoader = new SourceLoader.Synthetic(
                 filter,
-                () -> mapper.mapping().syntheticFieldLoader(filter),
+                () -> mapper.mapping().syntheticFieldLoader(filter, true),
                 SourceFieldMetrics.NOOP,
                 mapper.mapping().ignoredSourceFormat()
             );

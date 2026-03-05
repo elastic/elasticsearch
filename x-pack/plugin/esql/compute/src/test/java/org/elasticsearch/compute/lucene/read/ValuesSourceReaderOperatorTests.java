@@ -171,7 +171,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             new IndexedByShardIdFromSingleton<>(
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
-                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                    (sourcePaths, includeMetadata) -> SourceLoader.FROM_STORED_SOURCE,
                     STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 )
             ),
@@ -515,7 +515,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             new IndexedByShardIdFromSingleton<>(
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
-                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                    (sourcePaths, includeMetadata) -> SourceLoader.FROM_STORED_SOURCE,
                     STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 )
             ),
@@ -642,7 +642,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 new IndexedByShardIdFromSingleton<>(
                     new ValuesSourceReaderOperator.ShardContext(
                         reader,
-                        (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                        (sourcePaths, includeMetadata) -> SourceLoader.FROM_STORED_SOURCE,
                         STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                     )
                 ),
@@ -663,7 +663,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     new IndexedByShardIdFromSingleton<>(
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
-                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                            (sourcePaths, includeMetadata) -> SourceLoader.FROM_STORED_SOURCE,
                             STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                         )
                     ),
@@ -810,7 +810,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         new IndexedByShardIdFromSingleton<>(
                             new ValuesSourceReaderOperator.ShardContext(
                                 reader,
-                                (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                                (sourcePaths, includeMetadata) -> SourceLoader.FROM_STORED_SOURCE,
                                 STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                             )
                         ),
@@ -968,7 +968,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         new IndexedByShardIdFromSingleton<>(
                             new ValuesSourceReaderOperator.ShardContext(
                                 reader,
-                                (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                                (sourcePaths, includeMetadata) -> SourceLoader.FROM_STORED_SOURCE,
                                 STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                             )
                         ),
@@ -1641,7 +1641,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         new IndexedByShardIdFromSingleton<>(
                             new ValuesSourceReaderOperator.ShardContext(
                                 reader,
-                                (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                                (sourcePaths, includeMetadata) -> SourceLoader.FROM_STORED_SOURCE,
                                 STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                             )
                         ),
@@ -1697,7 +1697,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     new IndexedByShardIdFromSingleton<>(
                         new ValuesSourceReaderOperator.ShardContext(
                             reader,
-                            (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                            (sourcePaths, includeMetadata) -> SourceLoader.FROM_STORED_SOURCE,
                             STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                         )
                     ),
@@ -1734,7 +1734,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             new IndexedByShardIdFromSingleton<>(
                 new ValuesSourceReaderOperator.ShardContext(
                     reader,
-                    (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                    (sourcePaths, includeMetadata) -> SourceLoader.FROM_STORED_SOURCE,
                     STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                 )
             ),
@@ -1769,7 +1769,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 readerShardContexts.add(
                     new ValuesSourceReaderOperator.ShardContext(
                         readers[s],
-                        (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE,
+                        (sourcePaths, includeMetadata) -> SourceLoader.FROM_STORED_SOURCE,
                         STORED_FIELDS_SEQUENTIAL_PROPORTIONS
                     )
                 );

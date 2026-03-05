@@ -538,7 +538,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
-        public SourceLoader newSourceLoader(Set<String> sourcePaths) {
+        public SourceLoader newSourceLoader(Set<String> sourcePaths, boolean includeMetadata) {
             var filter = sourcePaths != null ? new SourceFilter(sourcePaths.toArray(new String[0]), null) : null;
             // Apply vector exclusion logic similar to ShardGetService
             var fetchSourceContext = filter != null ? FetchSourceContext.of(true, null, filter.getIncludes(), filter.getExcludes()) : null;
@@ -547,7 +547,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (vectorFilter != null) {
                 filter = vectorFilter;
             }
-            return ctx.newSourceLoader(filter, false);
+            return ctx.newSourceLoader(filter, false, includeMetadata);
         }
 
         @Override

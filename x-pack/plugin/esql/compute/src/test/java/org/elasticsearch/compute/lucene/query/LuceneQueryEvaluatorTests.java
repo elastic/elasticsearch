@@ -213,9 +213,11 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                             )
                         )
                     ),
-                    new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
-                        throw new UnsupportedOperationException();
-                    }, 0.2)),
+                    new IndexedByShardIdFromSingleton<>(
+                        new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths, includeMetadata) -> {
+                            throw new UnsupportedOperationException();
+                        }, 0.2)
+                    ),
                     true,
                     0,
                     randomDoubleBetween(0.1, 10.0, true)

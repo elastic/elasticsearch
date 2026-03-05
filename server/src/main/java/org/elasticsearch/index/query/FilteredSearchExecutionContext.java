@@ -164,8 +164,8 @@ public class FilteredSearchExecutionContext extends SearchExecutionContext {
     }
 
     @Override
-    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, boolean forceSyntheticSource) {
-        return in.newSourceLoader(filter, forceSyntheticSource);
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, boolean forceSyntheticSource, boolean includeMetadata) {
+        return in.newSourceLoader(filter, forceSyntheticSource, includeMetadata);
     }
 
     @Override

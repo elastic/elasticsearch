@@ -922,21 +922,29 @@ public class ObjectMapper extends Mapper {
         };
     }
 
-    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter filter, Collection<Mapper> mappers, boolean isFragment) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+        SourceFilter filter,
+        Collection<Mapper> mappers,
+        boolean isFragment,
+        boolean includeMetadata
+    ) {
         var fields = mappers.stream()
             .sorted(Comparator.comparing(Mapper::fullPath))
-            .map(m -> innerSyntheticFieldLoader(filter, m))
+            .map(m -> innerSyntheticFieldLoader(filter, m, includeMetadata))
             .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
             .toList();
         return new SyntheticSourceFieldLoader(filter, fields, isFragment);
     }
 
     final SourceLoader.SyntheticFieldLoader syntheticFieldLoader(@Nullable SourceFilter filter) {
-        return syntheticFieldLoader(filter, mappers.values(), false);
+        return syntheticFieldLoader(filter, mappers.values(), false, true);
     }
 
-    private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper) {
-        if (mapper instanceof MetadataFieldMapper metaMapper) {
+    private SourceLoader.SyntheticFieldLoader innerSyntheticFieldLoader(SourceFilter filter, Mapper mapper, boolean includeMetadata) {
+        if (mapper instanceof IgnoredSourceFieldMapper ignoredSourceFieldMapper) {
+            return ignoredSourceFieldMapper.syntheticFieldLoader();
+        }
+        if (includeMetadata && mapper instanceof MetadataFieldMapper metaMapper) {
             return metaMapper.syntheticFieldLoader();
         }
         if (filter != null && filter.isPathFiltered(mapper.fullPath(), mapper instanceof ObjectMapper)) {

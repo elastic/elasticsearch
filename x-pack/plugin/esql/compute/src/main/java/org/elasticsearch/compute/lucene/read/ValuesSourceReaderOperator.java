@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.IntFunction;
 
 /**
@@ -142,7 +142,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     public record ShardContext(
         IndexReader reader,
-        Function<Set<String>, SourceLoader> newSourceLoader,
+        BiFunction<Set<String>, Boolean, SourceLoader> newSourceLoader,
         double storedFieldsSequentialProportion
     ) {}
 

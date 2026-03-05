@@ -351,9 +351,13 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 PlannerSettings.VALUES_LOADING_JUMBO_SIZE.getDefault(Settings.EMPTY),
                 fieldInfos,
                 new IndexedByShardIdFromSingleton<>(
-                    new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), (paths) -> {
-                        throw new IllegalStateException("can't load source here");
-                    }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))
+                    new ValuesSourceReaderOperator.ShardContext(
+                        searchContext.getSearchExecutionContext().getIndexReader(),
+                        (paths, includeMetadata) -> {
+                            throw new IllegalStateException("can't load source here");
+                        },
+                        EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY)
+                    )
                 ),
                 true,
                 0,

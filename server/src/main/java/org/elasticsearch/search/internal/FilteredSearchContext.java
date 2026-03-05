@@ -455,8 +455,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SourceLoader newSourceLoader(@Nullable SourceFilter filter) {
-        return in.newSourceLoader(filter);
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, boolean includeMetadata) {
+        return in.newSourceLoader(filter, includeMetadata);
     }
 
     @Override

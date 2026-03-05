@@ -554,7 +554,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         }
 
         @Override
-        public SourceLoader newSourceLoader(Set<String> sourcePaths) {
+        public SourceLoader newSourceLoader(Set<String> sourcePaths, boolean includeMetadata) {
             return SourceLoader.FROM_STORED_SOURCE;
         }
 

@@ -517,8 +517,20 @@ public final class MappingLookup {
      * Build something to load source {@code _source}.
      */
     public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
+        return newSourceLoader(filter, metrics, true);
+    }
+
+    /**
+     * Build something to load source {@code _source}.
+     */
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics, boolean includeMetadata) {
         if (isSourceSynthetic()) {
-            return new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics, mapping.ignoredSourceFormat());
+            return new SourceLoader.Synthetic(
+                filter,
+                () -> mapping.syntheticFieldLoader(filter, includeMetadata),
+                metrics,
+                mapping.ignoredSourceFormat()
+            );
         }
         var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
         if (syntheticVectorsLoader != null) {

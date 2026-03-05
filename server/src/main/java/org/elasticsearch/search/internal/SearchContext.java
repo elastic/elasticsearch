@@ -446,7 +446,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Build something to load source {@code _source}.
      */
-    public abstract SourceLoader newSourceLoader(@Nullable SourceFilter sourceFilter);
+    public abstract SourceLoader newSourceLoader(@Nullable SourceFilter sourceFilter, boolean includeMetadata);
 
     public abstract IdLoader newIdLoader();
 }

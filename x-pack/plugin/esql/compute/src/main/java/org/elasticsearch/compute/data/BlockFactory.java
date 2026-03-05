@@ -29,8 +29,10 @@ public class BlockFactory {
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
 
+    // The same as PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD
     public static final ByteSizeValue DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = ByteSizeValue.ofMb(1);
-    public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 1.5;
+    // The same as PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR
+    public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 2.5;
 
     private final CircuitBreaker breaker;
 

@@ -1198,7 +1198,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndicesOptions resolutionIdxOpts,
         ActionListener<ResolvedIndices> listener
     ) {
-        HashSet<String> unresponsiveProjects = new HashSet<>();
+        Map<String, Exception> unresponsiveProjects = new HashMap<>();
         HashMap<String, ResolvedIndexExpressions> resolvedExpressions = new HashMap<>();
 
         for (Map.Entry<String, SearchPlanningPhaseResolutionResult> entry : responsesByProject) {
@@ -1210,7 +1210,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 resolvedExpressions.put(projectName, response.getResolvedIndexExpressions());
             } else if (result.error() != null) {
                 // There was an error communicating with the linked project and the error was already logged.
-                unresponsiveProjects.add(projectName);
+                unresponsiveProjects.put(projectName, result.error());
             }
         }
 
@@ -1229,7 +1229,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             rewritten.getProjectRouting(),
             rewritten.getResolvedIndexExpressions(),
             resolvedExpressions,
-            Map.of()
+            unresponsiveProjects
         );
 
         if (ex != null) {
@@ -1249,7 +1249,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
              * on this info, we can track future connection errors (when fanning out a search op) and display them in the
              * search response's metadata section.
              */
-            for (String unresponsiveProject : unresponsiveProjects) {
+            for (String unresponsiveProject : unresponsiveProjects.keySet()) {
                 participatingLinkedProjects.put(
                     unresponsiveProject,
                     originalResolvedIndices.getRemoteClusterIndices().get(unresponsiveProject)

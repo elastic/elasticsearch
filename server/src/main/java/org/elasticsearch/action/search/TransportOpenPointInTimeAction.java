@@ -64,6 +64,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -181,6 +182,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
         // CPS
         final int linkedProjectsToQuery = indicesPerCluster.size();
+        Map<String, Exception> remoteClusterExceptions = new ConcurrentHashMap<>();
         ActionListener<Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>>> responsesListener = listener
             .delegateFailureAndWrap((l, responses) -> {
                 Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = responses.stream()
@@ -196,7 +198,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     request.getProjectRouting(),
                     localResolvedIndexExpressions,
                     resolvedRemoteExpressions,
-                    Map.of()
+                    remoteClusterExceptions
                 );
                 if (ex != null) {
                     listener.onFailure(ex);

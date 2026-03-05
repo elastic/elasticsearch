@@ -40,6 +40,10 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         return expressions.stream().flatMap(e -> e.remoteExpressions().stream()).toList();
     }
 
+    public boolean localIndicesIsEmpty() {
+        return expressions.stream().allMatch(e -> e.localExpressions().indices().isEmpty());
+    }
+
     public static Builder builder() {
         return new Builder();
     }

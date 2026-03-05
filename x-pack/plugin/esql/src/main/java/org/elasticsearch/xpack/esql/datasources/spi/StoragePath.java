@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.nio.file.Path;
+
 /**
  * Represents a location in a storage system.
  * Uses URI-like format: scheme://[userInfo@]host[:port][/path]
@@ -42,6 +44,18 @@ public final class StoragePath {
         this.path = path;
     }
 
+    /**
+     * Converts a local filesystem {@link Path} to a properly formatted {@code file://} URI string.
+     * Normalizes Windows backslashes and ensures the URI has three slashes ({@code file:///}).
+     */
+    public static String fileUri(Path path) {
+        String absPath = path.toAbsolutePath().toString().replace('\\', '/');
+        if (absPath.startsWith("/") == false) {
+            absPath = "/" + absPath;
+        }
+        return "file://" + absPath;
+    }
+
     public static StoragePath of(String location) {
         if (location == null) {
             throw new IllegalArgumentException("location cannot be null");
@@ -56,16 +70,31 @@ public final class StoragePath {
 
         // Parse authority and path
         int authorityStart = schemeEnd + SCHEME_SEPARATOR.length();
-        int pathStart = location.indexOf('/', authorityStart);
+
+        // Handle file:// URIs that may contain Windows drive letters (e.g. file:///C:/path or file://C:\path)
+        // Normalize backslashes to forward slashes for file:// URIs before parsing
+        String toParse = location;
+        if (scheme.equals("file")) {
+            toParse = location.substring(0, authorityStart) + location.substring(authorityStart).replace('\\', '/');
+        }
+
+        int pathStart = toParse.indexOf('/', authorityStart);
         String authority;
         String path;
 
         if (pathStart < 0) {
-            authority = location.substring(authorityStart);
+            authority = toParse.substring(authorityStart);
             path = "";
         } else {
-            authority = location.substring(authorityStart, pathStart);
-            path = location.substring(pathStart);
+            authority = toParse.substring(authorityStart, pathStart);
+            path = toParse.substring(pathStart);
+        }
+
+        // For file:// URIs with Windows drive letters like file://C:/path,
+        // the drive letter ends up as the authority. Fold it back into the path.
+        if (scheme.equals("file") && authority.length() == 2 && Character.isLetter(authority.charAt(0)) && authority.charAt(1) == ':') {
+            path = "/" + authority + path;
+            authority = "";
         }
 
         // Parse host and port from authority

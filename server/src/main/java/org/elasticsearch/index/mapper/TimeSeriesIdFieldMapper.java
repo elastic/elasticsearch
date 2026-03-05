@@ -85,6 +85,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public TimeSeriesIdFieldMapper build() {
             return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
         }

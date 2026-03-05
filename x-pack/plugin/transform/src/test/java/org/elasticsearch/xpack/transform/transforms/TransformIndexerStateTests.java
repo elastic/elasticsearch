@@ -271,6 +271,11 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
+        void prepareCrossProjectSearch(ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
         protected void onFinish(ActionListener<Void> listener) {
             try {
                 super.onFinish(listener);
@@ -393,6 +398,11 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         @Override
         void validate(ActionListener<ValidateTransformAction.Response> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
+        void prepareCrossProjectSearch(ActionListener<Void> listener) {
             listener.onResponse(null);
         }
 

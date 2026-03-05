@@ -76,7 +76,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         returnType = "long",
         description = "Returns the approximate number of distinct values.",
         note = "[Counts are approximate](/reference/query-languages/esql/functions-operators/"
-            + "aggregation-functions.md#esql-agg-count-distinct-approximate).",
+            + "aggregation-functions/count_distinct.md#esql-agg-count-distinct-approximate).",
         appendix = """
             ### Counts are approximate [esql-agg-count-distinct-approximate]
 

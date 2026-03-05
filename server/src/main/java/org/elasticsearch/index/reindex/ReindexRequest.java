@@ -353,7 +353,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                     parser.contentType()
                 )
             ) {
-                request.getSearchRequest().source().parseXContent(innerParser, false, context);
+                request.getSearchRequest().source().parseXContent(request.getSearchRequest(), innerParser, false, context);
             }
         };
 

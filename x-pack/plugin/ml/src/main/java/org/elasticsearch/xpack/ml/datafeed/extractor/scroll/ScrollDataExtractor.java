@@ -123,7 +123,7 @@ class ScrollDataExtractor implements DataExtractor {
             if (searchHasShardFailure) {
                 throw e;
             }
-            logger.debug("[{}] Resetting scroll search after shard failure", context.jobId);
+            logger.warn("[" + context.jobId + "] Resetting scroll search after shard failure", e);
             markScrollAsErrored();
             return Optional.ofNullable(initScroll(lastTimestamp == null ? context.queryContext.start : lastTimestamp));
         }
@@ -183,6 +183,10 @@ class ScrollDataExtractor implements DataExtractor {
             .setIndicesOptions(context.queryContext.indicesOptions)
             .setAllowPartialSearchResults(false)
             .setSource(searchSourceBuilder);
+
+        if (context.queryContext.projectRouting != null) {
+            searchRequestBuilder.request().setProjectRouting(context.queryContext.projectRouting);
+        }
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
             searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());

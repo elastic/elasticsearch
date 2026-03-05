@@ -155,7 +155,15 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             compositeAggregationBuilder.aggregateAfter(afterKey);
         }
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
-        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(
+            searchSourceBuilder,
+            context.queryContext.indicesOptions
+        );
+
+        if (context.queryContext.projectRouting != null) {
+            searchRequest.request().setProjectRouting(context.queryContext.projectRouting);
+        }
+
         SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
         try {
             LOGGER.trace("[{}] Search composite response was obtained", context.jobId);

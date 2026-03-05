@@ -104,6 +104,7 @@ public class Constants {
         "cluster:admin/features/get",
         "cluster:admin/features/reset",
         "cluster:admin/tasks/cancel",
+        "cluster:admin/transform/cross_project/headers/get",
         "cluster:admin/transform/delete",
         "cluster:admin/transform/node_stats",
         "cluster:admin/transform/preview",
@@ -532,6 +533,7 @@ public class Constants {
         "indices:admin/data_stream/lifecycle/get",
         "indices:admin/data_stream/lifecycle/put",
         "indices:admin/data_stream/lifecycle/explain",
+        "indices:admin/dlm/mark_index_for_force_merge",
         "indices:admin/data_stream/options/delete",
         "indices:admin/data_stream/options/get",
         "indices:admin/data_stream/options/put",
@@ -678,12 +680,6 @@ public class Constants {
         "indices:admin/index/create_from_source",
         "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
-        "internal:admin/repository/verify/coordinate",
-        "indices:admin/sample",
-        "indices:admin/sample/config/update",
-        "indices:admin/sample/stats",
-        "indices:admin/sample/config/delete",
-        "indices:monitor/sample/config/get",
-        "indices:monitor/sample/config/get_all"
+        "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

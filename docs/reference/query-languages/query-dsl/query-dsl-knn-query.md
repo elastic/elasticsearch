@@ -78,9 +78,29 @@ PUT my-image-index
 
 
 `query_vector_builder`
-:   (Optional, object) Query vector builder. A configuration object indicating how to build a query_vector before executing the request. You must provide either a `query_vector_builder` or `query_vector`, but not both. Refer to [Perform semantic search](docs-content://solutions/search/vector/knn.md#knn-semantic-search) to learn more.
+:   (Optional, object) Query vector builder. A configuration object indicating how to build a query_vector before executing the request. You must provide either a `query_vector_builder` or `query_vector`, but not both.
 
-If all queried fields are of type [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md), the inference ID associated with the `semantic_text` field may be inferred.
+    **Parameters for `query_vector_builder`**:
+    `lookup` {applies_to}`stack: ga 9.4`
+    :   (Optional, object) Build the query vector by looking up an existing document's vector.
+
+        **Parameters for `lookup`**:
+
+        `id`
+        :   (Required, string) The ID of the document to look up.
+
+        `path`
+        :   (Required, string) The name of the vector field in the document to use as the query vector.
+
+        `index`
+        :   (Required, string) The name of the index containing the document to look up
+
+        `routing`
+        :   (Optional, string) The routing value to use when looking up the document.
+
+    `text_embedding`
+    :   (Optional, object) Build the query vector by generating an embedding from input text. Refer to [Perform semantic search](docs-content://solutions/search/vector/knn.md#knn-semantic-search) to learn more.
+        If all queried fields are of type [semantic_text](/reference/elasticsearch/mapping-reference/semantic-text.md), the inference ID associated with the `semantic_text` field may be inferred.
 
 
 `k`
@@ -343,6 +363,31 @@ provided as it can be inferred from the `semantic_text` field mapping.
 Knn search using query vectors over `semantic_text` fields is also supported,
 with no change to the API.
 
+## Knn query with vector lookup
+```{applies_to}
+stack: ga 9.4+
+```
+
+Elasticsearch supports knn queries with a vector that is stored within an index.
+
+Here is an example utilizing lookup. It gets the document with id `vector_doc_0` from index `some_vector_index` and uses the field `vector_field` as the query vector for the `knn` search.
+```js
+{
+  "query": {
+    "knn": {
+      "field": "vector_field",
+      "query_vector_builder": {
+        "lookup": {
+          "id": "vector_doc_0",
+          "index": "some_vector_index",
+          "path": "vector_field"
+        }
+      }
+    }
+  }
+}
+```
+%NOTCONSOLE
 ## Knn query with aggregations [knn-query-aggregations]
 
 `knn` query calculates aggregations on top `k` documents from each shard. Thus, the final results from aggregations contain `k * number_of_shards` documents. This is different from the [top level knn section](docs-content://solutions/search/vector/knn.md) where aggregations are calculated on the global top `k` nearest documents.

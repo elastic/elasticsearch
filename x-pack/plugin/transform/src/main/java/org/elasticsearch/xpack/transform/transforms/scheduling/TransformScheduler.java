@@ -106,7 +106,7 @@ public final class TransformScheduler {
         if (isProcessingActive.compareAndSet(false, true) == false) {
             return;
         }
-        logger.trace("Processing scheduled tasks started");
+        // logger.trace("Processing scheduled tasks started");
         final boolean isTraceEnabled = logger.isTraceEnabled();
         Instant processingStarted = isTraceEnabled ? clock.instant() : null;
         final boolean taskWasProcessed;
@@ -121,9 +121,9 @@ public final class TransformScheduler {
             Instant processingFinished = clock.instant();
             long tookMs = Duration.between(processingStarted, processingFinished).toMillis();
             if (taskWasProcessed) {
-                logger.trace("Processing one scheduled task finished, took [{}] ms", tookMs);
+                // logger.trace("Processing one scheduled task finished, took [{}] ms", tookMs);
             } else {
-                logger.trace("Looking for scheduled tasks to process finished, took [{}] ms", tookMs);
+                // logger.trace("Looking for scheduled tasks to process finished, took [{}] ms", tookMs);
             }
         }
         if (taskWasProcessed == false) {

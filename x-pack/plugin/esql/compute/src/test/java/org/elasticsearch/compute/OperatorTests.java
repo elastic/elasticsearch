@@ -191,7 +191,8 @@ public class OperatorTests extends MapperServiceTestCase {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             );
             List<Page> pages = new ArrayList<>();
             DriverContext driverContext = driverContext();
@@ -479,7 +480,7 @@ public class OperatorTests extends MapperServiceTestCase {
      */
     protected final DriverContext driverContext() {
         var breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()), null);
+        return new DriverContext(bigArrays(), BlockFactory.builder(bigArrays()).breaker(breaker).build(), null);
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

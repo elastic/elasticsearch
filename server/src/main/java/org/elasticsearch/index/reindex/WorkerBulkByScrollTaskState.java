@@ -11,6 +11,7 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -18,10 +19,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -46,6 +50,8 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      * The id of the slice that this worker is processing or {@code null} if this task isn't for a sliced request.
      */
     private final Integer sliceId;
+
+    private final SetOnce<Supplier<Optional<String>>> nodeToRelocateToSupplier;
 
     /**
      * The total number of documents this request will process. 0 means we don't yet know or, possibly, there are actually 0 documents
@@ -77,6 +83,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         this.task = task;
         this.sliceId = sliceId;
         setRequestsPerSecond(requestsPerSecond);
+        this.nodeToRelocateToSupplier = new SetOnce<>();
     }
 
     public BulkByScrollTask.Status getStatus() {
@@ -170,6 +177,14 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
     public void countSearchRetry() {
         searchRetries.incrementAndGet();
+    }
+
+    public void setNodeToRelocateToSupplier(Supplier<Optional<String>> nodeToRelocateToSupplier) {
+        this.nodeToRelocateToSupplier.set(Objects.requireNonNull(nodeToRelocateToSupplier));
+    }
+
+    public Optional<String> getNodeToRelocateTo() {
+        return Objects.requireNonNull(this.nodeToRelocateToSupplier.get(), "nodeToRelocateToSupplier not set for worker").get();
     }
 
     float getRequestsPerSecond() {

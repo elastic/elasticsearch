@@ -32,7 +32,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         LongRangeBlock,
         TDigestBlock {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
+    public static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
     private final int positionCount;
     private BlockFactory blockFactory;
 
@@ -134,7 +134,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED;
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -252,7 +252,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
         @Override
         public long estimatedBytes() {
-            return BASE_RAM_BYTES_USED;
+            return RAM_BYTES_USED;
         }
 
         @Override

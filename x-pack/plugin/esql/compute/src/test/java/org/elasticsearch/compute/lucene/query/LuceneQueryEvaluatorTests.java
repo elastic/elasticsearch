@@ -217,7 +217,8 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
                         throw new UnsupportedOperationException();
                     }, 0.2)),
                     true,
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true)
                 )
             );
             var shardConfig = new IndexedByShardIdFromSingleton<>(new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher));

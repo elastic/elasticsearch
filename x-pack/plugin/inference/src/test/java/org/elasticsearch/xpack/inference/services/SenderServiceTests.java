@@ -26,6 +26,8 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -306,10 +308,8 @@ public class SenderServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var request = new UnifiedCompletionRequest(
                 List.of(
-                    new UnifiedCompletionRequest.Message(
-                        new UnifiedCompletionRequest.ContentObjects(
-                            List.of(randomContentObjectText(), randomContentObjectImage(), randomContentObjectFile())
-                        ),
+                    new Message(
+                        new ContentObjects(List.of(randomContentObjectText(), randomContentObjectImage(), randomContentObjectFile())),
                         "user",
                         null,
                         null

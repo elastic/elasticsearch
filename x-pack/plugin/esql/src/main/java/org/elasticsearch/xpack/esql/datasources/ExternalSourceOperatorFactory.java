@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -42,22 +44,15 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
     private final StoragePath path;
     private final List<Attribute> attributes;
     private final int batchSize;
+    private final ExternalSliceQueue sliceQueue;
 
-    /**
-     * Creates an ExternalSourceOperatorFactory.
-     *
-     * @param storageProvider the storage provider for accessing the object
-     * @param formatReader the format reader for parsing the data
-     * @param path the path to the data object
-     * @param attributes the ESQL attributes (columns to read)
-     * @param batchSize the target number of rows per batch
-     */
     public ExternalSourceOperatorFactory(
         StorageProvider storageProvider,
         FormatReader formatReader,
         StoragePath path,
         List<Attribute> attributes,
-        int batchSize
+        int batchSize,
+        @Nullable ExternalSliceQueue sliceQueue
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -80,24 +75,33 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         this.path = path;
         this.attributes = attributes;
         this.batchSize = batchSize;
+        this.sliceQueue = sliceQueue;
+    }
+
+    public ExternalSourceOperatorFactory(
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        StoragePath path,
+        List<Attribute> attributes,
+        int batchSize
+    ) {
+        this(storageProvider, formatReader, path, attributes, batchSize, null);
     }
 
     @Override
     public SourceOperator get(DriverContext driverContext) {
-        // Create a storage object for the path
-        StorageObject storageObject = storageProvider.newObject(path);
-
-        // Extract column names from attributes
         List<String> projectedColumns = new ArrayList<>(attributes.size());
         for (Attribute attr : attributes) {
             projectedColumns.add(attr.name());
         }
 
-        try {
-            // Open a reader for the object
-            CloseableIterator<Page> pages = formatReader.read(storageObject, projectedColumns, batchSize);
+        if (sliceQueue != null) {
+            return new SliceQueueSourceOperator(storageProvider, formatReader, projectedColumns, batchSize, sliceQueue);
+        }
 
-            // Return a simple source operator that iterates through pages
+        StorageObject storageObject = storageProvider.newObject(path);
+        try {
+            CloseableIterator<Page> pages = formatReader.read(storageObject, projectedColumns, batchSize);
             return new ExternalSourceOperator(pages, driverContext);
         } catch (Exception e) {
             throw new RuntimeException("Failed to create external source operator for: " + path, e);
@@ -118,10 +122,6 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             + "]";
     }
 
-    /**
-     * Simple source operator that reads pages from a CloseableIterator.
-     * This is a synchronous operator - for async operations, use the AsyncExternalSourceOperator.
-     */
     private static class ExternalSourceOperator extends SourceOperator {
         private static final Logger logger = LogManager.getLogger(ExternalSourceOperator.class);
 
@@ -177,6 +177,96 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         @Override
         public String toString() {
             return "ExternalSourceOperator";
+        }
+    }
+
+    /**
+     * Synchronous source operator that claims splits from an {@link ExternalSliceQueue}
+     * and reads files one at a time until the queue is exhausted.
+     */
+    private static class SliceQueueSourceOperator extends SourceOperator {
+        private static final Logger logger = LogManager.getLogger(SliceQueueSourceOperator.class);
+
+        private final StorageProvider storageProvider;
+        private final FormatReader formatReader;
+        private final List<String> projectedColumns;
+        private final int batchSize;
+        private final ExternalSliceQueue sliceQueue;
+        private CloseableIterator<Page> currentPages;
+        private boolean finished = false;
+
+        SliceQueueSourceOperator(
+            StorageProvider storageProvider,
+            FormatReader formatReader,
+            List<String> projectedColumns,
+            int batchSize,
+            ExternalSliceQueue sliceQueue
+        ) {
+            this.storageProvider = storageProvider;
+            this.formatReader = formatReader;
+            this.projectedColumns = projectedColumns;
+            this.batchSize = batchSize;
+            this.sliceQueue = sliceQueue;
+        }
+
+        @Override
+        public Page getOutput() {
+            if (finished) {
+                return null;
+            }
+            try {
+                while (true) {
+                    if (currentPages != null && currentPages.hasNext()) {
+                        return currentPages.next();
+                    }
+                    closeCurrentPages();
+                    ExternalSplit split = sliceQueue.nextSplit();
+                    if (split == null) {
+                        finished = true;
+                        return null;
+                    }
+                    if (split instanceof FileSplit fileSplit) {
+                        StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
+                        currentPages = formatReader.read(obj, projectedColumns, batchSize);
+                    } else {
+                        throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
+                    }
+                }
+            } catch (Exception e) {
+                finished = true;
+                throw new RuntimeException("Error reading from external source split", e);
+            }
+        }
+
+        @Override
+        public boolean isFinished() {
+            return finished;
+        }
+
+        @Override
+        public void finish() {
+            finished = true;
+        }
+
+        @Override
+        public void close() {
+            closeCurrentPages();
+        }
+
+        private void closeCurrentPages() {
+            if (currentPages != null) {
+                try {
+                    currentPages.close();
+                } catch (Exception e) {
+                    logger.warn("Failed to close external source pages iterator", e);
+                }
+                currentPages = null;
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "SliceQueueSourceOperator";
         }
     }
 }

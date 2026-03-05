@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -25,7 +27,9 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -233,6 +237,27 @@ public class IndexSettingsTests extends ESTestCase {
             assertEquals("uuid mismatch on settings update expected: 0xdeadbeef but was: _na_", ex.getMessage());
         }
         assertEquals(metadata.getSettings(), settings.getSettings());
+    }
+
+    public void testDenseVectorExperimentalFeaturesDefaultsFromBuildType() {
+        assertEquals(Build.current().isSnapshot(), IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(Settings.EMPTY));
+    }
+
+    @TestLogging(reason = "testing warning logging", value = "org.elasticsearch.index.IndexSettings:WARN")
+    public void testDenseVectorExperimentalFeaturesWarnsWhenExplicitlyEnabled() {
+        MockLog.assertThatLogger(() -> {
+            Settings settings = Settings.builder().put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true).build();
+            new IndexSettings(newIndexMeta("index", settings), Settings.EMPTY);
+        },
+            IndexSettings.class,
+            new MockLog.SeenEventExpectation(
+                "dense vector warning",
+                IndexSettings.class.getCanonicalName(),
+                Level.WARN,
+                "*The setting [index.dense_vector.experimental_features] is enabled; "
+                    + "backwards compatibility is not guaranteed for index [index]*"
+            )
+        );
     }
 
     public IndexSettings newIndexSettings(IndexMetadata metadata, Settings nodeSettings, Setting<?>... settings) {

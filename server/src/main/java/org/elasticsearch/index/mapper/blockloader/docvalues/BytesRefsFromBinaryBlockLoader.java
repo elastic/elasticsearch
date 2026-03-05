@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
@@ -27,10 +26,10 @@ import java.io.IOException;
  * {@link BytesRefsFromOrdsBlockLoader} for ordinals-based binary values
  */
 public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-    private final IOFunction<LeafReader, BinaryDocValues> docValuesSupplier;
+    private final IOFunction<LeafReaderContext, BinaryDocValues> docValuesSupplier;
 
     public BytesRefsFromBinaryBlockLoader(String fieldName) {
-        this(leafReader -> leafReader.getBinaryDocValues(fieldName));
+        this(context -> context.reader().getBinaryDocValues(fieldName));
     }
 
     /**
@@ -38,7 +37,7 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
      * This is useful when the doc values are not directly stored in a single field
      * but are composed of multiple sources, as is the case for Pattern Text.
      */
-    public BytesRefsFromBinaryBlockLoader(IOFunction<LeafReader, BinaryDocValues> docValuesSupplier) {
+    public BytesRefsFromBinaryBlockLoader(IOFunction<LeafReaderContext, BinaryDocValues> docValuesSupplier) {
         this.docValuesSupplier = docValuesSupplier;
     }
 

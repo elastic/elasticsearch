@@ -33,7 +33,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.script.DateFieldScript;
@@ -839,7 +839,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
             iwc.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
             iwc.setIndexSort(new Sort(new SortField("@timestamp", SortField.Type.LONG, true)));
-            iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
+            iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat()));
             try (IndexWriter iw = new IndexWriter(directory, iwc)) {
                 for (long i = from; i < to; i++) {
                     LuceneDocument doc = new LuceneDocument();

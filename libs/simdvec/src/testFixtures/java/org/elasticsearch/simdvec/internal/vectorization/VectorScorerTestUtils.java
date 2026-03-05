@@ -100,24 +100,30 @@ public class VectorScorerTestUtils {
 
     public static void writeBulkOSQVectorData(int bulkSize, IndexOutput out, VectorScorerTestUtils.OSQVectorData[] vectors)
         throws IOException {
-        for (int j = 0; j < bulkSize; j++) {
-            out.writeBytes(vectors[j].quantizedVector(), 0, vectors[j].quantizedVector().length);
-        }
-        writeCorrections(vectors, out);
+        writeBulkOSQVectorData(bulkSize, out, vectors, 0);
     }
 
-    private static void writeCorrections(VectorScorerTestUtils.OSQVectorData[] corrections, IndexOutput out) throws IOException {
-        for (var correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
+    public static void writeBulkOSQVectorData(int bulkSize, IndexOutput out, VectorScorerTestUtils.OSQVectorData[] vectors, int offset)
+        throws IOException {
+        for (int j = 0; j < bulkSize; j++) {
+            out.writeBytes(vectors[offset + j].quantizedVector(), 0, vectors[offset + j].quantizedVector().length);
         }
-        for (var correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+        writeCorrections(vectors, offset, bulkSize, out);
+    }
+
+    private static void writeCorrections(VectorScorerTestUtils.OSQVectorData[] corrections, int offset, int count, IndexOutput out)
+        throws IOException {
+        for (int i = 0; i < count; i++) {
+            out.writeInt(Float.floatToIntBits(corrections[offset + i].lowerInterval()));
         }
-        for (var correction : corrections) {
-            out.writeInt(correction.quantizedComponentSum());
+        for (int i = 0; i < count; i++) {
+            out.writeInt(Float.floatToIntBits(corrections[offset + i].upperInterval()));
         }
-        for (var correction : corrections) {
-            out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
+        for (int i = 0; i < count; i++) {
+            out.writeInt(corrections[offset + i].quantizedComponentSum());
+        }
+        for (int i = 0; i < count; i++) {
+            out.writeInt(Float.floatToIntBits(corrections[offset + i].additionalCorrection()));
         }
     }
 

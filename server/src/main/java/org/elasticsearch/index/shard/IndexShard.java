@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -1037,7 +1038,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 ifPrimaryTerm,
                 getRelativeTimeInNanos()
             );
-            Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
+            CompressedXContent update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
                 return new Engine.IndexResult(update, operation.parsedDoc().id());
             }
@@ -1093,18 +1094,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert source.dynamicTemplateParams().isEmpty() || origin == Engine.Operation.Origin.PRIMARY
             : "dynamic_template_params parameter can only be associated with primary operations";
         DocumentMapper documentMapper = mapperService.documentMapper();
-        Mapping mapping = null;
-        if (documentMapper == null) {
+        boolean noMappings = documentMapper == null;
+        if (noMappings) {
             documentMapper = DocumentMapper.createEmpty(mapperService);
-            mapping = documentMapper.mapping();
         }
         ParsedDocument doc = documentMapper.parse(source);
-        if (mapping != null) {
+        if (noMappings) {
             // If we are indexing but there is no mapping we create one. This is to ensure that whenever at least a document is indexed
             // some mappings do exist. It covers for the case of indexing an empty doc (`{}`).
             // TODO this can be removed if we eagerly create mappings as soon as a new index is created, regardless of
             // whether mappings were provided or not.
-            doc.addDynamicMappingsUpdate(mapping);
+            doc.addDynamicMappingsUpdate(Mapping.emptyCompressed());
         }
         return new Engine.Index(
             Uid.encodeId(doc.id()),

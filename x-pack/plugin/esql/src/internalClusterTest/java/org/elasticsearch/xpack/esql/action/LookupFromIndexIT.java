@@ -361,6 +361,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 0
             );
             CancellableTask parentTask = new EsqlQueryTask(
+                "test-session",
                 1,
                 "test",
                 "test",

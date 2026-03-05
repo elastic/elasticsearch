@@ -30,8 +30,8 @@ TS index_pattern [METADATA fields]
 
 The `TS` source command enables time series semantics and adds support for
 [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md) to the `STATS` command, such as
-[`AVG_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-avg_over_time),
-or [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-rate).
+[`AVG_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/avg_over_time.md),
+or [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md).
 These functions are implicitly evaluated per time series, then aggregated by group using a secondary aggregation
 function. See the Examples section for a query that calculates the total rate of search requests per host and hour.
 
@@ -43,7 +43,7 @@ apply to downsampled data, with the same semantics as for raw data.
 
 ::::{note}
 If a query is missing an inner (time series) aggregation function,
-[`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md#esql-last_over_time)
+[`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md)
 is assumed and used implicitly. For instance, two equivalent queries are shown in the Examples section that return the average of the last memory usage values per time series. To calculate the average memory usage across per-time-series averages, see the Examples section.
 ::::
 

@@ -783,23 +783,14 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
-    private static final boolean DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper").isEnabled();
     public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting("index.mapping.use_doc_values_skipper", s -> {
         IndexVersion iv = SETTING_INDEX_VERSION_CREATED.get(s);
         if (MODE.get(s) == IndexMode.TIME_SERIES) {
-            if (DOC_VALUES_SKIPPER && iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)) {
-                return "true";
-            }
             if (iv.onOrAfter(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB)) {
                 return "true";
             }
             return "false";
         } else {
-            if (DOC_VALUES_SKIPPER
-                && iv.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
-                && iv.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB)) {
-                return "true";
-            }
             return "false";
         }
     }, Property.IndexScope, Property.Final);
@@ -982,6 +973,13 @@ public final class IndexSettings {
         Property.IndexScope,
         Property.Final,
         Property.ServerlessPublic
+    );
+
+    public static final Setting<Boolean> DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING = Setting.boolSetting(
+        "index.dense_vector.experimental_features",
+        Build.current().isSnapshot(),
+        Property.IndexScope,
+        Property.Final
     );
 
     public static final Setting<Boolean> INTRA_MERGE_PARALLELISM_ENABLED_SETTING = Setting.boolSetting(
@@ -1202,6 +1200,14 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = scopedSettings.get(MODE);
+        if (scopedSettings.get(DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING)
+            && DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.exists(indexMetadata.getSettings())) {
+            logger.warn(
+                "The setting [{}] is enabled; backwards compatibility is not guaranteed for index [{}]",
+                DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(),
+                index.getName()
+            );
+        }
         this.timestampBounds = mode.getTimestampBound(indexMetadata);
         if (timestampBounds != null) {
             scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, endTime -> {

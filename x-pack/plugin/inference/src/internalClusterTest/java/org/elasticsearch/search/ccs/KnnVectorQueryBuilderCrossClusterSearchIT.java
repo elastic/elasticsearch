@@ -14,6 +14,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
 import org.junit.Before;
 
 import java.util.List;
@@ -33,6 +34,10 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     private static final String REMOTE_INFERENCE_ID = "remote-inference-id";
 
     private static final int DENSE_VECTOR_FIELD_DIMENSIONS = 256;
+
+    private static final Exception GENERIC_QUERY_VECTOR_BUILDER_ERROR = new IllegalArgumentException(
+        "Generic query vector builder failure"
+    );
 
     boolean clustersConfigured = false;
 
@@ -184,6 +189,163 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 null,
                 searchRequestModifier
             );
+        }
+    }
+
+    public void testGenericQueryVectorBuilderReturnsVector() throws Exception {
+        List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
+        for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
+            final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+            final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
+
+            // DENSE_VECTOR_FIELD: 256 dims on both clusters
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    DENSE_VECTOR_FIELD,
+                    new GenericQueryVectorBuilder(
+                        generateDenseVectorFieldValue(DENSE_VECTOR_FIELD_DIMENSIONS, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f)
+                    ),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(DENSE_VECTOR_FIELD)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(DENSE_VECTOR_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            // MIXED_TYPE_FIELD_1: 384 dims on both clusters (dense_vector on local, semantic_text on remote)
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    MIXED_TYPE_FIELD_1,
+                    new GenericQueryVectorBuilder(generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT, -128.0f)),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_1))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            // MIXED_TYPE_FIELD_2: 384 dims on both clusters (semantic_text on local, dense_vector on remote)
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    MIXED_TYPE_FIELD_2,
+                    new GenericQueryVectorBuilder(generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT, -128.0f)),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+                ),
+                null,
+                searchRequestModifier
+            );
+
+            // COMMON_INFERENCE_ID_FIELD: Different dims across clusters (256 local, 384 remote)
+            // Query local cluster only with 256 dims
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    COMMON_INFERENCE_ID_FIELD,
+                    new GenericQueryVectorBuilder(generateDenseVectorFieldValue(256, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f)),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                List.of(LOCAL_INDEX_NAME),
+                List.of(new SearchResult(null, LOCAL_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
+                null,
+                searchRequestModifier
+            );
+
+            // COMMON_INFERENCE_ID_FIELD: Query remote cluster only with 384 dims
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    COMMON_INFERENCE_ID_FIELD,
+                    new GenericQueryVectorBuilder(generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f)),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
+                List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(COMMON_INFERENCE_ID_FIELD))),
+                null,
+                searchRequestModifier
+            );
+
+            // VARIABLE_INFERENCE_ID_FIELD: Different dims across clusters (384 local, 256 remote)
+            // Query local cluster only with 384 dims
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    VARIABLE_INFERENCE_ID_FIELD,
+                    new GenericQueryVectorBuilder(generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f)),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                List.of(LOCAL_INDEX_NAME),
+                List.of(new SearchResult(null, LOCAL_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))),
+                null,
+                searchRequestModifier
+            );
+
+            // VARIABLE_INFERENCE_ID_FIELD: Query remote cluster only with 256 dims
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    VARIABLE_INFERENCE_ID_FIELD,
+                    new GenericQueryVectorBuilder(generateDenseVectorFieldValue(256, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f)),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
+                List.of(new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(VARIABLE_INFERENCE_ID_FIELD))),
+                null,
+                searchRequestModifier
+            );
+        }
+    }
+
+    public void testGenericQueryVectorBuilderThrowsError() {
+        List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
+        List<String> fields = List.of(
+            DENSE_VECTOR_FIELD,
+            MIXED_TYPE_FIELD_1,
+            MIXED_TYPE_FIELD_2,
+            COMMON_INFERENCE_ID_FIELD,
+            VARIABLE_INFERENCE_ID_FIELD
+        );
+
+        for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
+            final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+            for (String field : fields) {
+                assertSearchFailure(
+                    new KnnVectorQueryBuilder(field, new GenericQueryVectorBuilder(GENERIC_QUERY_VECTOR_BUILDER_ERROR), 10, 100, 10f, null),
+                    QUERY_INDICES,
+                    GENERIC_QUERY_VECTOR_BUILDER_ERROR.getClass(),
+                    GENERIC_QUERY_VECTOR_BUILDER_ERROR.getMessage(),
+                    searchRequestModifier
+                );
+            }
         }
     }
 

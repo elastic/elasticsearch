@@ -469,6 +469,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return esqlResponse;
     }
 
+    public long getRowCount() {
+        return pages.stream().mapToLong(Page::getPositionCount).sum();
+    }
+
     public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans, TransportVersion minimumVersion) implements Writeable {
 
         public static Profile readFrom(StreamInput in) throws IOException {

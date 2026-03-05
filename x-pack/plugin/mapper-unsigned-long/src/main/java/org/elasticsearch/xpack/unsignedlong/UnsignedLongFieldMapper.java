@@ -753,7 +753,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
                         // Save a copy of the field so synthetic source can load it
-                        context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                        IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
                     }
                     return;
                 } else {
@@ -901,11 +901,16 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 )
             );
             if (ignoreMalformed.value()) {
-                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), ignoreMalformed()) {
+            return new SortedNumericDocValuesSyntheticFieldLoader(
+                fullPath(),
+                leafName(),
+                ignoreMalformed(),
+                indexSettings.getIndexVersionCreated()
+            ) {
                 @Override
                 protected void writeValue(XContentBuilder b, long value) throws IOException {
                     b.value(DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value));

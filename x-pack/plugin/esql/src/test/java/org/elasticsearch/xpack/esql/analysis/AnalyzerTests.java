@@ -6312,6 +6312,7 @@ public class AnalyzerTests extends ESTestCase {
     // ===== ResolveExternalRelations + FileSet tests =====
 
     public void testResolveExternalRelationPassesFileSet() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
         var entries = List.of(
             new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
             new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH)
@@ -6373,6 +6374,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveExternalRelationUnresolvedFileSet() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
         List<Attribute> schema = List.of(
             new FieldAttribute(EMPTY, "id", new EsField("id", LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
         );

@@ -20,7 +20,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,6 +31,9 @@ import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.fireworksai.embeddings.FireworksAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -71,7 +73,11 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
 
     public static TestConfiguration createTestConfiguration() {
         return new TestConfiguration.Builder(
-            new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, EnumSet.of(TaskType.TEXT_EMBEDDING)) {
+            new CommonConfig(
+                TaskType.TEXT_EMBEDDING,
+                TaskType.RERANK,
+                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
+            ) {
                 @Override
                 protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return FireworksAiServiceTests.createService(threadPool, clientManager);
@@ -95,13 +101,22 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
                             ),
                             EmptyTaskSettings.INSTANCE
                         );
-                        // COMPLETION is not supported, but in order to test unsupported task types it is included here
-                        case COMPLETION -> new ModelConfigurations(
+                        case COMPLETION, CHAT_COMPLETION -> new ModelConfigurations(
+                            "some_inference_id",
+                            taskType,
+                            FireworksAiService.NAME,
+                            FireworksAiChatCompletionServiceSettings.fromMap(
+                                createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+                                ConfigurationParseContext.PERSISTENT
+                            ),
+                            new FireworksAiChatCompletionTaskSettings((String) null, null)
+                        );
+                        case RERANK -> new ModelConfigurations(
                             "some_inference_id",
                             taskType,
                             FireworksAiService.NAME,
                             mock(ServiceSettings.class),
-                            mock(TaskSettings.class)
+                            EmptyTaskSettings.INSTANCE
                         );
                         default -> throw new IllegalStateException("Unexpected value: " + taskType);
                     };
@@ -129,12 +144,12 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
 
                 @Override
                 protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-                    FireworksAiServiceTests.assertModel(model, modelIncludesSecrets);
+                    FireworksAiServiceTests.assertModel(model, taskType, modelIncludesSecrets);
                 }
 
                 @Override
                 protected EnumSet<TaskType> supportedStreamingTasks() {
-                    return EnumSet.noneOf(TaskType.class);
+                    return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
                 }
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
@@ -143,11 +158,6 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
                 return createInternalEmbeddingModel(similarityMeasure, null);
             }
         }).build();
-    }
-
-    @Override
-    public void testParseRequestConfig_CreatesACompletionModel() {
-        // FireworksAI does not support the completion task type
     }
 
     @Override
@@ -165,7 +175,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    public void testInfer_SendsRequest() throws IOException {
+    public void testInfer_SendsEmbeddingsRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new FireworksAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
@@ -222,6 +232,60 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
+    public void testInfer_SendsChatCompletionRequest() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new FireworksAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+
+            String responseJson = """
+                {
+                  "id": "chatcmpl-123",
+                  "object": "chat.completion",
+                  "created": 1677652288,
+                  "model": "accounts/fireworks/models/llama-v3p1-70b-instruct",
+                  "choices": [{
+                    "index": 0,
+                    "message": {
+                      "role": "assistant",
+                      "content": "Hello! How can I help you?"
+                    },
+                    "finish_reason": "stop"
+                  }],
+                  "usage": {
+                    "prompt_tokens": 9,
+                    "completion_tokens": 12,
+                    "total_tokens": 21
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = createInternalChatCompletionModel(getUrl(webServer), "secret", "test-model");
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of("Hello"),
+                false,
+                new HashMap<>(),
+                InputType.UNSPECIFIED,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.get("model"), Matchers.is("test-model"));
+        }
+    }
+
     private static Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext parseContext) {
         var settingsMap = new HashMap<String, Object>(Map.of(ServiceFields.MODEL_ID, MODEL));
 
@@ -236,7 +300,15 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
         return settingsMap;
     }
 
-    private static void assertModel(Model model, boolean modelIncludesSecrets) {
+    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
+        if (taskType == TaskType.TEXT_EMBEDDING) {
+            assertEmbeddingsModel(model, modelIncludesSecrets);
+        } else if (taskType == TaskType.COMPLETION || taskType == TaskType.CHAT_COMPLETION) {
+            assertChatCompletionModel(model, modelIncludesSecrets);
+        }
+    }
+
+    private static void assertEmbeddingsModel(Model model, boolean modelIncludesSecrets) {
         assertThat(model, instanceOf(FireworksAiEmbeddingsModel.class));
 
         var embeddingsModel = (FireworksAiEmbeddingsModel) model;
@@ -261,6 +333,19 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(SECRET));
         } else {
             assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    private static void assertChatCompletionModel(Model model, boolean modelIncludesSecrets) {
+        assertThat(model, instanceOf(FireworksAiChatCompletionModel.class));
+
+        var chatModel = (FireworksAiChatCompletionModel) model;
+        assertThat(chatModel.getServiceSettings().modelId(), is(MODEL));
+
+        if (modelIncludesSecrets) {
+            assertThat(chatModel.getSecretSettings().apiKey().toString(), is(SECRET));
+        } else {
+            assertNull(chatModel.getSecretSettings());
         }
     }
 
@@ -289,6 +374,17 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
             FireworksAiService.NAME,
             new FireworksAiEmbeddingsServiceSettings(modelId, URI.create(url), similarity, dimensions, null, dimensions != null, null),
             null,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    private static FireworksAiChatCompletionModel createInternalChatCompletionModel(String url, String apiKey, String modelId) {
+        return new FireworksAiChatCompletionModel(
+            INFERENCE_ID,
+            TaskType.CHAT_COMPLETION,
+            FireworksAiService.NAME,
+            new FireworksAiChatCompletionServiceSettings(modelId, URI.create(url), null),
+            new FireworksAiChatCompletionTaskSettings((String) null, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

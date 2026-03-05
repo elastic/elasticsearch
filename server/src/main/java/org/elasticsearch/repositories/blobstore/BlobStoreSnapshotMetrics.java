@@ -68,8 +68,11 @@ public class BlobStoreSnapshotMetrics {
         numberOfBlobsUploaded.inc();
     }
 
-    public void shardSnapshotStarted() {
+    public void shardSnapshotStarted(IndexShardSnapshotStatus status, long currentTimeMillis) {
         snapshotMetrics.shardsStartedCounter().incrementBy(1, metricAttributes);
+        final long startTimeMillis = status.getStartTimeMillis();
+        assert startTimeMillis < 0 : "expected negative startTimeMillis (queued state) but got " + startTimeMillis;
+        snapshotMetrics.shardsQueueTimeHistogram().record((currentTimeMillis + startTimeMillis) / 1_000d, metricAttributes);
         numberOfShardSnapshotsStarted.inc();
         shardSnapshotsInProgress.inc();
     }

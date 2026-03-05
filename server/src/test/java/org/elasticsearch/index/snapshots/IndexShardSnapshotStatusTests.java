@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndexShardSnapshotStatusTests extends ESTestCase {
 
     public void testFailureOrPauseBeforeStartRecordsZeroTotalTimeMillis() {
-        final var status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"));
+        final var status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"), 0L);
         assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.INIT));
         assertThat(status.getTotalTimeMillis(), equalTo(0L));
 
@@ -53,7 +53,7 @@ public class IndexShardSnapshotStatusTests extends ESTestCase {
     }
 
     public void testFailurePauseOrCompletionAfterStartRecordsTotalTimeMillis() {
-        IndexShardSnapshotStatus status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"));
+        IndexShardSnapshotStatus status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"), 0L);
         assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.INIT));
         assertThat(status.getTotalTimeMillis(), equalTo(0L));
 
@@ -96,5 +96,22 @@ public class IndexShardSnapshotStatusTests extends ESTestCase {
         }
 
         assertThat(status.getTotalTimeMillis(), equalTo(endTime - startTime.toEpochMilli()));
+    }
+
+    public void testStartTimeMillisIsNegatedCreationTime() {
+        final long creationTime = randomLongBetween(1, Long.MAX_VALUE);
+        final var status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"), creationTime);
+        assertThat(status.getStartTimeMillis(), equalTo(-creationTime));
+    }
+
+    public void testStartTimeMillisOverwrittenByMoveToStarted() {
+        final long creationTime = randomLongBetween(1, Long.MAX_VALUE / 2);
+        final var status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"), creationTime);
+        assertThat(status.getStartTimeMillis(), equalTo(-creationTime));
+
+        final long startTime = creationTime + randomLongBetween(0, 100_000);
+        status.moveToStarted(startTime, 0, 0, 0, 0);
+
+        assertThat(status.getStartTimeMillis(), equalTo(startTime));
     }
 }

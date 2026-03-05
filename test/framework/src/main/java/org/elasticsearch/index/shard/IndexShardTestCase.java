@@ -1280,7 +1280,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
             ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)
                 .shardGenerations()
-                .getShardGen(indexId, shard.shardId().getId())
+                .getShardGen(indexId, shard.shardId().getId()),
+            0L
         );
         final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
         final ShardGeneration shardGen;

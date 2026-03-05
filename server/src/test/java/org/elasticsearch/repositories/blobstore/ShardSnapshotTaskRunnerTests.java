@@ -133,7 +133,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             indexId,
             new SnapshotIndexCommit(new Engine.IndexCommitRef(null, () -> {})),
             null,
-            IndexShardSnapshotStatus.newInitializing(null),
+            IndexShardSnapshotStatus.newInitializing(null, 0L),
             IndexVersion.current(),
             startTime,
             ActionListener.noop()

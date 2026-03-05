@@ -176,7 +176,7 @@ public class IndexShardSnapshotStatus {
         assert shardSnapshotResult != null;
         assert shardSnapshotResult.getGeneration() != null;
         if (stage.compareAndSet(Stage.FINALIZE, Stage.DONE)) {
-            assert startTimeMillis != 0 : "startTimeMillis unexpectedly zero";
+            assert startTimeMillis > 0 : "startTimeMillis unexpectedly non-positive: " + startTimeMillis;
             this.totalTimeMillis = Math.max(0L, endTimeMillis - startTimeMillis);
             this.shardSnapshotResult.set(shardSnapshotResult);
             this.generation.set(shardSnapshotResult.getGeneration());
@@ -194,6 +194,10 @@ public class IndexShardSnapshotStatus {
 
     public long getTotalTimeMillis() {
         return totalTimeMillis;
+    }
+
+    public long getStartTimeMillis() {
+        return startTimeMillis;
     }
 
     public void addAbortListener(ActionListener<AbortStatus> listener) {
@@ -227,7 +231,7 @@ public class IndexShardSnapshotStatus {
         assert newStage == Stage.PAUSED || newStage == Stage.FAILURE : newStage;
         if (newStage == Stage.PAUSED && stage.compareAndSet(Stage.PAUSING, Stage.PAUSED)) {
             // Only set totalTimeMillis when the snapshot had actually started
-            if (startTimeMillis != 0) {
+            if (startTimeMillis > 0) {
                 this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
             }
             this.failure = failure;
@@ -243,7 +247,7 @@ public class IndexShardSnapshotStatus {
         if (previousStage != Stage.FAILURE) {
             abortListeners.onResponse(AbortStatus.NO_ABORT);
             // Only set totalTimeMillis when the snapshot had actually started
-            if (startTimeMillis != 0) {
+            if (startTimeMillis > 0) {
                 this.totalTimeMillis = Math.max(0L, endTime - startTimeMillis);
             } else {
                 assert previousStage == Stage.INIT || previousStage == Stage.PAUSING || previousStage == Stage.ABORTED
@@ -330,8 +334,13 @@ public class IndexShardSnapshotStatus {
         );
     }
 
-    public static IndexShardSnapshotStatus newInitializing(ShardGeneration generation) {
-        return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, null, generation, "initializing");
+    /**
+     * @param creationTimeMillis the time this status was created, used to compute queue time until the snapshot starts.
+     *                           Stored as a negative value in {@code startTimeMillis} so that {@code startTimeMillis > 0}
+     *                           reliably indicates that {@link #moveToStarted} has been called.
+     */
+    public static IndexShardSnapshotStatus newInitializing(ShardGeneration generation, long creationTimeMillis) {
+        return new IndexShardSnapshotStatus(Stage.INIT, -creationTimeMillis, 0L, 0, 0, 0, 0, 0, 0, null, generation, "initializing");
     }
 
     public static IndexShardSnapshotStatus.Copy newFailed(final String failure) {

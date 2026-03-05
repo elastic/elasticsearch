@@ -71,6 +71,25 @@ public class MockPluginsService extends PluginsService {
         this.classpathPlugins = List.copyOf(pluginsLoaded);
     }
 
+    static void loadExtensions(Collection<LoadedPlugin> plugins) {
+        for (LoadedPlugin pluginTuple : plugins) {
+            if (pluginTuple.instance() instanceof ExtensiblePlugin extensiblePlugin) {
+                extensiblePlugin.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+                    @Override
+                    public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                        Map<Class<?>, T> result = new HashMap<>();
+                        for (var candidatePlugin : plugins) {
+                            createExtensions(extensionPointType, candidatePlugin.instance(), result::containsKey).forEach(
+                                e -> result.put(e.getClass(), e)
+                            );
+                        }
+                        return List.copyOf(result.values());
+                    }
+                });
+            }
+        }
+    }
+
     @Override
     protected final List<LoadedPlugin> plugins() {
         return this.classpathPlugins;

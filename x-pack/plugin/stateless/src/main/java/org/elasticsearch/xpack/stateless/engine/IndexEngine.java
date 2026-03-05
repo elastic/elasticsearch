@@ -123,7 +123,7 @@ public class IndexEngine extends InternalEngine {
     private final StatelessCommitService statelessCommitService;
     private final HollowShardsService hollowShardsService;
     private final Function<String, BlobContainer> translogBlobContainer;
-    private final RefreshThrottler refreshThrottler;
+    private final RefreshManager refreshManager;
     private final ReshardIndexService reshardIndexService;
     private final long mergeForceRefreshSize;
     private final CommitBCCResolver commitBCCResolver;
@@ -149,7 +149,7 @@ public class IndexEngine extends InternalEngine {
         StatelessCommitService statelessCommitService,
         HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService cacheWarmingService,
-        RefreshThrottler.Factory refreshThrottlerFactory,
+        RefreshManagerService refreshManagerService,
         ReshardIndexService reshardIndexService,
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
@@ -163,7 +163,7 @@ public class IndexEngine extends InternalEngine {
             statelessCommitService,
             hollowShardsService,
             cacheWarmingService,
-            refreshThrottlerFactory,
+            refreshManagerService,
             reshardIndexService,
             commitBCCResolver,
             documentParsingProvider,
@@ -181,7 +181,7 @@ public class IndexEngine extends InternalEngine {
         StatelessCommitService statelessCommitService,
         HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService cacheWarmingService,
-        RefreshThrottler.Factory refreshThrottlerFactory,
+        RefreshManagerService refreshManagerService,
         ReshardIndexService reshardIndexService,
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
@@ -196,7 +196,7 @@ public class IndexEngine extends InternalEngine {
         this.statelessCommitService = statelessCommitService;
         this.hollowShardsService = hollowShardsService;
         this.cacheWarmingService = cacheWarmingService;
-        this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
+        this.refreshManager = refreshManagerService.createRefreshManager(engineConfig.getIndexSettings(), this::doExternalRefresh);
         this.reshardIndexService = reshardIndexService;
         this.mergeForceRefreshSize = MERGE_FORCE_REFRESH_SIZE.get(config().getIndexSettings().getSettings()).getBytes();
         this.commitBCCResolver = commitBCCResolver;
@@ -667,7 +667,7 @@ public class IndexEngine extends InternalEngine {
         reshardIndexService.maybeAwaitSplit(
             shardId,
             ActionListener.wrap(
-                (ignored) -> refreshThrottler.maybeThrottle(new RefreshThrottler.Request(source, listener)),
+                (ignored) -> refreshManager.onExternalRefresh(new RefreshManager.Request(source, listener)),
                 listener::onFailure
             )
         );
@@ -695,7 +695,7 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
-    private void doExternalRefresh(RefreshThrottler.Request request) {
+    private void doExternalRefresh(RefreshManager.Request request) {
         try {
             IS_FLUSH_BY_REFRESH.set(true);
             Thread originalThread = Thread.currentThread();
@@ -892,9 +892,8 @@ public class IndexEngine extends InternalEngine {
     }
 
     // package private for testing
-
-    RefreshThrottler getRefreshThrottler() {
-        return refreshThrottler;
+    RefreshManager getRefreshManager() {
+        return refreshManager;
     }
 
     public StatelessCommitService getStatelessCommitService() {

@@ -34,7 +34,7 @@ public class CoshTests extends AbstractScalarFunctionTestCase {
         helper.expectedFromDouble(Math::cosh).castingToDouble(-710d, 710d, true, suppliers);
 
         // Out of range cases
-        var overflow = helper.expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: cosh overflow"));
+        UnaryTestCaseHelper overflow = helper.expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: cosh overflow"));
         overflow.castingToDouble(Double.NEGATIVE_INFINITY, -711d, false, suppliers);
         overflow.castingToDouble(711d, Double.POSITIVE_INFINITY, false, suppliers);
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);

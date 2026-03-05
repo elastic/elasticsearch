@@ -412,7 +412,7 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
         if (min > max) {
             throw new IllegalArgumentException("invalid range: " + min + " > " + max);
         }
-        var h = expectedOutputType(DataType.DOUBLE);
+        UnaryTestCaseHelper h = expectedOutputType(DataType.DOUBLE);
         h.ints((int) min, (int) max, includeZero).innerCastingToDouble("CastIntToDoubleEvaluator[v=%0]", suppliers);
         h.longs((long) min, (long) max, includeZero).innerCastingToDouble("CastLongToDoubleEvaluator[v=%0]", suppliers);
         h.unsignedLongs(BigInteger.valueOf((long) Math.ceil(min)), BigInteger.valueOf((long) Math.floor(max)), includeZero)

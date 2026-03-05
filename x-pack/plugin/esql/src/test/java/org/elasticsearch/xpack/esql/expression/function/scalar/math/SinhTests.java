@@ -34,7 +34,7 @@ public class SinhTests extends AbstractScalarFunctionTestCase {
         helper.castingToDouble(-710d, 710d, true, suppliers);
 
         // Out of range cases
-        var overflow = helper.expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: sinh overflow"));
+        UnaryTestCaseHelper overflow = helper.expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: sinh overflow"));
         overflow.castingToDouble(Double.NEGATIVE_INFINITY, -711d, false, suppliers);
         overflow.castingToDouble(711d, Double.POSITIVE_INFINITY, false, suppliers);
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);

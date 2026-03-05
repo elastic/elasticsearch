@@ -52,7 +52,7 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
         suppliers = anyNullIsNull(true, suppliers);
 
         // Cases with invalid inputs
-        var invalid = valid.expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: Log of non-positive number"));
+        UnaryTestCaseHelper invalid = valid.expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: Log of non-positive number"));
         invalid.ints(Integer.MIN_VALUE, 0).evaluatorToString("Log10IntEvaluator[val=%0]").build(suppliers);
         invalid.longs(Long.MIN_VALUE, 0L).evaluatorToString("Log10LongEvaluator[val=%0]").build(suppliers);
         invalid.unsignedLongs(BigInteger.ZERO, BigInteger.ZERO).evaluatorToString("Log10UnsignedLongEvaluator[val=%0]").build(suppliers);

@@ -31,6 +31,7 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Rule;
 import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -144,7 +145,7 @@ public class TopNOomRaceTests extends ESTestCase {
     }
 
     public static class AnyFailedWatcher extends TestWatcher {
-       private boolean anyFailed = false;
+        private boolean anyFailed = false;
 
         @Override
         protected void failed(Throwable e, Description description) {

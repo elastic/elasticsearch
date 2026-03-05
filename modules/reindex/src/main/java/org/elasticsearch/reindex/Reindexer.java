@@ -170,7 +170,7 @@ public class Reindexer {
                 projectResolver.getProjectState(clusterService.state()),
                 reindexSslConfig,
                 request,
-                workerListenerWithRelocationAndMetrics(listenerWithRelocations, task, request, startTime),
+                wrapWithMetrics(listenerWithRelocations, reindexMetrics, task, request, startTime),
                 remoteVersion
             );
             searchAction.start();
@@ -272,34 +272,6 @@ public class Reindexer {
         });
     }
 
-    /** Wraps the listener with metrics tracking and relocation handling (if applicable). Visible for testing. */
-    ActionListener<BulkByScrollResponse> workerListenerWithRelocationAndMetrics(
-        ActionListener<BulkByScrollResponse> potentiallyWrappedRelocationListener,
-        BulkByScrollTask task,
-        ReindexRequest request,
-        long startTime
-    ) {
-        final ActionListener<BulkByScrollResponse> metricListener = wrapWithMetrics(
-            potentiallyWrappedRelocationListener,
-            reindexMetrics,
-            task,
-            request,
-            startTime
-        );
-
-        return metricListener.delegateFailure((l, resp) -> {
-            // note: implicitly relies on TaskResumeInfo only being populated if a suitable node exists for relocating to.
-            final boolean willBeRelocatedThereforeDoNotRecordMetrics = resp.getTaskResumeInfo().isPresent();
-            if (willBeRelocatedThereforeDoNotRecordMetrics) {
-                assert resp.getBulkFailures().isEmpty() : "bulk failures should be empty if relocating";
-                assert resp.getSearchFailures().isEmpty() : "search failures should be empty if relocating";
-                potentiallyWrappedRelocationListener.onResponse(resp);
-                return;
-            }
-            l.onResponse(resp);
-        });
-    }
-
     /**
      * Wrap listener with reindex metrics. For sliced reindex, this should record once only when all slices complete
      * Visible for testing
@@ -333,6 +305,8 @@ public class Reindexer {
                 if (bulkByScrollResponse.getTaskResumeInfo().isPresent()) {
                     // Task is being relocated; do not record metrics on the source node, the destination node will record metrics when
                     // the relocated task completes
+                    assert bulkByScrollResponse.getBulkFailures().isEmpty() : "bulk failures should be empty if relocating";
+                    assert bulkByScrollResponse.getSearchFailures().isEmpty() : "search failures should be empty if relocating";
                     listener.onResponse(bulkByScrollResponse);
                     return;
                 }

@@ -273,7 +273,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                 statelessCommitService.useReplicatedRanges(),
                 bccHeaderReadExecutor,
                 true,
-                null,
+                statelessCommitService.getSourceBlobsEntry(indexShard.shardId()),
                 l
             );
         }).<Void>andThen((l, state) -> recoverBatchedCompoundCommitOnIndexShard(indexShard, state, l)).addListener(listener);

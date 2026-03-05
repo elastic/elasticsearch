@@ -387,7 +387,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return dataLocation == DataLocation.REMOTE_ONLY && Clusters.bwcVersion().onOrAfter(Version.V_9_1_0);
     }
 
-    private static final Pattern HAS_INDEX_METADATA = Pattern.compile("(?i)metadata\\s+[^|]*_index");
+    private static final Pattern HAS_INDEX_METADATA = Pattern.compile("metadata\\s+[^|=]*_index", Pattern.CASE_INSENSITIVE);
 
     static boolean hasIndexMetadata(String query) {
         return HAS_INDEX_METADATA.matcher(query).find();

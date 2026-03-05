@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class IndexShardSnapshotStatusTests extends ESTestCase {
 
     public void testFailureOrPauseBeforeStartRecordsZeroTotalTimeMillis() {
-        final var status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"), 0L);
+        final var status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"), randomLongBetween(1, Long.MAX_VALUE));
         assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.INIT));
         assertThat(status.getTotalTimeMillis(), equalTo(0L));
 
@@ -54,7 +54,10 @@ public class IndexShardSnapshotStatusTests extends ESTestCase {
     }
 
     public void testFailurePauseOrCompletionAfterStartRecordsTotalTimeMillis() {
-        IndexShardSnapshotStatus status = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("gen"), 0L);
+        IndexShardSnapshotStatus status = IndexShardSnapshotStatus.newInitializing(
+            new ShardGeneration("gen"),
+            randomLongBetween(1, Long.MAX_VALUE)
+        );
         assertThat(status.getStage(), equalTo(IndexShardSnapshotStatus.Stage.INIT));
         assertThat(status.getTotalTimeMillis(), equalTo(0L));
 

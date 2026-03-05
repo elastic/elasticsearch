@@ -1281,7 +1281,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository)
                 .shardGenerations()
                 .getShardGen(indexId, shard.shardId().getId()),
-            0L
+            randomLongBetween(1, Long.MAX_VALUE)
         );
         final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
         final ShardGeneration shardGen;

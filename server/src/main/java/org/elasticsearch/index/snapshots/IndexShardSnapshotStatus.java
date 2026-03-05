@@ -340,6 +340,7 @@ public class IndexShardSnapshotStatus {
      *                           reliably indicates that {@link #moveToStarted} has been called.
      */
     public static IndexShardSnapshotStatus newInitializing(ShardGeneration generation, long creationTimeMillis) {
+        assert creationTimeMillis > 0 : "creationTimeMillis must be positive but got " + creationTimeMillis;
         return new IndexShardSnapshotStatus(Stage.INIT, -creationTimeMillis, 0L, 0, 0, 0, 0, 0, 0, null, generation, "initializing");
     }
 

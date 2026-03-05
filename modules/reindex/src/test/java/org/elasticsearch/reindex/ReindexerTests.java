@@ -504,6 +504,9 @@ public class ReindexerTests extends ESTestCase {
             final ProjectResolver projectResolver = mock(ProjectResolver.class);
             when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
 
+            FeatureService featureService = mock(FeatureService.class);
+            when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+
             final Reindexer reindexer = new Reindexer(
                 clusterService,
                 projectResolver,
@@ -514,7 +517,7 @@ public class ReindexerTests extends ESTestCase {
                 null,
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
-                mock(FeatureService.class)
+                featureService
             );
 
             final ReindexRequest request = new ReindexRequest();
@@ -569,6 +572,9 @@ public class ReindexerTests extends ESTestCase {
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
 
+                FeatureService featureService = mock(FeatureService.class);
+                when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+
                 final Reindexer reindexer = new Reindexer(
                     clusterService,
                     projectResolver,
@@ -579,7 +585,7 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    mock(FeatureService.class)
+                    featureService
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -643,6 +649,9 @@ public class ReindexerTests extends ESTestCase {
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
 
+                FeatureService featureService = mock(FeatureService.class);
+                when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+
                 final Reindexer reindexer = new Reindexer(
                     clusterService,
                     projectResolver,
@@ -653,7 +662,7 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    mock(FeatureService.class)
+                    featureService
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -711,6 +720,9 @@ public class ReindexerTests extends ESTestCase {
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
 
+                FeatureService featureService = mock(FeatureService.class);
+                when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+
                 final Reindexer reindexer = new Reindexer(
                     clusterService,
                     projectResolver,
@@ -721,7 +733,7 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    mock(FeatureService.class)
+                    featureService
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -781,6 +793,9 @@ public class ReindexerTests extends ESTestCase {
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
 
+                FeatureService featureService = mock(FeatureService.class);
+                when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+
                 final Reindexer reindexer = new Reindexer(
                     clusterService,
                     projectResolver,
@@ -791,7 +806,7 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    mock(FeatureService.class)
+                    featureService
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -851,6 +866,9 @@ public class ReindexerTests extends ESTestCase {
                 final ProjectResolver projectResolver = mock(ProjectResolver.class);
                 when(projectResolver.getProjectState(any())).thenReturn(ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID));
 
+                FeatureService featureService = mock(FeatureService.class);
+                when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+
                 final Reindexer reindexer = new Reindexer(
                     clusterService,
                     projectResolver,
@@ -861,7 +879,7 @@ public class ReindexerTests extends ESTestCase {
                     null,
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
-                    mock(FeatureService.class)
+                    featureService
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1132,6 +1150,9 @@ public class ReindexerTests extends ESTestCase {
             Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
             ReindexSslConfig sslConfig = new ReindexSslConfig(environment.settings(), environment, mock(ResourceWatcherService.class));
 
+            FeatureService featureService = mock(FeatureService.class);
+            when(featureService.clusterHasFeature(any(), eq(ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE))).thenReturn(true);
+
             Reindexer reindexer = new Reindexer(
                 clusterService,
                 projectResolver,
@@ -1142,7 +1163,7 @@ public class ReindexerTests extends ESTestCase {
                 null,
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
-                mock(FeatureService.class)
+                featureService
             );
 
             BulkByScrollTask task = new BulkByScrollTask(
@@ -1221,6 +1242,7 @@ public class ReindexerTests extends ESTestCase {
             null,
             transportService,
             mock(ReindexRelocationNodePicker.class),
+            // Will default REINDEX_PIT_SEARCH_FEATURE to false
             mock(FeatureService.class)
         );
     }
@@ -1236,6 +1258,7 @@ public class ReindexerTests extends ESTestCase {
             metrics,
             mock(TransportService.class),
             mock(ReindexRelocationNodePicker.class),
+            // Will default REINDEX_PIT_SEARCH_FEATURE to false
             mock(FeatureService.class)
         );
     }

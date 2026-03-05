@@ -102,7 +102,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
 import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
 import static org.elasticsearch.index.VersionType.INTERNAL;
-import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED;
+import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_FEATURE;
 import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.closePit;
 import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.openPit;
 
@@ -167,11 +167,15 @@ public class Reindexer {
         final boolean isRemote = request.getRemoteInfo() != null;
         Consumer<Version> workerAction = createWorkerAction(task, request, bulkClient, listenerWithRelocations, startTime, isRemote, false);
 
-        // Point-in-time searching is not enabled, so default to scroll
-        if (REINDEX_PIT_SEARCH_ENABLED == false) {
+        // Point-in-time searching is disabled, so default to scroll
+        if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) == false) {
             executePaginatedSearch(task, request, listenerWithRelocations, workerAction, null);
         }
-        // Point-in-time searching is enabled, and this is a remote request
+        /**
+         * Point-in-time searching is enabled
+         * As this is a request to reindex from remote, we need to determine the remote version prior to execution
+         * NB {@link ReindexRequest} forbids remote requests and slices > 1, so we're guaranteed to be running on the only slice
+         */
         else if (isRemote) {
             lookupRemoteVersionAndExecute(task, request, bulkClient, listenerWithRelocations, workerAction, startTime);
         }

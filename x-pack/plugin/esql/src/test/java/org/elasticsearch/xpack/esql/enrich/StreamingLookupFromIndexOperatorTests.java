@@ -67,6 +67,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -250,7 +251,8 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                     finalRightPlan,
                     finalJoinOnExpression,
                     exchangeBufferSize,
-                    true // profile - enables plan tracking for mode verification
+                    true, // profile - enables plan tracking for mode verification
+                    EsqlTestUtils.TEST_CFG
                 );
             }
 

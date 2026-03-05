@@ -44,6 +44,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -56,6 +57,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -63,6 +65,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -136,6 +139,18 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         }
 
         @Override
+        protected LookupEnrichQueryGenerator queryListFromPlan(
+            List<MatchConfig> matchFields,
+            Expression joinOnConditions,
+            QueryBuilder pushedQuery,
+            SearchExecutionContext context,
+            AliasFilter aliasFilter,
+            Warnings warnings
+        ) {
+            return mock(LookupEnrichQueryGenerator.class);
+        }
+
+        @Override
         protected void startServerWithOperators(
             BidirectionalBatchExchangeServer server,
             LookupQueryPlan lookupQueryPlan,
@@ -179,6 +194,7 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         Set<Setting<?>> clusterSettings = new HashSet<>();
         clusterSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         clusterSettings.addAll(PlannerSettings.settings());
+        clusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, clusterSettings));
 
         indicesService = mock(IndicesService.class);
@@ -383,9 +399,10 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             Source.EMPTY,
             null,
             null,
-            "test-session/node_0/clientToServer", // clientToServerId - per-server unique
-            "test-session/serverToClient", // serverToClientId - shared across all servers
-            false // profile
+            "test-session/node_0/clientToServer",
+            "test-session/serverToClient",
+            false,
+            null
         );
         LookupFromIndexService.TransportRequest transportRequest = testService.transportRequest(request, new ShardId("test", "n/a", 0));
 

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
@@ -98,6 +99,7 @@ public class PlanWritables {
             Lookup.ENTRY,
             MvExpand.ENTRY,
             OrderBy.ENTRY,
+            ParameterizedQuery.ENTRY,
             Project.ENTRY,
             Project.V9_ENTRY, // Backward compatibility for reading old "EsqlProject" type
             Rerank.ENTRY,

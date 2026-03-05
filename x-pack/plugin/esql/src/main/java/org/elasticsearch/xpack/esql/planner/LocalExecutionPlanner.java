@@ -903,7 +903,8 @@ public class LocalExecutionPlanner {
                 join.joinOnConditions(),
                 useStreamingOperator,
                 context.queryPragmas().exchangeBufferSize(),
-                configuration.profile()
+                configuration.profile(),
+                configuration
             ),
             layout
         );

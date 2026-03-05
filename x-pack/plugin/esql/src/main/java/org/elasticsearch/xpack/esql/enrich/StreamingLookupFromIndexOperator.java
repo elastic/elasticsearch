@@ -33,7 +33,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -72,6 +75,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private final int exchangeBufferSize;
     private final LookupFromIndexOperator.MatchFieldsMapping matchFieldsMapping;
     private final boolean profile;
+    @Nullable
+    private final Configuration configuration;
 
     // State
     private final AtomicLong batchIdGenerator = new AtomicLong(0);
@@ -129,7 +134,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
         PhysicalPlan rightPreJoinPlan,
         Expression joinOnConditions,
         int exchangeBufferSize,
-        boolean profile
+        boolean profile,
+        @Nullable Configuration configuration
     ) {
         this.driverContext = driverContext;
         this.maxOutstandingRequests = maxOutstandingRequests;
@@ -146,6 +152,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         this.exchangeBufferSize = exchangeBufferSize;
         this.matchFieldsMapping = LookupFromIndexOperator.buildMatchFieldsMapping(matchFields, joinOnConditions);
         this.profile = profile;
+        this.configuration = configuration;
 
         // Initialize exchange client in constructor
         initializeClient();
@@ -162,6 +169,15 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 serverToClientId,
                 listener) -> {
                 planningStartNanos = System.nanoTime();
+                LogicalPlan logicalPlan = LookupFromIndexService.buildLocalLogicalPlan(
+                    source,
+                    matchFieldsMapping.reindexedMatchFields(),
+                    joinOnConditions,
+                    rightPreJoinPlan,
+                    loadFields
+                );
+                PhysicalPlan preBuiltLookupPlan = new FragmentExec(source, logicalPlan, null, 0);
+
                 // Create setup request for this server
                 // clientToServerId is per-server unique, serverToClientId is shared across all servers
                 LookupFromIndexService.Request setupRequest = new LookupFromIndexService.Request(
@@ -170,13 +186,14 @@ public class StreamingLookupFromIndexOperator implements Operator {
                     lookupIndexPattern,
                     matchFieldsMapping.reindexedMatchFields(),
                     new Page(0), // Empty page for setup
-                    loadFields,
+                    List.of(), // extractFields embedded in the logical plan's Project node
                     source,
-                    rightPreJoinPlan,
-                    joinOnConditions,
+                    preBuiltLookupPlan, // Full logical plan wrapped in FragmentExec
+                    null, // joinOnConditions embedded in the logical plan's ParameterizedQuery
                     clientToServerId,
                     serverToClientId,
-                    profile
+                    profile,
+                    configuration
                 );
 
                 lookupService.lookupAsync(setupRequest, serverNode, parentTask, ActionListener.wrap(response -> {

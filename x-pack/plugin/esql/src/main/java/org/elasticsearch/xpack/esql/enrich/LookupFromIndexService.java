@@ -36,7 +36,7 @@ import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -49,28 +49,38 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
-import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
-import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -153,7 +163,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.joinOnConditions,
             request.clientToServerId,
             request.serverToClientId,
-            request.profile
+            request.profile,
+            request.configuration
         );
     }
 
@@ -165,6 +176,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         Warnings warnings
     ) {
         PhysicalPlan lookupNodePlan = localLookupNodePlanning(request.rightPreJoinPlan);
+        Expression rightOnlyFilter = lookupNodePlan instanceof FilterExec filterExec ? filterExec.condition() : null;
         if (request.joinOnConditions == null) {
             // this is a field based join
             List<QueryList> queryLists = new ArrayList<>();
@@ -174,15 +186,62 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 QueryList q = termQueryList(context.getFieldType(matchField.fieldName()), aliasFilter, channelOffset, matchField.type());
                 queryLists.add(q.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value"));
             }
-            if (queryLists.size() == 1 && lookupNodePlan instanceof FilterExec == false) {
+            if (queryLists.size() == 1 && rightOnlyFilter == null) {
                 return queryLists.getFirst();
             }
-            return ExpressionQueryList.fieldBasedJoin(queryLists, context, lookupNodePlan, clusterService, aliasFilter);
+            return ExpressionQueryList.fieldBasedJoin(queryLists, context, rightOnlyFilter, null, clusterService, aliasFilter);
         } else {
             // this is an expression based join
-            return ExpressionQueryList.expressionBasedJoin(context, lookupNodePlan, clusterService, request, aliasFilter, warnings);
+            return ExpressionQueryList.expressionBasedJoin(
+                context,
+                rightOnlyFilter,
+                null,
+                clusterService,
+                request.getMatchFields(),
+                request.getJoinOnConditions(),
+                aliasFilter,
+                warnings
+            );
         }
 
+    }
+
+    /**
+     * Builds a query list for the streaming lookup path using data from the physical plan tree
+     * rather than from the transport request.
+     */
+    protected LookupEnrichQueryGenerator queryListFromPlan(
+        List<MatchConfig> matchFields,
+        @Nullable Expression joinOnConditions,
+        @Nullable QueryBuilder pushedQuery,
+        SearchExecutionContext context,
+        AliasFilter aliasFilter,
+        Warnings warnings
+    ) {
+        if (joinOnConditions == null) {
+            List<QueryList> queryLists = new ArrayList<>();
+            for (int i = 0; i < matchFields.size(); i++) {
+                MatchConfig matchField = matchFields.get(i);
+                int channelOffset = matchField.channel();
+                QueryList q = termQueryList(context.getFieldType(matchField.fieldName()), aliasFilter, channelOffset, matchField.type());
+                queryLists.add(q.onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value"));
+            }
+            if (queryLists.size() == 1 && pushedQuery == null) {
+                return queryLists.getFirst();
+            }
+            return ExpressionQueryList.fieldBasedJoin(queryLists, context, null, pushedQuery, clusterService, aliasFilter);
+        } else {
+            return ExpressionQueryList.expressionBasedJoin(
+                context,
+                null,
+                pushedQuery,
+                clusterService,
+                matchFields,
+                joinOnConditions,
+                aliasFilter,
+                warnings
+            );
+        }
     }
 
     /**
@@ -216,6 +275,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final String clientToServerId;
         private final String serverToClientId;
         private final boolean profile;
+        @Nullable
+        private final Configuration configuration;
 
         Request(
             String sessionId,
@@ -229,7 +290,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Expression joinOnConditions,
             String clientToServerId,
             String serverToClientId,
-            boolean profile
+            boolean profile,
+            @Nullable Configuration configuration
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
@@ -238,6 +300,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             this.clientToServerId = clientToServerId;
             this.serverToClientId = serverToClientId;
             this.profile = profile;
+            this.configuration = configuration;
         }
     }
 
@@ -249,6 +312,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         );
         private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
         private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
+        private static final TransportVersion ESQL_LOOKUP_PLANNING = TransportVersion.fromName("esql_lookup_planning");
 
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
@@ -256,9 +320,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final String clientToServerId;
         private final String serverToClientId;
         private final boolean profile;
+        @Nullable
+        private final Configuration configuration;
 
-        // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
-        // The channel information inside the MatchConfig, should say the same thing
         TransportRequest(
             String sessionId,
             ShardId shardId,
@@ -272,7 +336,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Expression joinOnConditions,
             String clientToServerId,
             String serverToClientId,
-            boolean profile
+            boolean profile,
+            @Nullable Configuration configuration
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
@@ -281,6 +346,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             this.clientToServerId = clientToServerId;
             this.serverToClientId = serverToClientId;
             this.profile = profile;
+            this.configuration = configuration;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -338,6 +404,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 serverToClientId = in.readOptionalString();
                 profile = in.readBoolean();
             }
+            Configuration configuration = null;
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_PLANNING)) {
+                configuration = in.readOptionalWriteable(Configuration::readWithoutTables);
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -351,7 +421,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 joinOnConditions,
                 clientToServerId,
                 serverToClientId,
-                profile
+                profile,
+                configuration
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -375,6 +446,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         public boolean isProfile() {
             return profile;
+        }
+
+        @Nullable
+        public Configuration getConfiguration() {
+            return configuration;
         }
 
         @Override
@@ -425,6 +501,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 out.writeOptionalString(clientToServerId);
                 out.writeOptionalString(serverToClientId);
                 out.writeBoolean(profile);
+            }
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_PLANNING)) {
+                out.writeOptionalWriteable(configuration != null ? configuration.withoutTables() : null);
             }
         }
 
@@ -580,7 +659,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             // Get source factory from server for planning
             ExchangeSourceOperator.ExchangeSourceOperatorFactory sourceFactory = server.getSourceOperatorFactory();
 
-            PhysicalPlan physicalPlan = createLookupPhysicalPlan(request);
+            Configuration configuration = request.configuration;
+            FoldContext foldCtx = configuration != null ? configuration.newFoldContext() : FoldContext.small();
+            SearchStats searchStats = SearchContextStats.from(List.of(shardContext.executionContext()));
+            EsqlFlags flags = new EsqlFlags(clusterService.getClusterSettings());
+
+            LogicalPlan logicalPlan = extractOrBuildLogicalPlan(request);
+            PhysicalPlan physicalPlan = createLookupPhysicalPlan(logicalPlan, configuration, plannerSettings, foldCtx, searchStats, flags);
             String planString = request.isProfile() ? physicalPlan.toString() : null;
 
             // Build operators using the planning system with the actual source factory
@@ -588,16 +673,17 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 plannerSettings,
                 physicalPlan,
                 BlockOptimization.NONE,
-                sourceFactory
+                sourceFactory,
+                foldCtx,
+                this::queryListFromPlan
             );
 
             LookupQueryPlan lookupQueryPlan = executionPlanner.buildOperators(
                 physicalOperation,
                 shardContext,
                 releasables,
-                request,
-                aliasFilter,
-                (req, context, filter, warn) -> queryList((TransportRequest) req, context, filter, warn)
+                request.inputPage,
+                aliasFilter
             );
 
             // Wrap releasables (shardContext and localBreaker) - they're already in releasables list
@@ -674,47 +760,107 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     /**
-     * Creates a PhysicalPlan tree representing the lookup operation structure.
-     * This plan can be cached and reused across multiple calls with different input data.
+     * If the data node already called {@link #buildLocalLogicalPlan} (new path), the logical plan
+     * inside {@code rightPreJoinPlan} will contain a {@link ParameterizedQuery} and can be used directly.
+     * Otherwise (BWC with older data nodes), we build it here on the lookup node.
      */
-    protected PhysicalPlan createLookupPhysicalPlan(TransportRequest request) throws IOException {
-        // Create output attributes: doc block
-        FieldAttribute docAttribute = new FieldAttribute(
+    private static LogicalPlan extractOrBuildLogicalPlan(TransportRequest request) {
+        if (request.rightPreJoinPlan instanceof FragmentExec fragmentExec) {
+            LogicalPlan fragment = fragmentExec.fragment();
+            if (fragment.anyMatch(p -> p instanceof ParameterizedQuery)) {
+                return fragment;
+            }
+        }
+        // bwc path, make sure rolling updates still work
+        return buildLocalLogicalPlan(
             request.source,
-            null,
-            null,
-            EsQueryExec.DOC_ID_FIELD.getName(),
-            EsQueryExec.DOC_ID_FIELD
+            request.matchFields,
+            request.joinOnConditions,
+            request.rightPreJoinPlan,
+            request.extractFields
         );
-        List<Attribute> sourceOutput = new ArrayList<>();
-        sourceOutput.add(docAttribute);
+    }
 
-        // Use the reference attribute directly
-        sourceOutput.add(AbstractLookupService.LOOKUP_POSITIONS_FIELD);
+    /**
+     * Builds a logical plan for the lookup node from the request.
+     * Walks the logical plan tree inside {@code rightPreJoinPlan}, preserving all nodes (Filter, etc.),
+     * and replaces the {@link EsRelation} leaf with a {@link ParameterizedQuery}.
+     * Then adds a {@link Project} on top for [{@code _positions}, {@code extractFields}].
+     */
+    public static LogicalPlan buildLocalLogicalPlan(
+        Source source,
+        List<MatchConfig> matchFields,
+        @Nullable Expression joinOnConditions,
+        @Nullable PhysicalPlan rightPreJoinPlan,
+        List<NamedExpression> extractFields
+    ) {
+        FieldAttribute docAttribute = new FieldAttribute(source, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        List<Attribute> paramQueryOutput = List.of(docAttribute, AbstractLookupService.LOOKUP_POSITIONS_FIELD);
 
-        ParameterizedQueryExec source = new ParameterizedQueryExec(request.source, sourceOutput);
+        List<Expression> leftRightParts = new ArrayList<>();
+        List<Expression> rightOnlyFromConditions = new ArrayList<>();
+        if (joinOnConditions != null) {
+            Set<String> leftFieldNames = matchFields.stream().map(MatchConfig::fieldName).collect(Collectors.toSet());
+            for (Expression expr : Predicates.splitAnd(joinOnConditions)) {
+                boolean referencesLeft = expr.references().stream().anyMatch(attr -> leftFieldNames.contains(attr.name()));
+                if (referencesLeft) {
+                    leftRightParts.add(expr);
+                } else {
+                    rightOnlyFromConditions.add(expr);
+                }
+            }
+        }
+        Expression finalJoinOnConditions = Predicates.combineAnd(leftRightParts);
 
-        PhysicalPlan plan = source;
-
-        // Add FieldExtractExec if we have extract fields
-        if (request.extractFields.isEmpty() == false) {
-            List<Attribute> extractAttributes = request.extractFields.stream()
-                .<Attribute>map(LookupFromIndexService::getExtractFieldAttribute)
-                .toList();
-            plan = new FieldExtractExec(request.source, plan, extractAttributes, MappedFieldType.FieldExtractPreference.NONE);
+        LogicalPlan plan;
+        if (rightPreJoinPlan == null) {
+            plan = new ParameterizedQuery(source, paramQueryOutput, matchFields, finalJoinOnConditions);
+        } else if (rightPreJoinPlan instanceof FragmentExec fragmentExec) {
+            plan = fragmentExec.fragment();
+            plan = plan.transformUp(
+                EsRelation.class,
+                esRelation -> new ParameterizedQuery(source, paramQueryOutput, matchFields, finalJoinOnConditions)
+            );
+        } else {
+            throw new EsqlIllegalArgumentException(
+                "Expected FragmentExec or null but got [{}]",
+                rightPreJoinPlan.getClass().getSimpleName()
+            );
         }
 
-        List<Attribute> childOutput = plan.output();
-        List<NamedExpression> projections = new ArrayList<>(childOutput.size() - 1);
-        // Skip index 0 (doc), keep indices 1+ (positions + extract fields)
-        for (int i = 1; i < childOutput.size(); i++) {
-            projections.add(childOutput.get(i));
+        if (rightOnlyFromConditions.isEmpty() == false) {
+            Expression rightOnlyFilter = Predicates.combineAnd(rightOnlyFromConditions);
+            plan = new Filter(source, plan, rightOnlyFilter);
         }
-        plan = new ProjectExec(request.source, plan, projections);
 
-        plan = new OutputExec(request.source, plan, null);
+        List<NamedExpression> projections = new ArrayList<>(extractFields.size() + 1);
+        projections.add(AbstractLookupService.LOOKUP_POSITIONS_FIELD);
+        projections.addAll(extractFields);
+        return new Project(source, plan, projections);
+    }
 
-        return plan;
+    /**
+     * Builds the physical plan for the lookup node by running:
+     * LocalMapper.map -> LookupPhysicalPlanOptimizer.
+     * The caller is responsible for building the logical plan via {@link #buildLocalLogicalPlan}.
+     */
+    public static PhysicalPlan createLookupPhysicalPlan(
+        LogicalPlan logicalPlan,
+        @Nullable Configuration configuration,
+        PlannerSettings plannerSettings,
+        FoldContext foldCtx,
+        SearchStats searchStats,
+        EsqlFlags flags
+    ) {
+        PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(logicalPlan);
+        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            searchStats
+        );
+        return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
     }
 
     record LookupQueryPlan(
@@ -724,17 +870,4 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         List<Operator> operators,
         List<Page> collectedPages
     ) {}
-
-    /**
-     * Extracts a FieldAttribute from a NamedExpression, throwing an exception if it's not a FieldAttribute.
-     */
-    private static FieldAttribute getExtractFieldAttribute(NamedExpression extractField) {
-        if (extractField instanceof FieldAttribute fieldAttribute) {
-            return fieldAttribute;
-        }
-        throw new EsqlIllegalArgumentException(
-            "Expected extract field to be a FieldAttribute but found [{}]",
-            extractField.getClass().getSimpleName()
-        );
-    }
 }

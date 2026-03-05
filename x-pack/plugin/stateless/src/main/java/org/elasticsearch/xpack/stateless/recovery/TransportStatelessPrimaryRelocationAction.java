@@ -438,7 +438,13 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     final String latestBccBlobName = StatelessCompoundCommit.blobNameFromGeneration(latestBccTermAndGen.generation());
                     final long blobLength = latestBcc.calculateBccBlobLength();
                     final BlobFile latestBccBlob = new BlobFile(latestBccBlobName, latestBccTermAndGen);
-                    final Set<BlobFile> otherBlobFiles = statelessCommitService.getTrackedBlobFiles(shardId);
+                    // This happens after markRelocating() has triggered the listener. The latest uploaded BCC will be the last. No new
+                    // BBCs will be uploaded after that. However, there could still be VBCCs after the last BCC that we need to ignore.
+                    // Thus, we pass the generation of the last BCC.
+                    final Set<BlobFile> otherBlobFiles = statelessCommitService.getTrackedUploadedBlobFilesUpTo(
+                        shardId,
+                        latestBccTermAndGen.generation()
+                    );
                     otherBlobFiles.remove(latestBccBlob);
 
                     transportService.sendChildRequest(
@@ -512,10 +518,21 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final Releasable cleanUpStatelessCommitService = () -> {
             try {
                 statelessCommitService.setTrackedSearchNodesPerCommitOnRelocationTarget(request.shardId(), null);
+                statelessCommitService.clearSourceBlobsEntry(request.shardId());
             } catch (AlreadyClosedException ignored) {
                 // engine is closed
             }
         };
+
+        final var latestBccBlob = request.latestBccBlob();
+        if (latestBccBlob != null) {
+            statelessCommitService.putSourceBlobsEntry(
+                request.shardId(),
+                latestBccBlob.blobFile(),
+                latestBccBlob.length(),
+                request.otherBlobFiles()
+            );
+        }
 
         ActionListener.run(
             ActionListener.releaseAfter(
@@ -595,6 +612,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             "primary_context_handoff_blobs_from_source"
         );
 
+        private static final TransportVersion FILTERED_PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE = TransportVersion.fromName(
+            "filtered_primary_context_handoff_blobs_from_source"
+        );
+
         private final long recoveryId;
         private final ShardId shardId;
         private final ReplicationTracker.PrimaryContext primaryContext;
@@ -629,9 +650,16 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             primaryContext = new ReplicationTracker.PrimaryContext(in);
             retentionLeases = new RetentionLeases(in);
             searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
-            if (in.getTransportVersion().supports(PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE)) {
+            if (in.getTransportVersion().supports(FILTERED_PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE)) {
                 latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
                 otherBlobFiles = in.readCollectionAsSet(BlobFile::new);
+            } else if (in.getTransportVersion().supports(PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE)) {
+                // There was a bug in this version where the passed blobs contained commits created after relocation had started and that
+                // were never uploaded. We ignore those here. This is okay as we have a null check in handlePrimaryContextHandoff.
+                in.readOptionalWriteable(BlobFileWithLength::new);
+                in.readCollectionAsSet(BlobFile::new);
+                latestBccBlob = null;
+                otherBlobFiles = Set.of();
             } else {
                 latestBccBlob = null;
                 otherBlobFiles = Set.of();
@@ -650,7 +678,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 (out0, v) -> v.writeTo(out0),
                 (out0, v) -> out0.writeCollection(v, StreamOutput::writeString)
             );
-            if (out.getTransportVersion().supports(PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE)) {
+            if (out.getTransportVersion().supports(PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE)
+                || out.getTransportVersion().supports(FILTERED_PRIMARY_CONTEXT_HANDOFF_BLOBS_FROM_SOURCE)) {
                 out.writeOptionalWriteable(latestBccBlob);
                 out.writeCollection(otherBlobFiles);
             }

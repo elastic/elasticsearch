@@ -62,8 +62,7 @@ public class IndexCreationStep implements DlmStep {
      */
     @Override
     public void execute(DlmStepContext dlmStepContext) {
-        // Todo: implement this
-        return;
+        maybeMountSnapshot(dlmStepContext);
     }
 
     /**

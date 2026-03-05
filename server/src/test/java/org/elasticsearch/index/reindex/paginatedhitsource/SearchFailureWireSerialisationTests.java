@@ -43,28 +43,6 @@ public class SearchFailureWireSerialisationTests extends AbstractWireSerializing
     }
 
     /**
-     * Custom semantic equality assertion for wire-serialization testing.
-     * <p>
-     * {@link SearchFailure} contains a {@link Throwable} whose equality is based on
-     * object identity. This method performs a field-by-field comparison of the
-     * meaningful state, including exception class and message, to verify that wire
-     * serialization preserves observable failure semantics without requiring
-     * production equality semantics on {@link SearchFailure}.
-     */
-    @Override
-    protected void assertEqualInstances(SearchFailureWrapper expected, SearchFailureWrapper actual) {
-        SearchFailure e = expected.failure();
-        SearchFailure a = actual.failure();
-        assertEquals(e.getIndex(), a.getIndex());
-        assertEquals(e.getShardId(), a.getShardId());
-        assertEquals(e.getNodeId(), a.getNodeId());
-        assertEquals(e.getStatus(), a.getStatus());
-        // Compare exception semantically, not by identity
-        assertEquals(e.getReason().getClass(), a.getReason().getClass());
-        assertEquals(e.getReason().getMessage(), a.getReason().getMessage());
-    }
-
-    /**
      * Wrapper around {@link SearchFailure} used exclusively for wire-serialization tests.
      * <p>
      * {@link AbstractWireSerializingTestCase} requires instances to be comparable via

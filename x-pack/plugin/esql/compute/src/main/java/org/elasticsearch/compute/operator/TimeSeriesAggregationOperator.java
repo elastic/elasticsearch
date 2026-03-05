@@ -201,7 +201,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         BytesRef scratch = new BytesRef();
         for (long i = 0; i < tsidHash.size(); i++) {
             BytesRef term = tsidHash.get(i, scratch);
-            int prefix = term.bytes[term.offset] % 0xFF;
+            int prefix = term.bytes[term.offset] & 0xFF;
             prefixes[prefix]++;
         }
         System.err.println("--> prefixes " + Arrays.toString(prefixes));

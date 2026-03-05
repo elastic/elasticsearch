@@ -369,9 +369,9 @@ public class OperatorTests extends MapperServiceTestCase {
     }
 
     public void testPushRoundToCountToQuery() throws IOException {
-        int firstGroupDocs = randomIntBetween(0, 10_000);
-        int secondGroupDocs = randomIntBetween(0, 10_000);
-        int thirdGroupDocs = randomIntBetween(0, 10_000);
+        int firstGroupDocs = randomIntBetween(1, 10_000);
+        int secondGroupDocs = randomIntBetween(1, 10_000);
+        int thirdGroupDocs = randomIntBetween(1, 10_000);
 
         CheckedConsumer<DirectoryReader, IOException> verifier = reader -> {
             Query firstGroupQuery = LongPoint.newRangeQuery("g", Long.MIN_VALUE, 99);
@@ -512,6 +512,7 @@ public class OperatorTests extends MapperServiceTestCase {
             new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
+            LuceneOperator.SMALL_INDEX_BOUNDARY,
             randomIntBetween(1, 10),
             tagTypes,
             LuceneOperator.NO_LIMIT

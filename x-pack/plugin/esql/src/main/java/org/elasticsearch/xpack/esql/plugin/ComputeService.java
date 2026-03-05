@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -215,6 +216,10 @@ public class ComputeService {
         return plannerSettings;
     }
 
+    FilterPushdownRegistry filterPushdownRegistry() {
+        return filterPushdownRegistry;
+    }
+
     PhysicalPlan discoverSplits(PhysicalPlan plan) {
         if (operatorFactoryRegistry == null) {
             return plan;
@@ -259,7 +264,7 @@ public class ComputeService {
     ExternalDistributionResult applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
         List<ExternalSplit> externalSplits = collectExternalSplits(plan);
         if (externalSplits.isEmpty()) {
-            return new ExternalDistributionResult(plan, null);
+            return new ExternalDistributionResult(plan, null, List.of());
         }
 
         ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
@@ -278,27 +283,55 @@ public class ComputeService {
                 externalSplits.size(),
                 distributionPlan.nodeAssignments().size()
             );
-            return new ExternalDistributionResult(plan, distributionPlan);
+            return new ExternalDistributionResult(plan, distributionPlan, List.of());
         }
 
-        return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null);
+        return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, externalSplits);
     }
 
-    record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan) {
+    record ExternalDistributionResult(PhysicalPlan plan, ExternalDistributionPlan distributionPlan, List<ExternalSplit> coordinatorSplits) {
         boolean isDistributed() {
             return distributionPlan != null && distributionPlan.distributed();
         }
     }
 
-    private static List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
+    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
         List<ExternalSplit> splits = new ArrayList<>();
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
+        if (splits.isEmpty()) {
+            discoverSplitsFromFragments(plan, splits);
+            if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
+                List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
+                if (coalesced != splits) {
+                    splits.clear();
+                    splits.addAll(coalesced);
+                }
+            }
+        }
         return splits;
+    }
+
+    private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits) {
+        if (operatorFactoryRegistry == null) {
+            return;
+        }
+        plan.forEachDown(FragmentExec.class, fragment -> {
+            fragment.fragment().forEachDown(ExternalRelation.class, external -> {
+                ExternalSourceExec tempExec = external.toPhysicalExec();
+                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(tempExec, operatorFactoryRegistry.sourceFactories());
+                if (discovered instanceof ExternalSourceExec withSplits) {
+                    splits.addAll(withSplits.splits());
+                }
+            });
+        });
     }
 
     static PhysicalPlan collapseExternalSourceExchanges(PhysicalPlan plan) {
         return plan.transformUp(ExchangeExec.class, exchange -> {
             if (exchange.child() instanceof ExternalSourceExec) {
+                return exchange.child();
+            }
+            if (exchange.child() instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance)) {
                 return exchange.child();
             }
             return exchange;
@@ -522,6 +555,7 @@ public class ComputeService {
                     coordinatorPlan,
                     plannerSettings.get(),
                     LocalPhysicalOptimization.ENABLED,
+                    distributionResult.coordinatorSplits(),
                     planTimeProfile,
                     computeListener.acquireCompute()
                 );
@@ -881,6 +915,19 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
+        runCompute(task, context, plan, plannerSettings, localPhysicalOptimization, List.of(), planTimeProfile, listener);
+    }
+
+    void runCompute(
+        CancellableTask task,
+        ComputeContext context,
+        PhysicalPlan plan,
+        PlannerSettings plannerSettings,
+        LocalPhysicalOptimization localPhysicalOptimization,
+        List<ExternalSplit> coordinatorExternalSplits,
+        PlanTimeProfile planTimeProfile,
+        ActionListener<DriverCompletionInfo> listener
+    ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
@@ -911,7 +958,10 @@ public class ComputeService {
 
             List<SearchExecutionContext> localContexts = new ArrayList<>();
             context.searchExecutionContexts().iterable().forEach(localContexts::add);
-            boolean hasExternalSource = plan.anyMatch(p -> p instanceof ExternalSourceExec);
+            boolean hasExternalSource = plan.anyMatch(
+                p -> p instanceof ExternalSourceExec
+                    || (p instanceof FragmentExec f && f.fragment().anyMatch(ExternalRelation.class::isInstance))
+            );
             var localPlan = switch (localPhysicalOptimization) {
                 case ENABLED -> hasExternalSource
                     ? PlannerUtils.localPlan(
@@ -935,6 +985,12 @@ public class ComputeService {
                     );
                 case DISABLED -> plan;
             };
+            if (coordinatorExternalSplits.isEmpty() == false) {
+                localPlan = localPlan.transformUp(
+                    ExternalSourceExec.class,
+                    exec -> exec.splits().isEmpty() ? exec.withSplits(coordinatorExternalSplits) : exec
+                );
+            }
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }

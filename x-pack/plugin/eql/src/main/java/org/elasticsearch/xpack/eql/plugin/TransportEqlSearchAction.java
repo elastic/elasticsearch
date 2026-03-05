@@ -116,7 +116,6 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             bigArrays
         );
         this.activityLogger = new ActivityLogger<>(
-            EqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new EqlLogProducer(),
             logWriterProvider,

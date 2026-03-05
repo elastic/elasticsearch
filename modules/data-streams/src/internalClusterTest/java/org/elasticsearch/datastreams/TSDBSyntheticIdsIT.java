@@ -9,6 +9,9 @@
 
 package org.elasticsearch.datastreams;
 
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
@@ -23,12 +26,15 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -40,6 +46,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -69,6 +77,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -84,6 +93,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
@@ -94,13 +104,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -253,8 +266,9 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testSyntheticId() throws Exception {
+        final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0);
+        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0, useNestedDocs);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -267,21 +281,21 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var results = createDocuments(
             dataStreamName,
             // t + 0s
-            document(timestamp, "vm-dev01", "cpu-load", 0),
-            document(timestamp, "vm-dev02", "cpu-load", 1),
+            document(timestamp, "vm-dev01", "cpu-load", 0, useNestedDocs),
+            document(timestamp, "vm-dev02", "cpu-load", 1, useNestedDocs),
             // t + 1s
-            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
-            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2, useNestedDocs),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3, useNestedDocs),
             // t + 0s out-of-order doc
-            document(timestamp, "vm-dev03", "cpu-load", 4),
+            document(timestamp, "vm-dev03", "cpu-load", 4, useNestedDocs),
             // t + 2s
-            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5),
-            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6),
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5, useNestedDocs),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6, useNestedDocs),
             // t - 1s out-of-order doc
-            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7),
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7, useNestedDocs),
             // t + 3s
-            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8),
-            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9)
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8, useNestedDocs),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9, useNestedDocs)
         );
 
         // Verify that documents are created
@@ -353,7 +367,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     if (--nbDocs < 0) {
                         break;
                     }
-                    arrayOfDocs[nbDocs] = document(t, host, "cpu-load", randomInt(10));
+                    arrayOfDocs[nbDocs] = document(t, host, "cpu-load", randomInt(10), useNestedDocs);
                 }
                 // always use seconds, otherwise the doc might fell outside of the timestamps window of the datastream
                 t = t.plus(1, ChronoUnit.SECONDS);
@@ -383,6 +397,39 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 );
             }
         });
+
+        if (useNestedDocs) {
+            assertCheckedResponse(
+                client().prepareSearch(dataStreamName)
+                    .setTrackTotalHits(true)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                searchResponse -> {
+                    assertHitCount(searchResponse, docs.size() - deletedDocs.size());
+                    for (var hit : searchResponse.getHits()) {
+                        assertThat(
+                            "Nested query returned deleted doc [" + hit.getId() + "]",
+                            deletedDocs.contains(hit.getId()),
+                            equalTo(false)
+                        );
+                    }
+                }
+            );
+
+            for (var deletedDocId : deletedDocs) {
+                var deletedDocIndex = docs.get(deletedDocId);
+                assertHitCount(
+                    client().prepareSearch(deletedDocIndex)
+                        .setTrackTotalHits(true)
+                        .setSize(0)
+                        .setQuery(
+                            QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery(IdFieldMapper.NAME, deletedDocId))
+                                .must(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None))
+                        ),
+                    0L
+                );
+            }
+        }
 
         // Search by synthetic _id
         var otherDocs = randomSubsetOf(Sets.difference(docs.keySet(), Sets.newHashSet(deletedDocs)));
@@ -425,21 +472,21 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var bulkResponses = createDocumentsWithoutValidatingTheResponse(
             dataStreamName,
             // t + 0s
-            document(timestamp, "vm-dev01", "cpu-load", 0),
-            document(timestamp, "vm-dev02", "cpu-load", 1),
+            document(timestamp, "vm-dev01", "cpu-load", 0, useNestedDocs),
+            document(timestamp, "vm-dev02", "cpu-load", 1, useNestedDocs),
             // t + 1s
-            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
-            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2, useNestedDocs),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3, useNestedDocs),
             // t + 0s out-of-order doc
-            document(timestamp, "vm-dev03", "cpu-load", 4),
+            document(timestamp, "vm-dev03", "cpu-load", 4, useNestedDocs),
             // t + 2s
-            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5),
-            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6),
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5, useNestedDocs),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6, useNestedDocs),
             // t - 1s out-of-order doc
-            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7),
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7, useNestedDocs),
             // t + 3s
-            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8),
-            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9)
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8, useNestedDocs),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9, useNestedDocs)
         );
 
         var successfulRequests = Arrays.stream(bulkResponses).filter(response -> response.isFailed() == false).toList();
@@ -459,11 +506,14 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
             assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
+
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
     public void testGetFromTranslogBySyntheticId() throws Exception {
+        final boolean useNestedDocs = rarely();
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, 1, 0);
+        putDataStreamTemplate(dataStreamName, 1, 0, useNestedDocs);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -475,13 +525,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var results = createDocuments(
             dataStreamName,
             // t + 0s
-            document(timestamp, "vm-dev01", "cpu-load", 0),
-            document(timestamp, "vm-dev02", "cpu-load", 1),
+            document(timestamp, "vm-dev01", "cpu-load", 0, useNestedDocs),
+            document(timestamp, "vm-dev02", "cpu-load", 1, useNestedDocs),
             // t + 1s
-            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
-            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2, useNestedDocs),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3, useNestedDocs),
             // t + 0s out-of-order doc
-            document(timestamp, "vm-dev03", "cpu-load", 4)
+            document(timestamp, "vm-dev03", "cpu-load", 4, useNestedDocs)
         );
 
         // Verify that documents are created
@@ -513,13 +563,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         results = createDocuments(
             dataStreamName,
             // t + 2s
-            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", metricOffset),
-            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", metricOffset + 1),
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", metricOffset, useNestedDocs),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", metricOffset + 1, useNestedDocs),
             // t - 1s out-of-order doc
-            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", metricOffset + 2),
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", metricOffset + 2, useNestedDocs),
             // t + 3s
-            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", metricOffset + 3),
-            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", metricOffset + 4)
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", metricOffset + 3, useNestedDocs),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", metricOffset + 4, useNestedDocs)
         );
 
         // Verify that documents are created
@@ -562,6 +612,18 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(metricOffset + doc.getItemId()));
         }
 
+        assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
+
+        if (useNestedDocs) {
+            assertHitCount(
+                client().prepareSearch(dataStreamName)
+                    .setTrackTotalHits(true)
+                    .setSize(0)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                10L
+            );
+        }
+
         // Check that synthetic _id field have no postings on disk but has bloom filter usage
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {
@@ -571,16 +633,18 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
 
-        assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
     public void testRecoveredOperations() throws Exception {
+        final boolean useNestedDocs = rarely();
+
         // ensure a couple of nodes to have some operations coordinated
         internalCluster().ensureAtLeastNumDataNodes(2);
 
         final var dataStreamName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
-        putDataStreamTemplate(dataStreamName, numShards, 0);
+        putDataStreamTemplate(dataStreamName, numShards, 0, useNestedDocs);
 
         final var docsIndices = new HashSet<String>();
         final var docsIndicesById = new HashMap<String, String>();
@@ -597,7 +661,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             var client = client();
             var bulkRequest = client.prepareBulk();
             for (int j = 0; j < nbDocsPerBulk; j++) {
-                var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02", "vm-dev03", "vm-dev04"), "cpu-load", i);
+                var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02", "vm-dev03", "vm-dev04"), "cpu-load", i, useNestedDocs);
                 bulkRequest.add(client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
                 timestamp = timestamp.plusMillis(1);
             }
@@ -655,7 +719,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                                     indexShard.mapperService().documentMapper(),
                                     operation,
                                     docsIdsBySeqNo::get,
-                                    docsIndicesById::get
+                                    docsIndicesById::get,
+                                    useNestedDocs
                                 );
                             }
                         }
@@ -682,7 +747,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                                         indexShard.mapperService().documentMapper(),
                                         operation,
                                         docsIdsBySeqNo::get,
-                                        docsIndicesById::get
+                                        docsIndicesById::get,
+                                        useNestedDocs
                                     );
                                 }
                             }
@@ -758,6 +824,16 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         final var nonDeletedDocs = Sets.difference(docsIndicesById.keySet(), Set.copyOf(deletedDocs));
         assertHitCount(client(targetNode).prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), nonDeletedDocs.size());
 
+        if (useNestedDocs) {
+            assertHitCount(
+                client(targetNode).prepareSearch(dataStreamName)
+                    .setTrackTotalHits(true)
+                    .setSize(0)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                nonDeletedDocs.size()
+            );
+        }
+
         var randomDocIds = randomSubsetOf(nonDeletedDocs);
         for (var docId : randomDocIds) {
             if (randomBoolean()) {
@@ -805,6 +881,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     }
 
     public void testRecoverOperationsFromLocalTranslog() throws Exception {
+        final boolean useNestedDocs = rarely();
+
         final var dataStreamName = randomIdentifier();
         putDataStreamTemplate(
             dataStreamName,
@@ -813,7 +891,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             Settings.builder()
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
-                .build()
+                .build(),
+            useNestedDocs
         );
 
         final var docsIndices = new HashSet<String>();
@@ -829,7 +908,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var client = client();
         var bulkRequest = client.prepareBulk();
         for (int i = 0; i < nbDocs; i++) {
-            var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02", "vm-dev03", "vm-dev04"), "cpu-load", i);
+            var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02", "vm-dev03", "vm-dev04"), "cpu-load", i, useNestedDocs);
             bulkRequest.add(client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
             timestamp = timestamp.plusMillis(1);
         }
@@ -901,7 +980,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                     primary.mapperService().documentMapper(),
                     operation,
                     docsIdsBySeqNo::get,
-                    docsIndicesById::get
+                    docsIndicesById::get,
+                    useNestedDocs
                 );
             }
         }
@@ -933,6 +1013,16 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         final var nonDeletedDocs = Sets.difference(docsIndicesById.keySet(), Set.copyOf(deletedDocs));
         assertHitCount(client().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), nonDeletedDocs.size());
+
+        if (useNestedDocs) {
+            assertHitCount(
+                client().prepareSearch(dataStreamName)
+                    .setTrackTotalHits(true)
+                    .setSize(0)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                nonDeletedDocs.size()
+            );
+        }
 
         for (var docId : randomSubsetOf(nonDeletedDocs)) {
             if (randomBoolean()) {
@@ -983,7 +1073,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         DocumentMapper documentMapper,
         Translog.Operation operation,
         Function<Long, String> expectedDocIdSupplier,
-        Function<String, String> expectedDocIndexSupplier
+        Function<String, String> expectedDocIndexSupplier,
+        boolean useNestedDocs
     ) {
         final String expectedDocId;
         final BytesRef expectedDocIdEncoded;
@@ -1011,9 +1102,13 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                 );
                 assertThat(parsedDocument.id(), equalTo(expectedDocId));
                 assertThat(parsedDocument.routing(), nullValue());
-                assertThat(parsedDocument.docs(), hasSize(1));
+                if (useNestedDocs) {
+                    assertThat(parsedDocument.docs(), hasSize(greaterThan(1)));
+                } else {
+                    assertThat(parsedDocument.docs(), hasSize(1));
+                }
 
-                var luceneDocument = parsedDocument.docs().get(0);
+                var luceneDocument = parsedDocument.rootDoc();
                 assertThat(
                     "Lucene document [" + expectedDocId + "] has wrong value for _id field",
                     luceneDocument.getField(IdFieldMapper.NAME).binaryValue(),
@@ -1040,6 +1135,36 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                         )
                     )
                 );
+
+                for (int i = 0; i < parsedDocument.docs().size() - 1; i++) {
+                    var nestedDoc = parsedDocument.docs().get(i);
+                    assertThat(
+                        "Nested document [" + i + "] of [" + expectedDocId + "] has wrong _id field",
+                        nestedDoc.getField(IdFieldMapper.NAME).binaryValue(),
+                        equalTo(expectedDocIdEncoded)
+                    );
+                    assertThat(
+                        "Nested document [" + i + "] of [" + expectedDocId + "] has wrong _tsid field",
+                        nestedDoc.getField(TimeSeriesIdFieldMapper.NAME).binaryValue(),
+                        equalTo(TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(expectedDocIdEncoded))
+                    );
+                    assertThat(
+                        "Nested document [" + i + "] of [" + expectedDocId + "] has wrong @timestamp field",
+                        nestedDoc.getField(DataStreamTimestampFieldMapper.DEFAULT_PATH).numericValue().longValue(),
+                        equalTo(TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(expectedDocIdEncoded))
+                    );
+                    assertThat(
+                        "Nested document [" + i + "] of [" + expectedDocId + "] has wrong _ts_routing_hash field",
+                        nestedDoc.getField(TimeSeriesRoutingHashFieldMapper.NAME).binaryValue(),
+                        equalTo(
+                            Uid.encodeId(
+                                TimeSeriesRoutingHashFieldMapper.encode(
+                                    TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(expectedDocIdEncoded)
+                                )
+                            )
+                        )
+                    );
+                }
                 break;
 
             case DELETE:
@@ -1063,10 +1188,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
      * Assert that we can still search by synthetic _id after restoring index from snapshot
      */
     public void testCreateSnapshot() throws IOException {
+        final boolean useNestedDocs = rarely();
+
         // create index
         final var dataStreamName = randomIdentifier();
         int shards = randomIntBetween(1, 5);
-        putDataStreamTemplate(dataStreamName, shards, 0);
+        putDataStreamTemplate(dataStreamName, shards, 0, useNestedDocs);
 
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
         final var timestamp = Instant.now();
@@ -1075,21 +1202,21 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var bulkItemResponses = createDocuments(
             dataStreamName,
             // t + 0s
-            document(timestamp, "vm-dev01", "cpu-load", 0),
-            document(timestamp, "vm-dev02", "cpu-load", 1),
+            document(timestamp, "vm-dev01", "cpu-load", 0, useNestedDocs),
+            document(timestamp, "vm-dev02", "cpu-load", 1, useNestedDocs),
             // t + 1s
-            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2),
-            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3),
+            document(timestamp.plus(1, unit), "vm-dev01", "cpu-load", 2, useNestedDocs),
+            document(timestamp.plus(1, unit), "vm-dev02", "cpu-load", 3, useNestedDocs),
             // t + 0s out-of-order doc
-            document(timestamp, "vm-dev03", "cpu-load", 4),
+            document(timestamp, "vm-dev03", "cpu-load", 4, useNestedDocs),
             // t + 2s
-            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5),
-            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6),
+            document(timestamp.plus(2, unit), "vm-dev01", "cpu-load", 5, useNestedDocs),
+            document(timestamp.plus(2, unit), "vm-dev02", "cpu-load", 6, useNestedDocs),
             // t - 1s out-of-order doc
-            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7),
+            document(timestamp.minus(1, unit), "vm-dev01", "cpu-load", 7, useNestedDocs),
             // t + 3s
-            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8),
-            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9)
+            document(timestamp.plus(3, unit), "vm-dev01", "cpu-load", 8, useNestedDocs),
+            document(timestamp.plus(3, unit), "vm-dev02", "cpu-load", 9, useNestedDocs)
         );
 
         // Verify that documents are created
@@ -1167,6 +1294,64 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // All documents should be there
         Map<String, Map<String, Object>> documentSourcesAfterRestore = documentSourcesAsMaps(dataStreamName, docsToVerify);
         assertThat(documentSourcesAfterRestore, equalTo(documentSourcesBeforeSnapshot));
+
+        if (useNestedDocs) {
+            assertHitCount(
+                client().prepareSearch(dataStreamName)
+                    .setTrackTotalHits(true)
+                    .setSize(0)
+                    .setQuery(QueryBuilders.nestedQuery("tags", QueryBuilders.existsQuery("tags.key"), ScoreMode.None)),
+                docIdToIndex.size()
+            );
+        }
+    }
+
+    public void testMerge() throws Exception {
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(dataStreamName, 1, 0, rarely());
+
+        final var docsIndexByIds = new ConcurrentHashMap<String, String>();
+        var timestamp = Instant.now();
+
+        final int nbBulks = randomIntBetween(12, 20);
+        final int nbDocs = randomIntBetween(100, 1_000);
+
+        for (int i = 0; i < nbBulks; i++) {
+            var client = client();
+            var bulkRequest = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int j = 0; j < nbDocs; j++) {
+                bulkRequest.add(
+                    client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(String.format(Locale.ROOT, """
+                        {"@timestamp": "%s", "hostname": "%s", "metric": {"field": "metric_%d", "value": %d}}
+                        """, timestamp, "vm-test-" + randomIntBetween(0, 4), randomIntBetween(0, 1), randomInt()), XContentType.JSON)
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+            for (var result : bulkResponse.getItems()) {
+                assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                assertThat(result.getVersion(), equalTo(1L));
+                docsIndexByIds.put(result.getId(), result.getIndex());
+            }
+        }
+
+        var indices = new HashSet<>(docsIndexByIds.values());
+        for (var index : indices) {
+            long segmentsCount = indicesAdmin().prepareStats(index).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
+            assertThat("index [" + index + "] has " + segmentsCount + " segments", segmentsCount, greaterThan(1L));
+        }
+
+        var forceMerge = indicesAdmin().prepareForceMerge(docsIndexByIds.values().toArray(String[]::new)).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getFailedShards(), equalTo(0));
+
+        for (var index : indices) {
+            long segmentsCount = indicesAdmin().prepareStats(index).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
+            assertThat("index [" + index + "] has " + segmentsCount + " segments", segmentsCount, equalTo(1L));
+        }
+
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
     private static long documentCount(String dataStreamName) {
@@ -1229,6 +1414,16 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     private static XContentBuilder document(Instant timestamp, String hostName, String metricField, Integer metricValue)
         throws IOException {
+        return document(timestamp, hostName, metricField, metricValue, false);
+    }
+
+    private static XContentBuilder document(
+        Instant timestamp,
+        String hostName,
+        String metricField,
+        Integer metricValue,
+        boolean useNestedDocs
+    ) throws IOException {
         var source = XContentFactory.jsonBuilder();
         source.startObject();
         {
@@ -1238,9 +1433,19 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             {
                 source.field("field", metricField);
                 source.field("value", metricValue);
-
             }
             source.endObject();
+            if (useNestedDocs) {
+                int nbTags = randomIntBetween(1, 3);
+                source.startArray("tags");
+                for (int i = 0; i < nbTags; i++) {
+                    source.startObject();
+                    source.field("key", randomFrom("env", "team", "region", "service"));
+                    source.field("value", randomAlphaOfLength(5));
+                    source.endObject();
+                }
+                source.endArray();
+            }
         }
         source.endObject();
         return source;
@@ -1268,11 +1473,17 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return bulkResponse.getItems();
     }
 
-    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas) throws IOException {
-        putDataStreamTemplate(indexPattern, primaries, replicas, Settings.EMPTY);
+    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, boolean useNestedDocs) throws IOException {
+        putDataStreamTemplate(indexPattern, primaries, replicas, Settings.EMPTY, useNestedDocs);
     }
 
-    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, Settings extraSettings) throws IOException {
+    private static void putDataStreamTemplate(
+        String indexPattern,
+        int primaries,
+        int replicas,
+        Settings extraSettings,
+        boolean useNestedDocs
+    ) throws IOException {
         final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1);
         if (randomBoolean()) {
@@ -1289,7 +1500,22 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
         settings.put(extraSettings);
 
-        final var mappings = """
+        final String nestedMapping = useNestedDocs ? """
+                        ,
+                        "tags": {
+                            "type": "nested",
+                            "properties": {
+                                "key": {
+                                    "type": "keyword"
+                                },
+                                "value": {
+                                    "type": "keyword"
+                                }
+                            }
+                        }
+            """ : "";
+
+        final var mappings = Strings.format("""
             {
                 "_doc": {
                     "properties": {
@@ -1311,10 +1537,10 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
                                     "time_series_metric": "counter"
                                 }
                             }
-                        }
+                        }%s
                     }
                 }
-            }""";
+            }""", nestedMapping);
 
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(getTestClass().getName().toLowerCase(Locale.ROOT))
             .indexTemplate(
@@ -1336,5 +1562,81 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var indexDiskUsageStats = AnalyzeIndexDiskUsageTestUtils.getIndexStats(diskUsageResponse, indexName);
         assertNotNull(indexDiskUsageStats);
         return indexDiskUsageStats;
+    }
+
+    private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) {
+        int nbVisitedShards = 0;
+        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesServices) {
+                if (indices.contains(indexService.index().getName())) {
+                    for (var indexShard : indexService) {
+                        long size = indexShard.withEngineOrNull(engine -> {
+                            if (engine != null) {
+                                try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
+                                    long segmentsTotalSize = 0L;
+
+                                    for (var leaf : searcher.getLeafContexts()) {
+                                        var leafReader = leaf.reader();
+                                        // Get the underlying stored fields reader
+                                        var tsdbStoredFieldsReader = asInstanceOf(
+                                            TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class,
+                                            Lucene.segmentReader(leafReader).getFieldsReader()
+                                        );
+
+                                        // Extract the real (ie, non-synthetic id) stored field reader
+                                        final var defaultStoredFields = tsdbStoredFieldsReader.getStoredFieldsReader();
+                                        assertThat(defaultStoredFields, not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+
+                                        final var fieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
+                                        assertThat(fieldInfo, notNullValue());
+
+                                        // Visit the "_id" field and compute its total size accross all documents
+                                        final var visitor = new StoredFieldVisitor() {
+                                            long segmentSize = 0L;
+                                            int visitedDocs = -1;
+
+                                            @Override
+                                            public Status needsField(FieldInfo fieldInfo) throws IOException {
+                                                return IdFieldMapper.NAME.equals(fieldInfo.getName())
+                                                    ? StoredFieldVisitor.Status.YES
+                                                    : Status.NO;
+                                            }
+
+                                            @Override
+                                            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
+                                                segmentSize += value.length;
+                                                if (visitedDocs == -1) {
+                                                    visitedDocs = 1;
+                                                } else {
+                                                    visitedDocs++;
+                                                }
+                                            }
+                                        };
+
+                                        for (int docID = 0; docID < leafReader.maxDoc(); docID++) {
+                                            defaultStoredFields.document(docID, visitor);
+                                        }
+                                        assertThat(visitor.visitedDocs, anyOf(equalTo(leafReader.maxDoc() - 1), equalTo(-1)));
+                                        segmentsTotalSize += visitor.segmentSize;
+                                    }
+                                    return segmentsTotalSize;
+                                } catch (IOException ioe) {
+                                    throw new AssertionError(ioe);
+                                }
+                            }
+                            return 0L;
+                        });
+
+                        assertThat(
+                            "Found non-zero total size for [_id] stored field values on shard " + indexShard.routingEntry(),
+                            size,
+                            equalTo(0L)
+                        );
+                        nbVisitedShards++;
+                    }
+                }
+            }
+        }
+        assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
     }
 }

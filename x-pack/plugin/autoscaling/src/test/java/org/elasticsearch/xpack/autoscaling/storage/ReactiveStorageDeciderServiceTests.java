@@ -47,7 +47,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -222,7 +222,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testSizeOf() {
-        @FixForMultiProject(description = "ReactiveStorageDeciderService is not project aware")
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
         final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
@@ -284,7 +284,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testMaxNodeLockedSizeUsingAttributes() {
-        @FixForMultiProject(description = "ReactiveStorageDeciderService is not project aware")
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
         final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         int numberOfShards = randomIntBetween(1, 10);
@@ -341,7 +341,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testNodeLockSplitClone() {
-        @FixForMultiProject(description = "ReactiveStorageDeciderService is not project aware")
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
         final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
@@ -436,7 +436,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testSizeOfSnapshot() {
-        @FixForMultiProject(description = "ReactiveStorageDeciderService is not project aware")
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
         final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
@@ -537,7 +537,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         String nodeId = randomAlphaOfLength(5);
 
-        @FixForMultiProject(description = "ReactiveStorageDeciderService is not project aware")
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
         final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
@@ -603,7 +603,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testCanRemainOnlyHighestTierPreference() {
-        @FixForMultiProject(description = "ReactiveStorageDeciderService is not project aware")
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
         final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         addNode(stateBuilder);
@@ -681,7 +681,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testNeedsThisTier() {
-        @FixForMultiProject(description = "ReactiveStorageDeciderService is not project aware")
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
         final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         addNode(stateBuilder, DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
@@ -714,7 +714,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testNeedsThisTierLegacy() {
-        @FixForMultiProject(description = "ReactiveStorageDeciderService is not project aware")
+        @NotMultiProjectCapable(description = "ReactiveStorageDeciderService is not project aware")
         final ProjectId projectId = ProjectId.DEFAULT;
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         addNode(stateBuilder);

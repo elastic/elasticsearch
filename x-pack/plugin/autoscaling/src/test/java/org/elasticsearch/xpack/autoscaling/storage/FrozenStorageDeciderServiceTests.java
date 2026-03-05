@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -53,7 +53,7 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testScale() {
-        @FixForMultiProject(description = "FrozenStorageDeciderService is not project aware")
+        @NotMultiProjectCapable(description = "FrozenStorageDeciderService is not project aware")
         final ProjectId projectId = ProjectId.DEFAULT;
 
         FrozenStorageDeciderService service = new FrozenStorageDeciderService();

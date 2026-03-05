@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
@@ -40,7 +40,7 @@ public class FrozenExistenceDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
         verify(ClusterState.EMPTY_STATE, this::assertZeroCapacity);
 
-        @FixForMultiProject(description = "FrozenExistenceDeciderService is not project aware")
+        @NotMultiProjectCapable(description = "FrozenExistenceDeciderService is not project aware")
         final ProjectId projectId = ProjectId.DEFAULT;
         final Settings versionSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final int shards = between(1, 3);

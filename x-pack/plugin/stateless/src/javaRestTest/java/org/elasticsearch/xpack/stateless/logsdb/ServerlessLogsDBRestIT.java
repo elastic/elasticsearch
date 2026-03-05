@@ -28,7 +28,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.model.User;
-import org.elasticsearch.test.cluster.serverless.ServerlessElasticsearchCluster;
+import org.elasticsearch.test.cluster.stateless.StatelessElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
 import org.junit.ClassRule;
@@ -55,7 +55,7 @@ public class ServerlessLogsDBRestIT extends ESRestTestCase {
     private static final String LOGS_PATTERN = "logs-*-*";
 
     @ClassRule
-    public static final ElasticsearchCluster cluster = ServerlessElasticsearchCluster.local()
+    public static final ElasticsearchCluster cluster = StatelessElasticsearchCluster.local()
         .user(TEST_OPERATOR_USER, TEST_PASSWORD)
         .user(TEST_REGULAR_USER, TEST_PASSWORD, User.ROOT_USER_ROLE, false)
         .build();

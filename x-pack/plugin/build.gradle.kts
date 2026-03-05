@@ -9,11 +9,27 @@ plugins {
 }
 
 subprojects {
-    apply(plugin = "elasticsearch.internal-es-plugin")
+    if (project.path != ":modules-self-managed:stateless-test-framework") {
+        apply(plugin = "elasticsearch.internal-es-plugin")
+    }
 
     // Add standard dependencies to all modules
     dependencies {
-        add("compileOnly", "org.elasticsearch:server")
-        add("testImplementation", "org.elasticsearch.test:framework")
+        if (project.path != ":modules-self-managed:stateless-test-framework") {
+            add("compileOnly", "org.elasticsearch:server")
+            add("testImplementation", "org.elasticsearch.test:framework")
+        }
+    }
+
+    pluginManager.withPlugin("elasticsearch.internal-yaml-rest-test") {
+        dependencies {
+            add("yamlRestTestImplementation", project(":modules-self-managed:stateless-test-framework"))
+        }
+    }
+
+    pluginManager.withPlugin("elasticsearch.internal-java-rest-test") {
+        dependencies {
+            add("javaRestTestImplementation", project(":modules-self-managed:stateless-test-framework"))
+        }
     }
 }

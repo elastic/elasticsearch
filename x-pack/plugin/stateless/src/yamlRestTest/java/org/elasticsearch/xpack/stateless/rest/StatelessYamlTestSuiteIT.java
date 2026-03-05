@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.serverless.ServerlessElasticsearchCluster;
+import org.elasticsearch.test.cluster.stateless.StatelessElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -50,8 +50,7 @@ public class StatelessYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public static ElasticsearchCluster cluster = createCluster();
 
     private static ElasticsearchCluster createCluster() {
-        // TODO Remove serverless dependencies of ServerlessElasticsearchCluster ES-14147
-        final var clusterBuilder = ServerlessElasticsearchCluster.local()
+        final var clusterBuilder = StatelessElasticsearchCluster.local()
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.watcher.enabled", "false")
             .setting("rest.internal.reshard_allowed", "true")

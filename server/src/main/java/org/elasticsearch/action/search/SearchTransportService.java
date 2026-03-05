@@ -463,7 +463,11 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+                asBytesResponse(transportService, channel, response -> {
+                    if (response instanceof QueryFetchSearchResult qfr) {
+                        qfr.fetchResult().releaseCircuitBreakerBytes(searchService.getCircuitBreaker());
+                    }
+                })
             )
         );
         TransportActionProxy.registerProxyActionWithDynamicResponseType(

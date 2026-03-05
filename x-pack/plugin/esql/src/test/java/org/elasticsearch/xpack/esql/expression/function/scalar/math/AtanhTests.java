@@ -86,7 +86,9 @@ public class AtanhTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        var outOfRange = helper.expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: Atanh input out of range"));
+        UnaryTestCaseHelper outOfRange = helper.expectNullAndWarnings(
+            o -> List.of("Line 1:1: java.lang.ArithmeticException: Atanh input out of range")
+        );
         outOfRange.castingToDouble(1.0, 1.0, false, suppliers);
         outOfRange.castingToDouble(-1.0, -1.0, false, suppliers);
         outOfRange.castingToDouble(Math.nextUp(1.0), Double.POSITIVE_INFINITY, false, suppliers);

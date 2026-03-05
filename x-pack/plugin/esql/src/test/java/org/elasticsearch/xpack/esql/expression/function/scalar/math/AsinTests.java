@@ -36,7 +36,9 @@ public class AsinTests extends AbstractScalarFunctionTestCase {
         suppliers = anyNullIsNull(true, suppliers);
 
         // Values out of range
-        var outOfRange = helper.expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: Asin input out of range"));
+        UnaryTestCaseHelper outOfRange = helper.expectNullAndWarnings(
+            o -> List.of("Line 1:1: java.lang.ArithmeticException: Asin input out of range")
+        );
         outOfRange.castingToDouble(Double.NEGATIVE_INFINITY, Math.nextDown(-1d), false, suppliers);
         outOfRange.castingToDouble(Math.nextUp(1d), Double.POSITIVE_INFINITY, false, suppliers);
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);

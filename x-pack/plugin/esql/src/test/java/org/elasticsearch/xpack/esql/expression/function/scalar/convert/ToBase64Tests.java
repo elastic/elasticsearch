@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -35,7 +36,7 @@ public class ToBase64Tests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        var base = unary().expectedOutputType(DataType.KEYWORD).evaluatorToString("ToBase64Evaluator[field=%0]");
+        UnaryTestCaseHelper base = unary().expectedOutputType(DataType.KEYWORD).evaluatorToString("ToBase64Evaluator[field=%0]");
         base.strings()
             .expectedFromString(s -> new BytesRef(Base64.getEncoder().encode(s.getBytes(StandardCharsets.UTF_8))))
             .build(suppliers);

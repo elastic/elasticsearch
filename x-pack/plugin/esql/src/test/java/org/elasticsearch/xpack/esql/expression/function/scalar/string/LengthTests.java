@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +33,7 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
-        var base = unary().expectedOutputType(DataType.INTEGER).evaluatorToString("LengthEvaluator[val=%0]");
+        UnaryTestCaseHelper base = unary().expectedOutputType(DataType.INTEGER).evaluatorToString("LengthEvaluator[val=%0]");
         base.strings().expectedFromString(s -> UnicodeUtil.codePointCount(new BytesRef(s))).build(cases);
         base.strings("empty string", () -> "").expectedFromString(s -> 0).build(cases);
         base.strings("single ascii character", () -> "a").expectedFromString(s -> 1).build(cases);

@@ -2562,7 +2562,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (experimentalFeaturesEnabled) {
                 return new ESNextDiskBBQVectorsFormat(
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(bits >> 1),
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,

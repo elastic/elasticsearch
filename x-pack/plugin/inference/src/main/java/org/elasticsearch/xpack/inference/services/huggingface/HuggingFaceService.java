@@ -100,7 +100,7 @@ public class HuggingFaceService extends HuggingFaceBaseService implements Rerank
     }
 
     public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override

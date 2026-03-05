@@ -128,13 +128,6 @@ public final class Mapping implements ToXContentFragment {
     }
 
     /**
-     * Generate a mapping update for the given root object mapper.
-     */
-    Mapping mappingUpdate(RootObjectMapper rootObjectMapper) {
-        return new Mapping(rootObjectMapper, metadataMappers, meta);
-    }
-
-    /**
      * Returns a {@link SourceLoader.SyntheticVectorsLoader} that loads synthetic vector values
      * from a source document, optionally applying a {@link SourceFilter}.
      * <p>

@@ -101,7 +101,15 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         }
 
         if (sliceQueue != null) {
-            return new SliceQueueSourceOperator(storageProvider, formatReader, projectedColumns, batchSize, rowLimit, sliceQueue);
+            return new SliceQueueSourceOperator(
+                storageProvider,
+                formatReader,
+                projectedColumns,
+                attributes,
+                batchSize,
+                rowLimit,
+                sliceQueue
+            );
         }
 
         StorageObject storageObject = storageProvider.newObject(path);
@@ -195,6 +203,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private final StorageProvider storageProvider;
         private final FormatReader formatReader;
         private final List<String> projectedColumns;
+        private final List<Attribute> attributes;
         private final int batchSize;
         private final int rowLimit;
         private final ExternalSliceQueue sliceQueue;
@@ -206,6 +215,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             StorageProvider storageProvider,
             FormatReader formatReader,
             List<String> projectedColumns,
+            List<Attribute> attributes,
             int batchSize,
             int rowLimit,
             ExternalSliceQueue sliceQueue
@@ -213,6 +223,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             this.storageProvider = storageProvider;
             this.formatReader = formatReader;
             this.projectedColumns = projectedColumns;
+            this.attributes = attributes;
             this.batchSize = batchSize;
             this.rowLimit = rowLimit;
             this.sliceQueue = sliceQueue;
@@ -262,10 +273,14 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private CloseableIterator<Page> openFileSplit(ExternalSplit split) throws IOException {
             if (split instanceof FileSplit fileSplit) {
                 StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
+                boolean skipFirstLine = false;
+                boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                 if (fileSplit.offset() > 0) {
                     obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
+                    boolean isFirstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+                    skipFirstLine = isFirstSplit == false;
                 }
-                return formatReader.read(obj, projectedColumns, batchSize, rowLimit);
+                return formatReader.readSplit(obj, projectedColumns, batchSize, skipFirstLine, lastSplit, attributes);
             }
             throw new IllegalArgumentException("Unsupported split type: " + split.getClass().getName());
         }

@@ -342,3 +342,6 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/142440
+- class: org.elasticsearch.xpack.esql.action.EsqlRetryIT
+  method: testQueryWhileDeletingIndices
+  issue: https://github.com/elastic/elasticsearch/issues/143639

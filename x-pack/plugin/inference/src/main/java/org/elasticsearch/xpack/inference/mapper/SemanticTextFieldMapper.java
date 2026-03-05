@@ -187,15 +187,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
      * preserving the legacy EIS ELSER → ML-node ELSER fallback behavior for all other cases.
      */
     private static String getDefaultInferenceId(ModelRegistry modelRegistry, IndexSettings indexSettings) {
-        if (modelRegistry == null) {
-            return DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
-        }
-        if (indexSettings.getIndexVersionCreated().onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
-            && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_JINA_V5_INFERENCE_ID)) {
-            return DEFAULT_EIS_JINA_V5_INFERENCE_ID;
-        }
-        if (modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
-            return DEFAULT_EIS_ELSER_INFERENCE_ID;
+        if (modelRegistry != null) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)
+                && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_JINA_V5_INFERENCE_ID)) {
+                return DEFAULT_EIS_JINA_V5_INFERENCE_ID;
+            }
+            if (modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
+                return DEFAULT_EIS_ELSER_INFERENCE_ID;
+            }
         }
         return DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
     }

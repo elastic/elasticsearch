@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -24,6 +25,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -60,7 +62,7 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
         }
     }
 
-    private static void assertWriteIndex(String indexName) throws IOException {
+    private void assertWriteIndex(String indexName) throws IOException {
         assertIndexCanBeCreated(indexName);
         assertCanAddDocuments(indexName);
     }
@@ -82,10 +84,20 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
         return objectPath.evaluate(indexName + ".all_fields.inverted_index.total_in_bytes");
     }
 
-    private static void assertIndexCanBeCreated(String indexName) throws IOException {
+    private void assertIndexCanBeCreated(String indexName) throws IOException {
+        logClusterStateBeforeCreate(indexName);
         CreateIndexResponse response = null;
         try {
             response = createSyntheticIdIndex(indexName);
+            logger.info(
+                "Create index [{}] response: acknowledged={}, shards_acknowledged={}",
+                indexName,
+                response.isAcknowledged(),
+                response.isShardsAcknowledged()
+            );
+            if (!response.isShardsAcknowledged() || !response.isAcknowledged()) {
+                logAllocationDiagnostics(indexName);
+            }
             assertTrue("Expected index [" + indexName + "] to be created successfully, but was not", response.isAcknowledged());
             assertTrue(
                 "Expected shards of index [" + indexName + "] to be created successfully, but was not",
@@ -95,6 +107,128 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
             if (response != null) {
                 response.decRef();
             }
+        }
+    }
+
+    /**
+     * Log cluster nodes and health before an index create to help diagnose allocation timeouts.
+     */
+    private void logClusterStateBeforeCreate(String indexName) throws IOException {
+        try {
+            Response nodesResponse = client().performRequest(new Request("GET", "_cat/nodes?v"));
+            logger.info("Creating index [{}]; nodes: {}", indexName, EntityUtils.toString(nodesResponse.getEntity()));
+        } catch (Exception e) {
+            logger.warn("Failed to log nodes before create for [{}]", indexName, e);
+        }
+        try {
+            Response healthResponse = client().performRequest(new Request("GET", "_cluster/health?level=indices"));
+            logger.info("Creating index [{}]; cluster health: {}", indexName, entityAsMap(healthResponse));
+        } catch (Exception e) {
+            logger.warn("Failed to log cluster health before create for [{}]", indexName, e);
+        }
+        logPendingClusterTasks(indexName, "before create");
+    }
+
+    /**
+     * Log allocation-related APIs when index create returned shards_acknowledged=false.
+     * Calls allocation explain for each shard that is unassigned or initializing (from _cat/shards).
+     */
+    private void logAllocationDiagnostics(String indexName) throws IOException {
+        logPendingClusterTasks(indexName, "after create (shards not ack'd)");
+        try {
+            Response healthResponse = client().performRequest(new Request("GET", "_cluster/health/" + indexName + "?level=shards"));
+            logger.info("Index [{}] shard-level health: {}", indexName, entityAsMap(healthResponse));
+        } catch (Exception e) {
+            logger.warn("Failed to log shard health for [{}]", indexName, e);
+        }
+        String catShardsBody = null;
+        try {
+            Response shardsResponse = client().performRequest(
+                new Request("GET", "_cat/shards/" + indexName + "?v&h=index,shard,prirep,state,node,unassigned.reason")
+            );
+            catShardsBody = EntityUtils.toString(shardsResponse.getEntity());
+            logger.info("Index [{}] cat shards: {}", indexName, catShardsBody);
+        } catch (Exception e) {
+            logger.warn("Failed to log cat shards for [{}]", indexName, e);
+        }
+        if (catShardsBody != null) {
+            List<ShardSlot> unassigned = parseUnassignedOrInitializingShards(catShardsBody);
+            for (ShardSlot slot : unassigned) {
+                try {
+                    Request explainRequest = new Request("POST", "_cluster/allocation/explain");
+                    explainRequest.setJsonEntity(
+                        String.format(
+                            Locale.ROOT,
+                            "{\"index\": \"%s\", \"shard\": %d, \"primary\": %s}",
+                            indexName,
+                            slot.shardId,
+                            slot.primary
+                        )
+                    );
+                    Response explainResponse = client().performRequest(explainRequest);
+                    logger.info(
+                        "Index [{}] allocation explain shard {} primary={}: {}",
+                        indexName,
+                        slot.shardId,
+                        slot.primary,
+                        entityAsMap(explainResponse)
+                    );
+                } catch (Exception e) {
+                    logger.warn("Failed to log allocation explain for [{}] shard {} primary={}", indexName, slot.shardId, slot.primary, e);
+                }
+            }
+            if (unassigned.isEmpty()) {
+                try {
+                    Request explainRequest = new Request("POST", "_cluster/allocation/explain");
+                    explainRequest.setJsonEntity("{}");
+                    Response explainResponse = client().performRequest(explainRequest);
+                    logger.info("Index [{}] allocation explain (first unassigned in cluster): {}", indexName, entityAsMap(explainResponse));
+                } catch (Exception e) {
+                    logger.warn("Failed to log allocation explain (first unassigned) for [{}]", indexName, e);
+                }
+            }
+        }
+    }
+
+    /**
+     * Parse _cat/shards output (header: index, shard, prirep, state, node, unassigned.reason) and return
+     * shard slots that are UNASSIGNED or INITIALIZING.
+     */
+    private static List<ShardSlot> parseUnassignedOrInitializingShards(String catShardsBody) {
+        List<ShardSlot> result = new ArrayList<>();
+        String[] lines = catShardsBody.split("\n");
+        for (int i = 0; i < lines.length; i++) {
+            if (i == 0) {
+                continue;
+            }
+            String[] parts = lines[i].trim().split("\\s+");
+            if (parts.length >= 4) {
+                String state = parts[3];
+                if ("UNASSIGNED".equals(state) || "INITIALIZING".equals(state)) {
+                    try {
+                        int shardId = Integer.parseInt(parts[1]);
+                        boolean primary = "p".equalsIgnoreCase(parts[2]);
+                        result.add(new ShardSlot(shardId, primary));
+                    } catch (NumberFormatException e) {
+                        // skip malformed line
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private record ShardSlot(int shardId, boolean primary) {}
+
+    /**
+     * Log master's pending cluster tasks (e.g. cluster state updates). A backlog can delay shard allocation.
+     */
+    private void logPendingClusterTasks(String indexName, String when) throws IOException {
+        try {
+            Response response = client().performRequest(new Request("GET", "_cluster/pending_tasks"));
+            logger.info("Index [{}] pending cluster tasks {}: {}", indexName, when, entityAsMap(response));
+        } catch (Exception e) {
+            logger.warn("Failed to log pending cluster tasks for [{}] ({})", indexName, when, e);
         }
     }
 

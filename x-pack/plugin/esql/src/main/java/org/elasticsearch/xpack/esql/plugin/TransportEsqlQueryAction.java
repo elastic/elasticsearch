@@ -221,7 +221,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
 
         this.activityLogger = new ActivityLogger<>(
-            EsqlLogContext.TYPE,
             clusterService.getClusterSettings(),
             new EsqlLogProducer(),
             logWriterProvider,

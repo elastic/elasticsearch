@@ -103,7 +103,7 @@ public class HollowIndexEngineTests extends EngineTestCase {
             statelessCommitService,
             hollowShardsService,
             mock(SharedBlobCacheWarmingService.class),
-            RefreshThrottler.Noop::new,
+            new RefreshManagerService.Noop(),
             mock(ReshardIndexService.class),
             (g) -> Set.of(),
             DocumentParsingProvider.EMPTY_INSTANCE,

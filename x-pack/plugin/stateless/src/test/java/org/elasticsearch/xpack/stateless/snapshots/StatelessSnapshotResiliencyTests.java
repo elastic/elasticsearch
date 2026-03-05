@@ -132,7 +132,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
-import org.elasticsearch.xpack.stateless.engine.RefreshThrottler;
+import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
@@ -1045,7 +1045,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         statelessCommitService,
                         mock(HollowShardsService.class),
                         cacheWarmingService,
-                        RefreshThrottler.Noop::new,
+                        new RefreshManagerService.Noop(),
                         reshardIndexService,
                         statelessCommitService.getCommitBCCResolverForShard(newConfig.getShardId()),
                         DocumentParsingProvider.EMPTY_INSTANCE,

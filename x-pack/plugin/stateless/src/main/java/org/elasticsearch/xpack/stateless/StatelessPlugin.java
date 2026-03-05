@@ -205,8 +205,8 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
-import org.elasticsearch.xpack.stateless.engine.RefreshThrottler;
-import org.elasticsearch.xpack.stateless.engine.RefreshThrottlingService;
+import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
+import org.elasticsearch.xpack.stateless.engine.RefreshManagerServiceFactory;
 import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
@@ -345,6 +345,8 @@ public class StatelessPlugin extends Plugin
     public static final String PREWARM_THREAD_POOL_SETTING = "stateless." + PREWARM_THREAD_POOL + "_thread_pool";
     public static final String UPLOAD_PREWARM_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_UPLOAD_PREWARMING_THREAD_NAME;
     public static final String UPLOAD_PREWARM_THREAD_POOL_SETTING = "stateless." + UPLOAD_PREWARM_THREAD_POOL + "_thread_pool";
+
+    public static final String MEMORY_NODE_ATTR = NAME + ".memory";
 
     /**
      * The set of {@link ShardRouting.Role}s that we expect to see in a stateless deployment
@@ -506,7 +508,9 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<HollowShardsMetrics> hollowShardMetrics = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
-    private final SetOnce<RefreshThrottlingService> refreshThrottlingService = new SetOnce<>();
+    // protected for testing
+    protected final SetOnce<RefreshManagerServiceFactory> refreshManagerServiceFactory = new SetOnce<>();
+    private final SetOnce<RefreshManagerService> refreshManagerService = new SetOnce<>();
     private final SetOnce<HollowShardsService> hollowShardsService = new SetOnce<>();
     private final SetOnce<ShardSizeCollector> shardSizeCollector = new SetOnce<>();
     private final SetOnce<ShardsMappingSizeCollector> shardsMappingSizeCollector = new SetOnce<>();
@@ -729,7 +733,7 @@ public class StatelessPlugin extends Plugin
             // always override counting reads, stateless does not expose this number so the overhead for tracking it is wasted in any case
             settings.put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), false);
 
-            String nodeMemoryAttrName = "node.attr." + RefreshThrottlingService.MEMORY_NODE_ATTR;
+            String nodeMemoryAttrName = "node.attr." + MEMORY_NODE_ATTR;
             if (settings.get(nodeMemoryAttrName) == null) {
                 settings.put(nodeMemoryAttrName, Long.toString(OsProbe.getInstance().osStats().getMem().getAdjustedTotal().getBytes()));
             } else {
@@ -861,8 +865,11 @@ public class StatelessPlugin extends Plugin
         );
         components.add(indexShardCacheWarmer);
 
-        var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));
-        components.add(refreshThrottlingService);
+        RefreshManagerService refreshManagerService = refreshManagerServiceFactory.get() != null
+            ? refreshManagerServiceFactory.get().create(settings, clusterService)
+            : new RefreshManagerService.Noop();
+        this.refreshManagerService.set(refreshManagerService);
+        components.add(refreshManagerService);
 
         // We need to inject HollowShardsService into TransportStatelessPrimaryRelocationAction via DI, so it has to be
         // available on all nodes despite being useful only on indexing nodes
@@ -1633,7 +1640,7 @@ public class StatelessPlugin extends Plugin
         StatelessCommitService statelessCommitService,
         HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
-        RefreshThrottler.Factory refreshThrottlerFactory,
+        RefreshManagerService refreshManagerService,
         ReshardIndexService reshardIndexService,
         DocumentParsingProvider documentParsingProvider,
         IndexEngine.EngineMetrics engineMetrics
@@ -1645,7 +1652,7 @@ public class StatelessPlugin extends Plugin
             statelessCommitService,
             hollowShardsService,
             sharedBlobCacheWarmingService,
-            refreshThrottlerFactory,
+            refreshManagerService,
             reshardIndexService,
             statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
             documentParsingProvider,
@@ -1812,7 +1819,7 @@ public class StatelessPlugin extends Plugin
             getCommitService(),
             hollowShardsService.get(),
             sharedBlobCacheWarmingService.get(),
-            refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings),
+            refreshManagerService.get(),
             reshardIndexService.get(),
             documentParsingProvider.get(),
             new IndexEngine.EngineMetrics(translogReplicatorMetrics.get(), newConfig.getMergeMetrics(), hollowShardMetrics.get())
@@ -1852,6 +1859,13 @@ public class StatelessPlugin extends Plugin
             throw new IllegalStateException(CodecProviderFactory.class + " may not have multiple implementations");
         } else if (factories.size() == 1) {
             codecProviderFactory.set(factories.get(0));
+        }
+
+        var refreshManagerServiceFactories = loader.loadExtensions(RefreshManagerServiceFactory.class);
+        if (refreshManagerServiceFactories.size() > 1) {
+            throw new IllegalStateException(RefreshManagerServiceFactory.class + " may not have multiple implementations");
+        } else if (refreshManagerServiceFactories.size() == 1) {
+            this.refreshManagerServiceFactory.set(refreshManagerServiceFactories.getFirst());
         }
     }
 

@@ -282,7 +282,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storageObject);
 
         try (SeekableInputStream stream = adapter.newStream()) {
-            // ByteBuffer read (invalidates internal stream)
             ByteBuffer buf = ByteBuffer.allocate(3);
             stream.readFully(buf);
             buf.flip();
@@ -291,7 +290,7 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             assertEquals(3, buf.get());
             assertEquals(3, stream.getPos());
 
-            // Byte-array read (should re-open stream at position 3)
+            // Byte-array read continues from same stream position
             byte[] arr = new byte[3];
             stream.readFully(arr);
             assertArrayEquals(new byte[] { 4, 5, 6 }, arr);

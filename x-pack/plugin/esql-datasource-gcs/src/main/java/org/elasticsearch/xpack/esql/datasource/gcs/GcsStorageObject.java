@@ -13,13 +13,11 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.time.Instant;
 
@@ -100,35 +98,6 @@ public final class GcsStorageObject implements StorageObject {
                 throw new IOException("Object not found: " + path, e);
             }
             throw new IOException("Range request failed for " + path, e);
-        }
-    }
-
-    /**
-     * Reads directly into the target ByteBuffer using GCS {@link ReadChannel}, which
-     * natively supports ByteBuffer I/O without intermediate byte array copies.
-     */
-    @Override
-    @SuppressForbidden(reason = "GCS ReadChannel.read for native ByteBuffer I/O")
-    public int readBytes(long position, ByteBuffer target) throws IOException {
-        if (target.hasRemaining() == false) {
-            return 0;
-        }
-        try (ReadChannel reader = storage.reader(BlobId.of(bucket, objectName))) {
-            reader.seek(position);
-            int totalRead = 0;
-            while (target.hasRemaining()) {
-                int n = reader.read(target);
-                if (n < 0) {
-                    break;
-                }
-                totalRead += n;
-            }
-            return totalRead == 0 ? -1 : totalRead;
-        } catch (StorageException e) {
-            if (e.getCode() == 404) {
-                throw new IOException("Object not found: " + path, e);
-            }
-            throw new IOException("Failed to read from " + path, e);
         }
     }
 

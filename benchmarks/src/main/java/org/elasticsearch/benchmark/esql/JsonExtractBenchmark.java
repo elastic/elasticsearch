@@ -12,7 +12,6 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -40,7 +39,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -191,11 +189,7 @@ public class JsonExtractBenchmark {
             "json",
             new EsField("json", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        Expression expr = new JsonExtract(
-            Source.EMPTY,
-            field,
-            new Literal(Source.EMPTY, new BytesRef(path), DataType.KEYWORD)
-        );
+        Expression expr = new JsonExtract(Source.EMPTY, field, new Literal(Source.EMPTY, new BytesRef(path), DataType.KEYWORD));
 
         // Build evaluator through the standard eval pipeline
         Layout.Builder layoutBuilder = new Layout.Builder();

@@ -241,11 +241,7 @@ public class EvalBenchmark {
                 FieldAttribute keywordField = keywordField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new JsonExtract(
-                        Source.EMPTY,
-                        keywordField,
-                        new Literal(Source.EMPTY, new BytesRef("user.name"), DataType.KEYWORD)
-                    ),
+                    new JsonExtract(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("user.name"), DataType.KEYWORD)),
                     layout(keywordField)
                 ).get(driverContext);
             }
@@ -253,11 +249,7 @@ public class EvalBenchmark {
                 FieldAttribute keywordField = keywordField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new JsonExtract(
-                        Source.EMPTY,
-                        keywordField,
-                        new Literal(Source.EMPTY, new BytesRef("user"), DataType.KEYWORD)
-                    ),
+                    new JsonExtract(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("user"), DataType.KEYWORD)),
                     layout(keywordField)
                 ).get(driverContext);
             }

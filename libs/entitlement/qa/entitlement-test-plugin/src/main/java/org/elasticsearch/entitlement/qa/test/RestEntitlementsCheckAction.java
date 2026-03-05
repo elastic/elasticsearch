@@ -105,7 +105,9 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             }
             String expectedDefault = testAnnotation.expectedDefaultIfDenied();
             if (expectedDefault.isEmpty() == false && method.getReturnType() == void.class) {
-                throw new AssertionError("Entitlement test method [" + method + "] must have a return type when expectedDefaultIfDenied is set");
+                throw new AssertionError(
+                    "Entitlement test method [" + method + "] must have a return type when expectedDefaultIfDenied is set"
+                );
             }
             final CheckedFunction<Environment, Object, Exception> call = createFunctionForMethod(method);
             CheckedFunction<Environment, String, Exception> action = env -> {

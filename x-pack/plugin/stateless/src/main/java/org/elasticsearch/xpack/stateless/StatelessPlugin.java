@@ -19,13 +19,9 @@ package org.elasticsearch.xpack.stateless;
 
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
-import co.elastic.elasticsearch.stateless.api.DocValuesFormatFactory;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsProvider;
 import co.elastic.elasticsearch.stateless.api.ShardSizeStatsReader;
 
-import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
@@ -265,7 +261,6 @@ import org.elasticsearch.xpack.stateless.xpack.DummyWatcherUsageTransportAction;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -550,8 +545,7 @@ public class StatelessPlugin extends Plugin
     private final StatelessIndexSettingProvider statelessIndexSettingProvider;
     private final boolean hollowShardsEnabled;
 
-    // visible for testing
-    protected Function<Codec, Codec> codecWrapper = Function.identity();
+    private final SetOnce<CodecProviderFactory> codecProviderFactory = new SetOnce<>();
 
     private ObjectStoreService getObjectStoreService() {
         return Objects.requireNonNull(this.objectStoreService.get());
@@ -1839,26 +1833,11 @@ public class StatelessPlugin extends Plugin
     }
 
     protected CodecProvider getCodecProvider(EngineConfig engineConfig) {
-        final var innerCodecProvider = engineConfig.getCodecProvider();
-        final var availableCodecs = innerCodecProvider.availableCodecs();
-        // Wrap all availableCodecs, so we create just one CodedProvider and one Codec per codec name.
-        final var codecs = Arrays.stream(availableCodecs)
-            .collect(
-                Collectors.toUnmodifiableMap(Function.identity(), codecName -> codecWrapper.apply(innerCodecProvider.codec(codecName)))
-            );
-        return new CodecProvider() {
-            @Override
-            public Codec codec(String name) {
-                var codec = codecs.get(name);
-                assert codec != null;
-                return codec;
-            }
-
-            @Override
-            public String[] availableCodecs() {
-                return availableCodecs;
-            }
-        };
+        var factory = codecProviderFactory.get();
+        if (factory != null) {
+            return factory.getCodecProvider(engineConfig);
+        }
+        return engineConfig.getCodecProvider();
     }
 
     protected org.apache.lucene.index.MergePolicy getMergePolicy(EngineConfig engineConfig) {
@@ -1867,30 +1846,13 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        var formatFactories = loader.loadExtensions(DocValuesFormatFactory.class);
+        var factories = loader.loadExtensions(CodecProviderFactory.class);
 
-        if (formatFactories.size() > 1) {
-            throw new IllegalStateException(DocValuesFormatFactory.class + " may not have multiple implementations");
-        } else if (formatFactories.size() == 1) {
-            var formatFactory = formatFactories.get(0);
-            this.codecWrapper = createCodecWrapper(formatFactory);
+        if (factories.size() > 1) {
+            throw new IllegalStateException(CodecProviderFactory.class + " may not have multiple implementations");
+        } else if (factories.size() == 1) {
+            codecProviderFactory.set(factories.get(0));
         }
-    }
-
-    // visible for testing
-    protected Function<Codec, Codec> createCodecWrapper(DocValuesFormatFactory formatFactory) {
-        return (parentCodec) -> {
-            var parentCodecDocValuesFormat = parentCodec.docValuesFormat();
-            var extensionDocValuesFormat = formatFactory.createDocValueFormat(parentCodecDocValuesFormat);
-            return new FilterCodec(parentCodec.getName(), parentCodec) {
-                private final DocValuesFormat rawStorageDocValuesFormat = extensionDocValuesFormat;
-
-                @Override
-                public DocValuesFormat docValuesFormat() {
-                    return rawStorageDocValuesFormat;
-                }
-            };
-        };
     }
 
     @Override

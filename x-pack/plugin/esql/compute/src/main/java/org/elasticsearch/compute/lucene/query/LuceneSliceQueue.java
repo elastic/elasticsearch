@@ -545,6 +545,7 @@ public final class LuceneSliceQueue {
         private List<PartialLeafReaderContext> shuffle(Collection<PartialLeafReaderContext> leaves) {
             List<PartialLeafReaderContext> shuffled = new ArrayList<>(leaves);
             Randomness.shuffle(shuffled);
+            System.err.println("--> adding slice " + shuffled);
             return shuffled;
         }
     }

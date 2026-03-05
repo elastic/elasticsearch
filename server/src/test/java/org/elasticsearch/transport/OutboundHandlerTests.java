@@ -340,6 +340,9 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        // When response serialization fails, OutboundHandler.sendMessage's finally block calls
+        // Releasables.close(byteStreamOutput, onAfter) which invokes onResponseSent(success) as a
+        // cleanup side-effect. Then sendErrorResponse sends the error and invokes onResponseSent(error).
         handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action) {
@@ -353,8 +356,8 @@ public class OutboundHandlerTests extends ESTestCase {
             @Override
             public void onResponseSent(long requestId, String action, Exception error) {
                 assertNotNull(channel.getMessageCaptor().get());
-                requestIdRef.set(requestId);
-                actionRef.set(action);
+                assertThat(requestIdRef.get(), equalTo(requestId));
+                assertThat(actionRef.get(), equalTo(action));
                 exceptionRef.set(error);
             }
         });
@@ -401,17 +404,25 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        // When response serialization fails, OutboundHandler.sendMessage's finally block calls
+        // Releasables.close(byteStreamOutput, onAfter) which invokes onResponseSent(success) as a
+        // cleanup side-effect. Then sendErrorResponse fires onResponseSent(error) -- but here the
+        // error response also fails to send (pipe broken), so it fires from the catch block instead.
         handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action) {
-                throw new AssertionError("onResponseSent(success) must not be called on serialization failure");
+                assertNull(channel.getMessageCaptor().get());
+                assertThat(requestIdRef.get(), equalTo(0L));
+                requestIdRef.set(requestId);
+                assertNull(actionRef.get());
+                actionRef.set(action);
             }
 
             @Override
             public void onResponseSent(long requestId, String action, Exception error) {
                 assertNull(channel.getMessageCaptor().get());
-                requestIdRef.set(requestId);
-                actionRef.set(action);
+                assertThat(requestIdRef.get(), equalTo(requestId));
+                assertThat(actionRef.get(), equalTo(action));
                 exceptionRef.set(error);
             }
         });
@@ -449,10 +460,19 @@ public class OutboundHandlerTests extends ESTestCase {
             }
         };
 
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        // When serialization fails, sendMessage's finally block invokes onResponseSent(success) as a
+        // cleanup side-effect via Releasables.close(onAfter). For handshakes no error response is sent,
+        // so onResponseSent(error) must not be called.
         handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action) {
-                throw new AssertionError("onResponseSent(success) must not be called on serialization failure");
+                assertNull(channel.getMessageCaptor().get());
+                assertThat(requestIdRef.get(), equalTo(0L));
+                requestIdRef.set(requestId);
+                assertNull(actionRef.get());
+                actionRef.set(action);
             }
 
             @Override
@@ -466,6 +486,8 @@ public class OutboundHandlerTests extends ESTestCase {
         } finally {
             response.decRef();
         }
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
         assertNull(channel.getMessageCaptor().get());
         assertNull(channel.getListenerCaptor().get());
         assertTrue(response.released.get());

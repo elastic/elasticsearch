@@ -695,14 +695,21 @@ public class SearchTransportService {
      * response over the channel. For network channels the response is pre-serialized into a
      * {@link BytesTransportResponse} so that the original in-memory data can be freed by the caller's
      * {@code respondAndRelease}. For local (direct) channels the original response is forwarded as-is,
-     * because TransportService.DirectResponseChannel} passes the object directly to the response
+     * because {@code TransportService.DirectResponseChannel} passes the object directly to the response
      * handler without serialization/deserialization.
      * <p>
      * The caller is responsible for calling {@code response.decRef()} (typically via
      * {@link ActionListener#respondAndRelease}); this method never calls it.
+     * <p>
+     * <b>Direct-channel timing note:</b> on the direct (local) path, {@code afterSerialize} runs after
+     * {@code channel.sendResponse()} returns. If the response handler uses a non-direct executor,
+     * {@code sendResponse()} may return before the handler fully processes the response, so
+     * {@code afterSerialize} can execute concurrently with the handler. This is safe because
+     * {@code afterSerialize} only releases circuit-breaker <em>accounting</em> (not the response data
+     * itself, which is ref-counted).
      *
-     * @param afterSerialize called after serialization (network) or after the handler processes the response (local)
-     *                       to release resources such as circuit-breaker reservations
+     * @param afterSerialize called after serialization (network) or after {@code channel.sendResponse()} returns
+     *                       (local) to release resources such as circuit-breaker reservations; must not throw
      */
     static <T extends TransportResponse> ActionListener<T> asBytesResponse(
         TransportService transportService,
@@ -739,15 +746,23 @@ public class SearchTransportService {
                     response.writeTo(out);
                 } catch (Exception e) {
                     Releasables.close(out);
-                    afterSerialize.accept(response);
+                    try {
+                        afterSerialize.accept(response);
+                    } catch (Exception suppressed) {
+                        e.addSuppressed(suppressed);
+                    }
                     channelListener.onFailure(e);
                     return;
                 }
-                afterSerialize.accept(response);
-                ActionListener.respondAndRelease(
-                    channelListener,
-                    new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
-                );
+                var bytesRef = out.moveToBytesReference();
+                try {
+                    afterSerialize.accept(response);
+                } catch (Exception e) {
+                    Releasables.close(bytesRef);
+                    channelListener.onFailure(e);
+                    return;
+                }
+                ActionListener.respondAndRelease(channelListener, new BytesTransportResponse(bytesRef, out.getTransportVersion()));
             }
 
             @Override

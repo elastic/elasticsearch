@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportResponse;
 import org.elasticsearch.transport.TestDirectResponseChannel;
 import org.elasticsearch.transport.TestTransportChannel;
+import org.elasticsearch.transport.TestTransportChannels;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -307,6 +308,49 @@ public class AsBytesResponseTests extends ESTestCase {
         } finally {
             fetchResult.decRef();
         }
+    }
+
+    public void testTaskTransportChannelUnwrapsToDirectPath() {
+        var afterSerializeCalled = new AtomicBoolean(false);
+        var sentResponse = new AtomicReference<TransportResponse>();
+
+        var directChannel = new TestDirectResponseChannel(ActionListener.wrap(sentResponse::set, e -> fail("unexpected failure: " + e)));
+        var taskChannel = TestTransportChannels.newTaskTransportChannel(directChannel, () -> {});
+
+        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
+            transportService,
+            taskChannel,
+            response -> afterSerializeCalled.set(true)
+        );
+
+        var original = new SimpleTestResponse("task-wrapped-test");
+        listener.onResponse(original);
+
+        assertTrue("afterSerialize must be called on task-wrapped direct path", afterSerializeCalled.get());
+        assertSame("task-wrapped direct channel must forward original response, not BytesTransportResponse", original, sentResponse.get());
+    }
+
+    public void testTaskTransportChannelUnwrapsToNetworkPath() {
+        var afterSerializeCalled = new AtomicBoolean(false);
+        var sentResponse = new AtomicReference<TransportResponse>();
+
+        var networkChannel = new TestTransportChannel(ActionListener.wrap(resp -> {
+            resp.mustIncRef();
+            sentResponse.set(resp);
+        }, e -> fail("unexpected failure: " + e)));
+        var taskChannel = TestTransportChannels.newTaskTransportChannel(networkChannel, () -> {});
+
+        ActionListener<SimpleTestResponse> listener = SearchTransportService.asBytesResponse(
+            transportService,
+            taskChannel,
+            response -> afterSerializeCalled.set(true)
+        );
+
+        listener.onResponse(new SimpleTestResponse("task-network-test"));
+
+        assertTrue("afterSerialize must be called on task-wrapped network path", afterSerializeCalled.get());
+        assertThat(sentResponse.get(), instanceOf(BytesTransportResponse.class));
+        sentResponse.get().decRef();
     }
 
     static class SimpleTestResponse extends TransportResponse {

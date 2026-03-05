@@ -148,7 +148,12 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     static final class SeqNoFieldType extends SimpleMappedFieldType {
         private static final SeqNoFieldType WITH_POINT = new SeqNoFieldType(true);
         private static final SeqNoFieldType NO_POINT = new SeqNoFieldType(false);
-        private static final MappedFieldType UNSEARCHABLE = new UnsearchableFieldType(NAME, CONTENT_TYPE, Map.of());
+        private static final MappedFieldType UNSEARCHABLE = new UnsearchableFieldType(
+            NAME,
+            CONTENT_TYPE,
+            "_seq_no cannot be queried when [index.disable_sequence_numbers] is [true]",
+            Map.of()
+        );
 
         private SeqNoFieldType(boolean indexed) {
             super(NAME, IndexType.points(indexed, true), false, Collections.emptyMap());

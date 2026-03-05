@@ -20,15 +20,17 @@ import java.util.Map;
 public final class UnsearchableFieldType extends MappedFieldType {
 
     private final String type;
+    private final String reason;
 
-    public UnsearchableFieldType(String name, String type, Map<String, String> meta) {
+    public UnsearchableFieldType(String name, String type, String reason, Map<String, String> meta) {
         super(name, IndexType.NONE, false, meta);
         this.type = type;
+        this.reason = reason;
     }
 
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        throw new IllegalArgumentException("Cannot fetch values for field [" + name() + "]");
+        throw new IllegalArgumentException("Cannot fetch values for field [" + name() + "]: " + reason);
     }
 
     @Override
@@ -38,6 +40,6 @@ public final class UnsearchableFieldType extends MappedFieldType {
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        throw new IllegalArgumentException("Cannot query field [" + name() + "]");
+        throw new IllegalArgumentException("Cannot query field [" + name() + "]: " + reason);
     }
 }

@@ -20,10 +20,6 @@
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
 
-#ifndef DOTI8_STRIDE_BYTES_LEN
-#define DOTI8_STRIDE_BYTES_LEN 32 // Must be a power of 2
-#endif
-
 #ifndef SQRI8_STRIDE_BYTES_LEN
 #define SQRI8_STRIDE_BYTES_LEN 16 // Must be a power of 2
 #endif
@@ -34,48 +30,67 @@ struct cosine_results_t {
     int32_t norm2;
 };
 
-static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    int32x4_t acc_sum1 = vdupq_n_s32(0);
-    int32x4_t acc_sum2 = vdupq_n_s32(0);
-    int32x4_t acc_norm11 = vdupq_n_s32(0);
-    int32x4_t acc_norm12 = vdupq_n_s32(0);
-    int32x4_t acc_norm21 = vdupq_n_s32(0);
-    int32x4_t acc_norm22 = vdupq_n_s32(0);
+// Several ARM operations split the input vector into two vectors,
+// the low and high needs to be processed separately.
+// These helper methods are to use the ARM x2 types
+// to still treat then as single values
 
-    for (int i = 0; i < dims; i += SQRI8_STRIDE_BYTES_LEN) {
+template <int16x8_t(*op)(const int8x8_t, const int8x8_t)>
+static inline int16x8x2_t create_pair(int8x16_t a, int8x16_t b) {
+    int16x8x2_t ret;
+    ret.val[0] = op(vget_low_s8(a), vget_low_s8(b));
+    ret.val[1] = op(vget_high_s8(a), vget_high_s8(b));
+    return ret;
+}
+
+template <int32x4_t(*op)(const int32x4_t, const int16x8_t)>
+static inline int32x4x2_t apply(int32x4x2_t a, int16x8x2_t b) {
+    int32x4x2_t ret;
+    ret.val[0] = op(a.val[0], b.val[0]);
+    ret.val[1] = op(a.val[1], b.val[1]);
+    return ret;
+}
+
+template <int32x4_t(*op)(const int32x4_t, const int32x4_t)>
+static inline int32x4_t combine(int32x4x2_t a) {
+    return op(a.val[0], a.val[1]);
+}
+
+static inline cosine_results_t cosi8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
+    int32x4x2_t zero = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
+    int32x4x2_t sums = zero;
+    int32x4x2_t a_norms = zero;
+    int32x4x2_t b_norms = zero;
+
+    constexpr int stride = sizeof(int8x16_t);
+    for (int i = 0; i < dims; i += stride) {
         // Read into 16 x 8 bit vectors.
         int8x16_t va = vld1q_s8(a + i);
         int8x16_t vb = vld1q_s8(b + i);
 
-        int16x8_t sum1 = vmull_s8(vget_low_s8(va), vget_low_s8(vb));
-        int16x8_t sum2 = vmull_s8(vget_high_s8(va), vget_high_s8(vb));
-        int16x8_t norm11 = vmull_s8(vget_low_s8(va), vget_low_s8(va));
-        int16x8_t norm12 = vmull_s8(vget_high_s8(va), vget_high_s8(va));
-        int16x8_t norm21 = vmull_s8(vget_low_s8(vb), vget_low_s8(vb));
-        int16x8_t norm22 = vmull_s8(vget_high_s8(vb), vget_high_s8(vb));
+        int16x8x2_t sum = create_pair<vmull_s8>(va, vb);
+        int16x8x2_t a_norm = create_pair<vmull_s8>(va, va);
+        int16x8x2_t b_norm = create_pair<vmull_s8>(vb, vb);
 
         // Accumulate, adding adjacent 32-bit lanes
-        acc_sum1 = vpadalq_s16(acc_sum1, sum1);
-        acc_sum2 = vpadalq_s16(acc_sum2, sum2);
-        acc_norm11 = vpadalq_s16(acc_norm11, norm11);
-        acc_norm12 = vpadalq_s16(acc_norm12, norm12);
-        acc_norm21 = vpadalq_s16(acc_norm21, norm21);
-        acc_norm22 = vpadalq_s16(acc_norm22, norm22);
+        sums = apply<vpadalq_s16>(sums, sum);
+        a_norms = apply<vpadalq_s16>(a_norms, a_norm);
+        b_norms = apply<vpadalq_s16>(b_norms, b_norm);
     }
 
     // reduce
     return cosine_results_t {
-        vaddvq_s32(vaddq_s32(acc_sum1, acc_sum2)),
-        vaddvq_s32(vaddq_s32(acc_norm11, acc_norm12)),
-        vaddvq_s32(vaddq_s32(acc_norm21, acc_norm22))
+        vaddvq_s32(combine<vaddq_s32>(sums)),
+        vaddvq_s32(combine<vaddq_s32>(a_norms)),
+        vaddvq_s32(combine<vaddq_s32>(b_norms))
     };
 }
 
 EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     cosine_results_t res = cosine_results_t { 0, 0, 0 };
     int i = 0;
-    if (dims > SQRI8_STRIDE_BYTES_LEN) {
-        i += dims & ~(SQRI8_STRIDE_BYTES_LEN - 1);
+    if (dims > sizeof(int8x16_t)) {
+        i += dims & ~(sizeof(int8x16_t) - 1);
         res = cosi8_inner(a, b, i);
     }
     for (; i < dims; i++) {
@@ -99,23 +114,17 @@ static inline void cosi8_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    const int blk = dims & ~15;
-
     // First of all, calculate the b norm
-    int32x4_t b_norms0 = vdupq_n_s32(0);
-    int32x4_t b_norms1 = vdupq_n_s32(0);
+    int32x4x2_t b_norms = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
 
     int bi = 0;
-    for(; bi < blk; bi += 16) {
+    constexpr int stride = sizeof(int8x16_t);
+    for(; bi < (dims & ~(stride - 1)); bi += stride) {
         int8x16_t vb8 = vld1q_s8(b + bi);
-
-        int16x8_t lo = vmull_s8(vget_low_s8(vb8),  vget_low_s8(vb8));
-        int16x8_t hi = vmull_s8(vget_high_s8(vb8), vget_high_s8(vb8));
-
-        b_norms0 = vpadalq_s16(b_norms0, lo);
-        b_norms1 = vpadalq_s16(b_norms1, hi);
+        int16x8x2_t norms = create_pair<vmull_s8>(vb8, vb8);
+        b_norms = apply<vpadalq_s16>(b_norms, norms);
     }
-    int32_t b_norm = vaddvq_s32(b_norms0) + vaddvq_s32(b_norms1);
+    int32_t b_norm = vaddvq_s32(b_norms.val[0]) + vaddvq_s32(b_norms.val[1]);
     for (; bi < dims; bi++) {
         b_norm += b[bi] * b[bi];
     }
@@ -127,66 +136,50 @@ static inline void cosi8_inner_bulk(
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         const int8_t* a1 = a + mapper(c + 1, offsets) * pitch;
 
-        int32x4_t sums00 = vdupq_n_s32(0);
-        int32x4_t sums01 = vdupq_n_s32(0);
-        int32x4_t sums10 = vdupq_n_s32(0);
-        int32x4_t sums11 = vdupq_n_s32(0);
-        int32x4_t a_norms00 = vdupq_n_s32(0);
-        int32x4_t a_norms01 = vdupq_n_s32(0);
-        int32x4_t a_norms10 = vdupq_n_s32(0);
-        int32x4_t a_norms11 = vdupq_n_s32(0);
+        int32x4x2_t zero = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
+        int32x4x2_t sums0 = zero;
+        int32x4x2_t sums1 = zero;
+        int32x4x2_t a_norms0 = zero;
+        int32x4x2_t a_norms1 = zero;
 
-        for (int i = 0; i < blk; i += 16) {
+        int i=0;
+        for (; i < (dims & ~(stride - 1)); i += stride) {
             int8x16_t vb = vld1q_s8(b + i);
 
             int8x16_t v0 = vld1q_s8(a0 + i);
-            int16x8_t sum_lo0 = vmull_s8(vget_low_s8(v0), vget_low_s8(vb));
-            int16x8_t sum_hi0 = vmull_s8(vget_high_s8(v0), vget_high_s8(vb));
-            int16x8_t norm_lo0 = vmull_s8(vget_low_s8(v0), vget_low_s8(v0));
-            int16x8_t norm_hi0 = vmull_s8(vget_high_s8(v0), vget_high_s8(v0));
-            sums00 = vpadalq_s16(sums00, sum_lo0);
-            sums01 = vpadalq_s16(sums01, sum_hi0);
-            a_norms00 = vpadalq_s16(a_norms00, norm_lo0);
-            a_norms01 = vpadalq_s16(a_norms01, norm_hi0);
+            int16x8x2_t sum0 = create_pair<vmull_s8>(v0, vb);
+            int16x8x2_t norm0 = create_pair<vmull_s8>(v0, v0);
+            sums0 = apply<vpadalq_s16>(sums0, sum0);
+            a_norms0 = apply<vpadalq_s16>(a_norms0, norm0);
 
             int8x16_t v1 = vld1q_s8(a1 + i);
-            int16x8_t sum_lo1 = vmull_s8(vget_low_s8(v1), vget_low_s8(vb));
-            int16x8_t sum_hi1 = vmull_s8(vget_high_s8(v1), vget_high_s8(vb));
-            int16x8_t norm_lo1 = vmull_s8(vget_low_s8(v1), vget_low_s8(v1));
-            int16x8_t norm_hi1 = vmull_s8(vget_high_s8(v1), vget_high_s8(v1));
-            sums10 = vpadalq_s16(sums10, sum_lo1);
-            sums11 = vpadalq_s16(sums11, sum_hi1);
-            a_norms10 = vpadalq_s16(a_norms10, norm_lo1);
-            a_norms11 = vpadalq_s16(a_norms11, norm_hi1);
-        }
-        int32x4_t sums0 = vaddq_s32(sums00, sums01);
-        int32x4_t sums1 = vaddq_s32(sums10, sums11);
-        int32x4_t a_norms0 = vaddq_s32(a_norms00, a_norms01);
-        int32x4_t a_norms1 = vaddq_s32(a_norms10, a_norms11);
-
-        int32_t sum0 = vaddvq_s32(sums0);
-        int32_t sum1 = vaddvq_s32(sums1);
-        int32_t norm0 = vaddvq_s32(a_norms0);
-        int32_t norm1 = vaddvq_s32(a_norms1);
-        if (blk != dims) {
-            // scalar tail
-            for (int t = blk; t < dims; t++) {
-                int32_t a0i = (int32_t) a0[t];
-                int32_t a1i = (int32_t) a1[t];
-                int32_t bi = (int32_t) b[t];
-                sum0 += a0i * bi;
-                sum1 += a1i * bi;
-                norm0 += a0i * a0i;
-                norm1 += a1i * a1i;
-            }
+            int16x8x2_t sum1 = create_pair<vmull_s8>(v1, vb);
+            int16x8x2_t norm1 = create_pair<vmull_s8>(v1, v1);
+            sums1 = apply<vpadalq_s16>(sums1, sum1);
+            a_norms1 = apply<vpadalq_s16>(a_norms1, norm1);
         }
 
-        float32x2_t sum  = vcvt_f32_s32(vcreate_s32(((uint64_t)sum1 << 32) | (uint32_t)sum0));
-        float32x2_t a_norm = vcvt_f32_s32(vcreate_s32(((uint64_t)norm1 << 32) | (uint32_t)norm0));
+        int32_t sum0 = vaddvq_s32(combine<vaddq_s32>(sums0));
+        int32_t sum1 = vaddvq_s32(combine<vaddq_s32>(sums1));
+        int32_t norm0 = vaddvq_s32(combine<vaddq_s32>(a_norms0));
+        int32_t norm1 = vaddvq_s32(combine<vaddq_s32>(a_norms1));
+        // scalar tail
+        for (; i < dims; i++) {
+            int32_t a0i = (int32_t) a0[i];
+            int32_t a1i = (int32_t) a1[i];
+            int32_t bi = (int32_t) b[i];
+            sum0 += a0i * bi;
+            sum1 += a1i * bi;
+            norm0 += a0i * a0i;
+            norm1 += a1i * a1i;
+        }
+
+        float32x2_t sum_vec = vcvt_f32_s32(vcreate_s32(((uint64_t)sum1 << 32) | (uint32_t)sum0));
+        float32x2_t a_norm_vec = vcvt_f32_s32(vcreate_s32(((uint64_t)norm1 << 32) | (uint32_t)norm0));
         float32x2_t b_norm_vec = vcvt_f32_s32(vdup_n_s32(b_norm));
 
         // sum / sqrt(a_norm * b_norm)
-        float32x2_t res = vdiv_f32(sum, vsqrt_f32(vmul_f32(a_norm, b_norm_vec)));
+        float32x2_t res = vdiv_f32(sum_vec, vsqrt_f32(vmul_f32(a_norm_vec, b_norm_vec)));
 
         // store directly in results
         vst1_f32(results + c, res);
@@ -215,44 +208,33 @@ EXPORT void vec_cosi8_bulk_offsets(
 }
 
 static inline int32_t doti8_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
-    // We have contention in the instruction pipeline on the accumulation
-    // registers if we use too few.
-    int32x4_t acc1 = vdupq_n_s32(0);
-    int32x4_t acc2 = vdupq_n_s32(0);
-    int32x4_t acc3 = vdupq_n_s32(0);
-    int32x4_t acc4 = vdupq_n_s32(0);
+    int32x4x2_t acc0 = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
+    int32x4x2_t acc1 = { .val = { vdupq_n_s32(0), vdupq_n_s32(0) } };
 
     // Some unrolling gives around 50% performance improvement.
-    for (int i = 0; i < dims; i += DOTI8_STRIDE_BYTES_LEN) {
+    constexpr int stride = sizeof(int8x16x2_t);
+    for (int i = 0; i < dims; i += stride) {
         // Read into 16 x 8 bit vectors.
-        int8x16_t va1 = vld1q_s8(a + i);
-        int8x16_t vb1 = vld1q_s8(b + i);
-        int8x16_t va2 = vld1q_s8(a + i + 16);
-        int8x16_t vb2 = vld1q_s8(b + i + 16);
+        int8x16x2_t va = vld1q_s8_x2(a + i);
+        int8x16x2_t vb = vld1q_s8_x2(b + i);
 
-        int16x8_t tmp1 = vmull_s8(vget_low_s8(va1), vget_low_s8(vb1));
-        int16x8_t tmp2 = vmull_s8(vget_high_s8(va1), vget_high_s8(vb1));
-        int16x8_t tmp3 = vmull_s8(vget_low_s8(va2),  vget_low_s8(vb2));
-        int16x8_t tmp4 = vmull_s8(vget_high_s8(va2), vget_high_s8(vb2));
+        int16x8x2_t dot0 = create_pair<vmull_s8>(va.val[0], vb.val[0]);
+        int16x8x2_t dot1 = create_pair<vmull_s8>(va.val[1], vb.val[1]);
 
         // Accumulate 4 x 32 bit vectors (adding adjacent 16 bit lanes).
-        acc1 = vpadalq_s16(acc1, tmp1);
-        acc2 = vpadalq_s16(acc2, tmp2);
-        acc3 = vpadalq_s16(acc3, tmp3);
-        acc4 = vpadalq_s16(acc4, tmp4);
+        acc0 = apply<vpadalq_s16>(acc0, dot0);
+        acc1 = apply<vpadalq_s16>(acc1, dot1);
     }
 
     // reduce
-    int32x4_t acc5 = vaddq_s32(acc1, acc2);
-    int32x4_t acc6 = vaddq_s32(acc3, acc4);
-    return vaddvq_s32(vaddq_s32(acc5, acc6));
+    return vaddvq_s32(vaddq_s32(combine<vaddq_s32>(acc0), combine<vaddq_s32>(acc1)));
 }
 
 static inline int32_t doti8_common(const int8_t* a, const int8_t* b, const int32_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (dims > DOTI8_STRIDE_BYTES_LEN) {
-        i += dims & ~(DOTI8_STRIDE_BYTES_LEN - 1);
+    if (dims > sizeof(int8x16x2_t)) {
+        i += dims & ~(sizeof(int8x16x2_t) - 1);
         res = doti8_inner(a, b, i);
     }
     for (; i < dims; i++) {

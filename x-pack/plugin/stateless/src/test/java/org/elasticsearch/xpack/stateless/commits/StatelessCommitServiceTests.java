@@ -480,6 +480,67 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    public void testGetTrackedUploadedBlobFilesUpToExcludesTrackedButUnuploadedBlobs() throws Exception {
+        Set<String> actuallyUploadedBccBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+        CountDownLatch blockUploads = new CountDownLatch(1);
+
+        try (var testHarness = createNode(fileCapture(actuallyUploadedBccBlobs), (file, runnable) -> {
+            safeAwait(blockUploads);
+            runnable.run();
+            actuallyUploadedBccBlobs.add(file);
+        }, 1)) {
+
+            List<StatelessCommitRef> commitRefs = testHarness.generateIndexCommits(3);
+            StatelessCommitRef firstCommit = commitRefs.get(0);
+            StatelessCommitRef secondCommit = commitRefs.get(1);
+            StatelessCommitRef thirdCommit = commitRefs.get(2);
+
+            testHarness.commitService.onCommitCreation(firstCommit);
+            testHarness.commitService.onCommitCreation(secondCommit);
+
+            PlainActionFuture<Void> listener = new PlainActionFuture<>();
+            ActionListener<Void> relocationListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
+
+            // Third commit is created after relocation started, so its generation > maxGenerationToUpload
+            testHarness.commitService.onCommitCreation(thirdCommit);
+
+            // Unblock uploads so the first two BCCs get uploaded
+            blockUploads.countDown();
+            listener.actionGet();
+
+            // Use the latest uploaded BCC generation as the upper bound, just like the relocation handoff does
+            long maxUploadedGeneration = testHarness.commitService.getLatestUploadedBcc(testHarness.shardId)
+                .primaryTermAndGeneration()
+                .generation();
+
+            Set<BlobFile> trackedUploadedBlobFiles = testHarness.commitService.getTrackedUploadedBlobFilesUpTo(
+                testHarness.shardId,
+                maxUploadedGeneration
+            );
+            Set<Long> trackedUploadedGenerations = trackedUploadedBlobFiles.stream()
+                .map(bf -> bf.termAndGeneration().generation())
+                .collect(Collectors.toSet());
+
+            assertThat("Expected first commit's blob to be included", trackedUploadedGenerations, hasItem(firstCommit.getGeneration()));
+            assertThat("Expected second commit's blob to be included", trackedUploadedGenerations, hasItem(secondCommit.getGeneration()));
+            assertThat(
+                "Expected third commit's blob to be excluded (not uploaded, created after relocation)",
+                trackedUploadedGenerations,
+                not(hasItem(thirdCommit.getGeneration()))
+            );
+
+            // Verify the blob names returned match the actually uploaded BCC blobs
+            Set<String> uploadedBlobNames = trackedUploadedBlobFiles.stream().map(BlobFile::blobName).collect(Collectors.toSet());
+            Set<String> capturedBccBlobs = actuallyUploadedBccBlobs.stream()
+                .filter(StatelessCompoundCommit::startsWithBlobPrefix)
+                .collect(Collectors.toSet());
+            assertThat(uploadedBlobNames, equalTo(capturedBccBlobs));
+
+            relocationListener.onResponse(null);
+        }
+    }
+
     public void testFailedRelocationAllowsCommitsToContinue() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         AtomicReference<String> commitFileToBlock = new AtomicReference<>();

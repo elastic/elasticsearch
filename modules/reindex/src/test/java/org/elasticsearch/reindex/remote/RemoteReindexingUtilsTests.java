@@ -582,8 +582,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     }
 
     /**
-     * Verifies that openPit throws AssertionError when the SearchRequest has routing set,
-     * since routing is not yet propagated to the PIT open request.
+     * Verifies that openPit throws AssertionError when the SearchRequest has routing set
      */
     public void testOpenPitFailsWhenRoutingSet() {
         SearchRequest searchRequest = new SearchRequest().indices("index");
@@ -607,8 +606,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     }
 
     /**
-     * Verifies that openPit throws AssertionError when the SearchRequest has preference set,
-     * since preference is not yet propagated to the PIT open request.
+     * Verifies that openPit throws AssertionError when the SearchRequest has preference set
      */
     public void testOpenPitFailsWhenPreferenceSet() {
         SearchRequest searchRequest = new SearchRequest().indices("index");

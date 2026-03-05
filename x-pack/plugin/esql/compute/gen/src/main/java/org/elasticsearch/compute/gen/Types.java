@@ -134,6 +134,7 @@ public class Types {
     );
 
     static final ClassName WARNINGS = ClassName.get("org.elasticsearch.compute.operator", "Warnings");
+    static final ClassName WARNING_SOURCE_LOCATION = ClassName.get("org.elasticsearch.compute.operator", "WarningSourceLocation");
 
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.esql.core.tree", "Source");
 

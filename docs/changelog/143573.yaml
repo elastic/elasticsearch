@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 143464
+pr: 143573
+summary: "Bug fix: add `requiresMetadata` to `SourceFilter`"
+type: bug

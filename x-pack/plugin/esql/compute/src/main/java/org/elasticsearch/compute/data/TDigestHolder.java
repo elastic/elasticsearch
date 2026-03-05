@@ -43,7 +43,12 @@ public class TDigestHolder implements GenericNamedWriteable, TDigestReadView {
         BytesRef.class
     ) + EncodedTDigest.RAM_BYTES;
 
-    private static final TDigestHolder EMPTY = new TDigestHolder();
+    private static final TDigestHolder EMPTY = new TDigestHolder() {
+        @Override
+        public void reset(BytesRef encodedDigest, double min, double max, double sum, long valueCount) {
+            throw new UnsupportedOperationException("This instance is immutable");
+        }
+    };
 
     private static final TransportVersion ESQL_SERIALIZEABLE_TDIGEST = TransportVersion.fromName("esql_serializeable_tdigest");
 

@@ -62,6 +62,53 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertEquals(List.of(42, 42, 16), sizes); // Total 100
     }
 
+    public void testJsonExtensionRecognized() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        assertTrue("NdJsonFormatReader should list .json as a supported extension", reader.fileExtensions().contains(".json"));
+    }
+
+    public void testJsonExtensionReadsData() throws IOException {
+        var reader = new NdJsonFormatReader(blockFactory);
+        var object = new BytesStorageObject("file:///data.json", IOUtils.resourceToByteArray("/employees.ndjson"));
+
+        try (var iterator = reader.read(object, List.of("emp_no"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertThat(page.getBlock(0), Matchers.instanceOf(IntBlock.class));
+            assertTrue(page.getPositionCount() > 0);
+        }
+    }
+
+    public void testSkipFirstLineForSplit() throws IOException {
+        // Simulate a split that starts mid-line: "partial_first_line\n{\"id\":1}\n{\"id\":2}\n"
+        String data = "partial_first_line\n{\"id\":1}\n{\"id\":2}\n";
+        var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        var reader = new NdJsonFormatReader(blockFactory);
+        try (var iterator = reader.readSplit(object, List.of("id"), 100, true, null)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            // Should have skipped "partial_first_line" and read 2 records
+            assertEquals(2, page.getPositionCount());
+            assertThat(page.getBlock(0), Matchers.instanceOf(IntBlock.class));
+            IntBlock idBlock = page.getBlock(0);
+            assertEquals(1, idBlock.getInt(0));
+            assertEquals(2, idBlock.getInt(1));
+        }
+    }
+
+    public void testSkipFirstLineNoSkip() throws IOException {
+        String data = "{\"id\":1}\n{\"id\":2}\n";
+        var object = new BytesStorageObject("file:///split.ndjson", data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        var reader = new NdJsonFormatReader(blockFactory);
+        try (var iterator = reader.readSplit(object, List.of("id"), 100, false, null)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+        }
+    }
+
     public void testSampleData() throws Exception {
         var reader = new NdJsonFormatReader(blockFactory);
         var object = new BytesStorageObject("classpath://employees.ndjson", IOUtils.resourceToByteArray("/employees.ndjson"));

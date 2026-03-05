@@ -41,7 +41,39 @@ public class NdJsonFormatReader implements FormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
-        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory);
+        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory, false);
+    }
+
+    @Override
+    public CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        List<Attribute> resolvedAttributes
+    ) throws IOException {
+        return new NdJsonPageIterator(object, projectedColumns, batchSize, blockFactory, skipFirstLine, false, resolvedAttributes);
+    }
+
+    @Override
+    public CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        boolean lastSplit,
+        List<Attribute> resolvedAttributes
+    ) throws IOException {
+        boolean trimLastPartialLine = lastSplit == false;
+        return new NdJsonPageIterator(
+            object,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            skipFirstLine,
+            trimLastPartialLine,
+            resolvedAttributes
+        );
     }
 
     @Override
@@ -51,7 +83,7 @@ public class NdJsonFormatReader implements FormatReader {
 
     @Override
     public List<String> fileExtensions() {
-        return List.of(".ndjson", ".jsonl");
+        return List.of(".ndjson", ".jsonl", ".json");
     }
 
     @Override

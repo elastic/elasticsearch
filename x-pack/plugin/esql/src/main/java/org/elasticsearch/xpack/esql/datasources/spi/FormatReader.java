@@ -66,6 +66,27 @@ public interface FormatReader extends Closeable {
         return rowLimit == NO_LIMIT ? iter : new LimitingIterator(iter, rowLimit);
     }
 
+    default CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        List<Attribute> resolvedAttributes
+    ) throws IOException {
+        return read(object, projectedColumns, batchSize);
+    }
+
+    default CloseableIterator<Page> readSplit(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        boolean skipFirstLine,
+        boolean lastSplit,
+        List<Attribute> resolvedAttributes
+    ) throws IOException {
+        return readSplit(object, projectedColumns, batchSize, skipFirstLine, resolvedAttributes);
+    }
+
     String formatName();
 
     List<String> fileExtensions();

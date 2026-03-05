@@ -197,9 +197,9 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
         log.info("Inputs are {}", parameters);
         List<Object> inputs = parameters.stream().map(TestCaseSupplier.TypedData::getValue).toList();
         assertThat(parameters.size(), equalTo(arity));
-        var expectedValue = this.expected.apply(inputs);
+        Object expectedValue = this.expected.apply(inputs);
         log.info("expectedValue is {}", expectedValue);
-        var matcher = expectedValue instanceof Matcher<?> ? (Matcher<?>) expectedValue : equalTo(expectedValue);
+        Matcher<?> matcher = expectedValue instanceof Matcher<?> ? (Matcher<?>) expectedValue : equalTo(expectedValue);
         TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(parameters, resolveEvaluatorToString(), outputType, matcher);
         for (String warning : expectedWarnings.apply(inputs)) {
             testCase = testCase.withWarning(warning);

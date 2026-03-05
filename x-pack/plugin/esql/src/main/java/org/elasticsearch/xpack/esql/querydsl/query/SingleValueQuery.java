@@ -16,7 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.Warnings;
@@ -201,12 +201,7 @@ public class SingleValueQuery extends Query {
         protected final org.apache.lucene.search.Query simple(MappedFieldType ft, SearchExecutionContext context) throws IOException {
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                Warnings.createWarnings(
-                    DriverContext.WarningsMode.COLLECT,
-                    source().source().getLineNumber(),
-                    source().source().getColumnNumber(),
-                    source().text()
-                ),
+                Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, source()),
                 "single-value function encountered multi-value"
             );
             org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
@@ -333,12 +328,7 @@ public class SingleValueQuery extends Query {
 
             org.apache.lucene.search.Query singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                Warnings.createWarnings(
-                    DriverContext.WarningsMode.COLLECT,
-                    source().source().getLineNumber(),
-                    source().source().getColumnNumber(),
-                    source().text()
-                ),
+                Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, source()),
                 "single-value function encountered multi-value"
             );
             singleValueQuery = singleValueQuery.rewrite(context.searcher());

@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -64,7 +65,8 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution(),
-                TransportVersion.minimumCompatible()
+                TransportVersion.minimumCompatible(),
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );
@@ -273,6 +275,47 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
                     + "[rate(network.total_bytes_out)] is not wrapped with another aggregation function. Found [region]."
             )
         );
+    }
+
+    public void testBucketWithRenamedTimestampThrowsError() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+
+        var error = expectThrows(IllegalArgumentException.class, () -> { planK8s("""
+            TS k8s
+            | EVAL renamed_ts = @timestamp
+            | STATS min = min(last_over_time(network.total_bytes_out)) BY bucket = bucket(renamed_ts, 1hour)
+            """); });
+
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "Time-series aggregations require direct use of @timestamp which was not found. "
+                    + "If @timestamp was renamed in EVAL, use the original @timestamp field instead."
+            )
+        );
+    }
+
+    public void testAliasedGroupingInTsStatsKeepsAliasName() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY foobar = cluster
+            """);
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("max_bytes", "foobar")));
+    }
+
+    public void testAliasedGroupingInTsStatsCanBeUsedInKeep() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY foobar = cluster
+            | KEEP max_bytes, foobar
+            """);
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("max_bytes", "foobar")));
     }
 
     private TimeSeriesAggregate findTimeSeriesAggregate(LogicalPlan plan) {

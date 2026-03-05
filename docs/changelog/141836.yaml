@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 141836
+summary: Add telemetry (stack) for query settings
+type: enhancement

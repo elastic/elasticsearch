@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -69,16 +70,18 @@ public class MappingParserTests extends MapperServiceTestCase {
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(mappingParserContextSupplier.get())).forEach(m -> {
-            if (m != null) {
-                metadataMappers.put(m.getClass(), m);
+        MappingParserContext ctx = mappingParserContextSupplier.get();
+        Map<String, MetadataFieldMapper.Builder> metadataBuilders = new LinkedHashMap<>();
+        for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
+            MetadataFieldMapper.Builder builder = parser.getDefaultBuilder(ctx);
+            if (builder != null) {
+                metadataBuilders.put(builder.leafName(), builder);
             }
-        });
+        }
         return new MappingParser(
             mappingParserContextSupplier,
             metadataMapperParsers,
-            () -> metadataMappers,
+            () -> metadataBuilders,
             type -> MapperService.SINGLE_MAPPING_NAME
         );
     }
@@ -111,7 +114,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.endObject();
         });
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping, IndexMode.STANDARD);
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
         assertNotNull(mappingLookup.objectMappers().get("foo"));
@@ -126,7 +129,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
+        assertTrue(e.getMessage(), e.getMessage().contains("can't merge a non object mapping [foo] with an object mapping"));
     }
 
     public void testMultiFieldsWithFieldAlias() throws IOException {

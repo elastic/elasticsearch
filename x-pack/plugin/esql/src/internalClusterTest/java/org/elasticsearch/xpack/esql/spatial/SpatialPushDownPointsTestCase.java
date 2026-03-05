@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Base class to check that a query than can be pushed down gives the same result
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.closeTo;
  * and doc values disabled. Then we index the same data in both indices and we check
  * that the same ES|QL queries produce the same results in both.
  */
-public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestCase {
+public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestCase<Point> {
     public void testSimplePointInPolygon() throws IOException, ParseException {
         assumeTrue("Test for points only", fieldType().contains("point"));
         initIndexes();
@@ -160,6 +161,64 @@ public abstract class SpatialPushDownPointsTestCase extends SpatialPushDownTestC
             }
             long allIndexesResult = (long) responses.getResponse(ALL_INDEXES.length, 0);
             assertEquals(spatialFunction + " for all indexes", (long) indexedResult * 4, allIndexesResult);
+        }
+    }
+
+    @Override
+    protected Point quantize(Point point) {
+        return quantizePoint(point);
+    }
+
+    @Override
+    protected void assertQuantizedXY() {
+        List<String> queries = getQueries("""
+            FROM index
+            | EVAL envelope = ST_ENVELOPE(location)
+            | EVAL x = ST_X(location)
+            | EVAL xmin = ST_XMIN(location)
+            | EVAL xmax = ST_XMAX(location)
+            | EVAL y = ST_Y(location)
+            | EVAL ymin = ST_YMIN(location)
+            | EVAL ymax = ST_YMAX(location)
+            | SORT x ASC, y ASC
+            """);
+        try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
+            List<Point> quantizedPoints = getQuantizedResponsesAsType(responses, 0, 0, Point.class);
+            List<Double> xQuantized = quantizedPoints.stream().map(Point::getX).toList();
+            List<Double> yQuantized = quantizedPoints.stream().map(Point::getY).toList();
+            for (int index = 0; index < ALL_INDEXES.length; index++) {
+                List<Point> resultPoints = getResponsesAsType(responses, index, 0, Point.class);
+                int countDifferent = 0;
+                for (int i = 0; i < quantizedPoints.size(); i++) {
+                    if (quantizedPoints.get(i).equals(resultPoints.get(i)) == false) {
+                        countDifferent++;
+                    }
+                }
+                assertThat(
+                    "Expected some different results in set of " + resultPoints.size() + " points for " + ALL_INDEXES[index],
+                    countDifferent,
+                    greaterThan(0)
+                );
+                for (int column = 1; column < 8; column++) {
+                    if (index > 0) {
+                        if (column == 1) {
+                            // Envelope
+                            List<Geometry> result = responses.getResponses(index, column).stream().map(o -> parse(o.toString())).toList();
+                            assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedPoints.size(), result.size());
+                        } else {
+                            List<Double> result = responses.getResponses(index, column).stream().map(o -> (Double) o).toList();
+                            assertEquals("Expected same number of rows " + ALL_INDEXES[index], quantizedPoints.size(), result.size());
+                            if (column < 5) {
+                                // x, xmin, xmax
+                                assertEquals("Same x values " + ALL_INDEXES[index], xQuantized, result);
+                            } else {
+                                // y, ymin, ymax
+                                assertEquals("Same y values " + ALL_INDEXES[index], yQuantized, result);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

@@ -202,7 +202,7 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     public DocValuesSkipper getDocValuesSkipper(String s) throws IOException {
-        throw new UnsupportedOperationException();
+        return null;
     }
 
     @Override

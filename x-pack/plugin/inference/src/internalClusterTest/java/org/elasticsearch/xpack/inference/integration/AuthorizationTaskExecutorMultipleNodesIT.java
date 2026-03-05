@@ -33,9 +33,10 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.assertWebServerReceivedRequest;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.cancelAuthorizationTask;
+import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.resetWebServerQueues;
 import static org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT.waitForTask;
-import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.EIS_EMPTY_RESPONSE;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.RAINBOW_SPRINKLES_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.getEisRainbowSprinklesAuthorizationResponse;
 import static org.hamcrest.CoreMatchers.is;
@@ -61,14 +62,13 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
     public static void initClass() throws IOException {
         webServer.start();
         gatewayUrl = getUrl(webServer);
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EIS_EMPTY_RESPONSE));
         chatCompletionResponseBody = getEisRainbowSprinklesAuthorizationResponse(gatewayUrl).responseJson();
     }
 
     @Before
     public void startNodes() {
         // Ensure we have multiple master and data nodes so we have somewhere to place the inference indices and so that we can safely
-        // shut down the node that is running the authorization task. If there is only one master and it is running the task,
+        // shut down the node running the authorization task. If there is only one master and it is running the task,
         // we'll get an error that we can't shut down the only eligible master node
         internalCluster().startMasterOnlyNodes(NUM_MASTER_NODES);
         internalCluster().ensureAtLeastNumDataNodes(NUM_DATA_NODES);
@@ -115,6 +115,7 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
             endpoints.getEndpoints().stream().noneMatch(endpoint -> endpoint.getService().equals(ElasticInferenceService.NAME))
         );
 
+        resetWebServerQueues(webServer);
         // queue a response that authorizes one model
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(chatCompletionResponseBody));
 
@@ -124,6 +125,8 @@ public class AuthorizationTaskExecutorMultipleNodesIT extends ESIntegTestCase {
             var relocatedPollerTask = waitForTask(AUTH_TASK_ACTION, admin());
             assertThat(relocatedPollerTask.node(), not(is(pollerTask.node())));
         });
+
+        assertWebServerReceivedRequest(webServer);
 
         assertBusy(() -> {
             var allEndpoints = getAllEndpoints();

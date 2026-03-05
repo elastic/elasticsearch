@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -15,6 +17,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimens
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
@@ -36,6 +39,8 @@ import java.util.List;
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
+    protected Logger log = LogManager.getLogger(getClass());
+
     private static final List<Batch<PhysicalPlan>> RULES = rules(true);
 
     private final PhysicalVerifier verifier = PhysicalVerifier.LOCAL_INSTANCE;
@@ -53,6 +58,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
+        log.debug("Local Physical plan:\n{}", optimizedPlan);
         return optimizedPlan;
     }
 
@@ -62,11 +68,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(7);
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(8);
         esSourceRules.add(new ReplaceSourceAttributes());
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
+            esSourceRules.add(new PushLimitToExternalSource());
             esSourceRules.add(new PushFiltersToSource());
             esSourceRules.add(new PushSampleToSource());
             esSourceRules.add(new PushStatsToSource());

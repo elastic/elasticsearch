@@ -84,6 +84,7 @@ POINT(39.58327988510707 20.619513023697994)
 
 centroidFromString4
 required_capability: st_x_y
+required_capability: st_x_y_quantized
 
 ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)", "POINT(-0.030548143003023033 24.37553649504829)"]
 | MV_EXPAND wkt
@@ -92,7 +93,7 @@ ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555
 | EVAL x = ST_X(c), y = ST_Y(c);
 
 c:geo_point                                 | x:double          | y:double
-POINT(39.58327988510707 20.619513023697994) | 39.58327988510707 | 20.619513023697994
+POINT (39.58327988510707 20.619513023697994) | 39.58327981643379 | 20.619512982666492
 ;
 
 stXFromString
@@ -128,6 +129,20 @@ OZH             |  Zaporizhzhia    |  POINT(35.1175 47.85)    |  Ukraine        
 TRZ             |  Trichinopoly    |  POINT(78.7047 10.7903)  |  India            |  POINT(78.7089578747476 10.7603571306554)   |  Tiruchirappalli              |  9            |  mid 
 WIIT            |  Bandar Lampung  |  POINT(105.2667 -5.45)   |  Indonesia        |  POINT(105.176060419161 -5.242566777132)    |  Radin Inten II               |  9            |  mid 
 ZAH             |  Zāhedān         |  POINT(60.8628 29.4964)  |  Iran             |  POINT(60.900708564915 29.4752941956573)    |  Zahedan Int'l                |  9            |  mid 
+;
+
+stXFromCPHAirport
+required_capability: st_x_y
+required_capability: st_x_y_quantized
+
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL x = ST_X(location), y = ST_Y(location)
+| KEEP abbrev, x, y
+;
+
+abbrev:keyword | x:double           | y:double
+CPH            | 12.649350855499506 | 55.62850170303136
 ;
 
 stXFromAirportsSupportsNull
@@ -265,6 +280,21 @@ POINT(9.394940837974781 28.953888530174837)   | 46         | 5
 POINT(-3.118828632340757 17.868389564340685)  | 194        | 4
 POINT(-26.976065734634176 42.907839377294295) | 24         | 3
 POINT(1.2588642098541771 24.379140841774642)  | 63         | 2
+;
+
+centroidFromAirportsCountWhereClause
+required_capability: st_centroid_agg
+required_capability: spatial_aggs_filtering
+
+FROM airports
+| STATS c9=ST_CENTROID_AGG(location) WHERE scalerank == 9,
+        c8=ST_CENTROID_AGG(location) WHERE scalerank == 8,
+        c7=ST_CENTROID_AGG(location) WHERE scalerank == 7,
+        c6=ST_CENTROID_AGG(location) WHERE scalerank == 6
+;
+
+c9:geo_point                                  | c8:geo_point                                  | c7:geo_point                                  | c6:geo_point
+POINT(83.27726172452623 28.99289782286029)    | POINT(-12.330427954750142 29.554613442537242) | POINT(19.934784222002094 13.864835376774234)  | POINT(-10.861430599274028 28.170889387807705)
 ;
 
 centroidFromAirportsFiltered
@@ -657,6 +687,23 @@ BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)  
 BBOX (-117.19751106575131, -86.87441730871797, 32.833958650007844, 14.791128113865852) | 45         | Mexico
 BBOX (76.01301474496722, 130.45620465651155, 46.84301500674337, 18.309095981530845)    | 41         | China
 BBOX (-135.07621010765433, -52.743333745747805, 63.751152316108346, 43.163360520266)   | 37         | Canada
+;
+
+stExtentMultipleGeoPointWhereClause
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+required_capability: spatial_aggs_filtering
+
+FROM airports
+| STATS e_us = ST_EXTENT_AGG(location) WHERE country == "United States",
+        e_in = ST_EXTENT_AGG(location) WHERE country == "India",
+        e_mx = ST_EXTENT_AGG(location) WHERE country == "Mexico",
+        e_cn = ST_EXTENT_AGG(location) WHERE country == "China",
+        e_ca = ST_EXTENT_AGG(location) WHERE country == "Canada"
+;
+
+e_us:geo_shape | e_in:geo_shape | e_mx:geo_shape | e_cn:geo_shape | e_ca:geo_shape
+BBOX (-159.34908430092037, -71.01640669628978, 64.81809809803963, 19.71479767933488) | BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405) | BBOX (-117.19751106575131, -86.87441730871797, 32.833958650007844, 14.791128113865852) | BBOX (76.01301474496722, 130.45620465651155, 46.84301500674337, 18.309095981530845) | BBOX (-135.07621010765433, -52.743333745747805, 63.751152316108346, 43.163360520266)
 ;
 
 stExtentGeoShapes
@@ -1920,9 +1967,9 @@ row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22
 ;
 
 // tag::to_geopoint-str-parse-error-warning[]
-warning:Line 3:13: evaluation of [to_geopoint(wkt)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
-warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+warningRegex:Line 3:13: evaluation of \[to_geopoint\(wkt\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
+warningRegex:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: '\)'
 // end::to_geopoint-str-parse-error-warning[]
 
 // tag::to_geopoint-str-parse-error-result[]
@@ -1939,6 +1986,7 @@ wkt:keyword                               |pt:geo_point
 
 stEnvelopeOnGeoPoint
 required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
 
 FROM airports
 | WHERE abbrev == "CPH"
@@ -1947,11 +1995,12 @@ FROM airports
 ;
 
 abbrev:keyword | name:text  | envelope:geo_shape
-CPH            | Copenhagen | BBOX (12.6493508684508, 12.6493508684508, 55.6285017221528, 55.6285017221528)
+CPH            | Copenhagen | BBOX (12.649350855499506, 12.649350855499506, 55.62850170303136, 55.62850170303136)
 ;
 
 stEnvelopeOnGeoPointStats
 required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
 
 FROM airports
 | WHERE country == "United States"
@@ -1961,11 +2010,12 @@ FROM airports
 ;
 
 count:long | envelope:geo_shape
-129        | BBOX(-159.349084290522, -71.0164066172958, 64.8180981117369, 19.7147976868663)
+129        | BBOX (-159.34908430092037, -71.01640669628978, 64.81809809803963, 19.71479767933488)
 ;
 
 stEnvelopeOnGeoPointStatsXYMinMax
 required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
 
 FROM airports
 | WHERE country == "United States"
@@ -1975,8 +2025,8 @@ FROM airports
 | KEEP count, xmin, xmax, ymin, ymax
 ;
 
-count:long | xmin:double       | xmax:double       | ymin:double      | ymax:double
-129        | -159.349084290522 | -71.0164066172958 | 19.7147976868663 | 64.8180981117369
+count:long | xmin:double         | xmax:double        | ymin:double       | ymax:double
+129        | -159.34908430092037 | -71.01640669628978 | 19.71479767933488 | 64.81809809803963
 ;
 
 ###############################################
@@ -2275,6 +2325,21 @@ WIIT           | POINT (11708145.489503577 -584415.9142832769) | Radin Inten II 
 ZAH            | POINT (6779435.866395892 3436280.545331025)   | Zahedan Int'l               | 9           | mid
 ;
 
+stXFromCartesianCPHAirport
+required_capability: st_x_y
+required_capability: st_x_y_quantized
+
+FROM airports_web
+| WHERE abbrev == "CPH"
+| EVAL x = ST_X(location), y = ST_Y(location)
+| KEEP abbrev, x, y
+;
+
+abbrev:keyword | x:double   | y:double
+CPH            | 1408119.25 | 7484813.5
+;
+
+
 ###############################################
 # Tests for ST_CENTROID_AGG on CARTESIAN_POINT type
 
@@ -2327,6 +2392,21 @@ POINT(1045839.9891304348 3582296.444293478)   | 46         | 5
 POINT(-513618.93804196664 2279874.075660586)  | 191        | 4
 POINT(-3002961.9270833335 5451641.91796875)   | 24         | 3
 POINT(140136.12878224207 3081220.7881944445)  | 63         | 2
+;
+
+cartesianCentroidFromAirportsCountWhereClause
+required_capability: st_centroid_agg
+required_capability: spatial_aggs_filtering
+
+FROM airports_web
+| STATS c9=ST_CENTROID_AGG(location) WHERE scalerank == 9,
+        c8=ST_CENTROID_AGG(location) WHERE scalerank == 8,
+        c7=ST_CENTROID_AGG(location) WHERE scalerank == 7,
+        c6=ST_CENTROID_AGG(location) WHERE scalerank == 6
+;
+
+c9:cartesian_point                            | c8:cartesian_point                            | c7:cartesian_point                            | c6:cartesian_point
+POINT(9289013.153846154 3615537.0533353365)   | POINT(-1729861.3231565242 3781377.2572642546) | POINT(2001203.8796622984 1588548.3963268648)  | POINT(-1417910.8585910928 3496034.7206865167)
 ;
 
 cartesianCentroidFromAirportsFiltered
@@ -2411,6 +2491,22 @@ BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)    | 9
 BBOX (-1.936604E7, 1.8695374E7, 1.4502138E7, -3943067.25) | 8
 BBOX (-1.891609E7, 1.9947946E7, 8455470.0, -7128878.5)    | 7
 ;
+
+stExtentMultipleCartesianPointWhereClause
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+required_capability: spatial_aggs_filtering
+
+FROM airports_web
+| STATS e9 = ST_EXTENT_AGG(location) WHERE scalerank == 9,
+        e8 = ST_EXTENT_AGG(location) WHERE scalerank == 8,
+        e7 = ST_EXTENT_AGG(location) WHERE scalerank == 7
+;
+
+e9:cartesian_shape                                    | e8:cartesian_shape                                    | e7:cartesian_shape
+BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)    | BBOX (-1.936604E7, 1.8695374E7, 1.4502138E7, -3943067.25) | BBOX (-1.891609E7, 1.9947946E7, 8455470.0, -7128878.5)
+;
+
 
 stExtentCartesianShapes
 required_capability: st_extent_agg
@@ -3349,6 +3445,7 @@ count:long | extent:cartesian_shape
 
 stEnvelopeOnCartesianPoint
 required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
 
 FROM airports_web
 | WHERE abbrev == "CPH"
@@ -3357,11 +3454,12 @@ FROM airports_web
 ;
 
 abbrev:keyword | name:text  | envelope:cartesian_shape
-CPH            | Copenhagen | BBOX (1408119.2975413958, 1408119.2975413958, 7484813.53657096, 7484813.53657096)
+CPH            | Copenhagen | BBOX (1408119.25, 1408119.25, 7484813.5, 7484813.5)
 ;
 
 stEnvelopeOnCartesianPointStats
 required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
 
 FROM airports_web
 | STATS count=COUNT(*), points = VALUES(location) BY scalerank
@@ -3371,18 +3469,19 @@ FROM airports_web
 ;
 
 scalerank:integer | count:long | envelope:cartesian_shape
-2                 | 63         | BBOX (-1.757954984908658E7, 1.9457725202241894E7, 8665630.66786446, -4532903.928433404)
-3                 | 24         | BBOX (-1.6460336780947097E7, 1.1870890052742634E7, 9560620.05078907, 305969.0287561493)
-4                 | 191        | BBOX (-1.9496009707956623E7, 1.9877213660566133E7, 1.1501923229607187E7, -6983935.755957038)
-5                 | 46         | BBOX (-1.3815535337549312E7, 1.951833888750571E7, 8257643.750388128, -4569995.781535456)
-6                 | 147        | BBOX (-1.9146654327152207E7, 1.6225214846172804E7, 1.0031697623810166E7, -4159199.717766613)
-7                 | 124        | BBOX (-1.891609023893756E7, 1.9947945358478162E7, 8455469.633769127, -7128878.350037609)
-8                 | 228        | BBOX (-1.936603963214016E7, 1.869537311511E7, 1.4502137593437826E7, -3943067.186649304)
-9                 | 26         | BBOX (4783520.559160681, 1.6168485927626405E7, 8704352.415875759, -584415.9142832769)
+2                 | 63         | BBOX (-1.757955E7, 1.9457726E7, 8665631.0, -4532904.0)
+3                 | 24         | BBOX (-1.6460337E7, 1.187089E7, 9560620.0, 305969.03125)
+4                 | 191        | BBOX (-1.949601E7, 1.9877214E7, 1.1501923E7, -6983936.0)
+5                 | 46         | BBOX (-1.3815535E7, 1.9518338E7, 8257644.0, -4569996.0)
+6                 | 147        | BBOX (-1.9146654E7, 1.6225215E7, 1.0031698E7, -4159199.75)
+7                 | 124        | BBOX (-1.891609E7, 1.9947946E7, 8455470.0, -7128878.5)
+8                 | 228        | BBOX (-1.936604E7, 1.8695374E7, 1.4502138E7, -3943067.25)
+9                 | 26         | BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)
 ;
 
 stEnvelopeOnCartesianPointStatsXYMinMax
 required_capability: st_envelope_mv_fix
+required_capability: st_x_y_quantized
 
 FROM airports_web
 | STATS count=COUNT(*), points = VALUES(location) BY scalerank
@@ -3392,15 +3491,15 @@ FROM airports_web
 | SORT scalerank ASC, count DESC
 ;
 
-scalerank:integer | count:long | xmin:double           | xmax:double          | ymin:double        | ymax:double
-2                 | 63         | -1.757954984908658E7  | 1.9457725202241894E7 | -4532903.928433404 | 8665630.66786446
-3                 | 24         | -1.6460336780947097E7 | 1.1870890052742634E7 | 305969.0287561493  | 9560620.05078907
-4                 | 191        | -1.9496009707956623E7 | 1.9877213660566133E7 | -6983935.755957038 | 1.1501923229607187E7
-5                 | 46         | -1.3815535337549312E7 | 1.951833888750571E7  | -4569995.781535456 | 8257643.750388128
-6                 | 147        | -1.9146654327152207E7 | 1.6225214846172804E7 | -4159199.717766613 | 1.0031697623810166E7
-7                 | 124        | -1.891609023893756E7  | 1.9947945358478162E7 | -7128878.350037609 | 8455469.633769127
-8                 | 228        | -1.936603963214016E7  | 1.869537311511E7     | -3943067.186649304 | 1.4502137593437826E7
-9                 | 26         | 4783520.559160681     | 1.6168485927626405E7 | -584415.9142832769 | 8704352.415875759
+scalerank:integer | count:long | xmin:double  | xmax:double | ymin:double  | ymax:double
+2                 | 63         | -1.757955E7  | 1.9457726E7 | -4532904.0   | 8665631.0
+3                 | 24         | -1.6460337E7 | 1.187089E7  | 305969.03125 | 9560620.0
+4                 | 191        | -1.949601E7  | 1.9877214E7 | -6983936.0   | 1.1501923E7
+5                 | 46         | -1.3815535E7 | 1.9518338E7 | -4569996.0   | 8257644.0
+6                 | 147        | -1.9146654E7 | 1.6225215E7 | -4159199.75  | 1.0031698E7
+7                 | 124        | -1.891609E7  | 1.9947946E7 | -7128878.5   | 8455470.0
+8                 | 228        | -1.936604E7  | 1.8695374E7 | -3943067.25  | 1.4502138E7
+9                 | 26         | 4783520.5    | 1.6168486E7 | -584415.9375 | 8704352.0
 ;
 
 ###############################################
@@ -3440,3 +3539,4 @@ scalerank:integer | count:long | points:integer
 8                 | 228        | 228
 9                 | 26         | 26
 ;
+

@@ -100,7 +100,7 @@ public class IndexResolver {
      * Like {@code IndexResolver#resolveIndicesVersioned}
      * but simplified and does not pass on the determined minimum transport version to the listener.
      */
-    public void resolveIndices(
+    public void resolveLookupIndices(
         String indexPattern,
         Set<String> fieldNames,
         TransportVersion minimumVersion,
@@ -109,7 +109,9 @@ public class IndexResolver {
         doResolveIndices(
             createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
+            false, /* lookup indices should do not be empty */
             minimumVersion,
+            false,
             false,
             false,
             DO_NOT_GROUP,
@@ -138,7 +140,7 @@ public class IndexResolver {
      * <p>
      * The overall minimum version is updated using the field caps response and is passed on to the listener.
      */
-    public void resolveIndicesVersioned(
+    public void resolveMainIndicesVersioned(
         String indexPattern,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
@@ -146,15 +148,18 @@ public class IndexResolver {
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
             createFieldCapsRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
             indexPattern,
+            true, /* allow empty index resolution when resolving main pattern */
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
+            hasTimeSeriesAggregation,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
                 v -> List.of(v.indices())
@@ -167,7 +172,7 @@ public class IndexResolver {
      * Like {@code IndexResolver#resolveIndicesVersioned}
      * but for flat world queries.
      */
-    public void resolveFlatWorldIndicesVersioned(
+    public void resolveMainFlatWorldIndicesVersioned(
         String indexPattern,
         String projectRouting,
         Set<String> fieldNames,
@@ -180,14 +185,17 @@ public class IndexResolver {
         boolean useAggregateMetricDoubleWhenNotSupported,
         // Same as above
         boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
             createFieldCapsRequest(FLAT_WORLD_OPTIONS, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
+            true, /* cps/flat index expression might resolve to empty */
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
+            hasTimeSeriesAggregation,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
@@ -199,9 +207,11 @@ public class IndexResolver {
     private void doResolveIndices(
         FieldCapabilitiesRequest request,
         String indexPattern,
+        boolean allowEmpty,
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
         OriginalIndexExtractor originalIndexExtractor,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
@@ -218,7 +228,8 @@ public class IndexResolver {
                 overallMinimumVersion,
                 Build.current().isSnapshot(),
                 useAggregateMetricDoubleWhenNotSupported,
-                useDenseVectorWhenNotSupported
+                useDenseVectorWhenNotSupported,
+                hasTimeSeriesAggregation
             );
             LOGGER.debug(
                 "previously assumed minimum transport version [{}] updated to effective version [{}]"
@@ -229,7 +240,9 @@ public class IndexResolver {
                 indexPattern
             );
 
-            l.onResponse(new Versioned<>(mergedMappings(indexPattern, info, originalIndexExtractor), info.minTransportVersion()));
+            l.onResponse(
+                new Versioned<>(mergedMappings(indexPattern, allowEmpty, info, originalIndexExtractor), info.minTransportVersion())
+            );
         }));
     }
 
@@ -268,25 +281,31 @@ public class IndexResolver {
      *                                       report that they support the type? This exists because some remotes <strong>do</strong>
      *                                       support {@code dense_vector} without reporting that they do. And, for a while, we used the
      *                                       query itself to opt into reading these fields.
+     * @param hasTimeSeriesAggregation whether the query contains a time series aggregation (a {@code TS} source followed by
+     *                                {@code STATS}). When {@code false}, time series field type consistency checks
+     *                                (dimension vs metric conflicts across indices) are skipped, avoiding spurious
+     *                                {@link InvalidMappedField} errors for queries that don't aggregate time series data.
      */
     public record FieldsInfo(
         FieldCapabilitiesResponse caps,
         @Nullable TransportVersion minTransportVersion,
         boolean currentBuildIsSnapshot,
         boolean useAggregateMetricDoubleWhenNotSupported,
-        boolean useDenseVectorWhenNotSupported
+        boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation
     ) {}
 
     // public for testing only
     public static IndexResolution mergedMappings(
         String indexPattern,
+        boolean allowEmpty,
         FieldsInfo fieldsInfo,
         OriginalIndexExtractor originalIndexExtractor
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         int numberOfIndices = fieldsInfo.caps.getIndexResponses().size();
         if (numberOfIndices == 0) {
-            return IndexResolution.notFound(indexPattern);
+            return allowEmpty ? IndexResolution.empty(indexPattern) : IndexResolution.notFound(indexPattern);
         }
 
         // For each field name, store a list of the field caps responses from each index
@@ -436,16 +455,17 @@ public class IndexResolver {
             type = UNSUPPORTED;
         }
         boolean aggregatable = first.isAggregatable();
-        EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first);
+        EsField.TimeSeriesFieldType timeSeriesFieldType = fieldsInfo.hasTimeSeriesAggregation()
+            ? EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first)
+            : EsField.TimeSeriesFieldType.NONE;
         if (rest.isEmpty() == false) {
-            for (IndexFieldCapabilities fc : rest) {
-                if (first.metricType() != fc.metricType()) {
-                    return conflictingMetricTypes(name, fullName, fieldsInfo.caps);
-                }
-                try {
-                    timeSeriesFieldType = timeSeriesFieldType.merge(EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(fc));
-                } catch (IllegalArgumentException e) {
-                    return new InvalidMappedField(name, e.getMessage());
+            if (fieldsInfo.hasTimeSeriesAggregation()) {
+                for (IndexFieldCapabilities fc : rest) {
+                    try {
+                        timeSeriesFieldType = timeSeriesFieldType.merge(EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(fc));
+                    } catch (IllegalArgumentException e) {
+                        return new InvalidMappedField(name, e.getMessage());
+                    }
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
@@ -497,17 +517,6 @@ public class IndexResolver {
             }
         }
         return new InvalidMappedField(name, typesToIndices);
-    }
-
-    private static EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
-        TreeSet<String> indices = new TreeSet<>();
-        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
-            IndexFieldCapabilities fc = ir.get().get(fullName);
-            if (fc != null) {
-                indices.add(ir.getIndexName());
-            }
-        }
-        return new InvalidMappedField(name, "mapped as different metric types in indices: " + indices);
     }
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(

@@ -1,5 +1,0 @@
-pr: 139569
-summary: Revert "Attempt to clean up index before remote transfer"
-area: Recovery
-type: bug
-issues: []

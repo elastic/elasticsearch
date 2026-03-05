@@ -1,0 +1,6 @@
+pr: 138217
+summary: Increase DiskBBQ vector block bulk size to 32
+area: Vector Search
+type: enhancement
+issues:
+ - 134224

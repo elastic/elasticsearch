@@ -325,7 +325,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
             };
 
             // indices created before 8 should allow parameters but issue a warning
-            IndexVersion pre8version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+            IndexVersion pre8version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
             MapperService m = createMapperService(
                 pre8version,
                 fieldMapping(b -> b.field("type", getFieldName()).field(deprecatedParam, value))
@@ -359,7 +359,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
             }
 
             // indices created after 8 should throw an error
-            IndexVersion post8version = IndexVersionUtils.randomCompatibleWriteVersion(random());
+            IndexVersion post8version = IndexVersionUtils.randomCompatibleWriteVersion();
             Exception ex = expectThrows(
                 MapperParsingException.class,
                 () -> createMapperService(post8version, fieldMapping(b -> b.field("type", getFieldName()).field(deprecatedParam, value)))
@@ -376,7 +376,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     public void testGeoShapeLegacyMerge() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
         MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", getFieldName())));
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -393,7 +393,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     public void testGeoShapeLegacyCircle() throws Exception {
-        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
+        IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
         MapperService mapperService = createMapperService(version, fieldMapping(b -> {
             b.field("type", getFieldName());
             b.field("strategy", "recursive");

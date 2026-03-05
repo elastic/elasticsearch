@@ -6,7 +6,7 @@ setup:
           parameters: [method, path, parameters, capabilities]
           capabilities: [union_types, union_types_remove_fields, casting_operator]
       reason: "Union types and casting operator introduced in 8.15.0"
-      test_runner_features: [capabilities, allowed_warnings_regex, warnings_regex]
+      test_runner_features: [capabilities, allowed_warnings_regex, warnings_regex, allowed_warnings]
 
   - do:
       indices.create:
@@ -917,6 +917,8 @@ suggested_type:
       reason: "date and date_nanos should no longer produce suggested_cast column"
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: metrics_1
         body:

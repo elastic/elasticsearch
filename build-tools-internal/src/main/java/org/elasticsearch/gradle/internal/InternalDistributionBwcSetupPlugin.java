@@ -33,6 +33,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -104,6 +105,25 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 fileSystemOperations
             );
         }
+
+        // We need source access to unmaintained previous major for our yamlRestTest compatibility tests but we do not
+        // want bwc coverage for this atm.
+        Optional<BwcVersions.UnreleasedVersionInfo> unmaintainedPreviousMajor = buildParams.getBwcVersions().getUnmaintainedPreviousMajor();
+        if (unmaintainedPreviousMajor.isPresent()) {
+            configureBwcProject(
+                project.project(unmaintainedPreviousMajor.get().gradleProjectPath()),
+                buildParams,
+                unmaintainedPreviousMajor.get(),
+                providerFactory,
+                objectFactory,
+                toolChainService,
+                isCi,
+                fileSystemOperations
+            );
+        }
+        // In a scenario where we do not have unreleased previous major we still wanna resolve some resources directly from branch
+        // (e.g. needed by YamlRestTestCompatibilityTestPlugin)
+
     }
 
     private static void configureBwcProject(

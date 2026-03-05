@@ -42,6 +42,6 @@ public final class HistogramMergeTDigestAggregatorFunctionSupplier implements Ag
 
   @Override
   public String describe() {
-    return "histogram_merge_t of digests";
+    return "histogram_merge of tdigests";
   }
 }

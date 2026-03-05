@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.MappingGenerator;
@@ -40,7 +41,10 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
 
     public TextFieldWithParentBlockLoaderTests(BlockLoaderTestCase.Params params) {
         this.params = params;
-        this.runner = new BlockLoaderTestRunner(params, randomBoolean());
+        this.runner = new BlockLoaderTestRunner(params).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+        if (randomBoolean()) {
+            runner.allowDummyDocs();
+        }
     }
 
     // This is similar to BlockLoaderTestCase#testBlockLoaderOfMultiField but has customizations required to properly test the case
@@ -52,16 +56,16 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
         var mapping = new MappingGenerator(specification).generate(template);
         var fieldMapping = mapping.lookup().get("parent");
 
-        var document = new DocumentGenerator(specification).generate(template, mapping);
-        var fieldValue = document.get("parent");
+        runner.document(new DocumentGenerator(specification).generate(template, mapping));
+        var fieldValue = runner.mapDoc().get("parent");
 
         Object expected = expected(fieldMapping, fieldValue, new BlockLoaderTestCase.TestContext(false, true));
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource()
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
-
-        runner.runTest(mapperService, document, expected, "parent.subfield_text");
+        runner.mapperService(
+            params.syntheticSource() ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent)
+        );
+        runner.fieldName("parent.subfield_text");
+        runner.run(expected);
     }
 
     @SuppressWarnings("unchecked")
@@ -79,6 +83,6 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
 
         // we are using block loader of the text field itself
         var textFieldMapping = (Map<String, Object>) ((Map<String, Object>) fieldMapping.get("fields")).get("subfield_text");
-        return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext);
+        return TextFieldBlockLoaderTests.expectedValue(textFieldMapping, value, params, testContext, false);
     }
 }

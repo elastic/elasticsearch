@@ -272,6 +272,7 @@ a:boolean                  | a1:boolean | a2:boolean
 
 mvSliceEmp
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(is_rehired, 0)

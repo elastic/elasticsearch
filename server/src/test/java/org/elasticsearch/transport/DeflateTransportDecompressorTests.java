@@ -16,7 +16,6 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
@@ -35,7 +34,7 @@ public class DeflateTransportDecompressorTests extends ESTestCase {
     public void testSimpleCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             byte randomByte = randomByte();
-            try (OutputStream deflateStream = CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output))) {
+            try (OutputStream deflateStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(output))) {
                 deflateStream.write(randomByte);
             }
 
@@ -54,11 +53,7 @@ public class DeflateTransportDecompressorTests extends ESTestCase {
 
     public void testMultiPageCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (
-                StreamOutput deflateStream = new OutputStreamStreamOutput(
-                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output))
-                )
-            ) {
+            try (StreamOutput deflateStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(output))) {
                 for (int i = 0; i < 10000; ++i) {
                     deflateStream.writeInt(i);
                 }
@@ -86,11 +81,7 @@ public class DeflateTransportDecompressorTests extends ESTestCase {
 
     public void testIncrementalMultiPageCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (
-                StreamOutput deflateStream = new OutputStreamStreamOutput(
-                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output))
-                )
-            ) {
+            try (StreamOutput deflateStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(output))) {
                 for (int i = 0; i < 10000; ++i) {
                     deflateStream.writeInt(i);
                 }

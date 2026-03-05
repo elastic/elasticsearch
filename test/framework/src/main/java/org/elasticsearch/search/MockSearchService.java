@@ -116,6 +116,13 @@ public class MockSearchService extends SearchService {
     }
 
     @Override
+    protected void putRelocatedReaderContext(Long mappingKey, ReaderContext context) {
+        onPutContext.accept(context);
+        addActiveContext(context);
+        super.putRelocatedReaderContext(mappingKey, context);
+    }
+
+    @Override
     protected ReaderContext removeReaderContext(ShardSearchContextId id) {
         final ReaderContext removed = super.removeReaderContext(id);
         if (removed != null) {

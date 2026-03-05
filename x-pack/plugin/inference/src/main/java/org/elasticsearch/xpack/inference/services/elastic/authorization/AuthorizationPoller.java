@@ -24,7 +24,9 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
@@ -64,6 +66,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
     private final CountDownLatch receivedFirstAuthResponseLatch = new CountDownLatch(1);
     private final CCMFeature ccmFeature;
     private final CCMService ccmService;
+    private final InferenceFeatureService inferenceFeatureService;
 
     public record TaskFields(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {}
 
@@ -75,7 +78,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         ModelRegistry modelRegistry,
         Client client,
         CCMFeature ccmFeature,
-        CCMService ccmService
+        CCMService ccmService,
+        InferenceFeatureService inferenceFeatureService
     ) {}
 
     public static AuthorizationPoller create(TaskFields taskFields, Parameters parameters) {
@@ -93,7 +97,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             parameters.client,
             parameters.ccmFeature,
             parameters.ccmService,
-            null
+            null,
+            parameters.inferenceFeatureService
         );
     }
 
@@ -109,7 +114,8 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         CCMFeature ccmFeature,
         CCMService ccmService,
         // this is a hack to facilitate testing
-        Runnable callback
+        Runnable callback,
+        InferenceFeatureService inferenceFeatureService
     ) {
         super(taskFields.id, taskFields.type, taskFields.action, taskFields.description, taskFields.parentTask, taskFields.headers);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
@@ -121,6 +127,7 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         this.ccmFeature = Objects.requireNonNull(ccmFeature);
         this.ccmService = Objects.requireNonNull(ccmService);
         this.callback = callback;
+        this.inferenceFeatureService = Objects.requireNonNull(inferenceFeatureService);
     }
 
     public void start() {
@@ -258,10 +265,15 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
         }
     }
 
-    private record RegistryNotReadyAction() implements Consumer<ActionListener<Void>> {
+    private record SkipAndLogAction(String reason) implements Consumer<ActionListener<Void>> {
+        private static final SkipAndLogAction REGISTRY_NOT_READY_ACTION = new SkipAndLogAction("the model registry is not ready");
+        private static final SkipAndLogAction MISSING_REQUIRED_FEATURES = new SkipAndLogAction(
+            "the cluster is currently upgrading and missing required features"
+        );
+
         @Override
         public void accept(ActionListener<Void> listener) {
-            logger.info("Skipping sending authorization request, because model registry is not ready");
+            logger.info("Skipping sending authorization request, because {}", reason);
             listener.onResponse(null);
         }
     }
@@ -288,7 +300,11 @@ public class AuthorizationPoller extends AllocatedPersistentTask {
             return;
         }
         if (modelRegistry.isReady() == false) {
-            listener.onResponse(new RegistryNotReadyAction());
+            listener.onResponse(SkipAndLogAction.REGISTRY_NOT_READY_ACTION);
+            return;
+        }
+        if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false) {
+            listener.onResponse(SkipAndLogAction.MISSING_REQUIRED_FEATURES);
             return;
         }
         if (ccmFeature.isCcmSupportedEnvironment() == false) {

@@ -1,0 +1,6 @@
+pr: 139914
+summary: "ES|QL - `dense_vector` support for COUNT, PRESENT, ABSENT aggregator functions"
+area: ES|QL
+type: enhancement
+issues:
+ - 135688

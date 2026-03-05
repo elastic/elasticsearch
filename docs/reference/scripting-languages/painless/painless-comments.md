@@ -1,52 +1,77 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-comments.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
 # Comments [painless-comments]
 
-Use a comment to annotate or explain code within a script. Use the `//` token anywhere on a line to specify a single-line comment. All characters from the `//` token to the end of the line are ignored. Use an opening `/*` token and a closing `*/` token to specify a multi-line comment. Multi-line comments can start anywhere on a line, and all characters in between the `/*` token and `*/` token are ignored. A comment is included anywhere within a script.
+Comments are used to explain or annotate code and make it more readable. They are ignored when the script is executed, allowing you to add notes or temporarily disable code sections without affecting the functionality.
 
-**Grammar**
+Painless supports two types of comments: single-line comments and multi-line comments.
 
-```text
+## Single-line comments
+
+Single-line comments start with `//` and continue to the end of the line. Everything after `//` on that line is ignored by the compiler.
+
+### Grammar
+
+```
 SINGLE_LINE_COMMENT: '//' .*? [\n\r];
+```
+
+### Example
+
+```
+// This is a single-line comment 
+int value = 10; 
+int price = 100; // Comment at the end of a line
+```
+
+## Multi-line comments
+
+Multi-line comments start with `/*` and end with `*/`. Everything between these markers is ignored, even if it spans multiple lines.
+
+### Grammar
+
+```
 MULTI_LINE_COMMENT: '/*' .*? '*/';
 ```
 
-**Examples**
+### Example
 
-* Single-line comments.
+```
+/* This is a 
+   multi-line comment
+   spanning several lines */
+   
+int total = price * quantity;
 
-    ```painless
-    // single-line comment
+/* You can also use multi-line comments 
+   to temporarily disable code blocks:
+   
+int debugValue = 0;
+debugValue = calculateDebug();
+*/
 
-    int value; // single-line comment
-    ```
+int result = /* inline comment */ calculateTotal();
 
-* Multi-line comments.
+```
 
-    ```painless
-    /* multi-
-       line
-       comment */
+## Best practices
 
-    int value; /* multi-
-                  line
-                  comment */ value = 0;
+Use comments to:
 
-    int value; /* multi-line
-                  comment */
-
-    /* multi-line
-       comment */ int value;
-
-    int value; /* multi-line
-                  comment */ value = 0;
-
-    int value; /* multi-line comment */ value = 0;
-    ```
+* Explain complex logic or business rules  
+* Document function parameters and return values  
+* Provide context data transformations  
+* Temporarily disable code during development
 
 
+:::{tip}
+Good comments explain _why_ something is done, not just _what_ is being done. The code itself should be clear enough to show what it does.
+::: 

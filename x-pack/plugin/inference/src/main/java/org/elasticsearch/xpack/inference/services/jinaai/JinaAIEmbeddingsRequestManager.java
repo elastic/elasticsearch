@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbedd
 import org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.jinaai.response.JinaAIEmbeddingsResponseEntity;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -52,11 +50,11 @@ public class JinaAIEmbeddingsRequestManager extends JinaAIRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        EmbeddingsInput input = inferenceInputs.castTo(EmbeddingsInput.class);
-        List<String> docsInput = input.getTextInputs();
-        InputType inputType = input.getInputType();
+        var embeddingsInput = inferenceInputs.castTo(EmbeddingsInput.class);
+        var inferenceStringGroups = embeddingsInput.getInputs();
+        var inputType = embeddingsInput.getInputType();
 
-        JinaAIEmbeddingsRequest request = new JinaAIEmbeddingsRequest(docsInput, inputType, model);
+        var request = new JinaAIEmbeddingsRequest(inferenceStringGroups, inputType, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskId;
@@ -58,6 +60,7 @@ public class InboundHandlerTests extends ESTestCase {
     private Transport.RequestHandlers requestHandlers;
     private InboundHandler handler;
     private FakeTcpChannel channel;
+    private MockBytesRefRecycler recycler;
 
     @Before
     public void setUp() throws Exception {
@@ -95,11 +98,13 @@ public class InboundHandlerTests extends ESTestCase {
             new HandlingTimeTracker(),
             ignoreDeserializationErrors
         );
+        recycler = new MockBytesRefRecycler();
     }
 
     @After
     public void tearDown() throws Exception {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        Releasables.closeExpectNoException(recycler);
         super.tearDown();
     }
 
@@ -167,56 +172,64 @@ public class InboundHandlerTests extends ESTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-        BytesReference fullRequestBytes = OutboundHandler.serialize(
-            OutboundHandler.MessageDirection.REQUEST,
-            action,
-            requestId,
-            false,
-            TransportVersion.current(),
-            null,
-            new TestRequest(requestValue),
-            threadPool.getThreadContext(),
-            new RecyclerBytesStreamOutput(recycler)
-        );
+        try (var recyclerBytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
+            BytesReference fullRequestBytes = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
+                action,
+                requestId,
+                false,
+                TransportVersion.current(),
+                null,
+                new TestRequest(requestValue),
+                threadPool.getThreadContext(),
+                recyclerBytesStreamOutput,
+                recycler
+            );
 
-        BytesReference requestContent = fullRequestBytes.slice(TcpHeader.HEADER_SIZE, fullRequestBytes.length() - TcpHeader.HEADER_SIZE);
-        Header requestHeader = new Header(
-            fullRequestBytes.length() - 6,
-            requestId,
-            TransportStatus.setRequest((byte) 0),
-            TransportVersion.current()
-        );
-        InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
-        requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
-        handler.inboundMessage(channel, requestMessage);
+            BytesReference requestContent = fullRequestBytes.slice(
+                TcpHeader.HEADER_SIZE,
+                fullRequestBytes.length() - TcpHeader.HEADER_SIZE
+            );
+            Header requestHeader = new Header(
+                fullRequestBytes.length() - 6,
+                requestId,
+                TransportStatus.setRequest((byte) 0),
+                TransportVersion.current()
+            );
+            InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
+            requestHeader.finishParsingHeader(requestMessage.openOrGetStreamInput());
+            handler.inboundMessage(channel, requestMessage);
 
-        TransportChannel transportChannel = channelCaptor.get();
-        assertEquals(TransportVersion.current(), transportChannel.getVersion());
-        assertEquals(requestValue, requestCaptor.get().value);
+            TransportChannel transportChannel = channelCaptor.get();
+            assertEquals(TransportVersion.current(), transportChannel.getVersion());
+            assertEquals(requestValue, requestCaptor.get().value);
 
-        String responseValue = randomAlphaOfLength(10);
-        byte responseStatus = TransportStatus.setResponse((byte) 0);
-        if (isError) {
-            responseStatus = TransportStatus.setError(responseStatus);
-            transportChannel.sendResponse(new ElasticsearchException("boom"));
-        } else {
-            transportChannel.sendResponse(new TestResponse(responseValue));
-        }
+            String responseValue = randomAlphaOfLength(10);
+            byte responseStatus = TransportStatus.setResponse((byte) 0);
+            if (isError) {
+                responseStatus = TransportStatus.setError(responseStatus);
+                transportChannel.sendResponse(new ElasticsearchException("boom"));
+            } else {
+                transportChannel.sendResponse(new TestResponse(responseValue));
+            }
 
-        BytesReference fullResponseBytes = channel.getMessageCaptor().get();
-        BytesReference responseContent = fullResponseBytes.slice(TcpHeader.HEADER_SIZE, fullResponseBytes.length() - TcpHeader.HEADER_SIZE);
-        Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, TransportVersion.current());
-        InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
-        responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
-        handler.inboundMessage(channel, responseMessage);
+            BytesReference fullResponseBytes = channel.getMessageCaptor().get();
+            BytesReference responseContent = fullResponseBytes.slice(
+                TcpHeader.HEADER_SIZE,
+                fullResponseBytes.length() - TcpHeader.HEADER_SIZE
+            );
+            Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, TransportVersion.current());
+            InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
+            responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
+            handler.inboundMessage(channel, responseMessage);
 
-        if (isError) {
-            assertThat(exceptionCaptor.get(), instanceOf(RemoteTransportException.class));
-            assertThat(exceptionCaptor.get().getCause(), instanceOf(ElasticsearchException.class));
-            assertEquals("boom", exceptionCaptor.get().getCause().getMessage());
-        } else {
-            assertEquals(responseValue, responseCaptor.get().value);
+            if (isError) {
+                assertThat(exceptionCaptor.get(), instanceOf(RemoteTransportException.class));
+                assertThat(exceptionCaptor.get().getCause(), instanceOf(ElasticsearchException.class));
+                assertEquals("boom", exceptionCaptor.get().getCause().getMessage());
+            } else {
+                assertEquals(responseValue, responseCaptor.get().value);
+            }
         }
     }
 

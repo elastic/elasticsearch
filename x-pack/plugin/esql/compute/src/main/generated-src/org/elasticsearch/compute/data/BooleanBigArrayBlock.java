@@ -113,7 +113,7 @@ public final class BooleanBigArrayBlock extends AbstractArrayBlock implements Bo
     }
 
     @Override
-    public BooleanBlock filter(int... positions) {
+    public BooleanBlock filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newBooleanBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

@@ -11,11 +11,6 @@ IS_FIRST=true
 SKIP_DELAY="${SKIP_DELAY:-false}"
 
 for BRANCH in "${BRANCHES[@]}"; do
-  # Removing 7.17 periodic branch builds
-  if [[ $BRANCH == "7.17" ]];
-  then
-    continue;
-  fi
   INTAKE_PIPELINE_SLUG="elasticsearch-intake"
   BUILD_JSON=$(curl -sH "Authorization: Bearer ${BUILDKITE_API_TOKEN}" "https://api.buildkite.com/v2/organizations/elastic/pipelines/${INTAKE_PIPELINE_SLUG}/builds?branch=${BRANCH}&state=passed&per_page=1" | jq '.[0] | {commit: .commit, url: .web_url}')
   LAST_GOOD_COMMIT=$(echo "${BUILD_JSON}" | jq -r '.commit')

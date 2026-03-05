@@ -9,6 +9,8 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
@@ -606,6 +608,30 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             assertEquals(expectedIdx, defaultedProvider.getVectorUtilSupport().indexOf(bytes, offset, length, marker));
             assertEquals(expectedIdx, defOrPanamaProvider.getVectorUtilSupport().indexOf(bytes, offset, length, marker));
         }
+    }
+
+    public void testCodePointCountSimple() {
+        assertCodePoint(new BytesRef(""), 0);
+        assertCodePoint(new BytesRef("a"), 1); // 1 byte
+        assertCodePoint(new BytesRef("£"), 1); // 2 byte
+        assertCodePoint(new BytesRef("€"), 1); // 3 byte
+        assertCodePoint(new BytesRef("\uD83D\uDE80"), 1); // 4 byte
+    }
+
+    public void testCodePointCountRandom() {
+        int iterations = atLeast(1000);
+        for (int i = 0; i < iterations; i++) {
+            int size = random().nextInt(1000);
+            var bytes = new BytesRef(randomUnicodeOfLength(size));
+            final int expectedCount = UnicodeUtil.codePointCount(bytes);
+            assertCodePoint(bytes, expectedCount);
+        }
+    }
+
+    private void assertCodePoint(BytesRef bytes, int expected) {
+        assertEquals(expected, ESVectorUtil.codePointCount(bytes));
+        assertEquals(expected, defaultedProvider.getVectorUtilSupport().codePointCount(bytes));
+        assertEquals(expected, defOrPanamaProvider.getVectorUtilSupport().codePointCount(bytes));
     }
 
     static int scalarIndexOf(byte[] bytes, final int offset, final int length, final byte marker) {

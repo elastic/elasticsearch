@@ -23,9 +23,7 @@ import java.lang.annotation.Target;
 public @interface UpdateForV10 {
     enum Owner {
         CORE_INFRA,
-        DATA_MANAGEMENT,
-        DISTRIBUTED_COORDINATION,
-        DISTRIBUTED_INDEXING,
+        DISTRIBUTED,
         ENTERPRISE_SEARCH,
         MACHINE_LEARNING,
         PROFILING,
@@ -33,6 +31,7 @@ public @interface UpdateForV10 {
         SEARCH_FOUNDATIONS,
         SEARCH_RELEVANCE,
         SECURITY,
+        STORAGE_ENGINE
     }
 
     /**

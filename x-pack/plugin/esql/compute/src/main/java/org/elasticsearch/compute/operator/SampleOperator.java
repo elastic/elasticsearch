@@ -111,7 +111,7 @@ public class SampleOperator implements Operator {
             sampledPositions[sampledIdx++] = Math.toIntExact(i - rowsReceived);
         }
         if (sampledIdx > 0) {
-            outputPages.add(page.filter(Arrays.copyOf(sampledPositions, sampledIdx)));
+            outputPages.add(page.filter(false, Arrays.copyOf(sampledPositions, sampledIdx)));
         }
     }
 
@@ -129,6 +129,11 @@ public class SampleOperator implements Operator {
     @Override
     public boolean isFinished() {
         return finished && outputPages.isEmpty();
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return outputPages.isEmpty() == false;
     }
 
     @Override

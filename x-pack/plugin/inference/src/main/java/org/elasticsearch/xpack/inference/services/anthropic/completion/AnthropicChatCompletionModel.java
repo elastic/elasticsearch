@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicModel;
+import org.elasticsearch.xpack.inference.services.anthropic.AnthropicRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.anthropic.action.AnthropicActionVisitor;
 import org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicRequestUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -57,7 +58,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         );
     }
 
-    AnthropicChatCompletionModel(
+    public AnthropicChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -65,12 +66,16 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
         AnthropicChatCompletionTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public AnthropicChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings,
+            modelConfigurations,
+            modelSecrets,
+            (AnthropicRateLimitServiceSettings) modelConfigurations.getServiceSettings(),
             AnthropicChatCompletionModel::buildDefaultUri,
-            secrets
+            (DefaultSecretSettings) modelSecrets.getSecretSettings()
         );
     }
 

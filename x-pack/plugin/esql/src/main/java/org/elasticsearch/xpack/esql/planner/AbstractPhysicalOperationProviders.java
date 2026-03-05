@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -177,11 +178,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     context
                 );
             } else {
+                QueryPragmas pragmas = context.queryPragmas();
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorMode,
                     aggregatorFactories,
                     context.pageSize(aggregateExec, aggregateExec.estimatedRowSize()),
+                    pragmas.partialAggregationEmitKeysThreshold(context.plannerSettings().partialEmitKeysThreshold()),
+                    pragmas.partialAggregationEmitUniquenessThreshold(context.plannerSettings().partialEmitUniquenessThreshold()),
                     analysisRegistry
                 );
             }
@@ -301,19 +305,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                                 );
                             }
                         } else {
-                            // extra dependencies like TS ones (that require a timestamp)
-                            sourceAttr = new ArrayList<>();
-                            for (Expression input : aggregateFunction.aggregateInputReferences(aggregateExec.child()::output)) {
-                                Attribute attr = Expressions.attribute(input);
-                                if (attr == null) {
-                                    throw new EsqlIllegalArgumentException(
-                                        "Cannot work with target field [{}] for agg [{}]",
-                                        input.sourceText(),
-                                        aggregateFunction.sourceText()
-                                    );
-                                }
-                                sourceAttr.add(attr);
-                            }
+                            sourceAttr = aggregateFunction.aggregateInputReferences(aggregateExec.child()::output);
                         }
                     }
 

@@ -15,13 +15,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.DEFAULT_SETTINGS;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.ELASTIC_RERANKER_EXTRA_TOKEN_COUNT;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.ELASTIC_RERANKER_TOKEN_LIMIT;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.WORDS_PER_TOKEN;
 
 public class ChunkingSettingsBuilderTests extends ESTestCase {
-
-    public static final SentenceBoundaryChunkingSettings DEFAULT_SETTINGS = new SentenceBoundaryChunkingSettings(250, 1);
 
     public void testNullChunkingSettingsMap() {
         ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(null);

@@ -24,7 +24,6 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -392,11 +391,7 @@ public class JoinValidationService {
         assert clusterState.nodes().isLocalNodeElectedMaster();
 
         try (var bytesStream = transportService.newNetworkBytesStream()) {
-            try (
-                var stream = new OutputStreamStreamOutput(
-                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
-                )
-            ) {
+            try (var stream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(bytesStream))) {
                 stream.setTransportVersion(version);
                 clusterState.writeTo(stream);
             } catch (IOException e) {

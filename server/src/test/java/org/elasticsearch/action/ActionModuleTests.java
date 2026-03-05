@@ -26,6 +26,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -48,6 +50,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,9 +66,17 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 public class ActionModuleTests extends ESTestCase {
+    Environment testEnv;
+
+    @Before
+    public void setupEnv() {
+        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        testEnv = TestEnvironment.newEnvironment(settings);
+    }
+
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(
-            ActionModule.setupActions(emptyList()),
+            ActionModule.setupActions(testEnv, emptyList()),
             hasEntry(TransportNodesInfoAction.TYPE.name(), new ActionHandler(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class))
         );
     }
@@ -77,7 +88,7 @@ public class ActionModuleTests extends ESTestCase {
                 return singletonList(new ActionHandler(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
             }
         };
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(testEnv, singletonList(dupsMainAction)));
         assertEquals("action for name [" + TransportNodesInfoAction.TYPE.name() + "] already registered", e.getMessage());
     }
 
@@ -104,7 +115,7 @@ public class ActionModuleTests extends ESTestCase {
             }
         };
         assertThat(
-            ActionModule.setupActions(singletonList(registersFakeAction)),
+            ActionModule.setupActions(testEnv, singletonList(registersFakeAction)),
             hasEntry("fake", new ActionHandler(action, FakeTransportAction.class))
         );
     }
@@ -113,7 +124,7 @@ public class ActionModuleTests extends ESTestCase {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService();
         ActionModule actionModule = new ActionModule(
-            settings.getSettings(),
+            testEnv,
             TestIndexNameExpressionResolver.newInstance(),
             null,
             settings.getIndexScopedSettings(),
@@ -180,7 +191,7 @@ public class ActionModuleTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
-                settings.getSettings(),
+                testEnv,
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 settings.getIndexScopedSettings(),
@@ -240,7 +251,7 @@ public class ActionModuleTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             ActionModule actionModule = new ActionModule(
-                settings.getSettings(),
+                testEnv,
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 settings.getIndexScopedSettings(),
@@ -293,7 +304,7 @@ public class ActionModuleTests extends ESTestCase {
             Exception e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new ActionModule(
-                    settingsModule.getSettings(),
+                    testEnv,
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                     null,
                     settingsModule.getIndexScopedSettings(),
@@ -337,7 +348,7 @@ public class ActionModuleTests extends ESTestCase {
             Exception e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new ActionModule(
-                    settingsModule.getSettings(),
+                    testEnv,
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                     null,
                     settingsModule.getIndexScopedSettings(),

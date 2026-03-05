@@ -9,14 +9,18 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -76,7 +80,6 @@ public class ClusterFormationStateWireSerializingTests extends AbstractWireSeria
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/140430")
     public void testGoldenImageSerialization() throws IOException {
         // ClusterFormationState is basically unique in that it is only sent over the wire in a cluster that cannot form. Today we have no
         // BwC tests of this case, which puts us at risk of making a wire protocol change to this object and never noticing. It would be
@@ -85,11 +88,22 @@ public class ClusterFormationStateWireSerializingTests extends AbstractWireSeria
 
         final var nodes = new DiscoveryNode[8];
         for (int i = 0; i < nodes.length; i++) {
+            // DiscoveryNode is pretty complex so there is some risk of its serialization changing from the golden format captured here.
+            // We know its serialization is well-covered by BwC tests so that shouldn't be a problem.
             nodes[i] = DiscoveryNodeUtils.builder("node-" + i + "-id")
                 .name("node-" + i + "-id")
                 .ephemeralId("node-" + i + "-ephemeral-id")
                 .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE))
                 .address(new TransportAddress(TransportAddress.META_ADDRESS, i + 1))
+                .version(
+                    new VersionInformation(
+                        BuildVersion.fromVersionId(9_12_34_56),
+                        Version.fromId(9_23_45_67),
+                        IndexVersion.fromId(9_45_67_89),
+                        IndexVersion.fromId(9_34_56_78),
+                        IndexVersion.fromId(9_56_78_90)
+                    )
+                )
                 .build();
         }
 
@@ -119,14 +133,14 @@ public class ClusterFormationStateWireSerializingTests extends AbstractWireSeria
         }
         assertEquals("""
             Ag1tYXN0ZXItbm9kZS0xDW1hc3Rlci1ub2RlLTIJbm9kZS0wLWlkCW5vZGUtMC1pZBNub2RlLTAtZXBoZW1lcmFsLWlkBzAuMC4wLjAHMC4wLjAuMAQAAAAA\
-            BzAuMC4wLjAAAAABAAEGbWFzdGVyAW0A4+GnBOOk6AOjoKsD8IypBAlub2RlLTAtaWQBCW5vZGUtMS1pZAlub2RlLTEtaWQJbm9kZS0xLWlkE25vZGUtMS1l\
-            cGhlbWVyYWwtaWQHMC4wLjAuMAcwLjAuMC4wBAAAAAAHMC4wLjAuMAAAAAIAAQZtYXN0ZXIBbQDj4acE46ToA6OgqwPwjKkECW5vZGUtMS1pZAAAAAAAAAAD\
+            BzAuMC4wLjAAAAABAAEGbWFzdGVyAW0Ah9GzBJWZwQSOtboEkv3HBAlub2RlLTAtaWQBCW5vZGUtMS1pZAlub2RlLTEtaWQJbm9kZS0xLWlkE25vZGUtMS1l\
+            cGhlbWVyYWwtaWQHMC4wLjAuMAcwLjAuMC4wBAAAAAAHMC4wLjAuMAAAAAIAAQZtYXN0ZXIBbQCH0bMElZnBBI61ugSS/ccECW5vZGUtMS1pZAAAAAAAAAAD\
             AAAAAAAAAAQBCW5vZGUtMi1pZAEJbm9kZS0zLWlkAQQAAAAABzAuMC4wLjAAAAAFAglub2RlLTQtaWQJbm9kZS00LWlkE25vZGUtNC1lcGhlbWVyYWwtaWQH\
-            MC4wLjAuMAcwLjAuMC4wBAAAAAAHMC4wLjAuMAAAAAUAAQZtYXN0ZXIBbQDj4acE46ToA6OgqwPwjKkECW5vZGUtNC1pZAlub2RlLTUtaWQJbm9kZS01LWlk\
-            E25vZGUtNS1lcGhlbWVyYWwtaWQHMC4wLjAuMAcwLjAuMC4wBAAAAAAHMC4wLjAuMAAAAAYAAQZtYXN0ZXIBbQDj4acE46ToA6OgqwPwjKkECW5vZGUtNS1p\
-            ZAEJbm9kZS02LWlkCW5vZGUtNi1pZBNub2RlLTYtZXBoZW1lcmFsLWlkBzAuMC4wLjAHMC4wLjAuMAQAAAAABzAuMC4wLjAAAAAHAAEGbWFzdGVyAW0A4+Gn\
-            BOOk6AOjoKsD8IypBAlub2RlLTYtaWQAAAAAAAAABQAHSEVBTFRIWQ5oZWFsdGh5LXN0YXR1cwEJbm9kZS03LWlkCW5vZGUtNy1pZBNub2RlLTctZXBoZW1l\
-            cmFsLWlkBzAuMC4wLjAHMC4wLjAuMAQAAAAABzAuMC4wLjAAAAAIAAEGbWFzdGVyAW0A4+GnBOOk6AOjoKsD8IypBAlub2RlLTctaWQAAAAAAAAABhNqb2lu\
+            MC4wLjAuMAcwLjAuMC4wBAAAAAAHMC4wLjAuMAAAAAUAAQZtYXN0ZXIBbQCH0bMElZnBBI61ugSS/ccECW5vZGUtNC1pZAlub2RlLTUtaWQJbm9kZS01LWlk\
+            E25vZGUtNS1lcGhlbWVyYWwtaWQHMC4wLjAuMAcwLjAuMC4wBAAAAAAHMC4wLjAuMAAAAAYAAQZtYXN0ZXIBbQCH0bMElZnBBI61ugSS/ccECW5vZGUtNS1p\
+            ZAEJbm9kZS02LWlkCW5vZGUtNi1pZBNub2RlLTYtZXBoZW1lcmFsLWlkBzAuMC4wLjAHMC4wLjAuMAQAAAAABzAuMC4wLjAAAAAHAAEGbWFzdGVyAW0Ah9Gz\
+            BJWZwQSOtboEkv3HBAlub2RlLTYtaWQAAAAAAAAABQAHSEVBTFRIWQ5oZWFsdGh5LXN0YXR1cwEJbm9kZS03LWlkCW5vZGUtNy1pZBNub2RlLTctZXBoZW1l\
+            cmFsLWlkBzAuMC4wLjAHMC4wLjAuMAQAAAAABzAuMC4wLjAAAAAIAAEGbWFzdGVyAW0Ah9GzBJWZwQSOtboEkv3HBAlub2RlLTctaWQAAAAAAAAABhNqb2lu\
             LXN0YXR1cy1tZXNzYWdlAgU=""", Base64.getEncoder().encodeToString(bytes));
 
         assertEquals(clusterFormationState, ClusterFormationFailureHelper.ClusterFormationState.readFrom(new ByteArrayStreamInput(bytes)));

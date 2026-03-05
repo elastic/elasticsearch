@@ -1,5 +1,0 @@
-pr: 139463
-summary: Add bfloat16 support to `rank_vectors`
-area: Vector Search
-type: feature
-issues: []

@@ -1,0 +1,141 @@
+Simple MMR diversification
+required_capability: mmr_v2
+
+FROM mmr_text_vector_keyword
+| SORT keyword_field
+| LIMIT 10
+| MMR ON text_vector LIMIT 3
+| DROP text_vector, byte_vector, bit_vector
+;
+
+keyword_field:keyword | text_body:text     
+test1                 | first text
+test3                 | third text
+test6                 | sixth text
+;
+
+
+MMR with static query vector low lambda
+required_capability: mmr_v2
+
+FROM mmr_text_vector_keyword
+| SORT keyword_field
+| LIMIT 10
+| MMR [0.1, 0.2, 0.3] ON text_vector LIMIT 3 WITH { "lambda": 0.1 }
+| DROP text_vector, byte_vector, bit_vector
+;
+
+keyword_field:keyword | text_body:text     
+test3                 | third text
+test6                 | sixth text
+test8                 | eighth text
+;
+
+
+MMR with static query vector high lambda
+required_capability: mmr_v2
+
+FROM mmr_text_vector_keyword
+| SORT keyword_field
+| LIMIT 10
+| MMR [0.1, 0.2, 0.3]::dense_vector ON text_vector LIMIT 3 WITH { "lambda": 0.9 }
+| DROP text_vector, byte_vector, bit_vector
+;
+
+keyword_field:keyword | text_body:text     
+test4                 | fourth text
+test5                 | fifth text
+test8                 | eighth text
+;
+
+
+MMR with query vector variable
+required_capability: mmr_v2
+
+FROM mmr_text_vector_keyword
+| SORT keyword_field
+| LIMIT 10
+| EVAL qv=[0.1, 0.2, 0.3]::dense_vector 
+| MMR qv ON text_vector LIMIT 3 WITH { "lambda": 0.9 }
+| KEEP keyword_field, text_body
+;
+
+keyword_field:keyword | text_body:text     
+test1                 | first text
+test3                 | third text
+test6                 | sixth text
+;
+
+
+MMR with byte vector and query vector
+required_capability: mmr_v2
+
+FROM mmr_text_vector_keyword
+| SORT keyword_field
+| LIMIT 10
+| MMR [15, 25, -35] ON byte_vector LIMIT 3 WITH { "lambda": 0.9 }
+| KEEP keyword_field, text_body
+;
+
+keyword_field:keyword | text_body:text     
+test5                 | fifth text
+test6                 | sixth text
+test7                 | seventh text
+;
+
+
+MMR with bit vector and query vector
+required_capability: mmr_v2
+
+FROM mmr_text_vector_keyword
+| SORT keyword_field
+| LIMIT 10
+| MMR [126, 126] ON bit_vector LIMIT 3 WITH { "lambda": 0.9 }
+| KEEP keyword_field, text_body
+;
+
+keyword_field:keyword | text_body:text     
+test5                 | fifth text
+test6                 | sixth text
+test7                 | seventh text
+;
+
+
+MMR with hex string bit vector and query vector
+required_capability: mmr_v2
+
+FROM mmr_text_vector_keyword
+| SORT keyword_field
+| LIMIT 10
+| MMR "7e7e" ON bit_vector LIMIT 3 WITH { "lambda": 0.9 }
+| KEEP keyword_field, text_body
+;
+
+keyword_field:keyword | text_body:text     
+test5                 | fifth text
+test6                 | sixth text
+test7                 | seventh text
+;
+
+
+MMR with text_embedding query vector input
+required_capability: text_embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
+required_capability: mmr_v2
+
+FROM dense_vector_text METADATA _score
+| EVAL query_embedding = TEXT_EMBEDDING("be excellent to each other", "test_dense_inference")
+| WHERE KNN(text_embedding_field, query_embedding)
+| SORT _score DESC
+| LIMIT 10
+| MMR TEXT_EMBEDDING("be excellent to each other", "test_dense_inference") ON text_embedding_field LIMIT 3 WITH { "lambda": 0.2 }
+| KEEP text_field, query_embedding
+;
+
+text_field:text                                                      | query_embedding:dense_vector
+be excellent to each other                                            | [45.0, 55.0, 54.0]          
+live long and prosper                                                 | [45.0, 55.0, 54.0]          
+all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]       
+;
+

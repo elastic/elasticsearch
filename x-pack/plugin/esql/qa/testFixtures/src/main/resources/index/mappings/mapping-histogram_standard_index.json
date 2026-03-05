@@ -1,0 +1,16 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "instance": {
+      "type": "keyword"
+    },
+    "responseTime": {
+      "type": "histogram"
+    },
+    "caseTestPlaceholder": {
+      "type": "histogram"
+    }
+  }
+}

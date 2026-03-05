@@ -26,6 +26,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -41,6 +42,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF;
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -65,7 +67,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                     for (DocValuesMode docValuesMode : new DocValuesMode[] { DocValuesMode.DEFAULT, DocValuesMode.DOC_VALUES_ONLY }) {
                         params.add(new Object[] { new StandardSetup(fieldType, multivaluedField, docValuesMode, allowEmpty, 100) });
                     }
-                    if (fieldType.equals("keyword")) {
+                    if (fieldType.equals("keyword") && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
                         params.add(
                             new Object[] {
                                 new StandardSetup(
@@ -97,7 +99,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test"),
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
                     "single-value function encountered multi-value"
                 );
                 runCase(fieldValues, ctx.searcher().count(query));
@@ -113,11 +115,17 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 1, "test"),
+                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
                     "single-value function encountered multi-value"
                 );
                 runCase(List.of(), ctx.searcher().count(query));
             }
+        }
+    }
+
+    private record TestWarningsSource(String text, String viewName, int lineNumber, int columnNumber) implements WarningSourceLocation {
+        private TestWarningsSource(String text) {
+            this(text, null, 1, 1);
         }
     }
 

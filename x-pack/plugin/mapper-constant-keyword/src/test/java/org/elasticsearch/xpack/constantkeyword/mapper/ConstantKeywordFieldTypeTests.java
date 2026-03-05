@@ -58,6 +58,18 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.wildcardQuery("B*r", null, true, null));
     }
 
+    public void testNormalizedWildcardQuery() {
+        ConstantKeywordFieldType none = new ConstantKeywordFieldType("f", null);
+        assertEquals(Queries.NO_DOCS_INSTANCE, none.normalizedWildcardQuery("f*", null, null));
+        ConstantKeywordFieldType foo = new ConstantKeywordFieldType("f", "foo");
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.normalizedWildcardQuery("f*", null, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.normalizedWildcardQuery("*o", null, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.normalizedWildcardQuery("*o*", null, null));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, foo.normalizedWildcardQuery("f*o", null, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, foo.normalizedWildcardQuery("*ar", null, null));
+        assertEquals(Queries.NO_DOCS_INSTANCE, foo.normalizedWildcardQuery("ba*", null, null));
+    }
+
     public void testPrefixQuery() {
         ConstantKeywordFieldType bar = new ConstantKeywordFieldType("f", "bar");
         assertEquals(Queries.NO_DOCS_INSTANCE, bar.prefixQuery("fo", null, false, null));

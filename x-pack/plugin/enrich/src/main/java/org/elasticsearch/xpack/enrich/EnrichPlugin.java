@@ -145,7 +145,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
      * This setting solely exists because the original setting was accidentally renamed in
      * https://github.com/elastic/elasticsearch/pull/111412.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public static final String CACHE_SIZE_SETTING_BWC_NAME = "enrich.cache.size";
     public static final Setting<FlatNumberOrByteSizeValue> CACHE_SIZE_BWC = new Setting<>(
         CACHE_SIZE_SETTING_BWC_NAME,

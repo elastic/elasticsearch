@@ -12,10 +12,14 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
 import java.util.Objects;
+
+import static java.util.function.Predicate.not;
 
 /**
  * Represents a PromQL aggregate function call that operates across multiple time series.
@@ -100,11 +104,16 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     @Override
     public List<Attribute> output() {
-        return groupings;
+        return groupings.stream().filter(not(a -> a.dataType() == DataType.NULL)).toList();
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), grouping, groupings);
+    }
+
+    @Override
+    public FunctionType functionType() {
+        return FunctionType.ACROSS_SERIES_AGGREGATION;
     }
 }

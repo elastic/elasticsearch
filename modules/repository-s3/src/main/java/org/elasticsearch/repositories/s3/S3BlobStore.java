@@ -127,7 +127,6 @@ class S3BlobStore implements BlobStore {
         String bucket,
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
-        ByteSizeValue maxCopySizeBeforeMultipart,
         String cannedACL,
         String storageClass,
         boolean supportConditionalWrites,
@@ -143,7 +142,7 @@ class S3BlobStore implements BlobStore {
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
-        this.maxCopySizeBeforeMultipart = maxCopySizeBeforeMultipart;
+        this.maxCopySizeBeforeMultipart = service.settings(projectId, repositoryMetadata).maxCopySizeBeforeMultipart;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.supportsConditionalWrites = supportConditionalWrites;
@@ -277,7 +276,7 @@ class S3BlobStore implements BlobStore {
         return service.client(projectId, repositoryMetadata);
     }
 
-    final int getMaxRetries() {
+    int getMaxRetries() {
         return service.settings(projectId, repositoryMetadata).maxRetries;
     }
 

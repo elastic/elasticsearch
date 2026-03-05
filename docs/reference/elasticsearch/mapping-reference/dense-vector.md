@@ -13,8 +13,50 @@ The `dense_vector` field type stores dense vectors of numeric values. Dense vect
 
 The `dense_vector` type does not support aggregations or sorting.
 
-You add a `dense_vector` field as an array of numeric values based on [`element_type`](#dense-vector-params) with `float` by default:
+You can provide vectors in two different input formats:
 
+- Array of floats: A JSON array of numeric values representing each vector dimension.
+- Base64-encoded string: A Base64-encoded binary representation of the vector. More compact than float arrays, reducing payload size and improving efficiency for large vectors and bulk indexing.
+
+The following example creates an index with a `dense_vector` field (using default [`element_type`](#dense-vector-params) `float`) and indexes documents using each format:
+
+::::{tab-set}
+:::{tab-item} Array of floats
+```console
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index_options": {
+          "type": "bbq_disk" <1>
+        }
+      },
+      "my_text": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+PUT my-index/_doc/1
+{
+  "my_text" : "text1",
+  "my_vector" : [0.5, 10, 6]
+}
+
+PUT my-index/_doc/2
+{
+  "my_text" : "text2",
+  "my_vector" : [-0.5, 10, 10]
+}
+```
+1. (Optional) Controls how vectors are indexed internally for kNN search. In this example, `bbq_disk` enables [disk-based binary quantization](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk), which can significantly reduce memory usage for large vector datasets. If you don’t specify `index_options`, {{es}} automatically selects a default indexing strategy based on the vector type and dimensions. To learn more about the available index options and how they affect vector quantization, refer to [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+
+:::
+:::{tab-item} Base64-encoded string
 ```console
 PUT my-index
 {
@@ -34,15 +76,17 @@ PUT my-index
 PUT my-index/_doc/1
 {
   "my_text" : "text1",
-  "my_vector" : [0.5, 10, 6]
+  "my_vector" : "PwAAAEEgAABAwAAA"
 }
 
 PUT my-index/_doc/2
 {
   "my_text" : "text2",
-  "my_vector" : [-0.5, 10, 10]
+  "my_vector" : "vwAAAEEgAABBIAAA"
 }
 ```
+:::
+::::
 
 ::::{note}
 Unlike most other data types, dense vectors are always single-valued. It is not possible to store multiple values in one `dense_vector` field.
@@ -142,6 +186,117 @@ To retrieve vector values explicitly, you can use:
 For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
 :::
 
+### Docvalue output formats [dense-vector-docvalue-formats]
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+You can return dense vector doc values using the `docvalue_fields` search option. The response format can be controlled per field:
+
+- `format: array` (default) returns the decoded vector values as a JSON array.
+- `format: binary` returns the raw vector bytes encoded as base64. This works whether the vector was originally indexed from an array or from a binary string. Numeric element types (`float`, `bfloat16`) are emitted in big-endian order; `byte` and `bit` vectors are returned exactly as stored.
+
+Example: retrieve dense vector doc values as arrays or base64-encoded bytes
+
+```console
+PUT dv-format
+{
+  "mappings": {
+    "properties": {
+      "vec_float": {
+        "type": "dense_vector",
+        "element_type": "float",
+        "dims": 3,
+        "index": false
+      }
+    }
+  }
+}
+
+POST dv-format/_bulk?refresh
+{"index":{"_id":"1"}}
+{"vec_float":[1.5, 2.0, -3.25]}
+{"index":{"_id":"2"}}
+{"vec_float":[1.25, -2.5, 4.0]}
+
+POST dv-format/_search
+{
+  "_source": false,
+  "query": { "match_all": {} },
+  "docvalue_fields": ["vec_float"],
+  "sort": "_id"
+}
+```
+
+Sample response (array format):
+
+```console-result
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "1",
+        "fields": {
+          "vec_float": [
+            [1.5, 2.0, -3.25]
+          ]
+        }
+      },
+      {
+        "_id": "2",
+        "fields": {
+          "vec_float": [
+            [1.25, -2.5, 4.0]
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+To retrieve the same vectors as base64-encoded bytes, request only the binary format:
+
+```console
+POST dv-format/_search
+{
+  "_source": false,
+  "query": { "match_all": {} },
+  "docvalue_fields": [ { "field": "vec_float", "format": "binary" } ],
+  "sort": "_id"
+}
+```
+
+Sample response (binary format):
+
+```console-result
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "1",
+        "fields": {
+          "vec_float": [
+            "P8AAAEAAAADAUAAA"
+          ]
+        }
+      },
+      {
+        "_id": "2",
+        "fields": {
+          "vec_float": [
+            "P+AAAAAAAP+QEA=="
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+
 ### Storage behavior and `_source`
 
 By default, `dense_vector` fields are **not stored in `_source`** on disk. This is also controlled by the index setting `index.mapping.exclude_source_vectors`.
@@ -188,19 +343,33 @@ This configuration is appropriate when full source fidelity is required, such as
 
 ## Automatically quantize vectors for kNN search [dense-vector-quantization]
 
-The `dense_vector` type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn.md#approximate-knn) `float` vectors. The three following quantization strategies are supported:
+The `dense_vector` field type supports quantization to reduce the memory footprint required when [searching](docs-content://solutions/search/vector/knn.md#approximate-knn) `float` vectors. The supported vector quantization strategies for `dense_vector` kNN indexing are:
+- [`int8`](#dense-vector-quantization-int8) 
+- [`int4`](#dense-vector-quantization-int4)
+- [`bbq`](#dense-vector-quantization-bbq), available as:
+  - [`bbq_hnsw`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-hnsw)
+  - [`bbq_flat`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-flat)
+  - [`bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk)
 
-* `int8` - Quantizes each dimension of the vector to 1-byte integers. This reduces the memory footprint by 75% (or 4x) at the cost of some accuracy.
-* `int4` - Quantizes each dimension of the vector to half-byte integers. This reduces the memory footprint by 87% (or 8x) at the cost of accuracy.
-* `bbq` - [Better binary quantization](/reference/elasticsearch/mapping-reference/bbq.md) which reduces each dimension to a single bit precision. This reduces the memory footprint by 96% (or 32x) at a larger cost of accuracy. Generally, oversampling during query time and reranking can help mitigate the accuracy loss.
+Here is an example of configuring disk-based binary quantization using `bbq_disk`:
 
-When using a quantized format, you may want to oversample and rescore the results to improve accuracy. See [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for more information.
-
-To use a quantized index, you can set your index type to `int8_hnsw`, `int4_hnsw`, or `bbq_hnsw`. When indexing `float` vectors, the current default index type is `bbq_hnsw` for vectors with greater than or equal to 384 dimensions, otherwise it's `int8_hnsw`.
-
-:::{note}
-In {{stack}} 9.0, dense vector fields are always indexed as `int8_hnsw`.
-:::
+```console
+PUT my-bbq-disk-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 384,
+        "index": true,
+        "index_options": {
+          "type": "bbq_disk"
+        }
+      }
+    }
+  }
+}
+```
 
 Quantized vectors can use [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) to improve accuracy on approximate kNN search results.
 
@@ -208,13 +377,25 @@ Quantized vectors can use [oversampling and rescoring](docs-content://solutions/
 Quantization will continue to keep the raw float vector values on disk for reranking, reindexing, and quantization improvements over the lifetime of the data. This means disk usage will increase by ~25% for `int8`, ~12.5% for `int4`, and ~3.1% for `bbq` due to the overhead of storing the quantized and raw vectors.
 ::::
 
-::::{note}
-`int4` quantization requires an even number of vector dimensions.
+### Default quantization types
+
+::::{applies-switch}
+
+:::{applies-item} stack: ga 9.0
+When indexing `float` vectors, the default index type is `int8_hnsw`.
+:::
+
+:::{applies-item} stack: ga 9.1+
+When indexing `float` vectors, the default index type is:
+- `bbq_hnsw` for vectors with greater than or equal to 384 dimensions
+- `int8_hnsw` for vectors with less than 384 dimensions
+:::
+
 ::::
 
-::::{note}
-`bbq` quantization only supports vector dimensions that are greater than 64.
-::::
+### int8 [dense-vector-quantization-int8]
+
+Quantizes each dimension of the vector to 1-byte integers. This reduces the memory footprint by 75% (or 4x) at the cost of some accuracy.
 
 Here is an example of how to create a byte-quantized index:
 
@@ -236,6 +417,10 @@ PUT my-byte-quantized-index
 }
 ```
 
+### int4 [dense-vector-quantization-int4]
+
+Quantizes each dimension of the vector to half-byte integers. This reduces the memory footprint by 87% (or 8x) at the cost of accuracy.
+
 Here is an example of how to create a half-byte-quantized index:
 
 ```console
@@ -256,6 +441,17 @@ PUT my-byte-quantized-index
 }
 ```
 
+::::{note}
+`int4` quantization requires an even number of vector dimensions.
+::::
+
+### bbq [dense-vector-quantization-bbq]
+
+`bbq` or [Better binary quantization](/reference/elasticsearch/mapping-reference/bbq.md) reduces each dimension to a single bit precision. This reduces the memory footprint by 96% (or 32x) at a larger cost of accuracy. Generally, [oversampling](/reference/elasticsearch/mapping-reference/bbq.md#bbq-oversampling) during query time and reranking can help mitigate the accuracy loss. You can choose one of the following BBQ index types:
+  * [`bbq_hnsw`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-hnsw)
+  * [`bbq_flat`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-flat)
+  * [`bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk)
+
 Here is an example of how to create a binary quantized index:
 
 ```console
@@ -275,6 +471,10 @@ PUT my-byte-quantized-index
   }
 }
 ```
+
+::::{note}
+`bbq` quantization only supports vector dimensions that are greater than 64.
+::::
 
 ## Parameters for dense vector fields [dense-vector-params]
 
@@ -459,7 +659,7 @@ POST /my-bit-vectors/_bulk?refresh
 % TEST[continued]
 
 1. 5 bytes representing the 40 bit dimensioned vector
-2. A hexidecimal string representing the 40 bit dimensioned vector
+2. A hexadecimal string representing the 40 bit dimensioned vector
 
 
 Then, when searching, you can use the `knn` query to search for similar bit vectors:

@@ -15,8 +15,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
+import org.elasticsearch.health.node.FileSettingsHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
-import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -256,7 +256,7 @@ public class HealthServiceTests extends ESTestCase {
             diskHealthInfoMap,
             DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
             repoHealthInfoMap,
-            FileSettingsService.FileSettingsHealthInfo.INDETERMINATE
+            FileSettingsHealthInfo.INDETERMINATE
         );
 
         var service = new HealthService(

@@ -2253,6 +2253,11 @@ public class EsqlCapabilities {
          */
         TS_INFO_COMMAND,
 
+        /**
+         * Implicit casting of numeric and keyword arguments to dense_vector in COALESCE.
+         */
+        COALESCE_DENSE_VECTOR_IMPLICIT_CASTING,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

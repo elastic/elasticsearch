@@ -2073,9 +2073,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newChildren.add(args.get(i));
             }
             Expression resultF = childrenChanged ? f.replaceChildren(newChildren) : f;
-            return targetNumericType != null && castNumericArgs
-                ? castMixedNumericTypes((EsqlScalarFunction) resultF, targetNumericType)
-                : resultF;
+            if (resultF instanceof EsqlScalarFunction sf) {
+                if (canCastMixedNumericTypes(f) && targetNumericType != null && castNumericArgs) {
+                    sf = (EsqlScalarFunction) castMixedNumericTypes(sf, targetNumericType);
+                }
+                if (canCastToDenseVector(f)) {
+                    sf = (EsqlScalarFunction) castChildrenToDenseVector(sf, configuration);
+                }
+                resultF = sf;
+            }
+            return resultF;
         }
 
         private static Expression processBinaryOperator(BinaryOperator<?, ?, ?, ?> o, Configuration configuration) {
@@ -2145,6 +2152,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return f instanceof Coalesce || f instanceof Case || f instanceof Greatest || f instanceof Least;
         }
 
+        private static boolean canCastToDenseVector(org.elasticsearch.xpack.esql.core.expression.function.Function f) {
+            return f instanceof Coalesce || f instanceof Case;
+        }
+
         private static boolean canCastNumeric(DataType from, DataType to) {
             DataType commonType = EsqlDataTypeConverter.commonType(from, to);
             return commonType == to;
@@ -2178,6 +2189,33 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return childrenChanged ? f.replaceChildren(newChildren) : f;
+        }
+
+        /**
+         * If the first resolved non-NULL child is DENSE_VECTOR, cast remaining keyword/numeric children to dense_vector.
+         */
+        private static Expression castChildrenToDenseVector(EsqlScalarFunction f, Configuration configuration) {
+            DataType targetType = null;
+            for (Expression child : f.children()) {
+                if (child.resolved() && child.dataType() != NULL) {
+                    targetType = child.dataType();
+                    break;
+                }
+            }
+            if (targetType != DENSE_VECTOR) {
+                return f;
+            }
+
+            List<Expression> newChildren = new ArrayList<>(f.children().size());
+            boolean changed = false;
+            for (Expression child : f.children()) {
+                Expression cast = castArgToDenseVector(child, f.source(), configuration);
+                if (cast != child) {
+                    changed = true;
+                }
+                newChildren.add(cast);
+            }
+            return changed ? f.replaceChildren(newChildren) : f;
         }
 
         private static boolean supportsImplicitTemporalCasting(Expression e, BinaryOperator<?, ?, ?, ?> o) {
@@ -2236,31 +2274,41 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsqlFunctionRegistry registry,
             Configuration configuration
         ) {
-            // Perform implicit casting for dense_vector from numeric and keyword values
             List<Expression> args = vectorFunction.arguments();
             List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(vectorFunction.getClass());
             List<Expression> newArgs = new ArrayList<>();
+            boolean changed = false;
             for (int i = 0; i < args.size(); i++) {
                 Expression arg = args.get(i);
-                if (targetDataTypes.get(i) == DENSE_VECTOR && arg.resolved()) {
-                    var dataType = arg.dataType();
-                    if (dataType == KEYWORD) {
-                        if (arg.foldable()) {
-                            Expression exp = castStringLiteral(arg, DENSE_VECTOR, configuration);
-                            if (exp != arg) {
-                                newArgs.add(exp);
-                                continue;
-                            }
-                        }
-                    } else if (dataType.isNumeric()) {
-                        newArgs.add(new ToDenseVector(vectorFunction.source(), arg));
-                        continue;
+                if (targetDataTypes.get(i) == DENSE_VECTOR) {
+                    Expression cast = castArgToDenseVector(arg, vectorFunction.source(), configuration);
+                    if (cast != arg) {
+                        changed = true;
                     }
+                    newArgs.add(cast);
+                } else {
+                    newArgs.add(arg);
                 }
-                newArgs.add(arg);
             }
+            return changed ? vectorFunction.replaceChildren(newArgs) : vectorFunction;
+        }
 
-            return vectorFunction.replaceChildren(newArgs);
+        /**
+         * Cast a single argument to dense_vector if it is a foldable keyword (hex string) or a numeric value.
+         */
+        private static Expression castArgToDenseVector(Expression arg, Source source, Configuration configuration) {
+            if (arg.resolved()) {
+                var dataType = arg.dataType();
+                if (dataType == KEYWORD && arg.foldable()) {
+                    Expression exp = castStringLiteral(arg, DENSE_VECTOR, configuration);
+                    if (exp != arg) {
+                        return exp;
+                    }
+                } else if (dataType.isNumeric()) {
+                    return new ToDenseVector(source, arg);
+                }
+            }
+            return arg;
         }
     }
 

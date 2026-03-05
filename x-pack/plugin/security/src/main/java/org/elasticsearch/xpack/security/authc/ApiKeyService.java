@@ -65,6 +65,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -1539,7 +1540,7 @@ public class ApiKeyService implements Closeable {
             if (result.isAuthenticated()) {
                 return result.getValue().v2();
             } else {
-                throw new ElasticsearchSecurityException(result.getMessage(), result.getException());
+                throw new ElasticsearchSecurityException(result.getMessage(), RestStatus.UNAUTHORIZED, result.getException());
             }
         }));
     }

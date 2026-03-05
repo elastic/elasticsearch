@@ -61,7 +61,7 @@ When creating roles, refer to this page for a complete list of available privile
 
 
 `clone_api_key` {applies_to}`serverless: unavailable`
-:   Privileges to clone an API key. Creates a new API key with the same permissions as an existing key (identified by its credential), with a new name, id, and optional expiration and metadata.
+:   Privileges to clone an API key. Creates a new API key with the same permissions as an existing key, with a new name, ID, and optional expiration and metadata.
 
 
 `manage`

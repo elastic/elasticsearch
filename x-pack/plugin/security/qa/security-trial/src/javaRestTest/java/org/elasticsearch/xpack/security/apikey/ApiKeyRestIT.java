@@ -74,6 +74,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Integration Rest Tests relating to API Keys.
@@ -2056,15 +2057,52 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(cloned.name(), equalTo("cloned-by-manage-security"));
     }
 
-    public void testCloneApiKeyFailsWithInvalidSourceCredential() throws IOException {
+    public void testCloneApiKeyFailsWithInvalidSourceId() throws IOException {
         final String invalidEncoded = java.util.Base64.getEncoder()
-            .encodeToString("invalid-id:wrong-secret".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            .encodeToString("invalid-id:some-secret".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         final ResponseException e = expectThrows(
             ResponseException.class,
             () -> cloneApiKey(CLONE_API_KEY_USER, invalidEncoded, randomAlphaOfLength(12), Map.of())
         );
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
-        assertThat(e.getMessage(), containsString("invalid"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("unable to find apikey"));
+    }
+
+    public void testCloneApiKeyFailsWithInvalidSourceCredential() throws IOException {
+        final EncodedApiKey source = createApiKey(MANAGE_SECURITY_USER, "source-key", Map.of());
+        final String invalidEncoded = java.util.Base64.getEncoder()
+            .encodeToString((source.id() + ":wrong-secret").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        final ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> cloneApiKey(CLONE_API_KEY_USER, invalidEncoded, randomAlphaOfLength(12), Map.of())
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("invalid credentials for API key"));
+    }
+
+    public void testCloneApiKeyFailsWithCrossClusterSourceKey() throws IOException {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cross-cluster-key-to-clone",
+              "access": {
+                "search": [ { "names": [ "metrics" ] } ]
+              }
+            }""");
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        final ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
+        final String crossClusterEncoded = createResponse.evaluate("encoded");
+
+        final ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> cloneApiKey(CLONE_API_KEY_USER, crossClusterEncoded, "cloned-from-cross-cluster", Map.of())
+        );
+
+        // Perhaps this should be 400 instead, but the API Key Service will fail authentication of the API Key (because it has an
+        // invalid type for the context) and the REST layer will translate that to a 403, which is good enough for us
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("cross_cluster"));
     }
 
     public void testCloneApiKeyExpiration() throws IOException {

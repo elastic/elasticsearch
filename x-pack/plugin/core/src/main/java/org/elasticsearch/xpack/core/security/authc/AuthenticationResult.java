@@ -203,6 +203,7 @@ public final class AuthenticationResult<T> {
         if (this.isAuthenticated()) {
             return new AuthenticationResult<>(Status.SUCCESS, fn.apply(this.value), message, exception, metadata);
         } else {
+            assert this.value == null : "unsuccessful result must have null value";
             return new AuthenticationResult<>(this.status, null, message, exception, metadata);
         }
     }

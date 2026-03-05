@@ -24,8 +24,14 @@ public sealed interface StageSpec {
      */
     StageId stageId();
 
+    /** Marker for transform stages that can be chained in the pipeline. */
+    sealed interface TransformSpec extends StageSpec {}
+
+    /** Marker for terminal payload stages that serialize values to bytes. */
+    sealed interface PayloadSpec extends StageSpec {}
+
     /** Delta encoding: stores differences between consecutive values. */
-    record DeltaStage() implements StageSpec {
+    record DeltaStage() implements TransformSpec {
         @Override
         public StageId stageId() {
             return StageId.DELTA_STAGE;
@@ -33,7 +39,7 @@ public sealed interface StageSpec {
     }
 
     /** Offset removal: subtracts the minimum value from all entries. */
-    record OffsetStage() implements StageSpec {
+    record OffsetStage() implements TransformSpec {
         @Override
         public StageId stageId() {
             return StageId.OFFSET_STAGE;
@@ -41,7 +47,7 @@ public sealed interface StageSpec {
     }
 
     /** GCD factoring: divides all values by their greatest common divisor. */
-    record GcdStage() implements StageSpec {
+    record GcdStage() implements TransformSpec {
         @Override
         public StageId stageId() {
             return StageId.GCD_STAGE;
@@ -49,7 +55,7 @@ public sealed interface StageSpec {
     }
 
     /** Bit-packing payload: packs values using the minimum number of bits. */
-    record BitPackPayload() implements StageSpec {
+    record BitPackPayload() implements PayloadSpec {
         @Override
         public StageId stageId() {
             return StageId.BITPACK_PAYLOAD;

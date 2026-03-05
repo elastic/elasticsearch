@@ -285,7 +285,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // "Alerting V2" indexes
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTING_V2_INDEX_ALIAS).privileges("all").build(),
                 // "Alerting V2" views prefix
-                RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTING_V2_VIEWS).privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTING_V2_VIEWS).privileges("create_view").build(),
                 // "Alerts as data" public index alias used in Security Solution
                 // Kibana system user uses them to read / write alerts.
                 RoleDescriptor.IndicesPrivileges.builder()

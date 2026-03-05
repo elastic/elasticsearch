@@ -274,32 +274,46 @@ The benefit of a dedicated project for these tests are:
 
 #### Using test fixtures
 
-Sometimes we want to share test fixtures to set up the code under test across multiple projects. There are basically two ways doing so.
+Sometimes we want to share fixture code used by tests across multiple Gradle projects. There are two supported approaches, depending on where the shared classes live:
 
-Ideally we would use the built-in [java-test-fixtures](https://docs.gradle.org/current/userguide/java_testing.html#sec:java_test_fixtures) Gradle plugin.
-This plugin relies on having a separate sourceSet for the test fixtures code.
+- Prefer the built-in [java-test-fixtures](https://docs.gradle.org/current/userguide/java_testing.html#sec:java_test_fixtures) Gradle plugin **when and only when** the shared fixtures are placed in the dedicated `testFixtures` source set (for example `src/testFixtures/java`).
 
-In the Elasticsearch codebase we have test fixtures and actual tests within the same sourceSet. Therefore we introduced the `elasticsearch.internal-test-artifact` plugin to provides another build artifact of your project based on the `test` sourceSet.
+  In the providing project apply the plugin and place shared code under `src/testFixtures/...`:
 
+  ```groovy
+  plugins {
+    id 'java-test-fixtures'
+  }
+  ```
 
-This artifact can be resolved by the consumer project as shown in the example below:
+  In the consumer project you can then depend on those fixtures like this:
 
-```
-dependencies {
-  //add the test fixtures of `:providing-project` to testImplementation configuration.
-  testImplementation(testArtifact(project(":fixture-providing-project')))
-}
-```
+  ```groovy
+  dependencies {
+    testImplementation(testFixtures(project(":fixture-providing-project")))
+  }
+  ```
+
+- Use `elasticsearch.internal-test-artifact` for the common Elasticsearch case where fixtures and tests live in the same source set (for example `src/test/java`) and you need to share those `test` classes/resources with another project. This plugin provides an additional test artifact derived from the `test` source set, which can be resolved by the consumer project as shown below:
+
+  ```groovy
+  dependencies {
+    // Add the `test` source set classes/resources from `:fixture-providing-project`.
+    testImplementation(testArtifact(project(":fixture-providing-project")))
+  }
+  ```
 
 This test artifact mechanism makes use of the concept of [component capabilities](https://docs.gradle.org/current/userguide/component_capabilities.html)
 similar to how the Gradle built-in `java-test-fixtures` plugin works.
 
-`testArtifact` is a shortcut declared in the Elasticsearch build. Alternatively you can declare the dependency via
+`testArtifact(...)` is a shortcut declared in the Elasticsearch build. Alternatively you can declare the dependency via an explicit capability requirement:
 
-```
+```groovy
 dependencies {
-  testImplementation(project(":fixture-providing-project')) {
-    requireCapabilities(${project(":fixture-providing-project').group}:fixture-providing-project-test-artifacts")
+  testImplementation(project(":fixture-providing-project")) {
+    capabilities {
+      requireCapabilities("${project(':fixture-providing-project').group}:fixture-providing-project-test-artifacts")
+    }
   }
 }
 ```

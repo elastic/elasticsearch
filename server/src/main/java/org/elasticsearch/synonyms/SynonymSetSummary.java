@@ -9,6 +9,7 @@
 
 package org.elasticsearch.synonyms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,18 +23,28 @@ public class SynonymSetSummary implements Writeable, ToXContentObject {
 
     public static final String NAME_FIELD = "synonyms_set";
     public static final String COUNT_FIELD = "count";
+    public static final String TOKEN_COUNT_FIELD = "token_count";
+
+    private static final TransportVersion SYNONYM_SET_TOKEN_COUNT = TransportVersion.fromName("synonym_set_token_count");
 
     private final String name;
     private final long count;
+    private final long tokenCount;
 
-    public SynonymSetSummary(long count, String name) {
+    public SynonymSetSummary(long count, long tokenCount, String name) {
         this.name = name;
         this.count = count;
+        this.tokenCount = tokenCount;
     }
 
     public SynonymSetSummary(StreamInput in) throws IOException {
         this.name = in.readString();
         this.count = in.readVLong();
+        if (in.getTransportVersion().supports(SYNONYM_SET_TOKEN_COUNT)) {
+            this.tokenCount = in.readVLong();
+        } else {
+            this.tokenCount = 0;
+        }
     }
 
     @Override
@@ -42,6 +53,7 @@ public class SynonymSetSummary implements Writeable, ToXContentObject {
         {
             builder.field(NAME_FIELD, name);
             builder.field(COUNT_FIELD, count);
+            builder.field(TOKEN_COUNT_FIELD, tokenCount);
         }
         builder.endObject();
 
@@ -56,10 +68,17 @@ public class SynonymSetSummary implements Writeable, ToXContentObject {
         return count;
     }
 
+    public long tokenCount() {
+        return tokenCount;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeVLong(count);
+        if (out.getTransportVersion().supports(SYNONYM_SET_TOKEN_COUNT)) {
+            out.writeVLong(tokenCount);
+        }
     }
 
     @Override
@@ -67,11 +86,11 @@ public class SynonymSetSummary implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SynonymSetSummary that = (SynonymSetSummary) o;
-        return Objects.equals(name, that.name) && Objects.equals(count, that.count);
+        return Objects.equals(name, that.name) && Objects.equals(count, that.count) && Objects.equals(tokenCount, that.tokenCount);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, count);
+        return Objects.hash(name, count, tokenCount);
     }
 }

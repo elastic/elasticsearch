@@ -60,6 +60,8 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -100,16 +102,21 @@ public class SynonymsManagementAPIService {
     private static final String SYNONYM_SET_OBJECT_TYPE = "synonym_set";
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
     private static final int MAX_SYNONYMS_SETS = 10_000;
+    private static final int MAX_SYNONYM_TOKENS = 100_000;
     private static final int MAX_SCROLL_SYNONYM_RULES = 100_000;
     private static final int SCROLL_KEEP_ALIVE_SECONDS = 60;
     private static final int SCROLL_BATCH_SIZE = 10_000;
+    // Stored on each synonym rule document; the synonym string split on '=>' and ',' and counted
+    static final String TOKEN_COUNT_FIELD = "token_count";
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
     private static final String RULE_COUNT_AGG_NAME = "rule_count";
     private static final String RULE_COUNT_FILTER_KEY = "synonym_rules";
-    private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
+    private static final String TOKEN_COUNT_AGG_NAME = "token_count";
+    private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 2;
     public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
     private final int maxSynonymsSets;
+    private final int maxSynonymTokens;
     private final int maxScrollSynonymRules;
 
     // Package private for testing
@@ -130,18 +137,23 @@ public class SynonymsManagementAPIService {
         .build();
 
     public SynonymsManagementAPIService(Client client) {
-        this(client, MAX_SYNONYMS_SETS, MAX_SCROLL_SYNONYM_RULES);
+        this(client, MAX_SYNONYMS_SETS, MAX_SYNONYM_TOKENS, MAX_SCROLL_SYNONYM_RULES);
     }
 
     // Used for testing, so we don't need to test for MAX_SYNONYMS_SETS and put unnecessary memory pressure on the test cluster
     SynonymsManagementAPIService(Client client, int maxSynonymsSets) {
-        this(client, maxSynonymsSets, MAX_SCROLL_SYNONYM_RULES);
+        this(client, maxSynonymsSets, MAX_SYNONYM_TOKENS, MAX_SCROLL_SYNONYM_RULES);
     }
 
     // Used for testing scroll limit without needing to insert MAX_SCROLL_SYNONYM_RULES entries
     SynonymsManagementAPIService(Client client, int maxSynonymsSets, int maxScrollSynonymRules) {
+        this(client, maxSynonymsSets, MAX_SYNONYM_TOKENS, maxScrollSynonymRules);
+    }
+
+    SynonymsManagementAPIService(Client client, int maxSynonymsSets, int maxSynonymTokens, int maxScrollSynonymRules) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
         this.maxSynonymsSets = maxSynonymsSets;
+        this.maxSynonymTokens = maxSynonymTokens;
         this.maxScrollSynonymRules = maxScrollSynonymRules;
     }
 
@@ -193,6 +205,11 @@ public class SynonymsManagementAPIService {
                             builder.field("type", "keyword");
                         }
                         builder.endObject();
+                        builder.startObject(TOKEN_COUNT_FIELD);
+                        {
+                            builder.field("type", "integer");
+                        }
+                        builder.endObject();
                     }
                     builder.endObject();
                 }
@@ -217,11 +234,11 @@ public class SynonymsManagementAPIService {
             .should(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
             .minimumShouldMatch(1);
 
-        // Aggregation query to count only synonym rules (excluding synonym set objects)
+        // Aggregation to count rules and sum token counts per synonym set (excluding synonym set marker docs)
         FiltersAggregationBuilder ruleCountAggregation = new FiltersAggregationBuilder(
             RULE_COUNT_AGG_NAME,
             new FiltersAggregator.KeyedFilter(RULE_COUNT_FILTER_KEY, QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
-        );
+        ).subAggregation(new SumAggregationBuilder(TOKEN_COUNT_AGG_NAME).field(TOKEN_COUNT_FIELD));
 
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setSize(0)
@@ -242,7 +259,8 @@ public class SynonymsManagementAPIService {
                     SynonymSetSummary[] synonymSetSummaries = buckets.stream().skip(from).limit(size).map(bucket -> {
                         Filters ruleCountFilters = bucket.getAggregations().get(RULE_COUNT_AGG_NAME);
                         Filters.Bucket ruleCountBucket = ruleCountFilters.getBucketByKey(RULE_COUNT_FILTER_KEY);
-                        return new SynonymSetSummary(ruleCountBucket.getDocCount(), bucket.getKeyAsString());
+                        Sum tokenCountSum = ruleCountBucket.getAggregations().get(TOKEN_COUNT_AGG_NAME);
+                        return new SynonymSetSummary(ruleCountBucket.getDocCount(), (long) tokenCountSum.value(), bucket.getKeyAsString());
                     }).toArray(SynonymSetSummary[]::new);
 
                     listener.onResponse(new PagedResult<>(buckets.size(), synonymSetSummaries));
@@ -401,6 +419,25 @@ public class SynonymsManagementAPIService {
         return new SynonymRule((String) docSourceAsMap.get(SYNONYM_RULE_ID_FIELD), (String) docSourceAsMap.get(SYNONYMS_FIELD));
     }
 
+    /**
+     * Counts the number of tokens in a synonym rule string.
+     * Splits on {@code =>} (explicit mapping delimiter) then on {@code ,} (term delimiter).
+     */
+    static int countTokens(String synonyms) {
+        if (synonyms == null || synonyms.isBlank()) {
+            return 0;
+        }
+        int count = 0;
+        for (String side : synonyms.split("=>")) {
+            for (String term : side.split(",")) {
+                if (term.isBlank() == false) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
     private static void logUniqueFailureMessagesWithIndices(List<BulkItemResponse.Failure> bulkFailures) {
         // check if logger is at least debug
         if (logger.isDebugEnabled() == false) {
@@ -425,9 +462,12 @@ public class SynonymsManagementAPIService {
         boolean refresh,
         ActionListener<SynonymsReloadResult> listener
     ) {
-        if (synonymsSet.length > maxSynonymsSets) {
+        long totalTokens = Arrays.stream(synonymsSet).mapToLong(rule -> countTokens(rule.synonyms())).sum();
+        if (totalTokens > maxSynonymTokens) {
             listener.onFailure(
-                new IllegalArgumentException("The number of synonyms rules in a synonym set cannot exceed " + maxSynonymsSets)
+                new IllegalArgumentException(
+                    "The number of tokens in a synonym set cannot exceed " + maxSynonymTokens + ", got " + totalTokens
+                )
             );
             return;
         }
@@ -502,24 +542,32 @@ public class SynonymsManagementAPIService {
         ActionListener<SynonymsReloadResult> listener
     ) {
         checkSynonymSetExists(synonymsSetId, listener.delegateFailureAndWrap((l1, obj) -> {
-            // Count synonym rules to check if we're at maximum
+            // Sum token counts to check if adding this rule would exceed the token limit
             BoolQueryBuilder queryFilter = QueryBuilders.boolQuery()
                 .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymsSetId))
                 .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE));
             if (synonymRule.id() != null) {
-                // Remove the current synonym rule from the count, so we allow updating a rule at max capacity
+                // Exclude the current rule so that updating a rule at max capacity is allowed
                 queryFilter.mustNot(QueryBuilders.termQuery(SYNONYM_RULE_ID_FIELD, synonymRule.id()));
             }
             client.prepareSearch(SYNONYMS_ALIAS_NAME)
                 .setQuery(queryFilter)
                 .setSize(0)
                 .setPreference(Preference.LOCAL.type())
-                .setTrackTotalHits(true)
+                .addAggregation(new SumAggregationBuilder(TOKEN_COUNT_AGG_NAME).field(TOKEN_COUNT_FIELD))
                 .execute(l1.delegateFailureAndWrap((searchListener, searchResponse) -> {
-                    long synonymsSetSize = searchResponse.getHits().getTotalHits().value();
-                    if (synonymsSetSize >= maxSynonymsSets) {
+                    Sum tokenCountSum = searchResponse.getAggregations().get(TOKEN_COUNT_AGG_NAME);
+                    long currentTokens = (long) tokenCountSum.value();
+                    long newRuleTokens = countTokens(synonymRule.synonyms());
+                    if (currentTokens + newRuleTokens > maxSynonymTokens) {
                         listener.onFailure(
-                            new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + maxSynonymsSets)
+                            new IllegalArgumentException(
+                                "Adding this synonym rule would exceed the token limit of "
+                                    + maxSynonymTokens
+                                    + " for synonyms set ["
+                                    + synonymsSetId
+                                    + "]"
+                            )
                         );
                     } else {
                         indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);
@@ -602,6 +650,7 @@ public class SynonymsManagementAPIService {
                 builder.field(SYNONYM_RULE_ID_FIELD, synonymRule.id());
                 builder.field(SYNONYMS_FIELD, synonymRule.synonyms());
                 builder.field(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE);
+                builder.field(TOKEN_COUNT_FIELD, countTokens(synonymRule.synonyms()));
             }
             builder.endObject();
 

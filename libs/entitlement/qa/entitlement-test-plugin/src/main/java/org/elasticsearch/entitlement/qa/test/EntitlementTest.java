@@ -34,8 +34,9 @@ public @interface EntitlementTest {
     /**
      * When a denied entitlement strategy returns a default value instead of throwing,
      * this specifies the expected string representation of that default value. Test methods
-     * using this must return a {@code String} representing the actual result. The test
-     * infrastructure will verify the returned value matches this when running in a denied context.
+     * using this must return the actual result (any type); the infrastructure converts it via
+     * {@code toString()} or {@code "null"} for {@code null} results. The test infrastructure
+     * will verify the returned value matches this when running in a denied context.
      * An empty string (the default) means no default value check is performed.
      */
     String expectedDefaultIfDenied() default "";

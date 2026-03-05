@@ -20,8 +20,8 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 class FileStoreActions {
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "null")
-    static String checkGetFileStoreAttributeView() throws IOException {
-        return String.valueOf(Files.getFileStore(FileCheckActions.readWriteFile()).getFileStoreAttributeView(FileStoreAttributeView.class));
+    static FileStoreAttributeView checkGetFileStoreAttributeView() throws IOException {
+        return Files.getFileStore(FileCheckActions.readWriteFile()).getFileStoreAttributeView(FileStoreAttributeView.class);
     }
 
     @EntitlementTest(expectedAccess = SERVER_ONLY)

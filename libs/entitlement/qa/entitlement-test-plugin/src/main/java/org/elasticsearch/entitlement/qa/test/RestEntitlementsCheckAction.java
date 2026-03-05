@@ -104,8 +104,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 throw new AssertionError("Entitlement test method [" + method + "] must not be private");
             }
             String expectedDefault = testAnnotation.expectedDefaultIfDenied();
-            if (expectedDefault.isEmpty() == false && method.getReturnType() != String.class) {
-                throw new AssertionError("Entitlement test method [" + method + "] must return String when expectedDefaultIfDenied is set");
+            if (expectedDefault.isEmpty() == false && method.getReturnType() == void.class) {
+                throw new AssertionError("Entitlement test method [" + method + "] must have a return type when expectedDefaultIfDenied is set");
             }
             final CheckedFunction<Environment, Object, Exception> call = createFunctionForMethod(method);
             CheckedFunction<Environment, String, Exception> action = env -> {
@@ -220,6 +220,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 response = new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName));
                 if (result != null) {
                     response.addHeader("resultValue", result);
+                } else {
+                    response.addHeader("resultIsNull", "true");
                 }
                 if (checkAction.expectedDefaultIfDenied().isEmpty() == false) {
                     response.addHeader("expectedDefaultIfDenied", checkAction.expectedDefaultIfDenied());

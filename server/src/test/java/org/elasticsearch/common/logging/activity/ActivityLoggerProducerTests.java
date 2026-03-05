@@ -18,10 +18,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_DURATION_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.TRACE_ID_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.X_OPAQUE_ID_FIELD;
+import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -35,7 +36,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
         producer = new ActivityLogProducer<>() {
             @Override
             public Optional<ESLogMessage> produce(ActivityLoggerContext ctx, ActionLoggingFields additionalFields) {
-                return Optional.of(produceCommon(ctx, additionalFields));
+                return Optional.of(produceCommon(ctx, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields));
             }
 
             @Override
@@ -49,6 +50,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
         ActivityLoggerContext context = mock(ActivityLoggerContext.class);
         when(context.getType()).thenReturn("testType");
         when(context.getOpaqueId()).thenReturn("test_task");
+        when(context.getTraceId()).thenReturn("test_trace_id");
         when(context.getTookInNanos()).thenReturn(1_000_000L);
         when(context.isSuccess()).thenReturn(true);
         return context;
@@ -58,6 +60,7 @@ public class ActivityLoggerProducerTests extends ESTestCase {
         ActivityLoggerContext context = mock(ActivityLoggerContext.class);
         when(context.getType()).thenReturn("failType");
         when(context.getOpaqueId()).thenReturn("test_task2");
+        when(context.getTraceId()).thenReturn("test_trace_id2");
         when(context.getTookInNanos()).thenReturn(1_000L);
         when(context.isSuccess()).thenReturn(false);
         when(context.getErrorType()).thenReturn("SomeError");
@@ -75,11 +78,12 @@ public class ActivityLoggerProducerTests extends ESTestCase {
         ESLogMessage message = producer.produce(makeSuccessContext(), makeFields()).get();
 
         assertThat(message.get(X_OPAQUE_ID_FIELD), equalTo("test_task"));
+        assertThat(message.get(TRACE_ID_FIELD), equalTo("test_trace_id"));
         assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("success"));
         assertThat(message.get(EVENT_DURATION_FIELD), equalTo("1000000"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "took"), equalTo("1000000"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000_000L))));
-        assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo("testType"));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "took"), equalTo("1000000"));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000_000L))));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "type"), equalTo("testType"));
         assertThat(message.get("foo"), equalTo("bar"));
         assertNull(message.get("error.type"));
         assertNull(message.get("error.message"));
@@ -89,11 +93,12 @@ public class ActivityLoggerProducerTests extends ESTestCase {
         ESLogMessage message = producer.produce(makeFailContext(), makeFields()).get();
 
         assertThat(message.get(X_OPAQUE_ID_FIELD), equalTo("test_task2"));
+        assertThat(message.get(TRACE_ID_FIELD), equalTo("test_trace_id2"));
         assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("failure"));
         assertThat(message.get(EVENT_DURATION_FIELD), equalTo("1000"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "took"), equalTo("1000"));
-        assertThat(message.get(ES_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000L))));
-        assertThat(message.get(ES_FIELDS_PREFIX + "type"), equalTo("failType"));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "took"), equalTo("1000"));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "took_millis"), equalTo(String.valueOf(TimeUnit.NANOSECONDS.toMillis(1_000L))));
+        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "type"), equalTo("failType"));
         assertThat(message.get("error.type"), equalTo("SomeError"));
         assertThat(message.get("error.message"), equalTo("Something went wrong"));
         assertThat(message.get("foo"), equalTo("bar"));

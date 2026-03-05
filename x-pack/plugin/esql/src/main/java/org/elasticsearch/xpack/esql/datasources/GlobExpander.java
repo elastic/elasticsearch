@@ -183,17 +183,6 @@ final class GlobExpander {
         return doExpandCommaSeparated(pathList, provider, hints, hivePartitioning, null, null);
     }
 
-    static FileSet expandCommaSeparated(
-        String pathList,
-        StorageProvider provider,
-        @Nullable List<PartitionFilterHint> hints,
-        boolean hivePartitioning,
-        @Nullable PartitionConfig partitionConfig,
-        @Nullable Map<String, Object> config
-    ) throws IOException {
-        return doExpandCommaSeparated(pathList, provider, hints, hivePartitioning, partitionConfig, config);
-    }
-
     private static FileSet doExpandCommaSeparated(
         String pathList,
         StorageProvider provider,

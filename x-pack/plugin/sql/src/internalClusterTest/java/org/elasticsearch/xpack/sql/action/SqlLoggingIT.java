@@ -13,9 +13,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.VerificationException;
-import org.elasticsearch.xpack.sql.logging.SqlLogProducer;
+import org.elasticsearch.xpack.sql.logging.SqlLogContext;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.junit.After;
@@ -23,7 +24,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_QUERY_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
@@ -33,7 +34,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class SqlLoggingIT extends AbstractSqlIntegTestCase {
     static AccumulatingMockAppender appender;
-    static Logger queryLog = LogManager.getLogger(SqlLogProducer.LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(QueryLogging.QUERY_LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass
@@ -85,8 +86,8 @@ public class SqlLoggingIT extends AbstractSqlIntegTestCase {
 
         var searchMessage = getMessageData(appender.events.get(0));
         var sqlMessage = getMessageData(appender.events.get(1));
-        assertMessageSuccess(sqlMessage, "sql", query);
-        assertThat(sqlMessage.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("2"));
+        assertMessageSuccess(sqlMessage, SqlLogContext.TYPE, query);
+        assertThat(sqlMessage.get(QUERY_FIELD_RESULT_COUNT), equalTo("2"));
     }
 
     public void testSqlFailureLogging() {
@@ -94,7 +95,7 @@ public class SqlLoggingIT extends AbstractSqlIntegTestCase {
         expectThrows(VerificationException.class, () -> new SqlQueryRequestBuilder(client()).query(query).get());
         assertThat(appender.events.size(), equalTo(1));
         var message = getMessageData(appender.getLastEventAndReset());
-        assertMessageFailure(message, "sql", query, VerificationException.class, "Unknown index [test]");
-        assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("0"));
+        assertMessageFailure(message, SqlLogContext.TYPE, query, VerificationException.class, "Unknown index [test]");
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
     }
 }

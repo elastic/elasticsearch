@@ -60,11 +60,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -182,18 +182,24 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
         // CPS
         final int linkedProjectsToQuery = indicesPerCluster.size();
-        Map<String, Exception> remoteClusterExceptions = new ConcurrentHashMap<>();
         ActionListener<Collection<Map.Entry<String, SearchPlanningPhaseResolutionResult>>> responsesListener = listener
             .delegateFailureAndWrap((l, responses) -> {
-                Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = responses.stream()
-                    .filter(e -> e.getValue().response() instanceof ResolveIndexAction.Response)
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> ((ResolveIndexAction.Response) e.getValue().response()).getResolvedIndexExpressions()));
+                Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = new HashMap<>();
+                Map<String, Exception> remoteExceptions = new HashMap<>();
+
+                for (var entry : responses) {
+                    if (entry.getValue().response() instanceof ResolveIndexAction.Response response) {
+                        resolvedRemoteExpressions.put(entry.getKey(), response.getResolvedIndexExpressions());
+                    } else {
+                        remoteExceptions.put(entry.getKey(), entry.getValue().error());
+                    }
+                }
                 final Exception ex = CrossProjectIndexResolutionValidator.validate(
                     originalIndicesOptions,
                     request.getProjectRouting(),
                     localResolvedIndexExpressions,
                     resolvedRemoteExpressions,
-                    remoteClusterExceptions
+                    remoteExceptions
                 );
                 if (ex != null) {
                     listener.onFailure(ex);

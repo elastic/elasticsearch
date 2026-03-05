@@ -330,6 +330,11 @@ public class CrossProjectIndexResolutionValidator {
             if (remoteExceptions.containsKey(projectAlias)) {
                 return new IndexNotFoundException(remoteExpression);
             } else {
+                assert localExpressions.expressions()
+                    .stream()
+                    .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.equals(Strings.format("-%s:*", projectAlias))))
+                    : Strings.format("Expected cluster exclusion for %s", projectAlias);
+
                 return checkResolutionFailure(
                     new ResolvedIndexExpression.LocalExpressions(Set.of(), SUCCESS, null),
                     remoteExpression,

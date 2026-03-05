@@ -1,0 +1,5 @@
+pr: 140700
+summary: "Apm-server: update monitor mappings to include new TBS metrics"
+area: Monitoring
+type: enhancement
+issues: []

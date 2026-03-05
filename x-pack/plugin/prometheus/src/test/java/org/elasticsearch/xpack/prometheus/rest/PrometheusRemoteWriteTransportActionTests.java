@@ -206,17 +206,6 @@ public class PrometheusRemoteWriteTransportActionTests extends ESTestCase {
         assertThat(response.getStatus(), equalTo(RestStatus.NO_CONTENT));
     }
 
-    public void testInferMetricType() {
-        // Counter metrics
-        assertThat(PrometheusRemoteWriteTransportAction.inferMetricType("http_requests_total"), equalTo("counter"));
-        assertThat(PrometheusRemoteWriteTransportAction.inferMetricType("request_duration_bucket"), equalTo("counter"));
-
-        // Gauge metrics
-        assertThat(PrometheusRemoteWriteTransportAction.inferMetricType("temperature"), equalTo("gauge"));
-        assertThat(PrometheusRemoteWriteTransportAction.inferMetricType("memory_usage"), equalTo("gauge"));
-        assertThat(PrometheusRemoteWriteTransportAction.inferMetricType("cpu_total_percent"), equalTo("gauge")); // "total" in middle
-    }
-
     private RemoteWriteResponse executeRequest(RemoteWriteRequest request) {
         return executeRequest(request, listener -> listener.onResponse(new BulkResponse(new BulkItemResponse[] {}, 0)));
     }

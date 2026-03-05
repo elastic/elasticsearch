@@ -1079,7 +1079,8 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         1L,
                                         2L,
                                         33.0,
-                                        1L
+                                        1L,
+                                        0L
                                     )
                                 ),
                                 Priority.NORMAL
@@ -1134,7 +1135,8 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         1L,
                                         2L,
                                         33.0,
-                                        1L
+                                        1L,
+                                        0L
                                     ),
                                     AssignmentStats.NodeStats.forStartedState(
                                         DiscoveryNodeUtils.create("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3)),
@@ -1153,7 +1155,8 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         2L,
                                         4L,
                                         34.0,
-                                        1L
+                                        1L,
+                                        0L
                                     )
                                 ),
                                 Priority.NORMAL

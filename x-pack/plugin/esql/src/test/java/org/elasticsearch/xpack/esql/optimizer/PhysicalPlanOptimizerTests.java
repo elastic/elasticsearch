@@ -115,8 +115,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -132,6 +134,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -140,11 +143,15 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -184,7 +191,6 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -395,7 +401,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             enrichResolution
         );
         this.metricsData = makeTestDataSource("k8s", "k8s-mappings.json", functionRegistry, enrichResolution);
-        this.plannerSettings = TEST_PLANNER_SETTINGS;
+        this.plannerSettings = PlannerSettings.DEFAULTS;
         this.testAllMapping = makeTestDataSource("test_all", "mapping-all-types.json", functionRegistry, enrichResolution);
     }
 
@@ -7703,6 +7709,74 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertShapeQueryRange(shapeQueryBuilders, 10000.0, 500000.0);
     }
 
+    /**
+     * LimitExec[1000[INTEGER],474]
+     * \_ExchangeExec[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24,
+     *     languages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20, u.domain{r}#5, u.fragment{r}#6, u.path{r}#7, u.extension{r}#8,
+     *     u.port{r}#9, u.query{r}#10, u.scheme{r}#11, u.username{r}#12, u.password{r}#13], false]
+     *   \_ProjectExec[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24,
+     *       languages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20, u.domain{r}#5, u.fragment{r}#6, u.path{r}#7,
+     *       u.extension{r}#8, u.port{r}#9, u.query{r}#10, u.scheme{r}#11, u.username{r}#12, u.password{r}#13]]
+     *     \_FieldExtractExec[_meta_field{f}#21, emp_no{f}#15, gender{f}#17, hire..]&lt;[],[]&gt;
+     *       \_LimitExec[1000[INTEGER],474]
+     *         \_FilterExec[u.domain{r}#5 == elastic.co[KEYWORD]]
+     *           \_UriPartsExec[first_name{f}#16,[u.domain{r}#5, u.fragment{r}#6, u.path{r}#7, u.extension{r}#8, u.port{r}#9, u.query{r}#10,
+     *               u.scheme{r}#11, u.username{r}#12, u.password{r}#13]]
+     *             \_FieldExtractExec[first_name{f}#16]&lt;[],[]&gt;
+     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#26], limit[], sort[] estimatedRowSize[2684] queryBuilderAndTags
+     *                   [[QueryBuilderAndTags[query=null, tags=[]]]]
+     */
+    public void testFilterOnUriPartsIsNotPushedDown() {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+
+        // Query with a filter on a field generated by URI_PARTS
+        var plan = optimizedPlan(physicalPlan("""
+            FROM test
+            | uri_parts u = first_name
+            | WHERE u.domain == "elastic.co"
+            """));
+
+        var coordinatorLimit = as(plan, LimitExec.class);
+        var exchange = as(coordinatorLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var topFieldExtract = as(project.child(), FieldExtractExec.class);
+        var dataNodeLimit = as(topFieldExtract.child(), LimitExec.class);
+        // The filter should remain above UriPartsExec
+        var filter = as(dataNodeLimit.child(), FilterExec.class);
+        var eq = as(filter.condition(), Equals.class);
+        assertThat(as(eq.left(), ReferenceAttribute.class).name(), is("u.domain"));
+        var uriParts = as(filter.child(), UriPartsExec.class);
+        var fieldExtract = as(uriParts.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtract.child(), EsQueryExec.class);
+        assertThat(filter.condition(), instanceOf(Equals.class));
+        // The filter is not pushed down into the EsQueryExec
+        assertNull("Filter was incorrectly pushed down into EsQueryExec", queryExec.query());
+    }
+
+    public void testFilterOnRegisteredDomainIsNotPushedDown() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+
+        var plan = optimizedPlan(physicalPlan("""
+            FROM test
+            | registered_domain rd = first_name
+            | WHERE rd.registered_domain == "example.co.uk"
+            """));
+
+        var coordinatorLimit = as(plan, LimitExec.class);
+        var exchange = as(coordinatorLimit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var topFieldExtract = as(project.child(), FieldExtractExec.class);
+        var dataNodeLimit = as(topFieldExtract.child(), LimitExec.class);
+        var filter = as(dataNodeLimit.child(), FilterExec.class);
+        var eq = as(filter.condition(), Equals.class);
+        assertThat(as(eq.left(), ReferenceAttribute.class).name(), is("rd.registered_domain"));
+        var registeredDomain = as(filter.child(), RegisteredDomainExec.class);
+        var fieldExtract = as(registeredDomain.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtract.child(), EsQueryExec.class);
+        assertThat(filter.condition(), instanceOf(Equals.class));
+        assertNull("Filter was incorrectly pushed down into EsQueryExec", queryExec.query());
+    }
+
     private Set<String> orderAsSet(List<Order> sorts) {
         return sorts.stream().map(o -> ((Attribute) o.child()).name() + "->" + o.direction()).collect(Collectors.toSet());
     }
@@ -8888,7 +8962,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
         var flags = new EsqlFlags(true);
-        plan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS, null);
+        plan = PlannerUtils.localPlan(PlannerSettings.DEFAULTS, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS, null);
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -8903,7 +8977,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, TEST_PLANNER_SETTINGS)
+            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, PlannerSettings.DEFAULTS),
+            null  // OperatorFactoryRegistry - not needed for these tests
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance());
@@ -9115,6 +9190,56 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(randomSampling.hash(), equalTo(0));
     }
 
+    public void testReductionPlanForMetricsInfoReturnsIntermediateReduction() {
+        EsRelation esRelation = new EsRelation(
+            Source.EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of()
+        );
+        MetricsInfo metricsInfo = new MetricsInfo(Source.EMPTY, esRelation);
+
+        FragmentExec fragment = new FragmentExec(metricsInfo);
+        ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
+
+        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
+        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
+        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
+        var metricsInfoExec = as(reducedPlan.plan(), MetricsInfoExec.class);
+        assertThat(metricsInfoExec.mode(), equalTo(MetricsInfoExec.Mode.INTERMEDIATE));
+
+        assertThat(metricsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
+        assertThat(metricsInfoExec.output(), equalTo(dataPlan.output()));
+    }
+
+    public void testReductionPlanForTsInfoReturnsIntermediateReduction() {
+        EsRelation esRelation = new EsRelation(
+            Source.EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of()
+        );
+        TsInfo tsInfo = new TsInfo(Source.EMPTY, esRelation);
+
+        FragmentExec fragment = new FragmentExec(tsInfo);
+        ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
+
+        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
+        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
+        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
+        var tsInfoExec = as(reducedPlan.plan(), TsInfoExec.class);
+        assertThat(tsInfoExec.mode(), equalTo(TsInfoExec.Mode.INTERMEDIATE));
+
+        assertThat(tsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
+        assertThat(tsInfoExec.output(), equalTo(dataPlan.output()));
+    }
+
     @SuppressWarnings("SameParameterValue")
     private static void assertFilterCondition(
         Filter filter,
@@ -9267,7 +9392,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
         var l = p.transformUp(FragmentExec.class, fragment -> {
             var flags = new EsqlFlags(true);
-            var localPlan = PlannerUtils.localPlan(TEST_PLANNER_SETTINGS, flags, config, FoldContext.small(), fragment, stats, null);
+            var localPlan = PlannerUtils.localPlan(PlannerSettings.DEFAULTS, flags, config, FoldContext.small(), fragment, stats, null);
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 

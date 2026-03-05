@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -60,8 +61,10 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -154,6 +157,26 @@ public class PlannerUtils {
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
+            case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
+                estimatedRowSize,
+                new MetricsInfoExec(
+                    metricsInfoExec.source(),
+                    metricsInfoExec.child(),
+                    metricsInfoExec.outputAttrs(),
+                    plan.output(),
+                    MetricsInfoExec.Mode.INTERMEDIATE
+                )
+            );
+            case TsInfoExec tsInfoExec -> getPhysicalPlanReduction(
+                estimatedRowSize,
+                new TsInfoExec(
+                    tsInfoExec.source(),
+                    tsInfoExec.child(),
+                    tsInfoExec.outputAttrs(),
+                    plan.output(),
+                    TsInfoExec.Mode.INTERMEDIATE
+                )
+            );
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };
     }
@@ -203,6 +226,24 @@ public class PlannerUtils {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
+        );
+
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+    }
+
+    public static PhysicalPlan localPlan(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        FilterPushdownRegistry filterPushdownRegistry,
+        PlanTimeProfile planTimeProfile
+    ) {
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats, filterPushdownRegistry)
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
@@ -268,7 +309,6 @@ public class PlannerUtils {
         });
 
         PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
-
         return resultPlan;
     }
 
@@ -391,10 +431,9 @@ public class PlannerUtils {
      * TODO: Remove this
      */
     @Deprecated(forRemoval = true)
-    public static final BlockFactory NON_BREAKING_BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop-esql-breaker"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    public static final BlockFactory NON_BREAKING_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     public static boolean usesScoring(QueryPlan<?> plan) {
         return plan.output().stream().anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));

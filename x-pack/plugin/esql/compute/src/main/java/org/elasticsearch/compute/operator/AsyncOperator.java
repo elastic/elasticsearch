@@ -198,6 +198,13 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         }
     }
 
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        synchronized (this) {
+            return checkpoint.getPersistedCheckpoint() < checkpoint.getProcessedCheckpoint();
+        }
+    }
+
     /**
      * Get a {@link Fetched} from the buffer.
      * @return a result if one is ready or {@code null} if none are available.

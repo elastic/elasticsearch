@@ -19,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -138,7 +139,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         throws IOException;
 
     public void handleSuccess(ActionListener<OTLPActionResponse> listener) {
-        listener.onResponse(new OTLPActionResponse(RestStatus.OK, emptyResponse()));
+        listener.onResponse(new OTLPActionResponse(RestStatus.OK, BytesArray.EMPTY));
     }
 
     public void handleEmptyRequest(ActionListener<OTLPActionResponse> listener) {
@@ -229,8 +230,13 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         );
     }
 
-    abstract MessageLite emptyResponse();
-
+    /**
+     * Builds the response for a request that had some rejected data points.
+     *
+     * @param rejectedDataPoints the number of data points that were rejected
+     * @param message            a message describing the reason for rejection, which may be included in the response body
+     * @return a MessageLite containing the response message with details about the rejected data points
+     */
     abstract MessageLite responseWithRejectedDataPoints(int rejectedDataPoints, String message);
 
 }

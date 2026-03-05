@@ -514,4 +514,73 @@ public abstract class NodeInfo<T extends Node<?>> {
     public interface NodeCtor10<P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, T> {
         T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9, P10 p10);
     }
+
+    public static <T extends Node<?>, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11> NodeInfo<T> create(
+        T n,
+        NodeCtor11<P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, T> ctor,
+        P1 p1,
+        P2 p2,
+        P3 p3,
+        P4 p4,
+        P5 p5,
+        P6 p6,
+        P7 p7,
+        P8 p8,
+        P9 p9,
+        P10 p10,
+        P11 p11
+    ) {
+        return new NodeInfo<T>(n) {
+            @Override
+            protected List<Object> innerProperties() {
+                return Arrays.asList(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11);
+            }
+
+            protected T innerTransform(Function<Object, Object> rule) {
+                boolean same = true;
+
+                @SuppressWarnings("unchecked")
+                P1 newP1 = (P1) rule.apply(p1);
+                same &= Objects.equals(p1, newP1);
+                @SuppressWarnings("unchecked")
+                P2 newP2 = (P2) rule.apply(p2);
+                same &= Objects.equals(p2, newP2);
+                @SuppressWarnings("unchecked")
+                P3 newP3 = (P3) rule.apply(p3);
+                same &= Objects.equals(p3, newP3);
+                @SuppressWarnings("unchecked")
+                P4 newP4 = (P4) rule.apply(p4);
+                same &= Objects.equals(p4, newP4);
+                @SuppressWarnings("unchecked")
+                P5 newP5 = (P5) rule.apply(p5);
+                same &= Objects.equals(p5, newP5);
+                @SuppressWarnings("unchecked")
+                P6 newP6 = (P6) rule.apply(p6);
+                same &= Objects.equals(p6, newP6);
+                @SuppressWarnings("unchecked")
+                P7 newP7 = (P7) rule.apply(p7);
+                same &= Objects.equals(p7, newP7);
+                @SuppressWarnings("unchecked")
+                P8 newP8 = (P8) rule.apply(p8);
+                same &= Objects.equals(p8, newP8);
+                @SuppressWarnings("unchecked")
+                P9 newP9 = (P9) rule.apply(p9);
+                same &= Objects.equals(p9, newP9);
+                @SuppressWarnings("unchecked")
+                P10 newP10 = (P10) rule.apply(p10);
+                same &= Objects.equals(p10, newP10);
+                @SuppressWarnings("unchecked")
+                P11 newP11 = (P11) rule.apply(p11);
+                same &= Objects.equals(p11, newP11);
+
+                return same
+                    ? node
+                    : ctor.apply(node.source(), newP1, newP2, newP3, newP4, newP5, newP6, newP7, newP8, newP9, newP10, newP11);
+            }
+        };
+    }
+
+    public interface NodeCtor11<P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11, T> {
+        T apply(Source l, P1 p1, P2 p2, P3 p3, P4 p4, P5 p5, P6 p6, P7 p7, P8 p8, P9 p9, P10 p10, P11 p11);
+    }
 }

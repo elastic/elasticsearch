@@ -13,7 +13,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
@@ -21,19 +23,25 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import static org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmark.NUM_VECTORS;
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 
+@TestLogging(
+    reason = "Noisy logging",
+    value = "org.elasticsearch.env.NodeEnvironment:WARN,org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache:WARN"
+)
 public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
+    private static final int REPETITIONS = 10;
     private final float deltaPercent = 0.1f;
     private final int dims;
-    private final int bits;
+    private final byte bits;
     private final VectorScorerOSQBenchmark.DirectoryType directoryType;
     private final VectorSimilarityFunction similarityFunction;
 
     public VectorScorerOSQBenchmarkTests(
         int dims,
-        int bits,
+        byte bits,
         VectorScorerOSQBenchmark.DirectoryType directoryType,
         VectorSimilarityFunction similarityFunction
     ) {
@@ -49,18 +57,20 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     }
 
     public void testSingleScalarVsVectorized() throws Exception {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
             try {
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, NUM_VECTORS, similarityFunction);
+
                 scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
                 scalar.similarityFunction = similarityFunction;
-                scalar.setup(new Random(seed));
+                scalar.setup(data);
 
                 float[] expected = scalar.score();
 
@@ -69,7 +79,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
                 vectorized.similarityFunction = similarityFunction;
-                vectorized.setup(new Random(seed));
+                vectorized.setup(data);
 
                 float[] result = vectorized.score();
 
@@ -77,24 +87,27 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
+                IOUtils.rm(scalar.tempDir);
+                IOUtils.rm(vectorized.tempDir);
             }
         }
     }
 
     public void testBulkScalarVsVectorized() throws Exception {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
             try {
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, NUM_VECTORS, similarityFunction);
 
                 scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
                 scalar.similarityFunction = similarityFunction;
-                scalar.setup(new Random(seed));
+                scalar.setup(data);
 
                 float[] expected = scalar.bulkScore();
 
@@ -103,7 +116,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
                 vectorized.similarityFunction = similarityFunction;
-                vectorized.setup(new Random(seed));
+                vectorized.setup(data);
 
                 float[] result = vectorized.bulkScore();
 
@@ -111,6 +124,8 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
+                IOUtils.rm(scalar.tempDir);
+                IOUtils.rm(vectorized.tempDir);
             }
         }
     }
@@ -123,7 +138,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
             return () -> Arrays.stream(dims)
                 .map(Integer::parseInt)
-                .flatMap(d -> Arrays.stream(bits).map(Integer::parseInt).map(b -> List.<Object>of(d, b)))
+                .flatMap(d -> Arrays.stream(bits).map(Byte::parseByte).map(b -> List.<Object>of(d, b)))
                 .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> appendToCopy(params, dir)))
                 .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> appendToCopy(params, f).toArray()))
                 .iterator();

@@ -1,0 +1,25 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "within_series",
+  "name" : "first_over_time",
+  "description" : "Returns the first value of each time series in the specified time range.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "range_vector",
+          "optional" : false,
+          "description" : "Range vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "first_over_time(http_requests_total[1h])"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

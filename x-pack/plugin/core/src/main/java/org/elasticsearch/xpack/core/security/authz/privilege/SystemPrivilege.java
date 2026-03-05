@@ -27,6 +27,7 @@ public final class SystemPrivilege extends Privilege {
 
     private static final Predicate<String> ALLOWED_ACTIONS = StringMatcher.of(
         "internal:*",
+        "cluster:internal/readiness",
         "indices:monitor/*", // added for monitoring
         "cluster:monitor/*",  // added for monitoring
         "cluster:admin/bootstrap/*", // for the bootstrap service
@@ -46,7 +47,7 @@ public final class SystemPrivilege extends Privilege {
         CompletionPersistentTaskAction.INSTANCE.name(), // needed for ShardFollowTaskCleaner
         "indices:data/write/*", // needed for SystemIndexMigrator
         "indices:data/read/*", // needed for SystemIndexMigrator
-        "indices:admin/refresh", // needed for SystemIndexMigrator
+        "indices:admin/refresh*", // needed for SystemIndexMigrator and resharding
         "indices:admin/aliases", // needed for SystemIndexMigrator
         TransportCreateIndexAction.TYPE.name() + "*", // needed for SystemIndexMigrator
         TransportAddIndexBlockAction.TYPE.name() + "*", // needed for SystemIndexMigrator

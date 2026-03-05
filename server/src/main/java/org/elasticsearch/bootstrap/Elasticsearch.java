@@ -35,7 +35,6 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
@@ -355,10 +354,11 @@ class Elasticsearch {
             try {
                 // The command doesn't matter; it doesn't even need to exist
                 startProcess.accept(new ProcessBuilder(""));
-            } catch (NotEntitledException e) {
-                return;
             } catch (Exception e) {
-                throw new IllegalStateException("Failed entitlement protection self-test", e);
+                if (e.getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException") == false) {
+                    throw new IllegalStateException("Failed entitlement protection self-test", e);
+                }
+                return;
             }
             throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
         }

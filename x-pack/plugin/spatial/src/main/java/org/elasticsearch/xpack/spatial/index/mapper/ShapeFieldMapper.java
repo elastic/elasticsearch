@@ -133,6 +133,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 orientation.get().value(),
                 parser,
                 context.isSourceSynthetic(),
+                version,
                 meta.get()
             );
             return new ShapeFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
@@ -158,9 +159,10 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             Orientation orientation,
             Parser<Geometry> parser,
             boolean isSyntheticSource,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues), false, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), false, parser, orientation, indexCreatedVersion, meta);
             this.isSyntheticSource = isSyntheticSource;
         }
 
@@ -206,6 +208,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
                 return new CartesianBoundsBlockLoader(name());
             }
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.DOC_VALUES
+                && hasDocValues()
+                && supportsGeometryDocValueReconstruction()) {
+                return new CartesianGeometryBlockLoader(name());
+            }
 
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
@@ -228,6 +235,12 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 builder.appendInt(extent.top);
                 builder.appendInt(extent.bottom);
                 builder.endPositionEntry();
+            }
+        }
+
+        static class CartesianGeometryBlockLoader extends GeometryBlockLoader {
+            CartesianGeometryBlockLoader(String fieldName) {
+                super(fieldName, CoordinateEncoder.CARTESIAN);
             }
         }
     }

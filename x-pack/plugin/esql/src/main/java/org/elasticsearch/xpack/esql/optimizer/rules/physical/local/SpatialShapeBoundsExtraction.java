@@ -54,6 +54,7 @@ public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<Agg
         if (foundAttributes.isEmpty()) {
             return aggregate;
         }
+        log.debug("Updating plan to mark [{}] for doc-values bounds extraction", foundAttributes);
         return aggregate.transformDown(PhysicalPlan.class, exec -> switch (exec) {
             case AggregateExec agg -> transformAggregateExec(agg, foundAttributes);
             case FieldExtractExec fieldExtractExec -> transformFieldExtractExec(fieldExtractExec, foundAttributes);

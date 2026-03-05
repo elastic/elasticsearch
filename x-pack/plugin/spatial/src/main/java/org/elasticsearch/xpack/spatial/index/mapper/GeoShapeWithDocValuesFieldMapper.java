@@ -214,6 +214,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 scriptValues(),
                 geoFormatterFactory,
                 context.isSourceSynthetic(),
+                version,
                 meta.get()
             );
             hasScript = script.get() != null;
@@ -245,9 +246,10 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             FieldValues<Geometry> scriptValues,
             GeoFormatterFactory<Geometry> geoFormatterFactory,
             boolean isSyntheticSource,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), isStored, parser, orientation, indexCreatedVersion, meta);
             this.scriptValues = scriptValues;
             this.geoFormatterFactory = geoFormatterFactory;
             this.isSyntheticSource = isSyntheticSource;
@@ -329,6 +331,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
                 return new GeoBoundsBlockLoader(name());
             }
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.DOC_VALUES
+                && hasDocValues()
+                && supportsGeometryDocValueReconstruction()) {
+                return new GeoGeometryBlockLoader(name());
+            }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
@@ -341,6 +348,12 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
             GeoBoundsBlockLoader(String fieldName) {
                 super(fieldName);
+            }
+        }
+
+        static class GeoGeometryBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.GeometryBlockLoader {
+            GeoGeometryBlockLoader(String fieldName) {
+                super(fieldName, CoordinateEncoder.GEO);
             }
         }
     }
@@ -437,7 +450,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.GEO);
                 context.doc().addWithKey(name, docValuesField);
             }
-            // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
+            // we pass the original geometry for both precise centroid calculation, and persisted geometry topology
             docValuesField.add(fields, geometry);
         } else if (indexed) {
             context.addToFieldNames(fieldType().name());

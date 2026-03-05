@@ -66,6 +66,14 @@ public interface SearchStats {
     }
 
     /**
+     * Returns true if the field's doc-values support full geometry reconstruction. This is used by the
+     * optimizer to decide whether shape fields can be read from doc-values instead of source.
+     */
+    default boolean supportsGeometryDocValueReconstruction(FieldName name) {
+        return false;
+    }
+
+    /**
      * Returns the target shards and their index metadata.
      */
     Map<ShardId, IndexMetadata> targetShards();

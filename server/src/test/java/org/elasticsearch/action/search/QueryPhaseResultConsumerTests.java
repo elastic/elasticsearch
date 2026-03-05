@@ -66,9 +66,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     public void setup() {
         searchPhaseController = new SearchPhaseController((t, s) -> new AggregationReduceContext.Builder() {
             @Override
-            public AggregationReduceContext forPartialReduction(
-                @Nullable List<org.elasticsearch.search.SearchHits> topHitsToRelease
-            ) {
+            public AggregationReduceContext forPartialReduction(@Nullable List<org.elasticsearch.search.SearchHits> topHitsToRelease) {
                 return new AggregationReduceContext.ForPartial(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
@@ -80,9 +78,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             }
 
             @Override
-            public AggregationReduceContext forFinalReduction(
-                @Nullable List<org.elasticsearch.search.SearchHits> topHitsToRelease
-            ) {
+            public AggregationReduceContext forFinalReduction(@Nullable List<org.elasticsearch.search.SearchHits> topHitsToRelease) {
                 return new AggregationReduceContext.ForFinal(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,

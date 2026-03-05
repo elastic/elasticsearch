@@ -528,8 +528,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testMaxBooleanClause() {
-        MatchQueryParser query = new MatchQueryParser(createSearchExecutionContext(), new MaxClauseCountQueryVisitor(
-            IndexSearcher.getMaxClauseCount())
+        MatchQueryParser query = new MatchQueryParser(
+            createSearchExecutionContext(),
+            new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount())
         );
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraph(40)));
         expectThrows(IndexSearcher.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));

@@ -541,6 +541,7 @@ public final class LuceneSliceQueue {
             return results;
         }
 
+        // should we execute from small to big?
         private List<PartialLeafReaderContext> shuffle(Collection<PartialLeafReaderContext> leaves) {
             List<PartialLeafReaderContext> shuffled = new ArrayList<>(leaves);
             Randomness.shuffle(shuffled);

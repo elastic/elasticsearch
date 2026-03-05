@@ -263,32 +263,28 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
             float[] scores,
             int bulkSize,
             int limit,
-            long offset,
             float ay,
             float ly,
             float y1,
             float maxScore
         ) {
             for (int j = limit; j < bulkSize; j++) {
-                float ax = memorySegment.get(
-                    ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + (long) j * Float.BYTES
-                );
+                float ax = memorySegment.get(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN), (long) j * Float.BYTES);
 
                 float lx = memorySegment.get(
                     ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + 4L * bulkSize + (long) j * Float.BYTES
+                    4L * bulkSize + (long) j * Float.BYTES
                 );
                 lx = (lx - ax) * indexBitScale;
 
                 int targetComponentSum = memorySegment.get(
                     ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + 8L * bulkSize + (long) j * Integer.BYTES
+                    8L * bulkSize + (long) j * Integer.BYTES
                 );
 
                 float additionalCorrection = memorySegment.get(
                     ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + 12L * bulkSize + (long) j * Float.BYTES
+                    12L * bulkSize + (long) j * Float.BYTES
                 );
 
                 float qcDist = scores[j];

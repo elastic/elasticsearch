@@ -478,14 +478,15 @@ public class BlockAccountingTests extends ComputeTestCase {
 
     public void testBytesRefArrayVectorRamOverestimate() {
         BlockFactory blockFactory = blockFactory();
-        int positionCount = 1100;
-        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofKb(1).getBytes()))) {
-            // value length of 5 does not trigger the overestimate, value length of 1Kb triggers the overestimation.
+        int positionCount = 5;
+        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()))) {
+            // value length of 5 does not trigger the overestimate, value length of 2Mb triggers the overestimation.
             BytesRefArray input = bytesRefArray(positionCount, valueLength, blockFactory.bigArrays());
             BytesRefVector vector = blockFactory.newBytesRefArrayVector(input, positionCount);
             long valueSize = RamUsageEstimator.sizeOf(input);
             long base = BytesRefArrayVector.BASE_RAM_BYTES_USED;
-            long expectedSize = (valueSize <= blockFactory().bytesRefRamOverestimateThreshold()
+            long avgValueSize = valueSize / positionCount;
+            long expectedSize = (avgValueSize <= blockFactory().bytesRefRamOverestimateThreshold()
                 ? valueSize
                 : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
             assertEquals(expectedSize, vector.ramBytesUsed());
@@ -502,7 +503,7 @@ public class BlockAccountingTests extends ComputeTestCase {
             BytesRefVector vector = blockFactory.newConstantBytesRefVector(input, 1);
             long valueSize = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + input.length);
             long base = ConstantBytesRefVector.BASE_RAM_BYTES_USED;
-            long expectedSize = (valueSize <= blockFactory().bytesRefRamOverestimateThreshold()
+            long expectedSize = (input.length <= blockFactory().bytesRefRamOverestimateThreshold()
                 ? valueSize
                 : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
             assertEquals(expectedSize, vector.ramBytesUsed());
@@ -513,9 +514,9 @@ public class BlockAccountingTests extends ComputeTestCase {
 
     public void testBytesRefArrayBlockRamOverestimate() {
         BlockFactory blockFactory = blockFactory();
-        int positionCount = 1100;
-        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofKb(1).getBytes()))) {
-            // value length of 5 does not trigger the overestimate, value length of 1Kb triggers the overestimation.
+        int positionCount = 5;
+        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()))) {
+            // value length of 5 does not trigger the overestimate, value length of 2Mb triggers the overestimation.
             BytesRefArray input = bytesRefArray(positionCount, valueLength, blockFactory.bigArrays());
             BytesRefBlock block = blockFactory.newBytesRefArrayBlock(
                 input,
@@ -525,8 +526,9 @@ public class BlockAccountingTests extends ComputeTestCase {
                 randomFrom(Block.MvOrdering.values())
             );
             long valueSize = RamUsageEstimator.sizeOf(input);
+            long avgValueSize = valueSize / positionCount;
             long base = BytesRefArrayBlock.BASE_RAM_BYTES_USED + BytesRefArrayVector.BASE_RAM_BYTES_USED;
-            long expectedSize = (valueSize <= blockFactory().bytesRefRamOverestimateThreshold()
+            long expectedSize = (avgValueSize <= blockFactory().bytesRefRamOverestimateThreshold()
                 ? valueSize
                 : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
             assertEquals(expectedSize, block.ramBytesUsed());
@@ -536,13 +538,15 @@ public class BlockAccountingTests extends ComputeTestCase {
     }
 
     public void testBytesRefVectorBuilderRamOverestimate() {
-        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofKb(1).getBytes()))) {
-            // value length of 5 does not trigger the overestimate, value length of 1Kb triggers the overestimation.
-            Tuple<BytesRefVector, Long> vectorAndSize = bytesRefVectorBuilder(1100, valueLength);
+        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()))) {
+            // value length of 5 does not trigger the overestimate, value length of 2Mb triggers the overestimation.
+            int positionCount = 5;
+            Tuple<BytesRefVector, Long> vectorAndSize = bytesRefVectorBuilder(positionCount, valueLength);
             BytesRefVector vector = vectorAndSize.v1();
             long valueSize = vectorAndSize.v2();
             long base = BytesRefArrayVector.BASE_RAM_BYTES_USED;
-            long expectedSize = (valueSize <= blockFactory().bytesRefRamOverestimateThreshold()
+            long avgValueSize = valueSize / positionCount;
+            long expectedSize = (avgValueSize <= blockFactory().bytesRefRamOverestimateThreshold()
                 ? valueSize
                 : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
             assertEquals(expectedSize, vector.ramBytesUsed());
@@ -556,7 +560,7 @@ public class BlockAccountingTests extends ComputeTestCase {
             BytesRefVector vector = vectorAndSize.v1();
             long valueSize = vectorAndSize.v2();
             long base = ConstantBytesRefVector.BASE_RAM_BYTES_USED;
-            long expectedSize = (valueSize <= blockFactory().bytesRefRamOverestimateThreshold()
+            long expectedSize = (valueLength <= blockFactory().bytesRefRamOverestimateThreshold()
                 ? valueSize
                 : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
             assertEquals(expectedSize, vector.ramBytesUsed());
@@ -586,13 +590,15 @@ public class BlockAccountingTests extends ComputeTestCase {
     }
 
     public void testBytesRefBlockBuilderRamOverestimate() {
-        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofKb(1).getBytes()))) {
-            // value length of 5 does not trigger the overestimate, value length of 1Kb triggers the overestimation.
-            Tuple<BytesRefBlock, Long> vectorAndSize = bytesRefBlockBuilder(1100, valueLength);
+        for (Integer valueLength : List.of(5, Math.toIntExact(ByteSizeValue.ofMb(2).getBytes()))) {
+            // value length of 5 does not trigger the overestimate, value length of 2Mb triggers the overestimation.
+            int positionCount = 5;
+            Tuple<BytesRefBlock, Long> vectorAndSize = bytesRefBlockBuilder(positionCount, valueLength);
             BytesRefBlock block = vectorAndSize.v1();
             long valueSize = vectorAndSize.v2();
             long base = BytesRefArrayVector.BASE_RAM_BYTES_USED;
-            long expectedSize = (valueSize <= blockFactory().bytesRefRamOverestimateThreshold()
+            long avgValueSize = valueSize / positionCount;
+            long expectedSize = (avgValueSize <= blockFactory().bytesRefRamOverestimateThreshold()
                 ? valueSize
                 : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
             assertEquals(expectedSize, block.ramBytesUsed());
@@ -606,7 +612,7 @@ public class BlockAccountingTests extends ComputeTestCase {
             BytesRefBlock block = vectorAndSize.v1();
             long valueSize = vectorAndSize.v2();
             long base = ConstantBytesRefVector.BASE_RAM_BYTES_USED;
-            long expectedSize = (valueSize <= blockFactory().bytesRefRamOverestimateThreshold()
+            long expectedSize = (valueLength <= blockFactory().bytesRefRamOverestimateThreshold()
                 ? valueSize
                 : Math.round(valueSize * blockFactory().bytesRefRamOverestimateFactor())) + base;
             assertEquals(expectedSize, block.ramBytesUsed());

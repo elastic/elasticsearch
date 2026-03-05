@@ -776,9 +776,7 @@ public class ModelRegistry implements ClusterStateListener {
             return;
         }
 
-        var modelsWithoutDuplicates = models.stream().distinct().toList();
-
-        Set<String> duplicateInferenceIds = findDuplicateInferenceIds(modelsWithoutDuplicates);
+        Set<String> duplicateInferenceIds = findDuplicateInferenceIds(models);
         if (duplicateInferenceIds.isEmpty() == false) {
             listener.onFailure(
                 new IllegalArgumentException(
@@ -790,7 +788,7 @@ public class ModelRegistry implements ClusterStateListener {
 
         var bulkRequestBuilder = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        for (var model : modelsWithoutDuplicates) {
+        for (var model : models) {
             bulkRequestBuilder.add(
                 createIndexRequestBuilder(
                     model.getInferenceEntityId(),
@@ -812,7 +810,7 @@ public class ModelRegistry implements ClusterStateListener {
             );
         }
 
-        bulkRequestBuilder.execute(getStoreMultipleModelsListener(modelsWithoutDuplicates, updateClusterState, listener, timeout));
+        bulkRequestBuilder.execute(getStoreMultipleModelsListener(models, updateClusterState, listener, timeout));
     }
 
     private Set<String> findDuplicateInferenceIds(List<Model> models) {

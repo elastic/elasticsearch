@@ -814,40 +814,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(model.taskType(), Matchers.is(expected.getConfigurations().getTaskType()));
     }
 
-    public void testStoreModels_StoresOneModel_IgnoresDuplicateIdenticalModel() {
-        var secrets = "secret";
-        var inferenceId = "1";
-        var temperature = randomInt(3);
-
-        var model1 = new TestModel(
-            inferenceId,
-            TaskType.SPARSE_EMBEDDING,
-            "foo",
-            new TestModel.TestServiceSettings(null, null, null, null),
-            new TestModel.TestTaskSettings(temperature),
-            new TestModel.TestSecretSettings(secrets)
-        );
-
-        var model2 = new TestModel(
-            inferenceId,
-            TaskType.SPARSE_EMBEDDING,
-            "foo",
-            new TestModel.TestServiceSettings(null, null, null, null),
-            new TestModel.TestTaskSettings(temperature),
-            new TestModel.TestSecretSettings(secrets)
-        );
-
-        PlainActionFuture<List<ModelStoreResponse>> storeListener = new PlainActionFuture<>();
-        modelRegistry.storeModels(List.of(model1, model1, model2), randomBoolean(), storeListener, TimeValue.THIRTY_SECONDS);
-
-        var response = storeListener.actionGet(TimeValue.THIRTY_SECONDS);
-        assertThat(response.size(), Matchers.is(1));
-        assertThat(response.get(0), Matchers.is(new ModelStoreResponse(inferenceId, RestStatus.CREATED, null)));
-
-        assertModelAndMinimalSettingsWithSecrets(modelRegistry, model1, secrets);
-        assertIndicesContainExpectedDocsCount(model1, 2);
-    }
-
     public void testStoreModels_FailsGivenDuplicateInferenceIds() {
         var secrets = "secret";
         var inferenceId = "1";

@@ -1720,14 +1720,12 @@ public class TransportSearchActionTests extends ESTestCase {
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = 0;
         final String[] indices = { "test-1" };
-        final ProjectId project = randomProjectIdOrDefault();
         final ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
-            project,
             indices,
             numberOfShards,
             numberOfReplicas
         );
-        final IndexMetadata indexMetadata = clusterState.metadata().getProject(project).index("test-1");
+        final IndexMetadata indexMetadata = clusterState.metadata().index("test-1");
 
         Map<ShardId, SearchContextIdForNode> contexts = new HashMap<>();
         Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
@@ -1747,7 +1745,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
         // Add remaining shards with valid nodes
         for (int id = 1; id < numberOfShards; id++) {
-            final IndexRoutingTable routingTable = clusterState.routingTable(project).index(indexMetadata.getIndex());
+            final IndexRoutingTable routingTable = clusterState.routingTable().index(indexMetadata.getIndex());
             String targetNode = randomFrom(routingTable.shard(id).assignedShards()).currentNodeId();
             contexts.put(
                 new ShardId(indexMetadata.getIndex(), id),
@@ -1765,7 +1763,7 @@ public class TransportSearchActionTests extends ESTestCase {
         SearchContextMissingNodesException exception = expectThrows(
             SearchContextMissingNodesException.class,
             () -> TransportSearchAction.getLocalShardsIteratorFromPointInTime(
-                clusterState.projectState(project),
+                clusterState,
                 IndicesOptions.strictExpandOpen(),
                 null,
                 new SearchContextId(contexts, aliasFilterMap),
@@ -1785,14 +1783,12 @@ public class TransportSearchActionTests extends ESTestCase {
         final int numberOfShards = randomIntBetween(2, 5);
         final int numberOfReplicas = 0;
         final String[] indices = { "test-1" };
-        final ProjectId project = randomProjectIdOrDefault();
         final ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
-            project,
             indices,
             numberOfShards,
             numberOfReplicas
         );
-        final IndexMetadata indexMetadata = clusterState.metadata().getProject(project).index("test-1");
+        final IndexMetadata indexMetadata = clusterState.metadata().index("test-1");
 
         Map<ShardId, SearchContextIdForNode> contexts = new HashMap<>();
         Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
@@ -1809,7 +1805,7 @@ public class TransportSearchActionTests extends ESTestCase {
         aliasFilterMap.put(indexMetadata.getIndexUUID(), AliasFilter.EMPTY);
 
         for (int id = 1; id < numberOfShards; id++) {
-            final IndexRoutingTable routingTable = clusterState.routingTable(project).index(indexMetadata.getIndex());
+            final IndexRoutingTable routingTable = clusterState.routingTable().index(indexMetadata.getIndex());
             String targetNode = randomFrom(routingTable.shard(id).assignedShards()).currentNodeId();
             contexts.put(
                 new ShardId(indexMetadata.getIndex(), id),
@@ -1825,7 +1821,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String encodedPitId = "test-pit-id-" + UUIDs.randomBase64UUID();
 
         List<SearchShardIterator> iterators = TransportSearchAction.getLocalShardsIteratorFromPointInTime(
-            clusterState.projectState(project),
+            clusterState,
             IndicesOptions.strictExpandOpen(),
             null,
             new SearchContextId(contexts, aliasFilterMap),

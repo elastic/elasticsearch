@@ -44,7 +44,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -114,8 +114,7 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
 
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, TestShutdownParams params, PersistentTaskState state) {
-            safeAwait(l -> task.addListener(() -> l.onResponse(null)));
-            task.markAsCompleted();
+            task.addListener(task::markAsCompleted);
         }
     }
 
@@ -131,14 +130,16 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
 
         static volatile boolean allowAssignment = true;
 
-        private static final ConcurrentHashMap<String, SubscribableListener<Void>> abortSignals = new ConcurrentHashMap<>();
+        private static final AtomicReference<SubscribableListener<Void>> abortListenerRef = new AtomicReference<>(
+            new SubscribableListener<>()
+        );
 
         /**
          * Signals the {@code nodeOperation} for the given task to call
          * {@link AllocatedPersistentTask#markAsLocallyAborted}.
          */
         static void abortTask(String taskId) {
-            abortSignals.computeIfAbsent(taskId, k -> new SubscribableListener<>()).onResponse(null);
+            abortListenerRef.get().onResponse(null);
         }
 
         TestLocalAbortExecutor(ThreadPool threadPool) {
@@ -162,23 +163,18 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
 
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, TestShutdownParams params, PersistentTaskState state) {
-            final var signal = abortSignals.computeIfAbsent(task.getPersistentTaskId(), k -> new SubscribableListener<>());
-            safeAwait(l -> {
-                // Fired when the task is canceled externally (e.g. test cleanup).
-                task.addListener(() -> {
-                    if (abortSignals.remove(task.getPersistentTaskId()) != null) {
-                        task.markAsCompleted();
-                        l.onResponse(null);
-                    }
-                });
-                // Fired by abortTask(): nodeOperation itself calls markAsLocallyAborted.
-                signal.addListener(ActionListener.running(() -> {
-                    if (abortSignals.remove(task.getPersistentTaskId()) != null) {
+            final var listener = abortListenerRef.get();
+            if (listener == null) {
+                task.addListener(task::markAsCompleted);
+            } else {
+                safeAwait(l -> {
+                    listener.addListener(ActionListener.running(() -> {
+                        abortListenerRef.set(null);
                         task.markAsLocallyAborted("test local abort");
                         l.onResponse(null);
-                    }
-                }));
-            });
+                    }));
+                });
+            }
         }
     }
 
@@ -249,8 +245,6 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
 
     @After
     public void assertNoRunningTasks() throws Exception {
-        TestLocalAbortExecutor.allowAssignment = true;
-        TestLocalAbortExecutor.abortSignals.clear();
         for (String taskName : List.of(TestShutdownParams.OPT_IN_NAME, TestShutdownParams.OPT_OUT_NAME, TestLocalAbortExecutor.NAME)) {
             assertBusy(() -> {
                 assertThat(clusterAdmin().prepareListTasks().setActions(taskName + "[c]").get().getTasks(), empty());
@@ -354,6 +348,7 @@ public class PersistentTasksExecutorShutdownIT extends ESIntegTestCase {
             TestLocalAbortExecutor.allowAssignment = true;
             awaitClusterStateHasTaskAssigned(taskId, TestLocalAbortExecutor.NAME);
         } finally {
+            TestLocalAbortExecutor.allowAssignment = true;
             cancelTask(TestLocalAbortExecutor.NAME);
         }
     }

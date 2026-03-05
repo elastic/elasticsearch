@@ -12,4 +12,3 @@ highlight:
     certain objects from being overwritten. From version 9.4.0 onwards,
     Elasticsearch will verify that the repository implements overwrite
     protection correctly during repository analysis.
-  pr: 143701

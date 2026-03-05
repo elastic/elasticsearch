@@ -19,7 +19,7 @@ restResources {
 }
 
 dependencies {
-  compileOnly project(':x-pack:plugin:core')
+  implementation project(':x-pack:plugin:core')
   testImplementation project(path: ':test:test-clusters')
   testImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":modules:mapper-extras")

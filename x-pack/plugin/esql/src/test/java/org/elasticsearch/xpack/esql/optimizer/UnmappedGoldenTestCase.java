@@ -24,21 +24,15 @@ public abstract class UnmappedGoldenTestCase extends GoldenTestCase {
                 e
             );
         });
-        loadException.ifPresent(e -> {
-            throw new RuntimeException("Load mode failed (but nullify succeeded)", e);
-        });
+        loadException.ifPresent(e -> { throw new RuntimeException("Load mode failed (but nullify succeeded)", e); });
     }
 
     protected void runTestsNullifyOnly(String query, EnumSet<Stage> stages) {
-        tryRunTestsNullifyOnly(query, stages).ifPresent(e -> {
-            throw new RuntimeException("Nullify mode failed", e);
-        });
+        tryRunTestsNullifyOnly(query, stages).ifPresent(e -> { throw new RuntimeException("Nullify mode failed", e); });
     }
 
     protected void runTestsLoadOnly(String query, EnumSet<Stage> stages) {
-        tryRunTestsLoadOnly(query, stages).ifPresent(e -> {
-            throw new RuntimeException("Load mode failed", e);
-        });
+        tryRunTestsLoadOnly(query, stages).ifPresent(e -> { throw new RuntimeException("Load mode failed", e); });
     }
 
     private Optional<Throwable> tryRunTestsNullifyOnly(String query, EnumSet<Stage> stages) {

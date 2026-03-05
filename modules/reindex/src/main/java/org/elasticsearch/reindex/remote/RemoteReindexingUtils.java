@@ -127,9 +127,13 @@ public class RemoteReindexingUtils {
         RestClient client,
         RejectAwareActionListener<Version> delegate
     ) {
-        RetryListener<Version> retryListener = new RetryListener<>(logger, threadPool, backoffPolicy, listener -> {
-            lookupRemoteVersion(listener, threadPool, client);
-        }, delegate);
+        RetryListener<Version> retryListener = new RetryListener<>(
+            logger,
+            threadPool,
+            backoffPolicy,
+            listener -> lookupRemoteVersion(listener, threadPool, client),
+            delegate
+        );
         lookupRemoteVersion(retryListener, threadPool, client);
     }
 

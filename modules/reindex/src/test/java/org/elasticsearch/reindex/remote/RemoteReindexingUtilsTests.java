@@ -51,7 +51,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.reindex.remote.RemoteReindexingUtils.wrapExceptionToPreserveStatus;
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertArrayEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -367,7 +366,7 @@ public class RemoteReindexingUtilsTests extends ESTestCase {
     /**
      * Verifies that lookupRemoteVersionWithRetries propagates failure when retries are exhausted.
      */
-    public void testLookupRemoteVersionWithRetriesExhaustedPropagatesFailure() throws Exception {
+    public void testLookupRemoteVersionWithRetriesExhaustedPropagatesFailure() {
         Response rejectionResponse = rejectionResponse429();
         doAnswer(inv -> {
             ((ResponseListener) inv.getArgument(1)).onFailure(new ResponseException(rejectionResponse));

@@ -664,11 +664,12 @@ EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCou
     });
 
     int i = 0;
+    // each value has <elements> floats, and we iterate over <stride> floats at a time
+    constexpr int elements = sizeof(float32x4_t) / sizeof(f32_t);
     constexpr int stride = sizeof(float32x4_t) / sizeof(f32_t) * batches;
     for (; i < (elementCount & ~(stride - 1)); i += stride) {
-        // each float32x4_t holds 4 floats
         apply_indexed<batches>([&](auto I) {
-            sums[I] = vfmaq_f32(sums[I], vld1q_f32(a + i + I * 4), vld1q_f32(b + i + I * 4));
+            sums[I] = vfmaq_f32(sums[I], vld1q_f32(a + i + I * elements), vld1q_f32(b + i + I * elements));
         });
     }
 
@@ -712,11 +713,12 @@ EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCou
     });
 
     int i = 0;
+    // each value has <elements> floats, and we iterate over <stride> floats at a time
+    constexpr int elements = sizeof(float32x4_t) / sizeof(f32_t);
     constexpr int stride = sizeof(float32x4_t) / sizeof(f32_t) * batches;
     for (; i < (elementCount & ~(stride - 1)); i += stride) {
         apply_indexed<batches>([&](auto I) {
-            float32x4_t d = vsubq_f32(vld1q_f32(a + i + I * 4), vld1q_f32(b + i + I * 4));
-            sums[I] = vmlaq_f32(sums[I], d, d);
+            sums[I] = sqrf32_vector(sums[I], vld1q_f32(a + i + I * elements), vld1q_f32(b + i + I * elements));
         });
     }
 

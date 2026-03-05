@@ -617,10 +617,12 @@ EXPORT f32_t vec_dotf32(const f32_t* a, const f32_t* b, const int32_t elementCou
     });
 
     int i = 0;
+    // each value has <elements> floats, and we iterate over <stride> floats at a time
+    constexpr int elements = sizeof(__m256) / sizeof(f32_t);
     constexpr int stride = sizeof(__m256) / sizeof(f32_t) * batches;
     for (; i < (elementCount & ~(stride - 1)); i += stride) {
         apply_indexed<batches>([&](auto I) {
-            sums[I] = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + I * 8), _mm256_loadu_ps(b + i + I * 8), sums[I]);
+            sums[I] = _mm256_fmadd_ps(_mm256_loadu_ps(a + i + I * elements), _mm256_loadu_ps(b + i + I * elements), sums[I]);
         });
     }
 
@@ -667,11 +669,12 @@ EXPORT f32_t vec_sqrf32(const f32_t* a, const f32_t* b, const int32_t elementCou
     });
 
     int i = 0;
-    // each __m256 holds 8 floats
+    // each value has <elements> floats, and we iterate over <stride> floats at a time
+    constexpr int elements = sizeof(__m256) / sizeof(f32_t);
     constexpr int stride = sizeof(__m256) / sizeof(f32_t) * batches;
     for (; i < (elementCount & ~(stride - 1)); i += stride) {
         apply_indexed<batches>([&](auto I) {
-            sums[I] = sqrf32_vector(_mm256_loadu_ps(a + i + I * 8), _mm256_loadu_ps(b + i + I * 8), sums[I]);
+            sums[I] = sqrf32_vector(_mm256_loadu_ps(a + i + I * elements), _mm256_loadu_ps(b + i + I * elements), sums[I]);
         });
     }
 

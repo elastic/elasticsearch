@@ -19,6 +19,7 @@ import org.apache.parquet.io.ColumnIOFactory;
 import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.MessageColumnIO;
 import org.apache.parquet.io.RecordReader;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -402,21 +402,16 @@ public class ParquetFormatReader implements FormatReader {
         }
 
         private Block createDoubleBlock(List<Group> batch, String fieldName, int fieldIndex, int rowCount) {
+            PrimitiveType.PrimitiveTypeName typeName = batch.get(0).getType().getType(fieldIndex).asPrimitiveType().getPrimitiveTypeName();
+            boolean isFloat = typeName == PrimitiveType.PrimitiveTypeName.FLOAT;
             try (var builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
                 for (Group group : batch) {
                     if (group.getFieldRepetitionCount(fieldIndex) == 0) {
                         builder.appendNull();
+                    } else if (isFloat) {
+                        builder.appendDouble(group.getFloat(fieldName, 0));
                     } else {
-                        // Handle both float and double
-                        GroupType groupType = group.getType();
-                        Type fieldType = groupType.getType(fieldIndex);
-                        PrimitiveType primitiveType = fieldType.asPrimitiveType();
-                        PrimitiveType.PrimitiveTypeName typeName = primitiveType.getPrimitiveTypeName();
-                        if (typeName == PrimitiveType.PrimitiveTypeName.FLOAT) {
-                            builder.appendDouble(group.getFloat(fieldName, 0));
-                        } else {
-                            builder.appendDouble(group.getDouble(fieldName, 0));
-                        }
+                        builder.appendDouble(group.getDouble(fieldName, 0));
                     }
                 }
                 return builder.build();
@@ -429,9 +424,8 @@ public class ParquetFormatReader implements FormatReader {
                     if (group.getFieldRepetitionCount(fieldIndex) == 0) {
                         builder.appendNull();
                     } else {
-                        String value = group.getString(fieldName, 0);
-                        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
-                        builder.appendBytesRef(new BytesRef(bytes));
+                        Binary binary = group.getBinary(fieldName, 0);
+                        builder.appendBytesRef(new BytesRef(binary.getBytes()));
                     }
                 }
                 return builder.build();

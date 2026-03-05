@@ -216,7 +216,7 @@ public class ForceMergeStep implements DlmStep {
     private ForceMergeRequest formForceMergeRequest(String index) {
         ForceMergeRequest req = new ForceMergeRequest(index);
         req.maxNumSegments(SINGLE_SEGMENT);
-        req.timeout(TimeValue.timeValueHours(6));
+        req.timeout(TimeValue.MAX_VALUE);
         return req;
     }
 

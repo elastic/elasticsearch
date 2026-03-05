@@ -375,15 +375,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/TS Command grouping on text field}
   issue: https://github.com/elastic/elasticsearch/issues/142544
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification single index float type}
-  issue: https://github.com/elastic/elasticsearch/issues/143430
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/143551
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
-  issue: https://github.com/elastic/elasticsearch/issues/143609
 - class: org.elasticsearch.index.query.PrefixQueryBuilderTests
   method: testPrefixCircuitBreakerTripsWithLowLimit
   issue: https://github.com/elastic/elasticsearch/issues/143548

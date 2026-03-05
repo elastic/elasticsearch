@@ -321,7 +321,7 @@ public class IndexShardSnapshotStatus {
     public synchronized IndexShardSnapshotStatus.Copy asCopy() {
         return new IndexShardSnapshotStatus.Copy(
             stage.get(),
-            startTimeMillis,
+            startTimeMillis < 0 ? 0 : startTimeMillis,
             totalTimeMillis,
             incrementalFileCount,
             totalFileCount,

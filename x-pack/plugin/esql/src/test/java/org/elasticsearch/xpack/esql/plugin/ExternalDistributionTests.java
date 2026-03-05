@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -30,10 +33,13 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -395,6 +401,106 @@ public class ExternalDistributionTests extends ESTestCase {
         assertEquals("Splits should be injected", 2, sources.get(0).splits().size());
     }
 
+    // --- Field retention through local optimization tests ---
+
+    /**
+     * Verifies that external source fields survive local plan optimization with empty SearchStats.
+     * ReplaceFieldWithConstantOrNull must not replace external fields with null.
+     * Without the fix, the optimizer inserts Eval(field=null) + Project nodes above the source.
+     */
+    public void testLocalPlanRetainsExternalSourceFields() {
+        ExternalRelation external = createMultiFieldExternalRelation();
+        Attribute salaryAttr = external.output().get(1);
+        Expression filterCondition = new GreaterThan(SRC, salaryAttr, new Literal(SRC, 50000, DataType.INTEGER), null);
+        Filter filter = new Filter(SRC, external, filterCondition);
+        FragmentExec fragment = new FragmentExec(filter);
+        ExchangeSinkExec sink = new ExchangeSinkExec(SRC, external.output(), false, fragment);
+
+        PhysicalPlan expanded = runLocalPlan(sink);
+
+        ExchangeSinkExec expandedSink = (ExchangeSinkExec) expanded;
+        // The filter must survive -- without the fix, the field reference in the filter condition
+        // is replaced with null by ReplaceFieldWithConstantOrNull, causing PruneFilters to remove it
+        boolean hasFilter = expandedSink.anyMatch(n -> n instanceof FilterExec);
+        assertTrue("Filter on external field must survive local optimization with empty SearchStats", hasFilter);
+    }
+
+    /**
+     * Verifies that a filter referencing external source fields survives local optimization.
+     * With empty SearchStats, the filter condition must not be replaced with null.
+     */
+    public void testLocalPlanRetainsFilterOnExternalFields() {
+        ExternalRelation external = createMultiFieldExternalRelation();
+        Attribute salaryAttr = external.output().get(1);
+        Expression filterCondition = new GreaterThan(SRC, salaryAttr, new Literal(SRC, 50000, DataType.INTEGER), null);
+        Filter filter = new Filter(SRC, external, filterCondition);
+        FragmentExec fragment = new FragmentExec(filter);
+        ExchangeSinkExec sink = new ExchangeSinkExec(SRC, external.output(), false, fragment);
+
+        PhysicalPlan expanded = runLocalPlan(sink);
+
+        ExchangeSinkExec expandedSink = (ExchangeSinkExec) expanded;
+        boolean hasFilter = expandedSink.anyMatch(n -> n instanceof FilterExec);
+        assertTrue("Filter should survive optimization, not be pruned", hasFilter);
+    }
+
+    /**
+     * Verifies that eval expressions referencing external source fields produce non-null results.
+     */
+    public void testLocalPlanRetainsEvalOnExternalFields() {
+        ExternalRelation external = createMultiFieldExternalRelation();
+        Attribute salaryAttr = external.output().get(1);
+        var alias = new org.elasticsearch.xpack.esql.core.expression.Alias(SRC, "abs_salary", new Abs(SRC, salaryAttr));
+        Eval eval = new Eval(SRC, external, List.of(alias));
+        FragmentExec fragment = new FragmentExec(eval);
+        ExchangeSinkExec sink = new ExchangeSinkExec(SRC, eval.output(), false, fragment);
+
+        PhysicalPlan expanded = runLocalPlan(sink);
+
+        ExchangeSinkExec expandedSink = (ExchangeSinkExec) expanded;
+        boolean hasEval = expandedSink.anyMatch(n -> n instanceof EvalExec);
+        assertTrue("Eval should survive optimization", hasEval);
+        boolean hasExternalSource = expandedSink.anyMatch(n -> n instanceof ExternalSourceExec);
+        assertTrue("ExternalSourceExec should be present", hasExternalSource);
+    }
+
+    /**
+     * Verifies that collapseExternalSourceExchanges resets TopNExec InputOrdering
+     * when the exchange is removed and the TopN sits directly above a FragmentExec.
+     */
+    public void testCollapseResetsTopNInputOrdering() {
+        ExternalRelation external = createExternalRelation();
+        TopN topN = new TopN(
+            SRC,
+            external,
+            List.of(new Order(SRC, external.output().get(0), Order.OrderDirection.ASC, Order.NullsPosition.LAST)),
+            new Literal(SRC, 10, DataType.INTEGER),
+            false
+        );
+        FragmentExec fragment = new FragmentExec(topN);
+        ExchangeExec exchange = new ExchangeExec(SRC, fragment);
+        TopNExec topNExec = new TopNExec(
+            SRC,
+            exchange,
+            List.of(new Order(SRC, external.output().get(0), Order.OrderDirection.ASC, Order.NullsPosition.LAST)),
+            new Literal(SRC, 10, DataType.INTEGER),
+            null
+        ).withSortedInput();
+
+        assertEquals("Precondition: TopNExec should have SORTED ordering", InputOrdering.SORTED, topNExec.inputOrdering());
+
+        PhysicalPlan collapsed = ComputeService.collapseExternalSourceExchanges(topNExec);
+
+        assertTrue("Expected TopNExec at top", collapsed instanceof TopNExec);
+        TopNExec collapsedTopN = (TopNExec) collapsed;
+        assertEquals(
+            "InputOrdering should be reset to NOT_SORTED after collapse",
+            InputOrdering.NOT_SORTED,
+            collapsedTopN.inputOrdering()
+        );
+        assertTrue("Expected FragmentExec child", collapsedTopN.child() instanceof FragmentExec);
+    }
+
     // --- Helpers ---
 
     private static PhysicalPlan runLocalPlan(PhysicalPlan plan) {
@@ -413,6 +519,16 @@ public class ExternalDistributionTests extends ESTestCase {
     private static ExternalRelation createExternalRelation() {
         List<Attribute> output = List.of(
             new FieldAttribute(SRC, "name", new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
+        return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, null);
+    }
+
+    private static ExternalRelation createMultiFieldExternalRelation() {
+        List<Attribute> output = List.of(
+            new FieldAttribute(SRC, "name", new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+            new FieldAttribute(SRC, "salary", new EsField("salary", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+            new FieldAttribute(SRC, "age", new EsField("age", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
         );
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
         return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, null);

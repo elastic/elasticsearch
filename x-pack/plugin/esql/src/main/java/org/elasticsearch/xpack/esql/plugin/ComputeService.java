@@ -77,6 +77,8 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -264,7 +266,7 @@ public class ComputeService {
     ExternalDistributionResult applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
         List<ExternalSplit> externalSplits = collectExternalSplits(plan);
         if (externalSplits.isEmpty()) {
-            return new ExternalDistributionResult(plan, null, List.of());
+            return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
         }
 
         ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(configuration.pragmas());
@@ -327,7 +329,7 @@ public class ComputeService {
     }
 
     static PhysicalPlan collapseExternalSourceExchanges(PhysicalPlan plan) {
-        return plan.transformUp(ExchangeExec.class, exchange -> {
+        PhysicalPlan collapsed = plan.transformUp(ExchangeExec.class, exchange -> {
             if (exchange.child() instanceof ExternalSourceExec) {
                 return exchange.child();
             }
@@ -335,6 +337,12 @@ public class ComputeService {
                 return exchange.child();
             }
             return exchange;
+        });
+        return collapsed.transformUp(TopNExec.class, topN -> {
+            if (topN.inputOrdering() != InputOrdering.NOT_SORTED && topN.child() instanceof FragmentExec) {
+                return topN.withNonSortedInput();
+            }
+            return topN;
         });
     }
 

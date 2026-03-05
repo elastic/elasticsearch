@@ -252,13 +252,13 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                         new ActionListenerResponseHandler<>(groupedListener.delegateResponse((l, failure) -> {
                             logger.info("Error occurred on remote cluster [" + clusterAlias + "]", failure);
                             l.onResponse(Map.entry(clusterAlias, new SearchPlanningPhaseResolutionResult(null, failure)));
-                        }).map(resolveIndexResponse -> Map.entry(
-                            clusterAlias,
-                            new SearchPlanningPhaseResolutionResult(resolveIndexResponse, null)
-                        )),
-                            ResolveIndexAction.Response::new,
-                            EsExecutors.DIRECT_EXECUTOR_SERVICE
-                        )
+                        })
+                            .map(
+                                resolveIndexResponse -> Map.entry(
+                                    clusterAlias,
+                                    new SearchPlanningPhaseResolutionResult(resolveIndexResponse, null)
+                                )
+                            ), ResolveIndexAction.Response::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
                     )
                 ));
 

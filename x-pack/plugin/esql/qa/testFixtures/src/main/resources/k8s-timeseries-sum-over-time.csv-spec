@@ -550,3 +550,27 @@ min:double | step:datetime
 520.0      | 2024-05-10T00:15:00.000Z
 774.0      | 2024-05-10T00:20:00.000Z
 ;
+
+sum_over_time_with_non_multiple_window
+required_capability: ts_command_v0
+required_capability: time_series_window_v1
+required_capability: time_series_window_non_multiple
+
+TS k8s
+| WHERE pod == "one"
+| STATS tx = sum(sum_over_time(network.bytes_in, 7m)) BY cluster, time_bucket = TBUCKET(5minute) 
+| SORT time_bucket, cluster
+| LIMIT 20;
+
+tx:long | cluster:keyword | time_bucket:datetime
+750     | prod            | 2024-05-10T00:05:00.000Z
+1819    | qa              | 2024-05-10T00:05:00.000Z
+604     | staging         | 2024-05-10T00:05:00.000Z
+262     | prod            | 2024-05-10T00:10:00.000Z
+1199    | qa              | 2024-05-10T00:10:00.000Z
+1120    | staging         | 2024-05-10T00:10:00.000Z
+953     | prod            | 2024-05-10T00:15:00.000Z
+219     | qa              | 2024-05-10T00:15:00.000Z
+516     | staging         | 2024-05-10T00:15:00.000Z
+953     | prod            | 2024-05-10T00:20:00.000Z
+;

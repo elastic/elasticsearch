@@ -306,12 +306,26 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                 return r.withIndexMode(indexMode);
             }
         });
+        Bucket userBucket = (Bucket) Alias.unwrap(timeBucket);
+        Bucket internalBucket = computeInternalBucket(userBucket, firstPassAggs);
+        if (internalBucket != null && internalBucket != userBucket) {
+            // Replace the user bucket with the finer-grained internal bucket in the first-pass groupings
+            for (int i = 0; i < firstPassGroupings.size(); i++) {
+                Expression g = firstPassGroupings.get(i);
+                if (g instanceof Alias a && Alias.unwrap(a) instanceof Bucket) {
+                    firstPassGroupings.set(i, new Alias(a.source(), a.name(), internalBucket, a.id()));
+                } else if (g instanceof Attribute attr && timeBucket != null && attr.id().equals(timeBucket.id())) {
+                    firstPassGroupings.set(i, new Alias(timeBucket.source(), timeBucket.name(), internalBucket, timeBucket.id()));
+                }
+            }
+        }
         final var firstPhase = new TimeSeriesAggregate(
             aggregate.source(),
             newChild,
             firstPassGroupings,
             mergeExpressions(firstPassAggs, firstPassGroupings),
-            (Bucket) Alias.unwrap(timeBucket),
+            internalBucket != null ? internalBucket : userBucket,
+            userBucket,
             aggregate.timestamp()
         );
         checkWindow(firstPhase);
@@ -422,7 +436,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         if (hasWindow == false) {
             return;
         }
-        final long bucketInMillis = getTimeBucketInMillis(agg);
+        // Validate against the user-visible output bucket, not the internal (possibly GCD-sized) bucket
+        final Bucket outputBucket = agg.outputTimeBucket() != null ? agg.outputTimeBucket() : agg.timeBucket();
+        final long bucketInMillis = getBucketInMillis(outputBucket);
         if (bucketInMillis <= 0) {
             throw new IllegalArgumentException(
                 "Using a window in aggregation [" + agg.sourceText() + "] requires a time bucket in groupings"
@@ -432,8 +448,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             if (Alias.unwrap(aggregate) instanceof AggregateFunction af && af.hasWindow()) {
                 Expression window = af.window();
                 if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
-                    final long windowInMills = d.toMillis();
-                    if (windowInMills >= bucketInMillis && windowInMills % bucketInMillis == 0) {
+                    final long windowInMillis = d.toMillis();
+                    if (windowInMillis >= bucketInMillis) {
                         continue;
                     }
                 }
@@ -443,17 +459,62 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
                         + "] for aggregate function ["
                         + af.sourceText()
                         + "]; "
-                        + "the window must be larger than the time bucket ["
-                        + Objects.requireNonNull(agg.timeBucket()).sourceText()
-                        + "] and an exact multiple of it"
+                        + "the window must be larger than or equal to the time bucket ["
+                        + Objects.requireNonNull(outputBucket).sourceText()
+                        + "]"
                 );
             }
         }
-
     }
 
-    private long getTimeBucketInMillis(TimeSeriesAggregate agg) {
-        final Bucket bucket = agg.timeBucket();
+    /**
+     * Computes a finer-grained internal bucket when window is not an exact multiple of the user bucket.
+     * The internal bucket size is the GCD of the user bucket and all window durations, ensuring that
+     * both the window and the user bucket are exact multiples of the internal bucket.
+     * Returns the original bucket when no sub-bucketing is needed, or null if no bucket is provided.
+     */
+    Bucket computeInternalBucket(Bucket userBucket, List<NamedExpression> aggregates) {
+        if (userBucket == null) {
+            return null;
+        }
+        if (userBucket.buckets().foldable() == false || (userBucket.buckets().fold(FoldContext.small()) instanceof Duration) == false) {
+            return userBucket;
+        }
+        long bucketMillis = ((Duration) userBucket.buckets().fold(FoldContext.small())).toMillis();
+        if (bucketMillis <= 0) {
+            return userBucket;
+        }
+        long gcdMillis = bucketMillis;
+        boolean hasWindow = false;
+        for (NamedExpression ne : aggregates) {
+            if (Alias.unwrap(ne) instanceof AggregateFunction af && af.hasWindow()) {
+                Expression window = af.window();
+                if (window.foldable() && window.fold(FoldContext.small()) instanceof Duration d) {
+                    long windowMillis = d.toMillis();
+                    if (windowMillis > 0) {
+                        gcdMillis = gcd(gcdMillis, windowMillis);
+                        hasWindow = true;
+                    }
+                }
+            }
+        }
+        if (hasWindow == false || gcdMillis == bucketMillis) {
+            return userBucket;
+        }
+        Literal gcdInterval = Literal.timeDuration(userBucket.buckets().source(), Duration.ofMillis(gcdMillis));
+        return new Bucket(userBucket.source(), userBucket.field(), gcdInterval, null, null, userBucket.configuration());
+    }
+
+    static long gcd(long a, long b) {
+        while (b != 0) {
+            long t = b;
+            b = a % b;
+            a = t;
+        }
+        return a;
+    }
+
+    private long getBucketInMillis(Bucket bucket) {
         if (bucket != null && bucket.buckets().foldable() && bucket.buckets().fold(FoldContext.small()) instanceof Duration d) {
             return d.toMillis();
         }

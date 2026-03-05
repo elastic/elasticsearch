@@ -381,12 +381,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/143407
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/143023
 - class: org.elasticsearch.index.store.StoreDirectoryMetricsIT
   method: testDirectoryMetrics
   issue: https://github.com/elastic/elasticsearch/issues/143419
@@ -417,6 +411,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-irate.Irate_of_double_no_grouping}
   issue: https://github.com/elastic/elasticsearch/issues/143625
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_of_aggregate_metric_double}
+  issue: https://github.com/elastic/elasticsearch/issues/143631
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-delta.Delta_of_double_no_grouping}
+  issue: https://github.com/elastic/elasticsearch/issues/143632
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-avg-over-time.Avg_over_time_of_aggregate_metric_double_grouping}
+  issue: https://github.com/elastic/elasticsearch/issues/143633
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-delta.Delta_of_double_no_grouping_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/143634
 
 # Examples:
 #

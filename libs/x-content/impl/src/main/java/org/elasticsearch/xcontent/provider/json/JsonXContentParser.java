@@ -57,7 +57,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     private static XContentLocation getLocation(JsonProcessingException e) {
         JsonLocation loc = e.getLocation();
         if (loc != null) {
-            return new XContentLocation(loc.getLineNr(), loc.getColumnNr());
+            return new XContentLocation(loc.getLineNr(), loc.getColumnNr(), loc.getByteOffset());
         } else {
             return null;
         }
@@ -311,7 +311,16 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (loc == null) {
             return null;
         }
-        return new XContentLocation(loc.getLineNr(), loc.getColumnNr());
+        return new XContentLocation(loc.getLineNr(), loc.getColumnNr(), loc.getByteOffset());
+    }
+
+    @Override
+    public XContentLocation getCurrentLocation() {
+        JsonLocation loc = parser.getCurrentLocation();
+        if (loc == null) {
+            return null;
+        }
+        return new XContentLocation(loc.getLineNr(), loc.getColumnNr(), loc.getByteOffset());
     }
 
     @Override

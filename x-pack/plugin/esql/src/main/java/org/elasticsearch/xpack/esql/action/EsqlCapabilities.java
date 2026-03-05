@@ -2253,6 +2253,11 @@ public class EsqlCapabilities {
          */
         TS_INFO_COMMAND,
 
+        /**
+         * Dense_vector SUM aggregation function
+         */
+        DENSE_VECTOR_SUM_FUNCTION,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

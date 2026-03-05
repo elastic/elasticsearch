@@ -295,6 +295,29 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
         );
     }
 
+    public void testAliasedGroupingInTsStatsKeepsAliasName() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY foobar = cluster
+            """);
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("max_bytes", "foobar")));
+    }
+
+    public void testAliasedGroupingInTsStatsCanBeUsedInKeep() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL.isEnabled());
+
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY foobar = cluster
+            | KEEP max_bytes, foobar
+            """);
+
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("max_bytes", "foobar")));
+    }
+
     private TimeSeriesAggregate findTimeSeriesAggregate(LogicalPlan plan) {
         Holder<TimeSeriesAggregate> tsAggregateHolder = new Holder<>();
         plan.forEachDown(TimeSeriesAggregate.class, tsAggregateHolder::set);

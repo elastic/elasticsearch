@@ -17,6 +17,9 @@
 
 package org.elasticsearch.xpack.stateless.recovery;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -26,12 +29,23 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
+import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTestUtils;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -47,12 +61,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -67,6 +83,8 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(AvoidListTestStatelessPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
@@ -118,8 +136,9 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         ensureGreen(indexName);
-        assertEquals(2, containerChildrenCalls.get());
-        assertEquals(2, containerListCalls.get());
+        // We expect to see 1 call to each from pre-warming. And no calls from preRecovery.
+        assertEquals(1, containerChildrenCalls.get());
+        assertEquals(1, containerListCalls.get());
     }
 
     public void testRelocatingIndexShardReceivesAllBlobs() throws Exception {
@@ -250,5 +269,156 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         // Relocate back to node A
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeB), indexName);
         ensureGreen(indexName);
+    }
+
+    public void testRelocatingShardExcludesNonUploadedBlobsFromHandoff() throws Exception {
+        var settings = Settings.builder()
+            .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            // Disable hollow shards to let force merge to proceed
+            .put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            .build();
+        startMasterOnlyNode(settings);
+        final String indexNodeA = startIndexNode(settings);
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+
+        for (int i = 0; i < 5; i++) {
+            indexDocs(indexName, between(100, 300));
+            flush(indexName);
+        }
+
+        final var sourceShard = findIndexShard(resolveIndex(indexName), 0);
+        assertNotNull(sourceShard);
+        assertThat(sourceShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+        final var sourceCommitService = ((IndexEngine) sourceShard.getEngineOrNull()).getStatelessCommitService();
+
+        final String indexNodeB = startIndexNode(settings);
+
+        // Capture the blob generations passed in the handoff message on the target node
+        final Set<Long> handoffBlobGenerations = ConcurrentCollections.newConcurrentSet();
+        MockTransportService.getInstance(indexNodeB)
+            .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                var handoffRequest = (TransportStatelessPrimaryRelocationAction.PrimaryContextHandoffRequest) request;
+                var latestBccBlob = handoffRequest.latestBccBlob();
+                if (latestBccBlob != null) {
+                    handoffBlobGenerations.add(latestBccBlob.blobFile().termAndGeneration().generation());
+                }
+                for (var blob : handoffRequest.otherBlobFiles()) {
+                    handoffBlobGenerations.add(blob.termAndGeneration().generation());
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        // Set up latches on the source node's plugin to pause inside getTrackedUploadedBlobFilesUpTo.
+        // At that point markRelocating() has already set state=RELOCATING and maxGenerationToUpload,
+        // so any new commit from a force merge will create a phantom entry.
+        final var plugin = findPlugin(indexNodeA, AvoidListTestStatelessPlugin.class);
+        final CountDownLatch enteredLatch = new CountDownLatch(1);
+        final CountDownLatch blockerLatch = new CountDownLatch(1);
+        plugin.getTrackedBlobFilesEnteredLatch.set(enteredLatch);
+        plugin.getTrackedBlobFilesBlockerLatch.set(blockerLatch);
+
+        // Trigger relocation
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+
+        safeAwait(enteredLatch, TimeValue.timeValueSeconds(30));
+
+        final long preMergeMaxFlushGen = sourceCommitService.getMaxGenerationToUploadForFlush(sourceShard.shardId());
+
+        // Fire force merge asynchronously. The merge itself plus onCommitCreation (which adds the
+        // phantom BlobReference to primaryTermAndGenToBlobReference) will complete, but the
+        // subsequent flush's waitForCommitDurability will block forever because pauseUpload prevents
+        // the upload of the new generation. We don't wait for the client response.
+        client(indexNodeA).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute(ActionListener.noop());
+
+        // Poll until the force merge's flush has advanced maxGenerationToUploadForFlush.
+        // getMaxGenerationToUploadForFlush advances after onCommitCreation (which adds the phantom
+        // entry to primaryTermAndGenToBlobReference) but before waitForCommitDurability (which blocks
+        // because pauseUpload prevents the upload of generations > maxGenerationToUpload).
+        assertBusy(() -> {
+            assertThat(sourceCommitService.getMaxGenerationToUploadForFlush(sourceShard.shardId()), greaterThan(preMergeMaxFlushGen));
+        });
+
+        final long phantomGeneration = sourceCommitService.getMaxGenerationToUploadForFlush(sourceShard.shardId());
+
+        blockerLatch.countDown();
+
+        ensureGreen(indexName);
+
+        plugin.getTrackedBlobFilesEnteredLatch.set(null);
+        plugin.getTrackedBlobFilesBlockerLatch.set(null);
+
+        assertThat(
+            "Handoff blob list should not contain the non-uploaded phantom generation",
+            handoffBlobGenerations,
+            not(hasItem(phantomGeneration))
+        );
+
+        indexDocs(indexName, between(1, 50));
+        flush(indexName);
+        assertNoFailures(indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get());
+        indexDocs(indexName, 1);
+        ensureGreen(indexName);
+    }
+
+    public static class AvoidListTestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
+
+        public final AtomicReference<CountDownLatch> getTrackedBlobFilesEnteredLatch = new AtomicReference<>();
+        public final AtomicReference<CountDownLatch> getTrackedBlobFilesBlockerLatch = new AtomicReference<>();
+
+        public AvoidListTestStatelessPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public Collection<Object> createComponents(PluginServices services) {
+            final Collection<Object> components = super.createComponents(services);
+            components.add(
+                new PluginComponentBinding<>(
+                    StatelessCommitService.class,
+                    components.stream().filter(c -> c instanceof StatelessCommitService).findFirst().orElseThrow()
+                )
+            );
+            return components;
+        }
+
+        @Override
+        protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            IndicesService indicesService,
+            Client client,
+            StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
+            SharedBlobCacheWarmingService cacheWarmingService,
+            TelemetryProvider telemetryProvider
+        ) {
+            return new StatelessCommitService(
+                settings,
+                objectStoreService,
+                clusterService,
+                indicesService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                telemetryProvider
+            ) {
+                @Override
+                public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
+                    CountDownLatch entered = getTrackedBlobFilesEnteredLatch.get();
+                    CountDownLatch blocker = getTrackedBlobFilesBlockerLatch.get();
+                    if (entered != null && blocker != null) {
+                        entered.countDown();
+                        safeAwait(blocker);
+                    }
+                    return super.getTrackedUploadedBlobFilesUpTo(shardId, maxUploadedGeneration);
+                }
+            };
+        }
     }
 }

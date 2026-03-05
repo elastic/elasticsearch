@@ -1035,11 +1035,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return null;
     }
 
-    public Set<BlobFile> getTrackedBlobFiles(ShardId shardId) {
+    /**
+     * Returns all still-tracked blob files that have been uploaded with generation at or below {@code maxUploadedGeneration},
+     * including blobs pending async deletion. Blobs created after relocation started are never uploaded
+     * ({@link ShardCommitState#pauseUpload}) and can be excluded by the caller passing the latest uploaded BCC generation.
+     */
+    public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
         Set<BlobFile> blobFiles = new HashSet<>();
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         // The order of loops is the reverse of BlobReference#closeInternal to avoid missing pending deletes.
         for (var primaryTermAndGeneration : commitState.primaryTermAndGenToBlobReference.keySet()) {
+            if (primaryTermAndGeneration.generation() > maxUploadedGeneration) {
+                continue;
+            }
             blobFiles.add(
                 new BlobFile(
                     StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()),
@@ -1049,6 +1057,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
         // We also need to include all blobs pending deletion as they are deleted asynchronously.
         for (var staleCompoundCommit : commitCleaner.getPendingDeletes(shardId)) {
+            if (staleCompoundCommit.primaryTermAndGeneration().generation() > maxUploadedGeneration) {
+                continue;
+            }
             blobFiles.add(
                 new BlobFile(
                     StatelessCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),

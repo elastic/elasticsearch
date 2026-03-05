@@ -77,4 +77,15 @@ static inline void apply_indexed(F&& f) {
     }
 }
 
+template <typename T>
+static inline auto dot_scalar(T a, T b) {
+    return a * b;
+}
+
+template <typename T>
+static inline auto sqr_scalar(T a, T b) {
+    auto d = a - b;
+    return d * d;
+}
+
 #endif // VEC_COMMON_H

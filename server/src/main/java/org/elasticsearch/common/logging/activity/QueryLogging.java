@@ -30,6 +30,10 @@ public interface QueryLogging {
      */
     String QUERY_FIELD_INDICES = ES_QUERY_FIELDS_PREFIX + "indices";
     /**
+     * Shard stats information - successful, skipped, failed.
+     */
+    String QUERY_FIELD_SHARDS = ES_QUERY_FIELDS_PREFIX + "shards.";
+    /**
      * This is the name Log4j logger will use.
      */
     String QUERY_LOGGER_NAME = "elasticsearch.querylog";

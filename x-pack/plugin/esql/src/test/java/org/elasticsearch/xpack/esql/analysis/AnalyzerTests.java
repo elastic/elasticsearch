@@ -19,6 +19,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -3476,7 +3477,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3487,7 +3488,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3511,7 +3512,7 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
@@ -3525,13 +3526,108 @@ public class AnalyzerTests extends ESTestCase {
             IndexResolution resolution = IndexResolver.mergedMappings(
                 "foo",
                 false,
-                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true),
+                new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
             var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
         }
+    }
+
+    /**
+     * A field that is a dimension in one index and a metric in another does not prevent a FROM query from succeeding,
+     * because the time series merge is only enforced when a time series aggregation (TS + STATS) is present.
+     */
+    public void testFromQueryWithConflictingTsTypesSucceeds() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, false),
+            (p, r) -> Map.of()
+        );
+        var plan = analyze("FROM test | KEEP status", analyzer(resolution, TEST_VERIFIER));
+        assertThat(plan.output(), hasSize(1));
+        assertThat(plan.output().getFirst().name(), equalTo("status"));
+        assertThat(plan.output().getFirst().dataType(), equalTo(KEYWORD));
+    }
+
+    /**
+     * When a TS source is followed by STATS, the time series merge is enforced and conflicting
+     * dimension/metric types across indices produce an {@link InvalidMappedField}. The field
+     * resolves as {@link DataType#UNSUPPORTED} rather than the original KEYWORD type.
+     */
+    public void testTsStatsQueryWithConflictingTsTypesMarksFieldUnsupported() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, true),
+            (p, r) -> Map.of()
+        );
+        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
+        var plan = analyze("TS test | STATS avg(rate(bytes_in)) BY status", analyzer(resolution, TEST_VERIFIER));
+        var statusAttr = plan.output().stream().filter(a -> a.name().equals("status")).findFirst().orElseThrow();
+        assertThat(statusAttr.dataType(), equalTo(UNSUPPORTED));
+    }
+
+    /**
+     * TS without STATS does not produce a TimeSeriesAggregate, so conflicting
+     * dimension/metric types are ignored and the field resolves as KEYWORD.
+     */
+    public void testTsWithoutStatsAndConflictingTsTypesSucceeds() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, false),
+            (p, r) -> Map.of()
+        );
+        var plan = analyze("TS test | KEEP status", analyzer(resolution, TEST_VERIFIER));
+        assertThat(plan.output(), hasSize(1));
+        assertThat(plan.output().getFirst().name(), equalTo("status"));
+        assertThat(plan.output().getFirst().dataType(), equalTo(KEYWORD));
+    }
+
+    /**
+     * PROMQL queries operate on time series data and should enforce time series field type merging,
+     * just like TS + STATS.
+     */
+    public void testPromqlQueryWithConflictingTsTypesMarksFieldUnsupported() {
+        FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "test",
+            false,
+            fieldsInfoOnCurrentVersion(caps, true),
+            (p, r) -> Map.of()
+        );
+        assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
+        var plan = analyze("""
+            PROMQL index=test
+                step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z"
+                avg(rate(bytes_in[5m]))""", analyzer(resolution, TEST_VERIFIER));
+        assertThat(resolution.get().mapping().get("status").getDataType(), equalTo(UNSUPPORTED));
+    }
+
+    private static FieldCapabilitiesResponse buildCapsWithConflictingTsTypes() {
+        IndexFieldCapabilities timestamp = new IndexFieldCapabilitiesBuilder("@timestamp", "date").build();
+        IndexFieldCapabilities dimensionField = new IndexFieldCapabilitiesBuilder("status", "keyword").isDimension(true).build();
+        IndexFieldCapabilities metricField = new IndexFieldCapabilitiesBuilder("status", "keyword").metricType(
+            TimeSeriesParams.MetricType.GAUGE
+        ).build();
+        IndexFieldCapabilities counter = new IndexFieldCapabilitiesBuilder("bytes_in", "long").metricType(
+            TimeSeriesParams.MetricType.COUNTER
+        ).build();
+        Map<String, IndexFieldCapabilities> tsFields = Map.of("@timestamp", timestamp, "status", dimensionField, "bytes_in", counter);
+        Map<String, IndexFieldCapabilities> stdFields = Map.of("@timestamp", timestamp, "status", metricField, "bytes_in", counter);
+        return new FieldCapabilitiesResponse(
+            List.of(
+                new FieldCapabilitiesIndexResponse("ts_index", "hash_a", tsFields, false, IndexMode.TIME_SERIES),
+                new FieldCapabilitiesIndexResponse("std_index", "hash_b", stdFields, false, IndexMode.STANDARD)
+            ),
+            List.of()
+        );
     }
 
     public void testBasicFork() {
@@ -6306,7 +6402,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
+        return fieldsInfoOnCurrentVersion(caps, false);
+    }
+
+    static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps, boolean hasTimeSeriesAggregation) {
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, hasTimeSeriesAggregation);
     }
 
     // ===== ResolveExternalRelations + FileSet tests =====

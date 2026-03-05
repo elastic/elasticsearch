@@ -5,18 +5,18 @@ stack: ga
 
 The `SORT` processing command sorts a table on one or more columns.
 
-**Syntax**
+## Syntax
 
 ```esql
 SORT column1 [ASC/DESC][NULLS FIRST/NULLS LAST][, ..., columnN [ASC/DESC][NULLS FIRST/NULLS LAST]]
 ```
 
-**Parameters**
+## Parameters
 
 `columnX`
 :   The column to sort on.
 
-**Description**
+## Description
 
 The `SORT` processing command sorts a table on one or more columns.
 
@@ -34,22 +34,26 @@ an ascending sort order, `null` values are sorted last, and with a descending
 sort order, `null` values are sorted first. You can change that by providing
 `NULLS FIRST` or `NULLS LAST`.
 
-**Examples**
+## Examples
+
+The following examples show how to control sort order, tie-breaking, and null placement.
+
+### Sort in default ascending order
 
 :::{include} ../examples/docs.csv-spec/sort.md
 :::
 
-Explicitly sorting in ascending order with `ASC`:
+### Sort in descending order with DESC
 
 :::{include} ../examples/docs.csv-spec/sortDesc.md
 :::
 
-Providing additional sort expressions to act as tie breakers:
+### Break ties with additional sort expressions
 
 :::{include} ../examples/docs.csv-spec/sortTie.md
 :::
 
-Sorting `null` values first using `NULLS FIRST`:
+### Control null placement with NULLS FIRST or NULLS LAST
 
 :::{include} ../examples/docs.csv-spec/sortNullsFirst.md
 :::

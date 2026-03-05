@@ -13,20 +13,43 @@ apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrec
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
+  javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
 
+  // S3 fixture infrastructure for external source distributed tests
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+
+  // GCS fixture infrastructure
+  javaRestTestImplementation project(':test:fixtures:gcs-fixture')
+
+  clusterModules project(':modules:repository-s3')
+  clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
   clusterPlugins project(xpackModule('esql-datasource-csv'))
   clusterPlugins project(xpackModule('esql-datasource-ndjson'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
+  clusterPlugins project(xpackModule('esql-datasource-parquet'))
+  clusterPlugins project(xpackModule('esql-datasource-s3'))
+  clusterPlugins project(xpackModule('esql-datasource-gcs'))
 }
 
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+}
+
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  baseClass 'org.elasticsearch.test.ESTestCase'
 }
 
 restResources {

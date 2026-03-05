@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.analysis.MoveWindowFilter;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.PruneInlineJoinOnEmptyRightSide;
@@ -154,6 +155,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new TranslatePromqlToEsqlPlan(),
             // translate metric aggregates early before they are converted to nested expressions
             new TranslateTimeSeriesAggregate(),
+            new MoveWindowFilter(),
             new PruneUnusedIndexMode(),
             // first extract nested expressions inside aggs
             new ReplaceAggregateNestedExpressionWithEval(),

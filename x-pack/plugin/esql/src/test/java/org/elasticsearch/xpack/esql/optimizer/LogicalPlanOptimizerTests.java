@@ -7623,25 +7623,23 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         // smaller window
         {
-            var query = """
+            int window = randomIntBetween(1, 4);
+            var query = String.format(Locale.ROOT, """
                 TS k8s
-                | STATS sum(rate(network.total_bytes_in, 1m)) BY TBUCKET(5m)
+                | STATS sum(rate(network.total_bytes_in, %s minute)) BY TBUCKET(5m)
                 | LIMIT 10
-                """;
-            var error = expectThrows(IllegalArgumentException.class, () -> {
-                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
-            });
-            assertThat(
-                error.getMessage(),
-                equalTo(
-                    "Unsupported window [1m] for aggregate function [rate(network.total_bytes_in, 1m)]; "
-                        + "the window must be larger than the time bucket [TBUCKET(5m)] and an exact multiple of it"
-                )
-            );
+                """, window);
+            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
+            Holder<Rate> holder = new Holder<>();
+            plan.forEachExpressionDown(Rate.class, holder::set);
+            assertNotNull(holder.get());
+            assertTrue(holder.get().hasWindow());
+            assertThat(holder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(window)));
+            assertTrue(holder.get().hasFilter());
         }
         // not supported
         {
-            int window = randomValueOtherThanMany(n -> n % 5 == 0, () -> between(1, 30));
+            int window = randomValueOtherThanMany(n -> n % 5 == 0, () -> between(6, 30));
             var query = String.format(Locale.ROOT, """
                 TS k8s
                 | STATS avg(last_over_time(network.bytes_in, %s minute)) BY tbucket(5 minute)
@@ -7650,10 +7648,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var error = expectThrows(IllegalArgumentException.class, () -> {
                 logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer.analyze(parser.parseQuery(query)));
             });
-            assertThat(
-                error.getMessage(),
-                containsString("the window must be larger than the time bucket [tbucket(5 minute)] and an exact multiple of it")
-            );
+            assertThat(error.getMessage(), containsString("the window must be an exact multiple of the time bucket [tbucket(5 minute)]"));
         }
         // no time bucket
         {

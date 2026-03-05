@@ -129,6 +129,34 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM logs*, -logs-nginx")));
     }
 
+    public void testExclusionWithDuplicateViewWildcard() {
+        addView("logs-1", "FROM emp | WHERE logs.type == nginx");
+        LogicalPlan plan = query("FROM logs-*,-logs-1,logs-*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp | WHERE logs.type == nginx")));
+    }
+
+    public void testExclusionWithDuplicateViewWildcardAndRemainingIndex() {
+        addView("logs-1", "FROM emp | WHERE logs.type == nginx");
+        addIndex("logs-2");
+        LogicalPlan plan = query("FROM logs-*,-logs-1,logs-*");
+        LogicalPlan rewritten = replaceViews(plan);
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        List<LogicalPlan> subqueries = rewritten.children();
+        assertThat(subqueries.size(), equalTo(2));
+        assertThat(
+            subqueries,
+            containsInAnyOrder(matchesPlan(query("FROM logs-*,logs-*")), matchesPlan(query("FROM emp | WHERE logs.type == nginx")))
+        );
+    }
+
+    public void testViewBodyWithExclusionCombined() {
+        addView("safe-logs", "FROM logs*,-logs-secret");
+        addIndex("logs-public");
+        addIndex("logs-secret");
+        LogicalPlan plan = query("FROM safe-logs,logs-secret");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*,-logs-secret,logs-secret")));
+    }
+
     public void testExclusionWithNoRemainingIndexMatch() {
         addView("logs-nginx", "FROM logs | WHERE logs.type == nginx");
         LogicalPlan plan = query("FROM logs*, -logs-nginx");
@@ -140,7 +168,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs2");
         addIndex("logs3");
         LogicalPlan plan = query("FROM logs*,-logs3");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*,-logs3,logs2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM logs2,logs*,-logs3")));
     }
 
     public void testExclusionMultipleViews() {
@@ -203,7 +231,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");
         LogicalPlan plan = query("FROM view*, -view2");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM view*,emp1")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,view*")));
     }
 
     public void testExclusionAllViewsWithIndex() {
@@ -218,7 +246,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("viewX");
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM view*, -donotexist");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM view*,-donotexist,emp1")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,view*,-donotexist")));
     }
 
     public void testFailureSelector() {
@@ -239,7 +267,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         addIndex("view3");
         LogicalPlan plan = query("FROM view*::data");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM view*::data,emp1,emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,view*::data")));
     }
 
     public void testConcreteDataSelector() {
@@ -258,7 +286,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("remote:view1");
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM remote:view1, view1");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view1,emp1")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,remote:view1")));
     }
 
     public void testCCSWildcardNotResolvedAsView() {
@@ -338,7 +366,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         addView("view3", "FROM emp3");
         LogicalPlan plan = query("FROM view*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM view*, emp1, emp2, emp3")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,emp3,view*")));
     }
 
     public void testMixedViewAndIndexMergedUnresolvedRelation() {
@@ -347,14 +375,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM view1, index1");
         LogicalPlan rewritten = replaceViews(plan);
         assertThat(rewritten, instanceOf(UnresolvedRelation.class));
-        assertThat(as(rewritten, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("index1,emp"));
+        assertThat(as(rewritten, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("emp,index1"));
     }
 
     public void testMissingIndexPreservedWhenMixedWithView() {
         addView("view1", "FROM emp");
         LogicalPlan plan = query("FROM view1, missing-index");
         LogicalPlan rewritten = replaceViews(plan);
-        assertThat(as(rewritten, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("missing-index,emp"));
+        assertThat(as(rewritten, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("emp,missing-index"));
     }
 
     public void testMissingIndexPreservedWhenMixedWithViewWithPipes() {
@@ -424,7 +452,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_1_2", "FROM view_1, view_2");
         addView("view_1_3", "FROM view_1, view_3");
         LogicalPlan plan = query("FROM view_1_*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM view_1_*,emp1,emp3,emp1,emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2,view_1_*")));
     }
 
     public void testReplaceViewsNestedWildcards() {
@@ -453,7 +481,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view_3_1", "FROM view_3, view_1");
         addView("view_3_2", "FROM view_3, view_2");
         LogicalPlan plan = query("FROM view_1_*, view_2_*, view_3_*");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM view_2_*,emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2,view_2_*")));
     }
 
     public void testReplaceViewsNestedWildcardsWithIndexes() {
@@ -473,7 +501,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan rewritten = replaceViews(plan);
         assertThat(
             rewritten,
-            matchesPlan(query("FROM view_1_*,view_2_*,view_3_*,emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2"))
+            matchesPlan(query("FROM emp1,emp3,emp1,emp2,emp2,emp1,emp2,emp3,emp3,emp1,emp3,emp2,view_1_*,view_2_*,view_3_*"))
         );
     }
 
@@ -783,7 +811,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view1", "FROM emp");
         try {
             LogicalPlan plan = query("FROM <logs-{now/d{yyyy.MM.dd}}>, view1");
-            assertThat(replaceViews(plan), matchesPlan(query("FROM <logs-{now/d{yyyy.MM.dd}}>,emp")));
+            assertThat(replaceViews(plan), matchesPlan(query("FROM emp,<logs-{now/d{yyyy.MM.dd}}>")));
         } catch (AssertionError e) {
             assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
             throw e;
@@ -798,7 +826,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         try {
             LogicalPlan plan = query("FROM <logs-{now/d{yyyy.MM.dd}}>, view*");
-            assertThat(replaceViews(plan), matchesPlan(query("FROM <logs-{now/d{yyyy.MM.dd}}>,emp1,emp2")));
+            assertThat(replaceViews(plan), matchesPlan(query("FROM emp1,emp2,<logs-{now/d{yyyy.MM.dd}}>")));
         } catch (AssertionError e) {
             assumeTrue("Date must stay the same during the test", Objects.equals(date, LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC)));
             throw e;

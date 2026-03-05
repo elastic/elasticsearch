@@ -214,11 +214,15 @@ public class ViewResolver {
         int depth,
         ActionListener<LogicalPlan> listener
     ) {
-        // Avoid re-resolving wildcards preserved for non-view matches, and deduplicate duplicate wildcard patterns to match how wildcard
-        // resolving for indices handle duplicates.
+        // Avoid re-resolving wildcards preserved for non-view matches in subsequent transformDown visits.
         var patterns = Arrays.stream(unresolvedRelation.indexPattern().indexPattern().split(","))
-            .filter(pattern -> Regex.isSimpleMatchPattern(pattern) == false || seenWildcards.add(pattern))
+            .filter(pattern -> Regex.isSimpleMatchPattern(pattern) == false || seenWildcards.contains(pattern) == false)
             .toArray(String[]::new);
+        for (String pattern : patterns) {
+            if (Regex.isSimpleMatchPattern(pattern)) {
+                seenWildcards.add(pattern);
+            }
+        }
 
         var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT);
         req.indices(patterns);
@@ -255,7 +259,7 @@ public class ViewResolver {
                 }
                 if (unresolvedPatterns.isEmpty() == false) {
                     // We have non-view indexes, so we need an UnresolvedRelation for them too
-                    subqueries.addFirst(createUnresolvedRelationPlan(unresolvedRelation, unresolvedPatterns));
+                    subqueries.add(createUnresolvedRelationPlan(unresolvedRelation, unresolvedPatterns));
                 }
                 return buildPlanFromBranches(unresolvedRelation, subqueries, depth);
             }).addListener(listener);
@@ -301,9 +305,11 @@ public class ViewResolver {
             }
         }
         if (unresolvedPatterns.isEmpty() == false) {
+            // TODO: viewNames contains all views regardless of user access. This is functionally correct
+            // (inaccessible views are also hidden from field caps) but ideally should be scoped to
+            // views the user can access.
             var viewNames = getMetadata().views();
             for (String pattern : originalPatterns) {
-                // If there is an exclusion, check if it references a view or is a wildcard
                 if (pattern.startsWith("-")) {
                     String target = pattern.substring(1);
                     if (Regex.isSimpleMatchPattern(target) || viewNames.containsKey(target) == false) {

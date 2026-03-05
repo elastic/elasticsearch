@@ -20,8 +20,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import java.util.List;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
-import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
-import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 
 public class ViewResolutionService {
 
@@ -54,7 +52,7 @@ public class ViewResolutionService {
                 true
             );
         }
-        validateResolvedIndexExpressions(resolvedIndexExpressions, indicesOptions);
+        checkViewsExist(resolvedIndexExpressions, indicesOptions);
         View[] views = resolvedIndexExpressions.getLocalIndicesList()
             .stream()
             .map(indicesLookup::get)
@@ -65,30 +63,13 @@ public class ViewResolutionService {
         return new ViewResolutionResult(views, resolvedIndexExpressions);
     }
 
-    private void validateResolvedIndexExpressions(ResolvedIndexExpressions resolvedIndexExpressions, IndicesOptions indicesOptions) {
-        if (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable()) {
+    private void checkViewsExist(ResolvedIndexExpressions resolvedIndexExpressions, IndicesOptions indicesOptions) {
+        if (indicesOptions.ignoreUnavailable()) {
             return;
         }
-
         for (ResolvedIndexExpression expression : resolvedIndexExpressions.expressions()) {
-            ResolvedIndexExpression.LocalExpressions localExpressions = expression.localExpressions();
-            ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
-            String originalExpression = expression.original();
-
-            // Check for missing or unauthorized concrete resources
-            if (indicesOptions.ignoreUnavailable() == false) {
-                if (result == CONCRETE_RESOURCE_NOT_VISIBLE) {
-                    throw new IndexNotFoundException(originalExpression);
-                } else if (result == CONCRETE_RESOURCE_UNAUTHORIZED) {
-                    assert localExpressions.exception() != null
-                        : "ResolvedIndexExpression should have exception set when concrete resource is unauthorized";
-                    throw localExpressions.exception();
-                }
-            }
-
-            // Check for empty wildcard expressions when allowNoIndices is false
-            if (indicesOptions.allowNoIndices() == false && result == SUCCESS && localExpressions.indices().isEmpty()) {
-                throw new IndexNotFoundException(originalExpression);
+            if (expression.localExpressions().localIndexResolutionResult() == CONCRETE_RESOURCE_NOT_VISIBLE) {
+                throw new IndexNotFoundException(expression.original());
             }
         }
     }

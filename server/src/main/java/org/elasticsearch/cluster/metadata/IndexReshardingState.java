@@ -88,6 +88,14 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
     }
 
     public static final class Split extends IndexReshardingState {
+        /// States of split source shards:
+        ///
+        /// [SourceShardState#SOURCE] - split is in progress, source shard is expecting start_split requests from target shards.
+        ///
+        /// [SourceShardState#READY_FOR_CLEANUP] - splits are complete, corresponding target shards are in DONE state,
+        /// source shard is ready to delete unowned data.
+        ///
+        /// [SourceShardState#DONE] - the split is complete for this source shard including all cleanup logic.
         public enum SourceShardState implements Writeable {
             /**
              * The argument is for serialization because using the ordinal breaks if

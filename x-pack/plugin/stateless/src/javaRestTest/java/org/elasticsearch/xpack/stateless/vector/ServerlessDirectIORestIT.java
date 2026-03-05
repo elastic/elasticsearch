@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.cluster.serverless.ServerlessElasticsearchCluster;
+import org.elasticsearch.test.cluster.stateless.StatelessElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.not;
 public class ServerlessDirectIORestIT extends ESRestTestCase {
 
     @ClassRule
-    public static ServerlessElasticsearchCluster cluster = ServerlessElasticsearchCluster.local()
+    public static StatelessElasticsearchCluster cluster = StatelessElasticsearchCluster.local()
         .user("admin-user", "x-pack-test-password")
         .setting("xpack.ml.enabled", "false")
         .build();

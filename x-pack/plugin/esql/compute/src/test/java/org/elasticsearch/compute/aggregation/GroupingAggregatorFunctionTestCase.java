@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.AddGarbageRowsSourceOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.HashAggregationOperatorTests;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -42,7 +43,6 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -52,7 +52,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -128,26 +127,20 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         }
 
         if (options.requiresDeterministicFactory()) {
-            return new HashAggregationOperator.Factory(
-                List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
-                mode,
-                List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
-                between(1, 1000),
-                randomDoubleBetween(0.1, 1.0, true),
-                randomPageSize(),
-                randomPageSize(),
-                null
-            );
+            return HashAggregationOperatorTests.randomBuilder()
+                .groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+                .mode(mode)
+                .aggregators(List.of(supplier.groupingAggregatorFactory(mode, channels(mode))))
+                .build();
         } else {
+
             return new RandomizingHashAggregationOperatorFactory(
-                List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
-                mode,
-                List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
-                between(1, 1000),
-                randomDoubleBetween(0.1, 1.0, true),
-                randomPageSize(),
-                randomPageSize(),
-                null
+                new HashAggregationOperator.Builder().groups(List.of(new BlockHash.GroupSpec(0, ElementType.LONG)))
+                    .mode(mode)
+                    .aggregators(List.of(supplier.groupingAggregatorFactory(mode, channels(mode))))
+                    .partialEmit(between(1, 1000), randomDoubleBetween(0.1, 1.0, true))
+                    .maxPageSize(randomPageSize())
+                    .aggregationBatchSize(randomPageSize())
             );
         }
     }
@@ -890,92 +883,50 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
      *     {@link org.elasticsearch.compute.aggregation.GroupingAggregatorFunction.AddInput#add}
      * </p>
      */
-    private record RandomizingHashAggregationOperatorFactory(
-        List<BlockHash.GroupSpec> groups,
-        AggregatorMode aggregatorMode,
-        List<GroupingAggregator.Factory> aggregators,
-        int partialEmitKeysThreshold,
-        double partialEmitUniquenessThreshold,
-        int maxPageSize,
-        int aggregationBatchSize,
-        AnalysisRegistry analysisRegistry
-    ) implements Operator.OperatorFactory {
-
-        @Override
-        public Operator get(DriverContext driverContext) {
-            Supplier<BlockHash> blockHashSupplier = () -> {
-                BlockHash blockHash = groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)
-                    ? BlockHash.buildCategorizeBlockHash(
-                        groups,
-                        aggregatorMode,
-                        driverContext.blockFactory(),
-                        analysisRegistry,
-                        maxPageSize
-                    )
-                    : BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false);
-
-                return new BlockHashWrapper(driverContext.blockFactory(), blockHash) {
-                    @Override
-                    public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-                        blockHash.add(page, new GroupingAggregatorFunction.AddInput() {
-                            @Override
-                            public void add(int positionOffset, IntBlock groupIds) {
-                                IntBlock newGroupIds = BlockTypeRandomizer.randomizeBlockType(groupIds);
-                                addInput.add(positionOffset, newGroupIds);
-                            }
-
-                            @Override
-                            public void add(int positionOffset, IntArrayBlock groupIds) {
-                                add(positionOffset, (IntBlock) groupIds);
-                            }
-
-                            @Override
-                            public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                                add(positionOffset, (IntBlock) groupIds);
-                            }
-
-                            @Override
-                            public void add(int positionOffset, IntVector groupIds) {
-                                add(positionOffset, groupIds.asBlock());
-                            }
-
-                            @Override
-                            public void close() {
-                                addInput.close();
-                            }
-                        });
-                    }
-
-                    @Override
-                    public int numKeys() {
-                        return blockHash.numKeys();
-                    }
-                };
-            };
-
-            return new HashAggregationOperator(
-                aggregatorMode,
-                aggregators,
-                blockHashSupplier,
-                partialEmitKeysThreshold,
-                partialEmitUniquenessThreshold,
-                maxPageSize,
-                driverContext
-            );
+    private class RandomizingHashAggregationOperatorFactory extends HashAggregationOperator.Factory {
+        RandomizingHashAggregationOperatorFactory(HashAggregationOperator.Builder builder) {
+            super(builder);
         }
 
         @Override
-        public String describe() {
-            return new HashAggregationOperator.Factory(
-                groups,
-                aggregatorMode,
-                aggregators,
-                partialEmitKeysThreshold,
-                partialEmitUniquenessThreshold,
-                aggregationBatchSize,
-                maxPageSize,
-                analysisRegistry
-            ).describe();
+        protected BlockHash wrapBlockHash(DriverContext driverContext, BlockHash hash) {
+            return new BlockHashWrapper(driverContext.blockFactory(), hash) {
+                @Override
+                public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+                    blockHash.add(page, new GroupingAggregatorFunction.AddInput() {
+                        @Override
+                        public void add(int positionOffset, IntBlock groupIds) {
+                            IntBlock newGroupIds = BlockTypeRandomizer.randomizeBlockType(groupIds);
+                            addInput.add(positionOffset, newGroupIds);
+                        }
+
+                        @Override
+                        public void add(int positionOffset, IntArrayBlock groupIds) {
+                            add(positionOffset, (IntBlock) groupIds);
+                        }
+
+                        @Override
+                        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                            add(positionOffset, (IntBlock) groupIds);
+                        }
+
+                        @Override
+                        public void add(int positionOffset, IntVector groupIds) {
+                            add(positionOffset, groupIds.asBlock());
+                        }
+
+                        @Override
+                        public void close() {
+                            addInput.close();
+                        }
+                    });
+                }
+
+                @Override
+                public int numKeys() {
+                    return blockHash.numKeys();
+                }
+            };
         }
     }
 

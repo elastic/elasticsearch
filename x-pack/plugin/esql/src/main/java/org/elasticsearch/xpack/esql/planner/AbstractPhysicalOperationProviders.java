@@ -182,16 +182,17 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 );
             } else {
                 QueryPragmas pragmas = context.queryPragmas();
-                operatorFactory = new HashAggregationOperator.Factory(
-                    groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
-                    aggregatorMode,
-                    aggregatorFactories,
-                    pragmas.partialAggregationEmitKeysThreshold(context.plannerSettings().partialEmitKeysThreshold()),
-                    pragmas.partialAggregationEmitUniquenessThreshold(context.plannerSettings().partialEmitUniquenessThreshold()),
-                    maxPageSize,
-                    aggregationBatchSize,
-                    analysisRegistry
-                );
+                operatorFactory = new HashAggregationOperator.Builder().groups(groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList())
+                    .mode(aggregatorMode)
+                    .aggregators(aggregatorFactories)
+                    .partialEmit(
+                        pragmas.partialAggregationEmitKeysThreshold(context.plannerSettings().partialEmitKeysThreshold()),
+                        pragmas.partialAggregationEmitUniquenessThreshold(context.plannerSettings().partialEmitUniquenessThreshold())
+                    )
+                    .maxPageSize(maxPageSize)
+                    .aggregationBatchSize(aggregationBatchSize)
+                    .analysisRegistry(analysisRegistry)
+                    .build();
             }
         }
         if (operatorFactory != null) {

@@ -124,14 +124,10 @@ public class ValuesAggregatorBenchmark {
             mode,
             List.of(supplier(dataType).groupingAggregatorFactory(mode, List.of(1))),
             () -> BlockHash.build(groupSpec, driverContext.blockFactory(), 16 * 1024, false),
-<<<<<<< HEAD
-            driverContext,
-            1024
-=======
             Integer.MAX_VALUE,
             1.0,
+            1024,
             driverContext
->>>>>>> main
         ) {
             @Override
             public Page getOutput() {

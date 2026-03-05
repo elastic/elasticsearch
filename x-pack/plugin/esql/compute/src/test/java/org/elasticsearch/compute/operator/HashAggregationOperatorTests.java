@@ -22,7 +22,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
@@ -39,6 +39,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
+    public static HashAggregationOperator.Builder randomBuilder() {
+        return new HashAggregationOperator.Builder().partialEmit(between(1, 1000), randomDoubleBetween(0.1, 10.0, true))
+            .maxPageSize(randomPageSize())
+            .aggregationBatchSize(randomPageSize());
+    }
+
     private int maxPageSize;
 
     @Override
@@ -63,19 +69,15 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         }
 
         maxPageSize = randomPageSize();
-        return new HashAggregationOperator.Factory(
-            List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
-            mode,
-            List.of(
-                new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumChannels),
-                new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxChannels)
-            ),
-            between(1, 1000),
-            randomDoubleBetween(0.1, 10.0, true),
-            randomPageSize(),
-            maxPageSize,
-            null
-        );
+        return randomBuilder().mode(mode)
+            .aggregators(
+                List.of(
+                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumChannels),
+                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxChannels)
+                )
+            )
+            .maxPageSize(maxPageSize)
+            .build();
     }
 
     @Override
@@ -133,19 +135,19 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         int maxPageSize = randomPageSize();
 
         try (
-            var operator = new HashAggregationOperator.Factory(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3))),
-                mode,
-                List.of(
-                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
-                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
-                ),
-                between(1, 1000),
-                randomDoubleBetween(0.1, 10.0, true),
-                maxPageSize,
-                randomPageSize(),
-                null
-            ).get(driverContext())
+            var operator = randomBuilder().groups(
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3)))
+            )
+                .mode(mode)
+                .aggregators(
+                    List.of(
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
+                    )
+                )
+                .maxPageSize(maxPageSize)
+                .build()
+                .get(driverContext())
         ) {
             var page = new Page(
                 BlockUtils.fromList(
@@ -196,19 +198,19 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
         int maxPageSize = randomPageSize();
 
         try (
-            var operator = new HashAggregationOperator.Factory(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, true, 3))),
-                mode,
-                List.of(
-                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
-                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
-                ),
-                between(1, 1000),
-                randomDoubleBetween(0.1, 10.0, true),
-                maxPageSize,
-                randomPageSize(),
-                null
-            ).get(driverContext())
+            var operator = randomBuilder().groups(
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, true, 3)))
+            )
+                .mode(mode)
+                .aggregators(
+                    List.of(
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
+                    )
+                )
+                .maxPageSize(maxPageSize)
+                .build()
+                .get(driverContext())
         ) {
             var page = new Page(
                 BlockUtils.fromList(
@@ -268,19 +270,19 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2) : List.of(1);
             var maxAggregatorChannels = mode.isInputPartial() ? List.of(3, 4) : List.of(1);
 
-            return new HashAggregationOperator.Factory(
-                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3))),
-                mode,
-                List.of(
-                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumAggregatorChannels),
-                    new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxAggregatorChannels)
-                ),
-                between(1, 1000),
-                randomDoubleBetween(0.1, 10.0, true),
-                maxPageSize,
-                randomPageSize(),
-                null
-            ).get(driverContext());
+            return randomBuilder().groups(
+                List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3)))
+            )
+                .mode(mode)
+                .aggregators(
+                    List.of(
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumAggregatorChannels),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxAggregatorChannels)
+                    )
+                )
+                .maxPageSize(maxPageSize)
+                .build()
+                .get(driverContext());
         };
 
         // The operator that will collect all the results

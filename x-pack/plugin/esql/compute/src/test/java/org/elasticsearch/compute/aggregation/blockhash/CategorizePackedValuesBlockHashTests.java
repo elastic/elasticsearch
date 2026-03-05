@@ -144,16 +144,19 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
-                new HashAggregationOperator.Factory(
-                    groupSpecs,
-                    AggregatorMode.INITIAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
-                    Integer.MAX_VALUE,
-                    1.0,
-                    16 * 1024,
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder()
+                    .groups(groupSpecs)
+                    .mode(AggregatorMode.INITIAL)
+                    .aggregators(
+                        List.of(
+                            new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))
+                        )
+                    )
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add)
         );
@@ -163,16 +166,19 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
-                new HashAggregationOperator.Factory(
-                    groupSpecs,
-                    AggregatorMode.INITIAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
-                    Integer.MAX_VALUE,
-                    1.0,
-                    16 * 1024,
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder()
+                    .groups(groupSpecs)
+                    .mode(AggregatorMode.INITIAL)
+                    .aggregators(
+                        List.of(
+                            new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))
+                        )
+                    )
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add)
         );
@@ -184,16 +190,19 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
-                new HashAggregationOperator.Factory(
-                    groupSpecs,
-                    AggregatorMode.FINAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2))),
-                    Integer.MAX_VALUE,
-                    1.0,
-                    16 * 1024,
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder()
+                    .groups(groupSpecs)
+                    .mode(AggregatorMode.FINAL)
+                    .aggregators(
+                        List.of(
+                            new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2))
+                        )
+                    )
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
             new PageConsumerOperator(finalOutput::add)
         );

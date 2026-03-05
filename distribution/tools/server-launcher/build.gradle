@@ -6,129 +6,57 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.docker.NativeImageBuildTask
+
 apply plugin: 'elasticsearch.build'
 
-// The server-launcher depends only on the shared utility library (JDK-only)
-dependencies {
-  compileOnly project(':libs:server-launcher-common')
+configurations {
+  nativeImageClasspath
+  nativeLinuxX64 {
+    canBeConsumed = true
+    canBeResolved = false
+  }
+  nativeLinuxAarch64 {
+    canBeConsumed = true
+    canBeResolved = false
+  }
 }
 
-tasks.named("jarHell").configure { enabled = false }
+dependencies {
+  implementation project(':libs:server-launcher-common')
+}
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-["javadoc", "loggerUsageCheck"].each { tsk ->
-  tasks.named(tsk).configure { enabled = false }
-}
-
-// --- GraalVM native-image build (opt-in) ---
-
-import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform
-import org.elasticsearch.gradle.transform.UnzipTransform
-import org.gradle.api.artifacts.type.ArtifactTypeDefinition
-
-def graalVmVersion = VersionProperties.getBundledJdkVersion().replaceAll('\\+.*', '')
+// --- GraalVM native-image build (Linux only, Docker-based) ---
 def graalVmMajor = VersionProperties.getBundledJdkMajorVersion()
+def nativeImageImage = "ghcr.io/graalvm/native-image-community:${graalVmMajor}"
+def launcherMainClass = 'org.elasticsearch.server.launcher.ServerLauncher'
 
-def currentOs = OS.current() == OS.WINDOWS ? 'windows' : (OS.current() == OS.MAC ? 'macos' : 'linux')
-def currentArch = Architecture.current() == Architecture.AARCH64 ? 'aarch64' : 'x64'
-def archiveExt = OS.current() == OS.WINDOWS ? 'zip' : 'tar.gz'
-
-Attribute<Boolean> graalvmAttribute = Attribute.of('graalvm', Boolean)
-
-dependencies {
-  attributesSchema {
-    attribute(graalvmAttribute)
-  }
-  artifactTypes.maybeCreate(ArtifactTypeDefinition.ZIP_TYPE)
-  registerTransform(UnzipTransform) {
-    from.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
-        .attribute(graalvmAttribute, true)
-    to.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-        .attribute(graalvmAttribute, true)
-    parameters {
-      trimmedPrefixPattern = "(graalvm-jdk-\\d.*)|(graalvm-jdk-\\d.*).jdk"
-    }
-  }
-
-  def tarType = artifactTypes.maybeCreate('tar.gz')
-  registerTransform(SymbolicLinkPreservingUntarTransform) {
-    from.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, tarType.name)
-        .attribute(graalvmAttribute, true)
-    to.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-        .attribute(graalvmAttribute, true)
-    parameters {
-      trimmedPrefixPattern = "(graalvm-jdk-\\d.*)|(graalvm-jdk-\\d.*).jdk"
-    }
-  }
-}
-
-repositories {
-  ivy {
-    name = 'graalvm_oracle'
-    url = 'https://download.oracle.com/'
-    metadataSources { artifact() }
-    patternLayout {
-      artifact "graalvm/${graalVmMajor}/archive/graalvm-jdk-${graalVmVersion}_[classifier]_bin.[ext]"
-    }
-    content { includeGroup 'oracle_graalvm' }
-  }
-}
-
-configurations {
-  graalvm {
-    canBeConsumed = false
-    attributes {
-      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-      attribute(graalvmAttribute, true)
-    }
-  }
-}
-
-dependencies {
-  graalvm "oracle_graalvm:graalvm-jdk:${graalVmVersion}:${currentOs}-${currentArch}@${archiveExt}"
-}
-
-def nativeImageDir = layout.buildDirectory.dir('native')
-
-tasks.register('nativeCompile', Exec) {
-  description = 'Compiles the ServerLauncher into a GraalVM native-image binary'
+def nativeImageLinuxX64 = tasks.register('nativeImageLinuxX64', NativeImageBuildTask) {
+  description = 'Builds Linux x86_64 native server-launcher binary via Docker'
   group = 'build'
+  classpath = sourceSets.main.runtimeClasspath
+  imageTag = nativeImageImage
+  platform = 'linux/amd64'
+  mainClass = launcherMainClass
+  outputFile = layout.buildDirectory.file('native/linux-x86_64/server-launcher')
+}
 
-  dependsOn tasks.named('jar')
-  dependsOn project(':libs:server-launcher-common').tasks.named('jar')
+def nativeImageLinuxAarch64 = tasks.register('nativeImageLinuxAarch64', NativeImageBuildTask) {
+  description = 'Builds Linux aarch64 native server-launcher binary via Docker'
+  group = 'build'
+  classpath = sourceSets.main.runtimeClasspath
+  imageTag = nativeImageImage
+  platform = 'linux/arm64'
+  mainClass = launcherMainClass
+  outputFile = layout.buildDirectory.file('native/linux-aarch64/server-launcher')
+}
 
-  def launcherJar = tasks.named('jar').flatMap { it.archiveFile }
-  def commonJar = project(':libs:server-launcher-common').tasks.named('jar').flatMap { it.archiveFile }
-  def outputDir = nativeImageDir
-  def isWindows = OS.current() == OS.WINDOWS
-  def outputName = isWindows ? 'server-launcher.exe' : 'server-launcher'
-  def isMac = OS.current() == OS.MAC
-
-  def graalvmDir = configurations.graalvm
-
-  def nativeImageTool = providers.provider {
-    def root = graalvmDir.singleFile
-    def home = isMac ? new File(root, 'Contents/Home') : root
-    def suffix = isWindows ? '.cmd' : ''
-    new File(home, "bin/native-image${suffix}").absolutePath
-  }
-
-  inputs.files(launcherJar, commonJar, graalvmDir)
-  outputs.file(outputDir.map { it.file(outputName) })
-
-  doFirst {
-    outputDir.get().asFile.mkdirs()
-  }
-
-  executable nativeImageTool.get()
-  args '-cp', "${launcherJar.get().asFile.absolutePath}${File.pathSeparator}${commonJar.get().asFile.absolutePath}"
-  args '--no-fallback'
-  args '-o', outputDir.map { it.file('server-launcher') }.get().asFile.absolutePath
-  args 'org.elasticsearch.server.launcher.ServerLauncher'
+artifacts {
+  nativeLinuxX64(nativeImageLinuxX64)
+  nativeLinuxAarch64(nativeImageLinuxAarch64)
 }

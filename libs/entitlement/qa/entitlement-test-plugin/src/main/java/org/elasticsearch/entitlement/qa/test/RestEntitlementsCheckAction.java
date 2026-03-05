@@ -56,6 +56,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         JvmActions.class,
         LoadNativeLibrariesCheckActions.class,
         ManageThreadsActions.class,
+        StructuredTaskScopeActions.class,
         NativeActions.class,
         NetworkAccessCheckActions.class,
         NioChannelsActions.class,

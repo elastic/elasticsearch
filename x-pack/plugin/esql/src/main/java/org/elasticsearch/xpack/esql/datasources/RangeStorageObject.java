@@ -68,4 +68,12 @@ class RangeStorageObject implements StorageObject {
     public StoragePath path() {
         return delegate.path();
     }
+
+    StorageObject rawDelegate() {
+        return delegate;
+    }
+
+    long offset() {
+        return offset;
+    }
 }

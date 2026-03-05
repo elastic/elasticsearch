@@ -58,6 +58,7 @@ class ComputeSearchContext implements Releasable {
                 return new ReinitializingSourceProvider(super::createSourceProvider);
             }
         };
+        searchContext.addReleasable(searchExecutionContext::releaseQueryConstructionMemory);
         return new DefaultShardContext(index, this, searchExecutionContext, searchContext.request().getAliasFilter());
     }
 

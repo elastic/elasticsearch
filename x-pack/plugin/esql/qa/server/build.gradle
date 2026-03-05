@@ -15,11 +15,17 @@ dependencies {
 
   // GCS fixture infrastructure for external source tests
   api project(':test:fixtures:gcs-fixture')
+
+  // Azure fixture infrastructure for external source tests
+  api project(':test:fixtures:azure-fixture')
+
+  // Azure SDK for fixture blob loading - use repository-azure for complete dependency tree
+  api project(':modules:repository-azure')
   
   // Access to test utilities including IcebergS3FixtureUtils
   api(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
 
   // Compression libs for generating .gz, .zst, .bz2 fixtures on the fly
-  implementation "com.github.luben:zstd-jni:1.5.7-6"
-  implementation "org.apache.commons:commons-compress:1.26.1"
+  implementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  implementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
 }

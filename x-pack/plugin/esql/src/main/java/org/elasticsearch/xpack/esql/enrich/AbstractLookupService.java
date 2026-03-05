@@ -530,7 +530,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 )
             ),
             true,
-            0
+            0,
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY)
         );
     }
 

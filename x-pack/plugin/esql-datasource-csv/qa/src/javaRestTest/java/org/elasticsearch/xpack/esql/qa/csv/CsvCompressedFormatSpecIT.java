@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.csv;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -22,7 +23,7 @@ import java.util.List;
  * Parameterized integration tests for compressed CSV files (.csv.gz, .csv.zst, .csv.zstd, .csv.bz2, .csv.bz).
  * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS) and compression format.
  */
-@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
+@ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     private static final List<String> COMPRESSED_FORMATS = List.of("csv.gz", "csv.zst", "csv.zstd", "csv.bz2", "csv.bz");

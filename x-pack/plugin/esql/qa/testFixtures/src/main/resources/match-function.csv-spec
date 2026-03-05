@@ -715,8 +715,7 @@ The Hobbit or There and Back Again
 ;
 
 testMatchWithOptionsZeroTermsQueryNone
-required_capability: match_function
-required_capability: match_function_options
+required_capability: match_function_zero_terms_query
 
 from books
 | where match(title, "", {"zero_terms_query": "none"})
@@ -727,8 +726,7 @@ book_no:keyword
 ;
 
 testMatchWithOptionsZeroTermsQueryAll
-required_capability: match_function
-required_capability: match_function_options
+required_capability: match_function_zero_terms_query
 
 from books
 | where match(title, "", {"zero_terms_query": "all"})

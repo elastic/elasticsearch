@@ -1544,8 +1544,6 @@ public class StatelessPlugin extends Plugin
                     if (indexShard != null) {
                         statelessCommitService.unregisterCommitNotificationSuccessListener(shardId);
                         statelessCommitService.closeShard(shardId);
-                        localSplitTargetService.cancelSplits(indexShard);
-                        localSplitSourceService.cancelSplits(indexShard);
                         hollowShardsService.get().removeHollowShard(indexShard, "index shard closed");
                     }
                 }

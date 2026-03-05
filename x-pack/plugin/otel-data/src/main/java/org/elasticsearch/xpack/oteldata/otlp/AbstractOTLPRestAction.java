@@ -33,6 +33,8 @@ public abstract class AbstractOTLPRestAction extends BaseRestHandler {
 
     @Override
     public final boolean mediaTypesValid(RestRequest request) {
+        // we expect OTLP payloads to be sent with a content type of "application/x-protobuf" without any additional parameters,
+        // so the presence of an XContentType indicates an invalid media type
         return request.getXContentType() == null
             && request.getParsedContentType().mediaTypeWithoutParameters().equals("application/x-protobuf");
     }

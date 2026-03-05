@@ -1,0 +1,6 @@
+area: TSDB
+issues: []
+pr: 142370
+summary: Replace `IllegalStateException` with `IllegalArgumentException` for conflicting
+  time series metadata
+type: bug

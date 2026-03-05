@@ -9,9 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.index.FloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
-import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,7 +28,7 @@ public interface CentroidSupplier {
         return null;
     }
 
-    FloatVectorValues asFloatVectorValues() throws IOException;
+    KMeansFloatVectorValues asKmeansFloatVectorValues() throws IOException;
 
     static CentroidSupplier empty(int dims) {
         return fromArray(new float[0][dims], KMeansResult.EMPTY, dims);
@@ -53,8 +52,8 @@ public interface CentroidSupplier {
             }
 
             @Override
-            public FloatVectorValues asFloatVectorValues() {
-                return KmeansFloatVectorValues.build(Arrays.asList(centroids), null, dims);
+            public KMeansFloatVectorValues asKmeansFloatVectorValues() {
+                return KMeansFloatVectorValues.build(Arrays.asList(centroids), null, dims);
             }
         };
     }

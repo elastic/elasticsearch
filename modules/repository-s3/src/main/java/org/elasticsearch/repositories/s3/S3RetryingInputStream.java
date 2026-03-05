@@ -48,7 +48,7 @@ class S3RetryingInputStream extends RetryingInputStream<String> {
 
     // both start and end are inclusive bounds, following the definition in GetObjectRequest.setRange
     S3RetryingInputStream(OperationPurpose purpose, S3BlobStore blobStore, String blobKey, long start, long end) throws IOException {
-        super(new S3BlobStoreServices(blobStore, blobKey, purpose), purpose, start, end);
+        super(blobStore.getS3RepositoriesMetrics().common(), new S3BlobStoreServices(blobStore, blobKey, purpose), purpose, start, end);
     }
 
     private record S3BlobStoreServices(S3BlobStore blobStore, String blobKey, OperationPurpose purpose)
@@ -104,18 +104,6 @@ class S3RetryingInputStream extends RetryingInputStream<String> {
         }
 
         @Override
-        public void onRetryStarted(StreamAction action) {
-            blobStore.getS3RepositoriesMetrics().retryStartedCounter().incrementBy(1, metricAttributes(action));
-        }
-
-        @Override
-        public void onRetrySucceeded(StreamAction action, long numberOfRetries) {
-            final Map<String, Object> attributes = metricAttributes(action);
-            blobStore.getS3RepositoriesMetrics().retryCompletedCounter().incrementBy(1, attributes);
-            blobStore.getS3RepositoriesMetrics().retryHistogram().record(numberOfRetries, attributes);
-        }
-
-        @Override
         public long getMeaningfulProgressSize() {
             return Math.max(1L, blobStore.bufferSizeInBytes() / 100L);
         }
@@ -138,7 +126,8 @@ class S3RetryingInputStream extends RetryingInputStream<String> {
             };
         }
 
-        private Map<String, Object> metricAttributes(StreamAction action) {
+        @Override
+        public Map<String, Object> getMetricsAttributes(StreamAction action) {
             return Map.of(
                 "repo_type",
                 S3Repository.TYPE,
@@ -148,7 +137,7 @@ class S3RetryingInputStream extends RetryingInputStream<String> {
                 Operation.GET_OBJECT.getKey(),
                 "purpose",
                 purpose.getKey(),
-                "action",
+                "es_retry_action",
                 action.getPastTense()
             );
         }

@@ -16,7 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.action.ParseTables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -137,7 +137,9 @@ public class ConfigurationTestUtils {
                 try (
                     Block.Builder builder = type.newBlockBuilder(
                         positions,
-                        new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
+                        BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+                            .breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST))
+                            .build()
                     )
                 ) {
                     for (int p = 0; p < positions; p++) {

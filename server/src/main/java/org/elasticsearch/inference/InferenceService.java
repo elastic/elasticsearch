@@ -51,19 +51,16 @@ public interface InferenceService extends Closeable {
     void parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, ActionListener<Model> parsedModelListener);
 
     /**
-     * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that
-     * secrets and service settings be in two separate maps.
+     * Parse model from an {@link UnparsedModel} and return the fully parsed {@link Model}.
      * This function modifies {@code config map}, fields are removed from the map as they are read.
+     * <p>
+     * If the map contains unrecognized configuration option an
+     * {@code ElasticsearchStatusException} is thrown.
      *
-     * If the map contains unrecognized configuration options, no error is thrown.
-     *
-     * @param modelId Model Id
-     * @param taskType The model task type
-     * @param config Configuration options
-     * @param secrets Sensitive configuration options (e.g. api key)
-     * @return The parsed {@link Model}
+     * @param unparsedModel the unparsed model
+     * @return the fully parsed model
      */
-    Model parsePersistedConfigWithSecrets(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets);
+    Model parsePersistedConfig(UnparsedModel unparsedModel);
 
     /**
      * Create a new model from {@link ModelConfigurations} and {@link ModelSecrets} objects.
@@ -73,19 +70,6 @@ public interface InferenceService extends Closeable {
      * @return The created model
      */
     Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets);
-
-    /**
-     * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}.
-     * This function modifies {@code config map}, fields are removed from the map as they are read.
-     *
-     * If the map contains unrecognized configuration options, no error is thrown.
-     *
-     * @param modelId Model Id
-     * @param taskType The model task type
-     * @param config Configuration options
-     * @return The parsed {@link Model}
-     */
-    Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config);
 
     InferenceServiceConfiguration getConfiguration();
 

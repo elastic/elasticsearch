@@ -143,7 +143,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
         return localPlan(plan(query), TEST_SEARCH_STATS);
     }
 
-    protected LogicalPlan localPlan(String query, Analyzer analyzer) {
+    public LogicalPlan localPlan(String query, Analyzer analyzer) {
         return localPlan(plan(query, analyzer), TEST_SEARCH_STATS);
     }
 

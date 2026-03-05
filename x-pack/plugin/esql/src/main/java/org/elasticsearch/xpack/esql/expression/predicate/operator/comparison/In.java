@@ -238,10 +238,6 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     protected boolean areCompatible(DataType left, DataType right) {
-        if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
-            // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
-            return left == right;
-        }
         if (DataType.isSpatialOrGrid(left) && DataType.isSpatialOrGrid(right)) {
             return left == right;
         }

@@ -69,9 +69,11 @@ public class SnapshotShutdownProgressTrackerTests extends ESTestCase {
         IndexShardSnapshotStatus newStatus = IndexShardSnapshotStatus.newInitializing(new ShardGeneration("shard-gen-string-for-test"));
         switch (stage) {
             case DONE -> {
-                newStatus.moveToStarted(0L, 1, 10, 2L, 20L);
+                final long startTimeMillis = randomLongBetween(1, 1000);
+                final long endTimeMillis = randomLongBetween(startTimeMillis, startTimeMillis + 1000);
+                newStatus.moveToStarted(startTimeMillis, 1, 10, 2L, 20L);
                 newStatus.moveToFinalize();
-                newStatus.moveToDone(10L, new ShardSnapshotResult(shardGen, ByteSizeValue.MINUS_ONE, 2));
+                newStatus.moveToDone(endTimeMillis, new ShardSnapshotResult(shardGen, ByteSizeValue.MINUS_ONE, 2));
             }
             case ABORTED -> newStatus.abortIfNotCompleted("snapshot-aborted-for-test", (listener) -> {});
             case FAILURE -> newStatus.moveToFailed(300, "shard-snapshot-failure-string for-test");

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.View;
@@ -19,29 +21,35 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.action.support.IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS;
 
 public class GetViewAction extends ActionType<GetViewAction.Response> {
 
     public static final GetViewAction INSTANCE = new GetViewAction();
-    public static final String NAME = "cluster:admin/xpack/esql/view/get";
+    public static final String NAME = EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME;
+
+    private static final IndicesOptions VIEW_INDICES_OPTIONS = IndicesOptions.builder()
+        .wildcardOptions(IndicesOptions.WildcardOptions.builder().resolveViews(true))
+        .concreteTargetOptions(ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .build();
 
     private GetViewAction() {
         super(NAME);
     }
 
-    public static class Request extends LocalClusterStateRequest {
-        private final List<String> names;
+    public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
+        private String[] indices;
 
-        public Request(TimeValue masterNodeTimeout, String... names) {
+        public Request(TimeValue masterNodeTimeout) {
             super(masterNodeTimeout);
-            this.names = List.of(names);
         }
 
         @Override
@@ -49,8 +57,20 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
             return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
 
-        public List<String> names() {
-            return names;
+        @Override
+        public String[] indices() {
+            return indices;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return VIEW_INDICES_OPTIONS;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            this.indices = indices;
+            return this;
         }
 
         @Override
@@ -58,12 +78,12 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(names, request.names);
+            return Arrays.equals(this.indices, request.indices);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(names);
+            return Arrays.hashCode(indices);
         }
     }
 
@@ -73,7 +93,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
 
         public Response(Collection<View> views) {
             Objects.requireNonNull(views, "views cannot be null");
-            this.views = Collections.unmodifiableCollection(views);
+            this.views = views;
         }
 
         public Collection<View> getViews() {
@@ -101,10 +121,10 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
             if (this == o) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
+            if (o instanceof GetViewAction.Response response) {
+                return this.views.equals(response.views);
             }
-            return views.equals(((Response) o).views);
+            return false;
         }
 
         @Override
@@ -114,7 +134,7 @@ public class GetViewAction extends ActionType<GetViewAction.Response> {
 
         @Override
         public String toString() {
-            return "GetViewAction.Response" + views.stream().map(View::name).toList();
+            return "GetViewAction.Response" + Arrays.toString(views.stream().map(View::name).toArray(String[]::new));
         }
     }
 }

@@ -43,4 +43,7 @@
 
   <!-- Gradle requires inputs to be seriablizable -->
   <suppress files="build-tools-internal[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]internal[/\\]precommit[/\\]TestingConventionRule.java" checks="RegexpSinglelineJava" />
+
+  <!-- Entitlements rules API requires functional interfaces to be serializable -->
+  <suppress files="libs[/\\]entitlement[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]entitlement[/\\]rules[/\\]function[/\\]" checks="RegexpSinglelineJava" />
 </suppressions>

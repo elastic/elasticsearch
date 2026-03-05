@@ -48,7 +48,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -174,30 +173,33 @@ public class ParallelParsingBenchmark {
             boolean lastSplit,
             List<Attribute> resolvedAttributes
         ) throws IOException {
-            InputStream stream = object.newStream();
-            java.io.BufferedReader br = new java.io.BufferedReader(
-                new java.io.InputStreamReader(stream, StandardCharsets.UTF_8),
-                64 * 1024
-            );
-            if (skipFirstLine) {
-                br.readLine();
+            final byte[] data;
+            try (InputStream stream = object.newStream()) {
+                data = stream.readAllBytes();
             }
 
             return new CloseableIterator<>() {
-                private final List<String> buffer = new ArrayList<>();
-                private boolean done = false;
+                private int pos = 0;
                 private Page nextPage = null;
+
+                {
+                    // Skip first line if needed
+                    if (skipFirstLine) {
+                        while (pos < data.length && data[pos] != '\n') {
+                            pos++;
+                        }
+                        if (pos < data.length) {
+                            pos++; // skip the \n itself
+                        }
+                    }
+                }
 
                 @Override
                 public boolean hasNext() {
                     if (nextPage != null) {
                         return true;
                     }
-                    try {
-                        nextPage = readBatch();
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                    nextPage = readBatch();
                     return nextPage != null;
                 }
 
@@ -211,42 +213,54 @@ public class ParallelParsingBenchmark {
                     return p;
                 }
 
-                private Page readBatch() throws IOException {
-                    if (done) {
+                private Page readBatch() {
+                    if (pos >= data.length) {
                         return null;
                     }
-                    buffer.clear();
-                    while (buffer.size() < batchSize) {
-                        String line = br.readLine();
-                        if (line == null) {
-                            done = true;
-                            break;
+                    int count = 0;
+                    // Find up to batchSize lines
+                    int[] lineStarts = new int[batchSize];
+                    int[] lineLengths = new int[batchSize];
+
+                    while (count < batchSize && pos < data.length) {
+                        int lineStart = pos;
+                        // Find end of line
+                        while (pos < data.length && data[pos] != '\n') {
+                            pos++;
                         }
-                        if (line.isEmpty()) {
-                            continue;
+                        int lineLen = pos - lineStart;
+                        if (pos < data.length) {
+                            pos++; // skip \n
                         }
-                        buffer.add(line);
+                        if (lineLen == 0) {
+                            continue; // skip empty lines
+                        }
+                        lineStarts[count] = lineStart;
+                        lineLengths[count] = lineLen;
+                        count++;
                     }
-                    if (buffer.isEmpty()) {
+
+                    if (count == 0) {
                         return null;
                     }
-                    try (var builder = BLOCK_FACTORY.newBytesRefBlockBuilder(buffer.size())) {
-                        BytesRef scratch = new BytesRef();
-                        for (String s : buffer) {
-                            scratch.bytes = s.getBytes(StandardCharsets.UTF_8);
-                            scratch.offset = 0;
-                            scratch.length = scratch.bytes.length;
-                            builder.appendBytesRef(scratch);
+
+                    // Build BytesRef views directly into the buffer - zero copy
+                    try (var builder = BLOCK_FACTORY.newBytesRefBlockBuilder(count)) {
+                        BytesRef ref = new BytesRef();
+                        ref.bytes = data;
+                        for (int i = 0; i < count; i++) {
+                            ref.offset = lineStarts[i];
+                            ref.length = lineLengths[i];
+                            builder.appendBytesRef(ref);
                         }
                         Block block = builder.build();
-                        return new Page(buffer.size(), block);
+                        return new Page(count, block);
                     }
                 }
 
                 @Override
-                public void close() throws IOException {
-                    br.close();
-                    stream.close();
+                public void close() {
+                    // data buffer will be GC'd
                 }
             };
         }

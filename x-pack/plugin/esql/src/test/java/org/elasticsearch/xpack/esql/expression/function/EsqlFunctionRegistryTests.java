@@ -317,7 +317,6 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.nulls.CoalesceErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPointsErrorTests is missing")
-                .item("org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ChunkErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.ContainsErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippetsErrorTests is missing")

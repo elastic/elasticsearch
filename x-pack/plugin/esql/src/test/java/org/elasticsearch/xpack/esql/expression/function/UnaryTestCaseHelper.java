@@ -55,7 +55,6 @@ import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLengthBe
  * }</pre>
  * <h2>Share behavior with a static method</h2>
  * <pre>{@code
- * // Make a
  * intHelper().ints(1, Integer.MAX_VALUE).expectedFromInt(whatever).build(suppliers);
  * intHelper().ints(Integer.MIN_VALUE, 0).expectNullAndWarnings(
  *     o -> List.of("Line 1:1: java.lang.ArithmeticException: Log of non-positive number")
@@ -278,72 +277,115 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
     }
 
     /**
-     * Set a function to build the expected value. If this function returns a
-     * {@link Matcher} then we'll {@link Matcher#matches use} it.
-     * Otherwise, we'll wrap the result in {@link Matchers#equalTo}.
+     * Set a function to build the expected value from the parameter value.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
+     * <p>
+     *     See {@link #expectedFromInt}, {@link #expectedFromLong}, etc for
+     *     utilities to resolve the {@code Object} type parameter into a more
+     *     useful type.
+     * </p>
      */
     public UnaryTestCaseHelper expected(Function<Object, Object> expected) {
         return expectedFromArgs(l -> expected.apply(l.getFirst()));
     }
 
     /**
-     * Set a function to build the expected value. If this function returns a
-     * {@link Matcher} then we'll {@link Matcher#matches use} it.
-     * Otherwise, we'll wrap the result in {@link Matchers#equalTo}.
+     * This works for {@link DataType#isNumeric()} parameters by calling
+     * {@link Number#doubleValue()}.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
      */
     public UnaryTestCaseHelper expectedFromInt(Function<Integer, Object> expected) {
         return expected(o -> expected.apply(((Number) o).intValue()));
     }
 
     /**
-     * Set a function to build the expected value. If this function returns a
-     * {@link Matcher} then we'll {@link Matcher#matches use} it.
-     * Otherwise, we'll wrap the result in {@link Matchers#equalTo}.
+     * Set a function to build the expected value from the parameter value.
+     * This works for {@link DataType#isNumeric()} parameters by calling
+     * {@link Number#doubleValue()}.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
      */
     public UnaryTestCaseHelper expectedFromLong(Function<Long, Object> expected) {
         return expected(o -> expected.apply(((Number) o).longValue()));
     }
 
     /**
-     * Set a function to build the expected value. If this function returns a
-     * {@link Matcher} then we'll {@link Matcher#matches use} it.
-     * Otherwise, we'll wrap the result in {@link Matchers#equalTo}.
-     */
-    public UnaryTestCaseHelper expectedFromString(Function<String, Object> expected) {
-        return expected(o -> expected.apply(((BytesRef) o).utf8ToString()));
-    }
-
-    /**
-     * Set a function to build the expected value. If this function returns a
-     * {@link Matcher} then we'll {@link Matcher#matches use} it.
-     * Otherwise, we'll wrap the result in {@link Matchers#equalTo}.
-     */
-    public UnaryTestCaseHelper expectedBytesRef(Function<BytesRef, Object> expected) {
-        return expectedFromArgs(l -> expected.apply((BytesRef) l.getFirst()));
-    }
-
-    /**
-     * Set a function to build the expected value. If this function returns a
-     * {@link Matcher} then we'll {@link Matcher#matches use} it.
-     * Otherwise, we'll wrap the result in {@link Matchers#equalTo}.
+     * Set a function to build the expected value from the parameter value.
+     * This works for {@link DataType#isNumeric()} parameters by calling
+     * {@link Number#doubleValue()}.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
      */
     public UnaryTestCaseHelper expectedFromDouble(Function<Double, Object> expected) {
         return expected(o -> expected.apply(((Number) o).doubleValue()));
     }
 
     /**
-     * Set a function to build the expected value. If this function returns a
-     * {@link Matcher} then we'll {@link Matcher#matches use} it.
-     * Otherwise, we'll wrap the result in {@link Matchers#equalTo}.
+     * Set a function to build the expected value from the parameter value.
+     * This works for {@link DataType#KEYWORD} and {@link DataType#TEXT}
+     * parameters.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
+     */
+    public UnaryTestCaseHelper expectedFromString(Function<String, Object> expected) {
+        return expected(o -> expected.apply(((BytesRef) o).utf8ToString()));
+    }
+
+    /**
+     * Set a function to build the expected value from the parameter value.
+     * This works for data types who's native type is {@link BytesRef}, like
+     * {@link DataType#BYTE}, {@link DataType#TEXT}, {@link DataType#IP}, and
+     * {@link DataType#VERSION}.
+     * parameters.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
+     */
+    public UnaryTestCaseHelper expectedBytesRef(Function<BytesRef, Object> expected) {
+        return expectedFromArgs(l -> expected.apply((BytesRef) l.getFirst()));
+    }
+
+    /**
+     * Set a function to build the expected value from the parameter value.
+     * This works for {@link DataType#UNSIGNED_LONG}.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
      */
     public UnaryTestCaseHelper expectedFromBigInteger(Function<BigInteger, Object> expected) {
         return expected(o -> expected.apply((BigInteger) o));
     }
 
     /**
-     * Set a function to build the expected value. If this function returns a
-     * {@link Matcher} then we'll {@link Matcher#matches use} it.
-     * Otherwise, we'll wrap the result in {@link Matchers#equalTo}.
+     * Set a function to build the expected value from the parameter value.
+     * This works for {@link DataType#DATETIME} and {@link DataType#DATE_NANOS}
+     * parameters.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
      */
     public UnaryTestCaseHelper expectedFromInstant(Function<Instant, Object> expected) {
         return expected(o -> expected.apply((Instant) o));

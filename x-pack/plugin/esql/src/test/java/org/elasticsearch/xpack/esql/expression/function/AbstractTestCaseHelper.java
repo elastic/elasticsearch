@@ -108,6 +108,10 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
     /**
      * Sets the expected {@link Object#toString} of the {@link EvalOperator.ExpressionEvaluator}.
      * Use {@code %0} for the "reader" for the first parameter. Use {@code %1} for the second. Etc.
+     * Like:
+     * <pre>{@code
+     * helper.evaluatorToString("ToBase64Evaluator[field=%0]");
+     * }</pre>
      */
     public final S evaluatorToString(String evaluatorToString) {
         return create(values, name, evaluatorToString, outputType, expected, expectedWarnings, configuration);

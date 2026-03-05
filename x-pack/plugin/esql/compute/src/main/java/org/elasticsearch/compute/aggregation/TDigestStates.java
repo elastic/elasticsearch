@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BreakingTDigestHolder;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -21,6 +20,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.tdigest.TDigest;
+import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 
 import java.util.function.DoubleBinaryOperator;
 
@@ -40,6 +40,13 @@ public final class TDigestStates {
             return v1;
         }
         return op.applyAsDouble(v1, v2);
+    }
+
+    private static TDigestHolder asTDigestHolder(TDigest tdigest, double sum, double min, double max) {
+        //TODO: replace with BreakingTDigestHolder when added for proper memory accounting and reuse
+        TDigestHolder holder = new TDigestHolder();
+        holder.reset(EncodedTDigest.encodeCentroids(tdigest.centroids()), min, max, sum, tdigest.size());
+        return holder;
     }
 
     static final class SingleState implements AggregatorState {
@@ -80,11 +87,8 @@ public final class TDigestStates {
                 blocks[offset] = blockFactory.newConstantTDigestBlock(TDigestHolder.empty(), 1);
                 blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(false, 1);
             } else {
-                try (var tempHolder = BreakingTDigestHolder.create(breaker)) {
-                    tempHolder.set(merger, sum, min, max);
-                    blocks[offset] = blockFactory.newConstantTDigestBlock(tempHolder.holderView(), 1);
-                    blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
-                }
+                blocks[offset] = blockFactory.newConstantTDigestBlock(asTDigestHolder(merger, sum, min, max), 1);
+                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
             }
         }
 
@@ -99,10 +103,7 @@ public final class TDigestStates {
             if (merger == null) {
                 return blockFactory.newConstantNullBlock(1);
             } else {
-                try (var tempHolder = BreakingTDigestHolder.create(breaker)) {
-                    tempHolder.set(merger, sum, min, max);
-                    return blockFactory.newConstantTDigestBlock(tempHolder.holderView(), 1);
-                }
+                return blockFactory.newConstantTDigestBlock(asTDigestHolder(merger, sum, min, max), 1);
             }
         }
     }
@@ -191,15 +192,13 @@ public final class TDigestStates {
             try (
                 var histoBuilder = driverContext.blockFactory().newTDigestBlockBuilder(selected.getPositionCount());
                 var seenBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
-                var tempHolder = BreakingTDigestHolder.create(breaker);
             ) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
                     TDigest state = getOrNull(groupId);
                     if (state != null) {
                         seenBuilder.appendBoolean(true);
-                        tempHolder.set(state, sums.get(groupId), minima.get(groupId), maxima.get(groupId));
-                        histoBuilder.appendTDigest(tempHolder.holderView());
+                        histoBuilder.appendTDigest(asTDigestHolder(state, sums.get(groupId), minima.get(groupId), maxima.get(groupId)));
                     } else {
                         seenBuilder.appendBoolean(false);
                         histoBuilder.appendTDigest(TDigestHolder.empty());
@@ -211,16 +210,12 @@ public final class TDigestStates {
         }
 
         public Block evaluateFinal(IntVector selected, DriverContext driverContext) {
-            try (
-                var histoBuilder = driverContext.blockFactory().newTDigestBlockBuilder(selected.getPositionCount());
-                var tempHolder = BreakingTDigestHolder.create(breaker);
-            ) {
+            try (var histoBuilder = driverContext.blockFactory().newTDigestBlockBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
                     TDigest state = getOrNull(groupId);
                     if (state != null) {
-                        tempHolder.set(state, sums.get(groupId), minima.get(groupId), maxima.get(groupId));
-                        histoBuilder.appendTDigest(tempHolder.holderView());
+                        histoBuilder.appendTDigest(asTDigestHolder(state, sums.get(groupId), minima.get(groupId), maxima.get(groupId)));
                     } else {
                         histoBuilder.appendNull();
                     }

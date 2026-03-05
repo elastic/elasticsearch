@@ -29,7 +29,7 @@ import java.util.Objects;
  * This is a {@link TDigestReadView} annotated with some extra information: The sum, min and max of all observations.
  * The TDigest is represented a list of centroids and their counts, encoded in a byte array.
  * This class does not own the underlying memory used to store the digest, it is merely a pointer/accessor for e.g.
- * a single value in a {@link TDigestBlock} or in {@link BreakingTDigestHolder}.
+ * a single value in a {@link TDigestBlock}.
  * <br>
  * This class supports serialization, but this is only intended for use in ES|QL Literals, as it uses untracked memory on deserialization.
  */

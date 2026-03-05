@@ -48,7 +48,10 @@ public class MatchQuery extends Query {
             entry(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), (qb, s) -> qb.minimumShouldMatch(s.toString())),
             entry(OPERATOR_FIELD.getPreferredName(), (qb, s) -> qb.operator(Operator.fromString(s.toString()))),
             entry(PREFIX_LENGTH_FIELD.getPreferredName(), (qb, s) -> qb.prefixLength((Integer) s)),
-            entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), (qb, s) -> qb.zeroTermsQuery(ZeroTermsQueryOption.readFromString(s.toString())))
+            entry(
+                ZERO_TERMS_QUERY_FIELD.getPreferredName(),
+                (qb, s) -> qb.zeroTermsQuery(ZeroTermsQueryOption.readFromString(s.toString()))
+            )
         );
     }
 

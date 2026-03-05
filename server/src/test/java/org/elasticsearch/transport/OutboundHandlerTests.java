@@ -476,10 +476,10 @@ public class OutboundHandlerTests extends ESTestCase {
         } finally {
             response.decRef();
         }
-        assertEquals(requestId, requestIdRef.get());
-        assertEquals(action, actionRef.get());
         assertNull(channel.getMessageCaptor().get());
         assertNull(channel.getListenerCaptor().get());
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
         assertTrue(response.released.get());
         assertFalse(channel.isOpen());
         assertTrue(closeListener.isDone());

@@ -40,38 +40,42 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
 
         if (oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID)) {
             // Should be able to create synthetic id index throughout the rolling upgrade
-            for (int i = 0; i < numNodes; i++) {
-                assertWriteIndex(indexName(i));
-                for (int j = 0; j <= i; j++) {
-                    assertIndexRead(indexName(j), isServerless);
+            String index_0 = indexName(0);
+            assertIndexCanBeCreated(index_0);
+            assertCanAddDocuments(index_0);
+            assertIndexRead(index_0, isServerless, 1);
+            clusterRollingUpgrade(i -> {
+                int nextIndexId = i + 1;
+                String indexName = indexName(nextIndexId);
+                assertIndexCanBeCreated(indexName);
+                for (int j = 0; j <= nextIndexId; j++) {
+                    assertCanAddDocuments(indexName(j));
+                    assertIndexRead(indexName(j), isServerless, nextIndexId + 1 - j);
                 }
-                upgradeNode(i);
-            }
-            assertWriteIndex(indexName(numNodes));
-            for (int j = 0; j <= numNodes; j++) {
-                assertIndexRead(indexName(j), isServerless);
-            }
+            });
         } else {
             // Cluster supports synthetic id index after all nodes have been upgraded, not before
-            for (int i = 0; i < numNodes; i++) {
-                assertNoWriteIndex(indexName(i));
-                upgradeNode(i);
-            }
-            assertWriteIndex(indexName(numNodes));
-            assertIndexRead(indexName(numNodes), isServerless);
+            assertNoWriteIndex(indexName(0));
+            clusterRollingUpgrade(i -> {
+                int nextIndexId = i + 1;
+                if (nextIndexId == numNodes) {
+                    // Last node has been upgraded, we should be able to write
+                    String indexName = indexName(nextIndexId);
+                    assertIndexCanBeCreated(indexName);
+                    assertCanAddDocuments(indexName);
+                    assertIndexRead(indexName(nextIndexId), isServerless, 1);
+                } else {
+                    assertNoWriteIndex(indexName(nextIndexId));
+                }
+            });
         }
     }
 
-    private void assertWriteIndex(String indexName) throws IOException {
-        assertIndexCanBeCreated(indexName);
-        assertCanAddDocuments(indexName);
-    }
-
-    private static void assertIndexRead(String indexName, boolean isServerless) throws IOException {
+    private static void assertIndexRead(String indexName, boolean isServerless, int nbrOfBatches) throws IOException {
         assertTrue("Expected index [" + indexName + "] to exist, but did not", indexExists(indexName));
         Map<String, Object> indexSettingsAsMap = getIndexSettingsAsMap(indexName);
         assertThat(indexSettingsAsMap.get(IndexSettings.SYNTHETIC_ID.getKey()), Matchers.equalTo("true"));
-        assertDocCount(client(), indexName, DOC_COUNT);
+        assertDocCount(client(), indexName, (long) nbrOfBatches * DOC_COUNT);
         if (!isServerless) {
             assertThat(invertedIndexSize(indexName), Matchers.equalTo(0));
         }

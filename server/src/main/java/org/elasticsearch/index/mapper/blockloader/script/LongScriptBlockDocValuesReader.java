@@ -21,12 +21,13 @@ import java.io.IOException;
 /**
  * {@link BlockDocValuesReader} implementation for {@code long} scripts.
  */
-public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static class LongScriptBlockLoader extends DocValuesBlockLoader {
+public class LongScriptBlockDocValuesReader extends BlockScriptReader {
+    public static class LongScriptBlockLoader extends ScriptBlockLoader {
         private final LongFieldScript.LeafFactory factory;
         private final long byteSize;
 
         public LongScriptBlockLoader(LongFieldScript.LeafFactory factory, ByteSizeValue byteSize) {
+            super(byteSize);
             this.factory = factory;
             this.byteSize = byteSize.getBytes();
         }
@@ -37,28 +38,17 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
-            LongFieldScript script = null;
-            try {
-                script = factory.newInstance(context);
-                return new LongScriptBlockDocValuesReader(breaker, script, byteSize);
-            } finally {
-                if (script == null) {
-                    breaker.addWithoutBreaking(-byteSize);
-                }
-            }
+        public BlockScriptReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            return new LongScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
         }
     }
 
     private final LongFieldScript script;
-    private final long byteSize;
     private int docId;
 
     LongScriptBlockDocValuesReader(CircuitBreaker breaker, LongFieldScript script, long byteSize) {
-        super(breaker);
+        super(breaker, byteSize);
         this.script = script;
-        this.byteSize = byteSize;
     }
 
     @Override
@@ -67,24 +57,9 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-        throws IOException {
-        // Note that we don't pre-sort our output so we can't use longsFromDocValues
-        try (BlockLoader.LongBuilder builder = factory.longs(docs.count() - offset)) {
-            for (int i = offset; i < docs.count(); i++) {
-                read(docs.get(i), builder);
-            }
-            return builder.build();
-        }
-    }
-
-    @Override
-    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder b) throws IOException {
+        BlockLoader.LongBuilder builder = (BlockLoader.LongBuilder) b;
         this.docId = docId;
-        read(docId, (BlockLoader.LongBuilder) builder);
-    }
-
-    private void read(int docId, BlockLoader.LongBuilder builder) {
         script.runForDoc(docId);
         switch (script.count()) {
             case 0 -> builder.appendNull();
@@ -102,10 +77,5 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
     @Override
     public String toString() {
         return "ScriptLongs";
-    }
-
-    @Override
-    public void close() {
-        breaker.addWithoutBreaking(-byteSize);
     }
 }

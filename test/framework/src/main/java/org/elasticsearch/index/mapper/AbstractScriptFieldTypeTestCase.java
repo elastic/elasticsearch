@@ -62,6 +62,7 @@ import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -477,33 +478,11 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(
-        CircuitBreaker breaker,
-        DirectoryReader reader,
-        MappedFieldType fieldType,
-        int offset
-    ) throws IOException {
-        return blockLoaderReadValuesFromColumnAtATimeReader(breaker, Settings.EMPTY, reader, fieldType, offset);
-    }
-
-    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(
-        CircuitBreaker breaker,
-        Settings settings,
-        DirectoryReader reader,
-        MappedFieldType fieldType,
-        int offset
-    ) throws IOException {
-        BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
-        List<Object> all = new ArrayList<>();
+    protected final void assertColumnAtATimeReaderNotSupported(DirectoryReader reader, MappedFieldType fieldType) throws IOException {
+        BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
         for (LeafReaderContext ctx : reader.leaves()) {
-            try (BlockLoader.ColumnAtATimeReader columnReader = loader.columnAtATimeReader(ctx).apply(breaker)) {
-                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
-                for (int i = 0; i < block.size(); i++) {
-                    all.add(block.get(i));
-                }
-            }
+            assertThat(loader.columnAtATimeReader(ctx), nullValue());
         }
-        return all;
     }
 
     protected final List<Object> blockLoaderReadValuesFromRowStrideReader(

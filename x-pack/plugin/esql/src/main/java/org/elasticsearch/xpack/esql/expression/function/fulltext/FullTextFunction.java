@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -270,7 +271,10 @@ public abstract class FullTextFunction extends Function
                 plan,
                 condition,
                 FullTextFunction.class,
-                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false) && (lp instanceof UnionAll == false),
+                lp -> (lp instanceof Limit == false)
+                    && (lp instanceof Aggregate == false)
+                    && (lp instanceof UnionAll == false)
+                    && (lp instanceof MvExpand == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );

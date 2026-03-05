@@ -93,6 +93,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -484,6 +485,17 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     /**
+     * Parse a dynamic mapping update {@link CompressedXContent} back into a {@link Mapping} for test assertions.
+     */
+    protected Mapping parseDynamicUpdate(CompressedXContent update) {
+        try {
+            return createMapperService(mapping(b -> {})).parseMapping("_doc", MapperService.MergeReason.MAPPING_UPDATE, update);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
      * Merge a new mapping into the one in the provided {@link MapperService}.
      */
     protected static void merge(MapperService mapperService, XContentBuilder mapping) throws IOException {
@@ -538,6 +550,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         dynamicMapping.toXContent(builder, ToXContent.EMPTY_PARAMS);
         return builder.endObject();
+    }
+
+    protected static void mergeDynamicUpdate(MapperService mapperService, CompressedXContent dynamicUpdate) {
+        mapperService.merge("_doc", dynamicUpdate, MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     public static XContentBuilder fieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {

@@ -63,7 +63,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
 
     public TextEmbeddingQueryVectorBuilder(String modelId, String modelText) {
         this.modelId = modelId;
-        this.modelText = modelText;
+        this.modelText = Objects.requireNonNull(modelText);
     }
 
     public TextEmbeddingQueryVectorBuilder(StreamInput in) throws IOException {

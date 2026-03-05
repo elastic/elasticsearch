@@ -459,14 +459,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             );
             try (DirectoryReader reader = iw.getReader()) {
                 KeywordScriptFieldType fieldType = buildWrapped("append_param", Map.of("param", "-Suffix"), factoryWrapper);
-                assertThat(
-                    blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0),
-                    equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
-                );
-                assertThat(
-                    blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1),
-                    equalTo(List.of(new BytesRef("2-Suffix")))
-                );
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
                 assertThat(
                     blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType),
                     equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
@@ -488,15 +481,12 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             );
             try (DirectoryReader reader = iw.getReader()) {
                 KeywordScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
 
                 // Assert implementations:
                 BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
                 assertThat(loader, instanceOf(KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader.class));
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                // ignored source doesn't support column at a time loading:
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
-                    assertThat(columnAtATimeLoader, instanceOf(KeywordScriptBlockDocValuesReader.class));
-                }
                 try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
                     assertThat(rowStrideReader, instanceOf(KeywordScriptBlockDocValuesReader.class));
                 }
@@ -505,11 +495,6 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 var dogBytes = new BytesRef("dog");
 
                 // Assert values:
-                assertThat(
-                    blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0),
-                    equalTo(List.of(catBytes, dogBytes))
-                );
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1), equalTo(List.of(dogBytes)));
                 assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(List.of(catBytes, dogBytes)));
             }
         }

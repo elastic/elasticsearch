@@ -72,6 +72,7 @@ processingCommand
     | uriPartsCommand
     | metricsInfoCommand
     | registeredDomainCommand
+    | tsInfoCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
@@ -107,7 +108,7 @@ timeSeriesCommand
     ;
 
 externalCommand
-    : EXTERNAL stringOrParameter commandNamedParameters
+    : DEV_EXTERNAL stringOrParameter commandNamedParameters
     ;
 
 indexPatternAndMetadataFields
@@ -358,6 +359,10 @@ fuseKeyByFields
 
 metricsInfoCommand
     : METRICS_INFO
+    ;
+
+tsInfoCommand
+    : TS_INFO
     ;
 
 //

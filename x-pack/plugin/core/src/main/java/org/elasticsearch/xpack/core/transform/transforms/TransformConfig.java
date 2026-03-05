@@ -387,13 +387,6 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                     validationException
                 );
             }
-            // verify there is no project routing
-            if (getSource().getProjectRouting() != null) {
-                validationException = addValidationError(
-                    "Cross-project calls are not supported, but project_routing was requested: " + getSource().getProjectRouting(),
-                    validationException
-                );
-            }
         }
         return validationException;
     }

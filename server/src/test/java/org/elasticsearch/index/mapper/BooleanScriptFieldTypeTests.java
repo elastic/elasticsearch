@@ -499,9 +499,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             );
             try (DirectoryReader reader = iw.getReader()) {
                 BooleanScriptFieldType fieldType = buildWrapped("xor_param", Map.of("param", false), leafFactoryWrapper);
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
                 List<Boolean> expected = List.of(false, true);
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0), equalTo(expected));
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1), equalTo(expected.subList(1, 2)));
                 assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(expected));
             }
         }
@@ -535,23 +534,16 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 // then
 
                 // assert loader is of expected instance type
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
                 assertThat(loader, instanceOf(BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader.class));
 
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                // ignored source doesn't support column at a time loading:
-                try (
-                    BlockLoader.ColumnAtATimeReader columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst())
-                        .apply(breaker)
-                ) {
-                    assertThat(columnAtATimeLoader, instanceOf(BooleanScriptBlockDocValuesReader.class));
-                }
 
                 try (BlockLoader.RowStrideReader rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
                     assertThat(rowStrideReader, instanceOf(BooleanScriptBlockDocValuesReader.class));
                 }
 
                 // assert values
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0), equalTo(expected));
                 assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(expected));
             }
         }

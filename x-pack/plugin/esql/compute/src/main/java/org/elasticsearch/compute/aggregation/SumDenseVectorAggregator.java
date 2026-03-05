@@ -142,7 +142,7 @@ class SumDenseVectorAggregator {
         }
 
         Block toBlock(DriverContext driverContext) {
-            if (seen == false || failed == true || sum == null) {
+            if (seen == false || failed || sum == null) {
                 return driverContext.blockFactory().newConstantNullBlock(1);
             }
             for (float f : sum) {

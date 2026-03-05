@@ -12,11 +12,16 @@ import org.elasticsearch.xpack.ml.datafeed.LinkedProjectState;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 public interface DataExtractor {
 
-    record Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedProjectState> linkedProjectStates) {}
+    record Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedProjectState> linkedProjectStates) {
+        public Result {
+            linkedProjectStates = List.copyOf(Objects.requireNonNull(linkedProjectStates));
+        }
+    }
 
     record DataSummary(Long earliestTime, Long latestTime, long totalHits) {
         public boolean hasData() {

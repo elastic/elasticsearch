@@ -112,7 +112,7 @@ public final class DataExtractorUtils {
             long searchLatencyMs = cluster.getTook() != null ? cluster.getTook().millis() : 0L;
             result.add(new LinkedProjectState(aliasForState, status, errorReason, searchLatencyMs));
         }
-        return result;
+        return List.copyOf(result);
     }
 
     private static LinkedProjectState.Status mapStatus(SearchResponse.Cluster.Status clusterStatus) {
@@ -128,7 +128,8 @@ public final class DataExtractorUtils {
         if (failures == null || failures.isEmpty()) {
             return null;
         }
-        return failures.get(0).reason();
+        Throwable cause = failures.get(0).getCause();
+        return cause != null ? cause.getMessage() : failures.get(0).reason();
     }
 
     /**

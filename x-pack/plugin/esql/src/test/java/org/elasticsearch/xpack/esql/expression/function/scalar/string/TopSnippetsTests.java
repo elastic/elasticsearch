@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -99,7 +100,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(new BytesRef(text), fieldDataType, "field"),
                     new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query")
                 ),
-                "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], "
+                "TopSnippetsEvaluator[field=Attribute[channel=0], query=Attribute[channel=1], "
                     + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
                     + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
                 DataType.KEYWORD,
@@ -147,7 +148,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     values,
-                    "TopSnippetsBytesRefEvaluator[str=Attribute[channel=0], query=Attribute[channel=1], "
+                    "TopSnippetsEvaluator[field=Attribute[channel=0], query=Attribute[channel=1], "
                         + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}, "
                         + "scorer=MemoryIndexChunkScorer, numSnippets=3]",
                     DataType.KEYWORD,
@@ -223,6 +224,35 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
         List<String> result = process(PARAGRAPH_INPUT, query, numSnippets, numWords);
         assertNull(result);
+    }
+
+    public void testSnippetsReturnedInScoringOrder() {
+        String highRelevance = "Elasticsearch is a powerful search engine. "
+            + "Elasticsearch supports full-text search and vector search. "
+            + "Many companies rely on Elasticsearch for their search infrastructure.";
+
+        String lowRelevance = "There are many search engines available today. "
+            + "Elasticsearch is one option among several alternatives. "
+            + "Choosing the right tool depends on your requirements.";
+
+        String noRelevance = "The weather today is sunny and warm. "
+            + "Perfect conditions for a walk in the park. "
+            + "The temperature is expected to reach 25 degrees.";
+
+        String query = "elasticsearch";
+
+        String combinedText = noRelevance + " " + highRelevance + " " + lowRelevance;
+
+        List<String> result = process(combinedText, query, 3, 50);
+
+        assertNotNull("Should return results for matching query", result);
+        assertFalse("Should have at least one result", result.isEmpty());
+
+        assertTrue(
+            "First snippet should be from the most relevant chunk (contains 'Elasticsearch' multiple times)",
+            result.get(0).toLowerCase(Locale.ROOT).contains("elasticsearch")
+                && (result.get(0).contains("powerful") || result.get(0).contains("supports") || result.get(0).contains("companies"))
+        );
     }
 
     private void verifySnippets(String query, Integer numSnippets, Integer numWords, int expectedNumChunksReturned) {

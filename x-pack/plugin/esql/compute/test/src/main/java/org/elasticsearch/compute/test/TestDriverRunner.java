@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -43,6 +44,7 @@ import static org.elasticsearch.test.ESTestCase.terminate;
  */
 public class TestDriverRunner {
     private Integer numThreads = null;
+    private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
     /**
      * Set the number of threads use to run the driver. If this isn't called
@@ -50,6 +52,15 @@ public class TestDriverRunner {
      */
     public TestDriverRunner numThreads(int numThreads) {
         this.numThreads = numThreads;
+        return this;
+    }
+
+    /**
+     * Set the timeout for the test. If this isn't called we default to a
+     * thirty-second timeout.
+     */
+    public TestDriverRunner timeout(TimeValue timeout) {
+        this.timeout = timeout;
         return this;
     }
 
@@ -120,7 +131,7 @@ public class TestDriverRunner {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         try {
             driverRunner.runToCompletion(drivers, future);
-            future.actionGet(TimeValue.timeValueSeconds(30));
+            future.actionGet(timeout);
         } finally {
             terminate(threadPool);
         }

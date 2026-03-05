@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -18,5 +19,19 @@ public record LocalPhysicalOptimizerContext(
     EsqlFlags flags,
     Configuration configuration,
     FoldContext foldCtx,
-    SearchStats searchStats
-) {}
+    SearchStats searchStats,
+    FilterPushdownRegistry filterPushdownRegistry
+) {
+    /**
+     * Convenience constructor without filter pushdown registry (for backward compatibility).
+     */
+    public LocalPhysicalOptimizerContext(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        SearchStats searchStats
+    ) {
+        this(plannerSettings, flags, configuration, foldCtx, searchStats, FilterPushdownRegistry.empty());
+    }
+}

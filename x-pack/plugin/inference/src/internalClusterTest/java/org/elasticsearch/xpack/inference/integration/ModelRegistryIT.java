@@ -26,8 +26,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -65,6 +63,7 @@ import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.Elast
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettingsTests;
 import org.hamcrest.Matchers;
@@ -77,6 +76,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -86,12 +86,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.OLD_DEFAULT_SETTINGS;
 import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertMinimalServiceSettings;
 import static org.elasticsearch.xpack.inference.registry.ModelRegistryTests.assertStoreModel;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -145,7 +145,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     public void testGetModel() throws Exception {
         String inferenceEntityId = "test-get-model";
-        Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
+        // This can return chunking settings as null
+        var model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         assertStoreModel(modelRegistry, model);
 
         // now get the model
@@ -166,13 +167,33 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 InferenceStatsTests.mockInferenceStats()
             )
         );
-        ElasticsearchInternalModel roundTripModel = (ElasticsearchInternalModel) elserService.parsePersistedConfigWithSecrets(
-            modelHolder.get().inferenceEntityId(),
-            modelHolder.get().taskType(),
-            modelHolder.get().settings(),
-            modelHolder.get().secrets()
+
+        // When we parse the persisted config, if the chunking settings were null they will be defaulted to OLD_DEFAULT_SETTINGS
+        ElasticsearchInternalModel roundTripModel = (ElasticsearchInternalModel) elserService.parsePersistedConfig(modelHolder.get());
+
+        assertElserModelsEqual(roundTripModel, model);
+    }
+
+    /**
+     * Asserts that the parsed ElasticsearchInternalModel is equal to the expected ElserInternalModel, taking into account
+     * when chunking settings is null in the expected model.
+     * @param actualParsedModel the parsed model by the {@link ElasticsearchInternalService}
+     * @param expected the expected model that was randomly generated and stored
+     */
+    private static void assertElserModelsEqual(ElasticsearchInternalModel actualParsedModel, ElserInternalModel expected) {
+        var expectedChunkingSettings = Objects.requireNonNullElse(expected.getConfigurations().getChunkingSettings(), OLD_DEFAULT_SETTINGS);
+
+        // Recreate the expected model with chunking settings set to the default if it was null
+        var expectedModelWithChunkingSettings = new ElserInternalModel(
+            expected.getInferenceEntityId(),
+            expected.getTaskType(),
+            expected.getConfigurations().getService(),
+            expected.getServiceSettings(),
+            expected.getTaskSettings(),
+            expectedChunkingSettings
         );
-        assertEquals(model, roundTripModel);
+
+        assertThat(actualParsedModel, equalTo(expectedModelWithChunkingSettings));
     }
 
     public void testStoreModelFailsWhenModelExists() {
@@ -281,7 +302,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             .collect(Collectors.toSet());
         modelHolder.get().forEach(m -> {
             assertTrue(sparseIds.contains(m.inferenceEntityId()));
-            assertThat(m.secrets().keySet(), empty());
+            assertThat(m.secrets(), is(nullValue()));
         });
 
         blockingCall(listener -> modelRegistry.getModelsByTaskType(TaskType.TEXT_EMBEDDING, listener), modelHolder, exceptionHolder);
@@ -292,7 +313,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             .collect(Collectors.toSet());
         modelHolder.get().forEach(m -> {
             assertTrue(denseIds.contains(m.inferenceEntityId()));
-            assertThat(m.secrets().keySet(), empty());
+            assertThat(m.secrets(), is(nullValue()));
         });
     }
 
@@ -301,7 +322,6 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var createdModels = new ArrayList<Model>();
         int modelCount = randomIntBetween(30, 100);
 
-        AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         for (int i = 0; i < modelCount; i++) {
@@ -322,7 +342,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             assertEquals(createdModels.get(i).getInferenceEntityId(), getAllModels.get(i).inferenceEntityId());
             assertEquals(createdModels.get(i).getTaskType(), getAllModels.get(i).taskType());
             assertEquals(createdModels.get(i).getConfigurations().getService(), getAllModels.get(i).service());
-            assertThat(getAllModels.get(i).secrets().keySet(), empty());
+            assertThat(getAllModels.get(i).secrets(), is(nullValue()));
         }
     }
 
@@ -345,7 +365,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         // get model without secrets
         blockingCall(listener -> modelRegistry.getModel(inferenceEntityId, listener), modelHolder, exceptionHolder);
-        assertThat(modelHolder.get().secrets().keySet(), empty());
+        assertThat(modelHolder.get().secrets(), is(nullValue()));
         assertReturnModelIsModifiable(modelHolder.get());
     }
 
@@ -907,10 +927,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var model = new ElasticInferenceServiceSparseEmbeddingsModel(
             inferenceId1,
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings("model", null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents("url"),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
@@ -986,10 +1003,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         var eisModel = new ElasticInferenceServiceSparseEmbeddingsModel(
             inferenceId1,
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings("model", null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents("url"),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
@@ -1072,7 +1086,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertEquals("foo", modelConfig.service());
         assertEquals(TaskType.SPARSE_EMBEDDING, modelConfig.taskType());
         assertNotNull(modelConfig.settings().keySet());
-        assertThat(modelConfig.secrets().keySet(), empty());
+        assertThat(modelConfig.secrets(), is(nullValue()));
     }
 
     public void testStoreModel_ReturnsTrue_WhenNoFailuresOccur() {
@@ -1251,9 +1265,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
     }
 
-    static Model buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
+    static ElserInternalModel buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
         return switch (taskType) {
-            case SPARSE_EMBEDDING -> new org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalModel(
+            case SPARSE_EMBEDDING -> new ElserInternalModel(
                 inferenceEntityId,
                 taskType,
                 ElasticsearchInternalService.NAME,

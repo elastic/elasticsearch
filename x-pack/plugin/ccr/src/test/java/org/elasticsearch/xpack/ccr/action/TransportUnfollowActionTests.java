@@ -11,8 +11,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -32,6 +35,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class TransportUnfollowActionTests extends ESTestCase {
 
     public void testUnfollow() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         final long settingsVersion = randomNonNegativeLong();
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
             .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
@@ -42,17 +47,19 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder().put(followerIndex).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(followerIndex)).build())
             .build();
         ClusterState result = TransportUnfollowAction.unfollow("follow_index", current);
 
-        IndexMetadata resultIMD = result.metadata().getProject().index("follow_index");
+        IndexMetadata resultIMD = result.metadata().getProject(projectId).index("follow_index");
         assertThat(resultIMD.getSettings().get(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey()), nullValue());
         assertThat(resultIMD.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY), nullValue());
         assertThat(resultIMD.getSettingsVersion(), equalTo(settingsVersion + 1));
     }
 
     public void testUnfollowIndexOpen() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
             .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
@@ -60,7 +67,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder().put(followerIndex).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(followerIndex)).build())
             .build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> TransportUnfollowAction.unfollow("follow_index", current));
         assertThat(
@@ -70,6 +77,8 @@ public class TransportUnfollowActionTests extends ESTestCase {
     }
 
     public void testUnfollowRunningShardFollowTasks() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
             .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
@@ -104,10 +113,13 @@ public class TransportUnfollowActionTests extends ESTestCase {
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(
                 Metadata.builder()
-                    .put(followerIndex)
-                    .putCustom(
-                        PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(0, Collections.singletonMap("id", task))
+                    .put(
+                        ProjectMetadata.builder(projectId)
+                            .put(followerIndex)
+                            .putCustom(
+                                PersistentTasksCustomMetadata.TYPE,
+                                new PersistentTasksCustomMetadata(0, Collections.singletonMap("id", task))
+                            )
                     )
                     .build()
             )
@@ -120,6 +132,8 @@ public class TransportUnfollowActionTests extends ESTestCase {
     }
 
     public void testUnfollowMissingIndex() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
             .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
@@ -128,12 +142,14 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder().put(followerIndex).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(followerIndex)).build())
             .build();
         expectThrows(IndexNotFoundException.class, () -> TransportUnfollowAction.unfollow("another_index", current));
     }
 
     public void testUnfollowNoneFollowIndex() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
             .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
@@ -141,7 +157,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .state(IndexMetadata.State.CLOSE);
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder().put(followerIndex).build())
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(followerIndex)).build())
             .build();
         expectThrows(IllegalArgumentException.class, () -> TransportUnfollowAction.unfollow("follow_index", current));
     }

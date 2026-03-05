@@ -990,7 +990,7 @@ public class Security extends Plugin
         components.add(
             new PluginComponentBinding<>(
                 SamlAuthenticateResponseHandler.class,
-                samlAuthenticateResponseHandlerFactory.get().create(settings, tokenService, getClock())
+                samlAuthenticateResponseHandlerFactory.get().create(settings, tokenService, clusterService, getClock())
             )
         );
         this.fileRolesStore.set(
@@ -2562,7 +2562,7 @@ public class Security extends Plugin
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
         loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
         loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
-        // TODO add bulkPutRoleRequestBuilderFactory loading here when available
+        loadSingletonExtensionAndSetOnce(loader, bulkPutRoleRequestBuilderFactory, BulkPutRoleRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, getBuiltinPrivilegesResponseTranslator, GetBuiltinPrivilegesResponseTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, updateApiKeyRequestTranslator, UpdateApiKeyRequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, bulkUpdateApiKeyRequestTranslator, BulkUpdateApiKeyRequestTranslator.class);

@@ -12,10 +12,10 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
-import org.elasticsearch.compute.operator.LongTDigestHistogramBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TDigestTestUtils;
+import org.elasticsearch.compute.test.operator.blocksource.LongTDigestHistogramBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
 import java.util.List;

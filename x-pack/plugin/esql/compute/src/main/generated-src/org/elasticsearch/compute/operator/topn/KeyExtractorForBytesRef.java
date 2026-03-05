@@ -45,14 +45,13 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
-    protected final int nonNul(BreakingBytesRefBuilder key, BytesRef value) {
+    protected final void nonNul(BreakingBytesRefBuilder key, BytesRef value) {
         key.append(nonNul);
-        return encoder.encodeBytesRef(value, key) + 1;
+        encoder.encodeBytesRef(value, key);
     }
 
-    protected final int nul(BreakingBytesRefBuilder key) {
+    protected final void nul(BreakingBytesRefBuilder key) {
         key.append(nul);
-        return 1;
     }
 
     @Override
@@ -69,8 +68,8 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
-            return nonNul(key, vector.getBytesRef(position, scratch));
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
+            nonNul(key, vector.getBytesRef(position, scratch));
         }
     }
 
@@ -83,11 +82,12 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getBytesRef(block.getFirstValueIndex(position), scratch));
+            nonNul(key, block.getBytesRef(block.getFirstValueIndex(position), scratch));
         }
     }
 
@@ -100,11 +100,12 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
-                return nul(key);
+                nul(key);
+                return;
             }
-            return nonNul(key, block.getBytesRef(block.getFirstValueIndex(position) + block.getValueCount(position) - 1, scratch));
+            nonNul(key, block.getBytesRef(block.getFirstValueIndex(position) + block.getValueCount(position) - 1, scratch));
         }
     }
 
@@ -119,10 +120,11 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
@@ -135,7 +137,7 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
                     min.length = v.length;
                 }
             }
-            return nonNul(key, min);
+            nonNul(key, min);
         }
     }
 
@@ -150,10 +152,11 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         }
 
         @Override
-        public int writeKey(BreakingBytesRefBuilder key, int position) {
+        public void writeKey(BreakingBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
-                return nul(key);
+                nul(key);
+                return;
             }
             int start = block.getFirstValueIndex(position);
             int end = start + size;
@@ -166,7 +169,7 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
                     max.length = v.length;
                 }
             }
-            return nonNul(key, max);
+            nonNul(key, max);
         }
     }
 }

@@ -17,6 +17,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
@@ -101,6 +102,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -150,8 +152,11 @@ import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -224,6 +229,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -1348,26 +1354,66 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private static List<DocIdSeqNoAndSource> getLiveDocs(Engine engine, boolean refresh) throws IOException {
         assertThat(engine, notNullValue());
 
-        var source = "test_get_doc_ids";
+        var reason = "test_get_doc_ids";
         if (refresh) {
-            engine.refresh(source);
+            engine.refresh(reason);
         }
         final var engineConfig = engine.getEngineConfig();
         assertThat("Method expects a non-NoOpEngine", engine, not(instanceOf(NoOpEngine.class)));
         assertThat("Method expects a non-NoOpEngine", engineConfig.getMapperService(), notNullValue());
 
-        // Some integration tests have the _source disabled and not stored, in which case we cannot compare the _source reliably
-        final var sourceEnabled = engineConfig.getMapperService().mappingLookup().isSourceEnabled();
+        final var mapperService = engineConfig.getMapperService();
+        // Some integration tests have the _source disabled, in which case we cannot compare the _source
+        final var sourceEnabled = mapperService.mappingLookup().isSourceEnabled();
+        // Some integration tests use synthetic source/id, so the original source/id stored field might have been trimmed during merges.
+        // Here we set up a source loader similar to what search fetch phase use to force loading the source, or id, before comparing docs.
+        final var sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
+        final var storedFieldLoader = StoredFieldLoader.create(true, sourceLoader.requiredStoredFields());
+        final TriFunction<BytesReference, LeafReaderContext, Integer, BytesReference> forceLoadingSource = (src, leaf, segmentDocID) -> {
+            if (src != null || sourceEnabled == false) {
+                return src;
+            }
+            try {
+                var leafLoader = storedFieldLoader.getLoader(leaf, null);
+                leafLoader.advanceTo(segmentDocID);
+                src = sourceLoader.leaf(leaf.reader(), new int[] { segmentDocID }).source(leafLoader, segmentDocID).internalSourceRef();
+                assert src != null;
+                assert src.length() > 0;
+                return src;
+            } catch (IOException ioe) {
+                throw new AssertionError(ioe);
+            }
+        };
+
         // Some indices merge away the _id field
         final var pruneIdField = engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
 
-        Engine.Searcher searcher = engine.acquireSearcher(source, Engine.SearcherScope.INTERNAL);
+        final var idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
+        final TriFunction<String, LeafReaderContext, Integer, String> forceLoadingId = (id, leaf, segmentDocID) -> {
+            if (id != null) {
+                return id;
+            } else if (pruneIdField == false) {
+                throw new AssertionError("Document has a null value for _id field, but ids are not merged away");
+            }
+            try {
+                var leafLoader = storedFieldLoader.getLoader(leaf, null);
+                leafLoader.advanceTo(segmentDocID);
+                id = idLoader.leaf(leafLoader, leaf.reader(), new int[] { segmentDocID }).getId(segmentDocID);
+                assert id != null;
+                assert id.isEmpty() == false;
+                return id;
+            } catch (IOException ioe) {
+                throw new AssertionError(ioe);
+            }
+        };
+
+        Engine.Searcher searcher = engine.acquireSearcher(reason, Engine.SearcherScope.INTERNAL);
         try {
             Translog.Snapshot snapshot = null;
             try {
                 if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
                     snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                        engineConfig.getMapperService(),
+                        mapperService,
                         searcher,
                         SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
                         RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes(),
@@ -1387,19 +1433,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         }
 
                         @Override
-                        protected String overrideId(String id) {
-                            if (id != null) {
-                                return super.overrideId(id);
-                            } else if (pruneIdField == false) {
-                                throw new AssertionError("Document has a null value for _id field, but ids are not merged away");
-                            } else {
-                                return NULL_ID; // Return a fake value to allow comparison
-                            }
+                        protected String overrideId(String id, LeafReaderContext leaf, int segmentDocID) {
+                            return forceLoadingId.apply(id, leaf, segmentDocID);
+                        }
+
+                        @Override
+                        protected BytesReference overrideSource(BytesReference source, LeafReaderContext leaf, int segmentDocID) {
+                            return forceLoadingSource.apply(source, leaf, segmentDocID);
                         }
                     };
                 } else {
                     snapshot = new LuceneChangesSnapshot(
-                        engineConfig.getMapperService(),
+                        mapperService,
                         searcher,
                         SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
                         0L,
@@ -1419,14 +1464,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         }
 
                         @Override
-                        protected String overrideId(String id) {
-                            if (id != null) {
-                                return super.overrideId(id);
-                            } else if (pruneIdField == false) {
-                                throw new AssertionError("Document has a null value for _id field, but ids are not merged away");
-                            } else {
-                                return NULL_ID; // Return a fake value to allow comparison
-                            }
+                        protected String overrideId(String id, LeafReaderContext leaf, int segmentDocID) {
+                            return forceLoadingId.apply(id, leaf, segmentDocID);
+                        }
+
+                        @Override
+                        protected BytesReference overrideSource(BytesReference source, LeafReaderContext leaf, int segmentDocID) {
+                            return forceLoadingSource.apply(source, leaf, segmentDocID);
                         }
                     };
                 }
@@ -1622,19 +1666,44 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         } catch (AlreadyClosedException ex) {
                             continue;
                         }
-                        assertThat(
-                            "out of sync shards: primary=["
-                                + primaryShardRouting
-                                + "] num_docs_on_primary=["
-                                + docsOnPrimary.size()
-                                + "] vs replica=["
-                                + replicaShardRouting
-                                + "] num_docs_on_replica=["
-                                + docsOnReplica.size()
-                                + "]",
-                            docsOnReplica,
-                            equalTo(docsOnPrimary)
-                        );
+
+                        final int nbDocsOnPrimary = docsOnPrimary.size();
+                        final int nbDocsOnReplica = docsOnReplica.size();
+
+                        final var message = "out of sync shards: primary=["
+                            + primaryShardRouting
+                            + "] num_docs_on_primary=["
+                            + nbDocsOnPrimary
+                            + "] vs replica=["
+                            + replicaShardRouting
+                            + "] num_docs_on_replica=["
+                            + nbDocsOnReplica
+                            + "]";
+
+                        if (nbDocsOnPrimary != nbDocsOnReplica) {
+                            // Number of docs is the same on primary/replica so compare and prints the complete list of docs
+                            assertThat(message, docsOnReplica, equalTo(docsOnPrimary));
+                        } else {
+                            // Primary/replica don't have the same number of docs, compare each doc and only prints the different docs
+                            // This can help when only a subset of documents are different, but it can print all remaining docs if a doc
+                            // is missing in one of the shard.
+                            var diffOnPrimary = new ArrayList<DocIdSeqNoAndSource>();
+                            var diffOnReplica = new ArrayList<DocIdSeqNoAndSource>();
+                            for (int doc = 0; doc < nbDocsOnPrimary; doc++) {
+                                var docOnPrimary = docsOnPrimary.get(doc);
+                                var docOnReplica = docsOnReplica.get(doc);
+                                if (Objects.equals(docOnPrimary, docOnReplica) == false) {
+                                    diffOnPrimary.add(docOnPrimary);
+                                    diffOnReplica.add(docOnReplica);
+                                    break;
+                                }
+                            }
+                            assertThat(
+                                message + ", num_docs_different=[" + diffOnPrimary.size() + "]",
+                                diffOnReplica,
+                                equalTo(diffOnPrimary)
+                            );
+                        }
                     }
                 }
             }

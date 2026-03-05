@@ -20,6 +20,7 @@ import org.elasticsearch.datastreams.lifecycle.ErrorRecordingActionListener;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportRequest;
 
+import java.time.Clock;
 import java.util.function.BiConsumer;
 
 /**
@@ -31,8 +32,27 @@ public record DlmStepContext(
     ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> transportActionsDeduplicator,
     DataStreamLifecycleErrorStore errorStore,
     int signallingErrorRetryThreshold,
-    Client client
+    Client client,
+    Clock clock
 ) {
+
+    /**
+     * Creates a step context from a {@link DlmActionContext} and an index.
+     *
+     * @param index The index this step context is for.
+     * @param actionContext The action context to derive common resources from.
+     */
+    public DlmStepContext(Index index, DlmActionContext actionContext) {
+        this(
+            index,
+            actionContext.projectState(),
+            actionContext.transportActionsDeduplicator(),
+            actionContext.errorStore(),
+            actionContext.signallingErrorRetryThreshold(),
+            actionContext.client(),
+            actionContext.clock()
+        );
+    }
 
     /**
      * @return The name of the index associated with this context.

@@ -1,0 +1,18 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "scalar",
+  "name" : "time",
+  "description" : "returns the number of seconds since January 1, 1970 UTC. Note that this does not actually return the current time, but the time at which the expression is to be evaluated.",
+  "signatures" : [
+    {
+      "params" : [ ],
+      "variadic" : false,
+      "returnType" : "scalar"
+    }
+  ],
+  "examples" : [
+    "time()"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

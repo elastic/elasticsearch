@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 143070
+pr: 143668
+summary: ESQL - enable zero terms query match
+type: bug

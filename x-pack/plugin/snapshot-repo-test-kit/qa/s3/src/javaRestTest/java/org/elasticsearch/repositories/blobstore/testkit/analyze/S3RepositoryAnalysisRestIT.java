@@ -9,10 +9,16 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
+
+import java.util.Objects;
+
+import static org.hamcrest.Matchers.hasSize;
 
 public class S3RepositoryAnalysisRestIT extends AbstractS3RepositoryAnalysisRestTestCase {
 
@@ -31,5 +37,21 @@ public class S3RepositoryAnalysisRestIT extends AbstractS3RepositoryAnalysisRest
     @Override
     S3ConsistencyModel consistencyModel() {
         return S3ConsistencyModel.AWS_DEFAULT;
+    }
+
+    @Override
+    protected boolean checkOverwriteProtection() {
+        try {
+            // sometimes the repository is registered as not supporting conditional writes, in which case we must suppress overwrite checks
+            final var response = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "_snapshot/_all")));
+            final var repositories = response.evaluateMapKeys("");
+            assertThat(repositories, hasSize(1));
+            return Objects.equals(
+                "true",
+                response.evaluateExact(repositories.iterator().next(), "settings", "unsafely_incompatible_with_s3_conditional_writes")
+            ) == false;
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 }

@@ -340,9 +340,6 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
-        // When response serialization fails, OutboundHandler.sendMessage's finally block calls
-        // Releasables.close(byteStreamOutput, onAfter) which invokes onResponseSent(success) as a
-        // cleanup side-effect. Then sendErrorResponse sends the error and invokes onResponseSent(error).
         handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action) {
@@ -404,10 +401,6 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
-        // When response serialization fails, OutboundHandler.sendMessage's finally block calls
-        // Releasables.close(byteStreamOutput, onAfter) which invokes onResponseSent(success) as a
-        // cleanup side-effect. Then sendErrorResponse fires onResponseSent(error) -- but here the
-        // error response also fails to send (pipe broken), so it fires from the catch block instead.
         handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action) {
@@ -462,9 +455,6 @@ public class OutboundHandlerTests extends ESTestCase {
 
         AtomicLong requestIdRef = new AtomicLong();
         AtomicReference<String> actionRef = new AtomicReference<>();
-        // When serialization fails, sendMessage's finally block invokes onResponseSent(success) as a
-        // cleanup side-effect via Releasables.close(onAfter). For handshakes no error response is sent,
-        // so onResponseSent(error) must not be called.
         handler.setMessageListener(new TransportMessageListener() {
             @Override
             public void onResponseSent(long requestId, String action) {

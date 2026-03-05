@@ -151,8 +151,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean successCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
 
-        QuerySearchResult result = new QuerySearchResult();
-        querySearchResultListener(successCalled, failureCalled, breaker).onResponse(result);
+        querySearchResultListener(successCalled, failureCalled, breaker).onResponse(new QuerySearchResult());
 
         assertThat(successCalled.get(), is(true));
         assertThat(failureCalled.get(), is(false));
@@ -246,10 +245,9 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
     }
 
     /**
-     * Wrap a listener with circuit breaker release after {@code onResponse}, mirroring
-     * {@code SearchService.releaseCircuitBreakerOnResponse} (used for the query phase local path).
+     * Wrap a listener with circuit breaker release.
      */
-    private <T> ActionListener<T> withCircuitBreakerReleaseAfterResponse(
+    private <T> ActionListener<T> withCircuitBreakerRelease(
         ActionListener<T> listener,
         CircuitBreaker breaker,
         Function<T, FetchSearchResult> fetchResultExtractor
@@ -271,7 +269,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled,
         CircuitBreaker breaker
     ) {
-        return withCircuitBreakerReleaseAfterResponse(trackingListener(successCalled, failureCalled), breaker, qr -> null);
+        return withCircuitBreakerRelease(trackingListener(successCalled, failureCalled), breaker, qr -> null);
     }
 
     private ActionListener<FetchSearchResult> fetchSearchResultListener(
@@ -279,7 +277,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled,
         CircuitBreaker breaker
     ) {
-        return withCircuitBreakerReleaseAfterResponse(trackingListener(successCalled, failureCalled), breaker, Function.identity());
+        return withCircuitBreakerRelease(trackingListener(successCalled, failureCalled), breaker, Function.identity());
     }
 
     private ActionListener<QueryFetchSearchResult> queryFetchSearchResultListener(
@@ -287,11 +285,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled,
         CircuitBreaker breaker
     ) {
-        return withCircuitBreakerReleaseAfterResponse(
-            trackingListener(successCalled, failureCalled),
-            breaker,
-            QueryFetchSearchResult::fetchResult
-        );
+        return withCircuitBreakerRelease(trackingListener(successCalled, failureCalled), breaker, QueryFetchSearchResult::fetchResult);
     }
 
     private ActionListener<ScrollQueryFetchSearchResult> scrollQueryFetchSearchResultListener(
@@ -299,11 +293,7 @@ public class SearchServiceCircuitBreakerTests extends ESTestCase {
         AtomicBoolean failureCalled,
         CircuitBreaker breaker
     ) {
-        return withCircuitBreakerReleaseAfterResponse(
-            trackingListener(successCalled, failureCalled),
-            breaker,
-            sr -> sr.result().fetchResult()
-        );
+        return withCircuitBreakerRelease(trackingListener(successCalled, failureCalled), breaker, sr -> sr.result().fetchResult());
     }
 
     /**

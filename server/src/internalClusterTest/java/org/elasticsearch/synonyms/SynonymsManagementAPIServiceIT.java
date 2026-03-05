@@ -9,10 +9,8 @@
 
 package org.elasticsearch.synonyms;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
@@ -30,10 +28,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymRule;
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
@@ -85,6 +81,93 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         // Also retrieve them
         assertBusy(() -> {
             synonymsManagementAPIService.getSynonymSetRules(synonymSetId, 0, maxSynonymSets, new ActionListener<>() {
+                @Override
+                public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
+                    assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
+                    assertEquals(rulesNumber, synonymRulePagedResult.pageResults().length);
+                    getLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            });
+        }, 5, TimeUnit.SECONDS);
+
+        getLatch.await(10, TimeUnit.SECONDS);
+    }
+
+    public void testGetAllSynonymSetRulesExceedingScrollLimitFails() throws Exception {
+        int scrollLimit = randomIntBetween(2, 10);
+        synonymsManagementAPIService = new SynonymsManagementAPIService(client(), maxSynonymSets, scrollLimit);
+
+        String synonymSetId = randomIdentifier();
+        CountDownLatch putLatch = new CountDownLatch(1);
+        // Use bulkUpdateSynonymsSet to bypass the write cap and insert more rules than the scroll limit
+        synonymsManagementAPIService.bulkUpdateSynonymsSet(
+            synonymSetId,
+            randomSynonymsSet(scrollLimit + 1, scrollLimit + 1),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(org.elasticsearch.action.bulk.BulkResponse bulkResponse) {
+                    putLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            }
+        );
+        putLatch.await(5, TimeUnit.SECONDS);
+
+        CountDownLatch getLatch = new CountDownLatch(1);
+        assertBusy(() -> {
+            synonymsManagementAPIService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
+                @Override
+                public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
+                    fail("Expected failure due to scroll limit exceeded");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(IllegalArgumentException.class));
+                    assertThat(e.getMessage(), containsString(synonymSetId));
+                    assertThat(e.getMessage(), containsString(String.valueOf(scrollLimit)));
+                    getLatch.countDown();
+                }
+            });
+        }, 5, TimeUnit.SECONDS);
+
+        getLatch.await(10, TimeUnit.SECONDS);
+    }
+
+    public void testGetAllSynonymSetRulesViaScroll() throws Exception {
+        String synonymSetId = randomIdentifier();
+        int rulesNumber = randomIntBetween(maxSynonymSets / 2, maxSynonymSets);
+        CountDownLatch putLatch = new CountDownLatch(1);
+        synonymsManagementAPIService.putSynonymsSet(
+            synonymSetId,
+            randomSynonymsSet(rulesNumber, rulesNumber),
+            false,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
+                    putLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+            }
+        );
+        putLatch.await(5, TimeUnit.SECONDS);
+
+        CountDownLatch getLatch = new CountDownLatch(1);
+        assertBusy(() -> {
+            synonymsManagementAPIService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
                 @Override
                 public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
                     assertEquals(rulesNumber, synonymRulePagedResult.totalResults());
@@ -268,46 +351,6 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         });
 
         latch.await(5, TimeUnit.SECONDS);
-    }
-
-    public void testTooManySynonymsOnIndexTriggersWarning() throws InterruptedException {
-        CountDownLatch insertLatch = new CountDownLatch(1);
-        String synonymSetId = randomIdentifier();
-        synonymsManagementAPIService.bulkUpdateSynonymsSet(
-            synonymSetId,
-            randomSynonymsSet(atLeast(maxSynonymSets + 1)),
-            new ActionListener<>() {
-                @Override
-                public void onResponse(BulkResponse bulkItemResponses) {
-                    insertLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e);
-                }
-            }
-        );
-
-        insertLatch.await(5, TimeUnit.SECONDS);
-        Logger logger = mock(Logger.class);
-        SynonymsManagementAPIService.logger = logger;
-
-        CountDownLatch readLatch = new CountDownLatch(1);
-        synonymsManagementAPIService.getSynonymSetRules(synonymSetId, new ActionListener<>() {
-            @Override
-            public void onResponse(PagedResult<SynonymRule> synonymRulePagedResult) {
-                readLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("Should not have been able to retrieve synonyms");
-            }
-        });
-
-        readLatch.await(5, TimeUnit.SECONDS);
-        verify(logger).warn(anyString(), eq(synonymSetId));
     }
 
     public void testCreateSynonymsWithYellowSynonymsIndex() throws Exception {

@@ -29,9 +29,6 @@ import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Rule;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -73,8 +70,6 @@ public class TopNOomRaceTests extends ESTestCase {
         return parameters;
     }
 
-    @Rule(order = Integer.MIN_VALUE)
-    public static final AnyFailedWatcher watcher = new AnyFailedWatcher();
     private final int repeats;
 
     public TopNOomRaceTests(int repeats) {
@@ -82,7 +77,6 @@ public class TopNOomRaceTests extends ESTestCase {
     }
 
     public void testRace() {
-        assumeFalse("previous test failed", watcher.anyFailed);
         int driverCount = 6;
         double usedByEachThread = .3;
         ByteSizeValue limit = ByteSizeValue.ofBytes(Runtime.getRuntime().totalMemory() - ByteSizeValue.ofMb(30).getBytes());
@@ -144,12 +138,8 @@ public class TopNOomRaceTests extends ESTestCase {
         }
     }
 
-    public static class AnyFailedWatcher extends TestWatcher {
-        private boolean anyFailed = false;
-
-        @Override
-        protected void failed(Throwable e, Description description) {
-            anyFailed = true;
-        }
+    @Override
+    protected boolean shouldFailureSkipRemainingTests() {
+        return true;
     }
 }

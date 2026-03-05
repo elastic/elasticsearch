@@ -713,7 +713,9 @@ public final class IndexSettings {
         String codec = INDEX_CODEC_SETTING.get(settings);
         return IndexMode.TIME_SERIES.equals(indexMode)
             && CodecService.DEFAULT_CODEC.equalsIgnoreCase(codec)
-            && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT) ? Boolean.TRUE.toString() : Boolean.FALSE.toString();
+            && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT)
+                ? Boolean.TRUE.toString()
+                : Boolean.FALSE.toString();
     }, new Setting.Validator<>() {
         @Override
         public void validate(Boolean enabled) {}

@@ -63,4 +63,13 @@ public class AnnotationTests extends AbstractXContentSerializingTestCase<Annotat
             assertThat(testAnnotation, equalTo(new Annotation.Builder(testAnnotation).build()));
         }
     }
+
+    public void testProjectScopeChangedEventFromString() {
+        assertThat(Annotation.Event.fromString("project_scope_changed"), equalTo(Annotation.Event.PROJECT_SCOPE_CHANGED));
+        assertThat(Annotation.Event.fromString("PROJECT_SCOPE_CHANGED"), equalTo(Annotation.Event.PROJECT_SCOPE_CHANGED));
+    }
+
+    public void testProjectScopeChangedEventToString() {
+        assertThat(Annotation.Event.PROJECT_SCOPE_CHANGED.toString(), equalTo("project_scope_changed"));
+    }
 }

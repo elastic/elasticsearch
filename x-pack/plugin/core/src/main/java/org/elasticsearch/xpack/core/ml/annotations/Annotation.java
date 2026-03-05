@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.annotations;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +25,10 @@ import java.util.Locale;
 import java.util.Objects;
 
 public class Annotation implements ToXContentObject, Writeable {
+
+    private static final TransportVersion PROJECT_SCOPE_CHANGED_EVENT = TransportVersion.fromName(
+        "ml_annotation_project_scope_changed_event"
+    );
 
     public enum Type {
         ANNOTATION,
@@ -44,7 +49,8 @@ public class Annotation implements ToXContentObject, Writeable {
         DELAYED_DATA,
         MODEL_SNAPSHOT_STORED,
         MODEL_CHANGE,
-        CATEGORIZATION_STATUS_CHANGE;
+        CATEGORIZATION_STATUS_CHANGE,
+        PROJECT_SCOPE_CHANGED;
 
         public static Event fromString(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));
@@ -245,9 +251,13 @@ public class Annotation implements ToXContentObject, Writeable {
         }
         out.writeOptionalString(modifiedUsername);
         out.writeString(type.toString());
-        if (event != null) {
+        Event eventToWrite = event;
+        if (eventToWrite == Event.PROJECT_SCOPE_CHANGED && out.getTransportVersion().supports(PROJECT_SCOPE_CHANGED_EVENT) == false) {
+            eventToWrite = null;
+        }
+        if (eventToWrite != null) {
             out.writeBoolean(true);
-            out.writeEnum(event);
+            out.writeEnum(eventToWrite);
         } else {
             out.writeBoolean(false);
         }

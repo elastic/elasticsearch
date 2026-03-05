@@ -192,10 +192,9 @@ public class SplitTargetService {
     }
 
     public void cancelSplits(IndexShard indexShard) {
-        var stateMachine = onGoingSplits.get(indexShard);
+        var stateMachine = onGoingSplits.remove(indexShard);
         if (stateMachine != null) {
             stateMachine.cancel();
-            onGoingSplits.remove(indexShard);
         }
     }
 

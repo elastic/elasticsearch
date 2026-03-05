@@ -38,7 +38,7 @@ public class GetReindexResponse extends ActionResponse implements ToXContentObje
      * group(3) = destination index
      */
     private static final Pattern DESCRIPTION_PATTERN = Pattern.compile(
-        "(?s)^reindex from (?:\\[((?:scheme=\\S+ )?host=\\S+ port=\\d+(?:\\s+pathPrefix=\\S+)?) .+\\])?\\[([^\\]]*)].*to \\[([^\\]]*)]$"
+        "(?s)^reindex from (?:\\[((?:scheme=\\S+ )?host=\\S+ port=\\d+(?:\\s+pathPrefix=\\S+)?)(?: .+)?\\])?\\[([^\\]]*)].*to \\[([^\\]]*)]$"
     );
 
     public GetReindexResponse(TaskResult task) {

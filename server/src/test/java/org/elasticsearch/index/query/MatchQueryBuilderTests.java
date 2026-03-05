@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.MatchQueryParser.Type;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -527,7 +528,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testMaxBooleanClause() {
-        MatchQueryParser query = new MatchQueryParser(createSearchExecutionContext(), QueryVisitor.EMPTY_VISITOR);
+        MatchQueryParser query = new MatchQueryParser(createSearchExecutionContext(), new MaxClauseCountQueryVisitor(
+            IndexSearcher.getMaxClauseCount())
+        );
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraph(40)));
         expectThrows(IndexSearcher.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -22,10 +24,13 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -233,6 +238,27 @@ public class IndexSettingsTests extends ESTestCase {
             assertEquals("uuid mismatch on settings update expected: 0xdeadbeef but was: _na_", ex.getMessage());
         }
         assertEquals(metadata.getSettings(), settings.getSettings());
+    }
+
+    public void testDenseVectorExperimentalFeaturesDefaultsFromBuildType() {
+        assertEquals(Build.current().isSnapshot(), IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(Settings.EMPTY));
+    }
+
+    @TestLogging(reason = "testing warning logging", value = "org.elasticsearch.index.IndexSettings:WARN")
+    public void testDenseVectorExperimentalFeaturesWarnsWhenExplicitlyEnabled() {
+        MockLog.assertThatLogger(() -> {
+            Settings settings = Settings.builder().put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true).build();
+            new IndexSettings(newIndexMeta("index", settings), Settings.EMPTY);
+        },
+            IndexSettings.class,
+            new MockLog.SeenEventExpectation(
+                "dense vector warning",
+                IndexSettings.class.getCanonicalName(),
+                Level.WARN,
+                "*The setting [index.dense_vector.experimental_features] is enabled; "
+                    + "backwards compatibility is not guaranteed for index [index]*"
+            )
+        );
     }
 
     public IndexSettings newIndexSettings(IndexMetadata metadata, Settings nodeSettings, Setting<?>... settings) {
@@ -1046,6 +1072,95 @@ public class IndexSettingsTests extends ESTestCase {
                     IndexSettings.MODE.getKey(),
                     IndexMode.TIME_SERIES.name(),
                     badMode.name()
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersSetting() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var disabled = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disabled)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, indexVersion);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        assertThat(indexSettings.sequenceNumbersDisabled(), is(equalTo(disabled)));
+    }
+
+    public void testDisableSequenceNumbersRequiresDocValuesOnly() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        final var indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        if (randomBoolean()) {
+            builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
+        }
+        var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+        var e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+                    SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+                    SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersRequiresDocValuesOnlyForNonStandardModes() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
+
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB);
+        Settings.Builder builder = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), mode.getName())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES)
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
+        if (mode == IndexMode.TIME_SERIES) {
+            builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+        }
+        IndexMetadata indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+                    SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+                    SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+                )
+            )
+        );
+    }
+
+    public void testDisableSequenceNumbersValidationWithInvalidVersion() {
+        assumeTrue("Test should only run with feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
+        IndexVersion badVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISABLE_SEQUENCE_NUMBERS);
+
+        Settings settings = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true).build();
+        IndexMetadata indexMetadata = newIndexMeta("some-index", settings, badVersion);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+                    IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(),
+                    IndexVersions.DISABLE_SEQUENCE_NUMBERS,
+                    badVersion
                 )
             )
         );

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,7 +34,6 @@ import java.util.Objects;
  */
 public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
-    public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 2);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
 
     public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
@@ -102,6 +102,12 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MAX_KEYWORD_SORT_FIELDS = Setting.intSetting("max_keyword_sort_fields", -1, -1);
 
+    /**
+     * Controls how external source queries are distributed across nodes.
+     * Valid values: "adaptive" (default), "coordinator_only", "round_robin".
+     */
+    public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
+
     public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
@@ -110,6 +116,13 @@ public final class QueryPragmas implements Writeable {
 
     public QueryPragmas(Settings settings) {
         this.settings = settings;
+    }
+
+    /**
+     * Returns the underlying settings.
+     */
+    public Settings settings() {
+        return settings;
     }
 
     public QueryPragmas(StreamInput in) throws IOException {
@@ -130,7 +143,7 @@ public final class QueryPragmas implements Writeable {
     }
 
     public int concurrentExchangeClients() {
-        return EXCHANGE_CONCURRENT_CLIENTS.get(settings);
+        return ExchangeSourceHandler.CONCURRENT_CLIENTS_SETTING.get(settings);
     }
 
     public DataPartitioning dataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -234,6 +247,10 @@ public final class QueryPragmas implements Writeable {
 
     public int maxKeywordSortFields() {
         return MAX_KEYWORD_SORT_FIELDS.get(settings);
+    }
+
+    public String externalDistribution() {
+        return EXTERNAL_DISTRIBUTION.get(settings);
     }
 
     public int partialAggregationEmitKeysThreshold(int defaultThreshold) {

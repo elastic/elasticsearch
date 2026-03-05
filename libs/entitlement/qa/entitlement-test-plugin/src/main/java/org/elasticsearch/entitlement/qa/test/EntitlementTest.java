@@ -32,14 +32,23 @@ public @interface EntitlementTest {
     Class<? extends Exception> expectedExceptionIfDenied() default NotEntitledException.class;
 
     /**
-     * When a denied entitlement strategy returns a default value instead of throwing,
+     * When a denied entitlement strategy returns a non-null default value instead of throwing,
      * this specifies the expected string representation of that default value. Test methods
      * using this must return the actual result (any type); the infrastructure converts it via
-     * {@code toString()} or {@code "null"} for {@code null} results. The test infrastructure
-     * will verify the returned value matches this when running in a denied context.
+     * {@code toString()}. The test infrastructure will verify the returned value matches this
+     * when running in a denied context.
      * An empty string (the default) means no default value check is performed.
+     * Mutually exclusive with {@link #isExpectedDefaultNull()}.
      */
     String expectedDefaultIfDenied() default "";
+
+    /**
+     * When a denied entitlement strategy returns {@code null} instead of throwing,
+     * set this to {@code true}. The test infrastructure will verify that the result
+     * is actually {@code null} when running in a denied context.
+     * Mutually exclusive with {@link #expectedDefaultIfDenied()}.
+     */
+    boolean isExpectedDefaultNull() default false;
 
     int fromJavaVersion() default -1;
 }

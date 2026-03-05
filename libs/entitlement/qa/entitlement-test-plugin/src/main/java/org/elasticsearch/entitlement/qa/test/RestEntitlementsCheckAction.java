@@ -47,6 +47,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         EntitlementTest.ExpectedAccess expectedAccess,
         Class<? extends Exception> expectedExceptionIfDenied,
         String expectedDefaultIfDenied,
+        boolean isExpectedDefaultNull,
         Integer fromJavaVersion
     ) {}
 
@@ -104,9 +105,16 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 throw new AssertionError("Entitlement test method [" + method + "] must not be private");
             }
             String expectedDefault = testAnnotation.expectedDefaultIfDenied();
-            if (expectedDefault.isEmpty() == false && method.getReturnType() == void.class) {
+            boolean isExpectedDefaultNull = testAnnotation.isExpectedDefaultNull();
+            boolean hasDefaultValue = expectedDefault.isEmpty() == false;
+            if (hasDefaultValue && isExpectedDefaultNull) {
                 throw new AssertionError(
-                    "Entitlement test method [" + method + "] must have a return type when expectedDefaultIfDenied is set"
+                    "Entitlement test method [" + method + "] must not set both expectedDefaultIfDenied and isExpectedDefaultNull"
+                );
+            }
+            if ((hasDefaultValue || isExpectedDefaultNull) && method.getReturnType() == void.class) {
+                throw new AssertionError(
+                    "Entitlement test method [" + method + "] must have a return type when a default value is expected"
                 );
             }
             final CheckedFunction<Environment, Object, Exception> call = createFunctionForMethod(method);
@@ -130,6 +138,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 testAnnotation.expectedAccess(),
                 testAnnotation.expectedExceptionIfDenied(),
                 expectedDefault,
+                isExpectedDefaultNull,
                 fromJavaVersion
             );
             if (filter.test(checkAction)) {
@@ -227,6 +236,9 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 }
                 if (checkAction.expectedDefaultIfDenied().isEmpty() == false) {
                     response.addHeader("expectedDefaultIfDenied", checkAction.expectedDefaultIfDenied());
+                }
+                if (checkAction.isExpectedDefaultNull()) {
+                    response.addHeader("isExpectedDefaultNull", "true");
                 }
             } catch (Exception e) {
                 var statusCode = checkAction.expectedExceptionIfDenied.isInstance(e)

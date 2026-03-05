@@ -78,10 +78,18 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
         } else {
             try {
                 Response result = executeCheck();
-                String expectedDefault = result.getHeader("expectedDefaultIfDenied");
-                if (expectedDefault != null) {
-                    String actualValue = "true".equals(result.getHeader("resultIsNull")) ? "null" : result.getHeader("resultValue");
-                    assertThat("Action [" + actionName + "] returned unexpected default value", actualValue, equalTo(expectedDefault));
+                if ("true".equals(result.getHeader("isExpectedDefaultNull"))) {
+                    assertTrue(
+                        "Action [" + actionName + "] expected null default but got a non-null result",
+                        "true".equals(result.getHeader("resultIsNull"))
+                    );
+                } else if (result.getHeader("expectedDefaultIfDenied") != null) {
+                    String actualValue = result.getHeader("resultValue");
+                    assertThat(
+                        "Action [" + actionName + "] returned unexpected default value",
+                        actualValue,
+                        equalTo(result.getHeader("expectedDefaultIfDenied"))
+                    );
                 } else {
                     fail("Action [" + actionName + "] was expected to be denied but succeeded");
                 }

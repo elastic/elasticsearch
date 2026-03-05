@@ -5,7 +5,6 @@ esplugin {
   description = 'A plugin to transform data'
   classname ='org.elasticsearch.xpack.transform.Transform'
   extendedPlugins = ['x-pack-core']
-  deploymentTarget = 'STATEFUL_ONLY'
 }
 
 dependencies {

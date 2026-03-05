@@ -29,7 +29,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -56,7 +56,7 @@ public class PluginsUtilsTests extends ESTestCase {
             false,
             false,
             false,
-            Optional.empty()
+            PluginDescriptor.DeploymentTarget.ALL
         );
     }
 
@@ -472,7 +472,7 @@ public class PluginsUtilsTests extends ESTestCase {
             false,
             false,
             isStable,
-            Optional.empty()
+            PluginDescriptor.DeploymentTarget.ALL
         );
         return info;
     }

@@ -42,7 +42,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
@@ -480,7 +480,7 @@ public class PluginsServiceTests extends ESTestCase {
                         false,
                         false,
                         false,
-                        Optional.empty()
+                        PluginDescriptor.DeploymentTarget.ALL
                     ),
                     extensiblePlugin,
                     null
@@ -509,7 +509,7 @@ public class PluginsServiceTests extends ESTestCase {
                         false,
                         false,
                         false,
-                        Optional.empty()
+                        PluginDescriptor.DeploymentTarget.ALL
                     ),
                     extensiblePlugin,
                     null
@@ -528,7 +528,7 @@ public class PluginsServiceTests extends ESTestCase {
                         false,
                         false,
                         false,
-                        Optional.empty()
+                        PluginDescriptor.DeploymentTarget.ALL
                     ),
                     testPlugin,
                     null

@@ -23,10 +23,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -214,14 +212,18 @@ public class PluginDescriptorTests extends ESTestCase {
     }
 
     public void testReadDeploymentTarget() throws Exception {
-        assertThat(mockInternalDescriptor().getDeploymentTarget(), isEmpty());
+        assertThat(mockInternalDescriptor().getDeploymentTarget(), is(PluginDescriptor.DeploymentTarget.ALL));
         assertThat(
             mockInternalDescriptor("deployment.target", "STATEFUL_ONLY").getDeploymentTarget(),
-            is(Optional.of(PluginDescriptor.DeploymentTarget.STATEFUL_ONLY))
+            is(PluginDescriptor.DeploymentTarget.STATEFUL_ONLY)
         );
         assertThat(
             mockInternalDescriptor("deployment.target", "STATELESS_ONLY").getDeploymentTarget(),
-            is(Optional.of(PluginDescriptor.DeploymentTarget.STATELESS_ONLY))
+            is(PluginDescriptor.DeploymentTarget.STATELESS_ONLY)
+        );
+        assertThat(
+            mockInternalDescriptor("deployment.target", "ALL").getDeploymentTarget(),
+            is(PluginDescriptor.DeploymentTarget.ALL)
         );
     }
 
@@ -231,7 +233,7 @@ public class PluginDescriptorTests extends ESTestCase {
             () -> mockInternalDescriptor("deployment.target", "INVALID")
         );
         assertThat(e.getMessage(), containsString("invalid deployment.target [INVALID]"));
-        assertThat(e.getMessage(), containsString("expected one of [STATEFUL_ONLY, STATELESS_ONLY, ALWAYS]"));
+        assertThat(e.getMessage(), containsString("expected one of [STATEFUL_ONLY, STATELESS_ONLY, ALL]"));
     }
 
     public void testIsModular() throws Exception {
@@ -253,7 +255,7 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             false,
-            Optional.empty()
+            PluginDescriptor.DeploymentTarget.ALL
         );
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
@@ -277,7 +279,7 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             false,
-            Optional.empty()
+            PluginDescriptor.DeploymentTarget.ALL
         );
         BytesStreamOutput output = new BytesStreamOutput();
         info.writeTo(output);
@@ -311,7 +313,7 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             false,
-            Optional.empty()
+            PluginDescriptor.DeploymentTarget.ALL
         );
     }
 
@@ -356,7 +358,7 @@ public class PluginDescriptorTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             isStable,
-            Optional.empty()
+            PluginDescriptor.DeploymentTarget.ALL
         );
         // everything but name is different from descriptor1
         PluginDescriptor descriptor2 = new PluginDescriptor(
@@ -374,7 +376,7 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.isLicensed() == false,
             descriptor1.isModular() == false,
             descriptor1.isStable() == false,
-            Optional.empty()
+            PluginDescriptor.DeploymentTarget.ALL
         );
         // only name is different from descriptor1
         PluginDescriptor descriptor3 = new PluginDescriptor(
@@ -390,7 +392,7 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.isLicensed(),
             descriptor1.isModular(),
             descriptor1.isStable(),
-            Optional.empty()
+            PluginDescriptor.DeploymentTarget.ALL
         );
 
         assertThat(descriptor1, equalTo(descriptor2));

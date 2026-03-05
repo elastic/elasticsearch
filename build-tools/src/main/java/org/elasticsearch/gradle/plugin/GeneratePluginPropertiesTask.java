@@ -50,7 +50,7 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public static final String STABLE_PROPERTIES_FILENAME = "stable-plugin-descriptor.properties";
     private static final String DESCRIPTION = "Generates Elasticsearch Plugin descriptor file";
 
-    private static final Set<String> DEPLOYMENT_TARGETS = Set.of("ALWAYS", "STATELESS_ONLY", "STATEFUL_ONLY");
+    private static final Set<String> DEPLOYMENT_TARGETS = Set.of("ALL", "STATELESS_ONLY", "STATEFUL_ONLY");
 
     @Inject
     public GeneratePluginPropertiesTask(ProjectLayout projectLayout) {
@@ -126,7 +126,7 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         props.put("licensed", getIsLicensed().get());
         props.put("modulename", findModuleName());
 
-        String deploymentTarget = getDeploymentTarget().getOrElse("ALWAYS");
+        String deploymentTarget = getDeploymentTarget().getOrElse("ALL");
         if (DEPLOYMENT_TARGETS.contains(deploymentTarget) == false) {
             throw new InvalidUserDataException(
                 "invalid deploymentTarget '" + deploymentTarget + "', expected one of " + DEPLOYMENT_TARGETS

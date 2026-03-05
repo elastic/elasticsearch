@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+
 import java.util.function.Predicate;
 
 public class MockPluginsService extends PluginsService {
@@ -62,7 +62,7 @@ public class MockPluginsService extends PluginsService {
                 false,
                 false,
                 false,
-                Optional.empty()
+                PluginDescriptor.DeploymentTarget.ALL
             );
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);

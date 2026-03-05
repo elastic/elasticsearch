@@ -52,8 +52,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         STATEFUL_ONLY,
         /** Only load plugin on stateless deployments (stateless mode enabled) */
         STATELESS_ONLY,
-        /** Always load plugin (default) */
-        ALWAYS
+        /** All deployment targets (default) */
+        ALL
     }
 
     private final String name;
@@ -68,7 +68,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private final boolean isLicensed;
     private final boolean isModular;
     private final boolean isStable;
-    private final Optional<DeploymentTarget> deploymentTarget;
+    private final DeploymentTarget deploymentTarget;
 
     /**
      * Construct plugin info.
@@ -100,7 +100,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         boolean isLicensed,
         boolean isModular,
         boolean isStable,
-        Optional<DeploymentTarget> deploymentTarget
+        DeploymentTarget deploymentTarget
     ) {
         this.name = name;
         this.description = description;
@@ -140,7 +140,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         isModular = in.readBoolean();
         isStable = in.readBoolean();
-        deploymentTarget = Optional.empty(); // only read from descriptor property files, not serialized
+        deploymentTarget = DeploymentTarget.ALL; // only read from descriptor property files, not serialized
 
         ensureCorrectArgumentsForPluginType();
     }
@@ -271,7 +271,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         boolean isLicensed = readBoolean(propsMap, name, "licensed");
         boolean modular = module != null;
-        Optional<DeploymentTarget> deploymentTarget = readDeploymentTarget(propsMap, name);
+        DeploymentTarget deploymentTarget = readDeploymentTarget(propsMap, name);
 
         return new PluginDescriptor(
             name,
@@ -290,13 +290,13 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         );
     }
 
-    private static Optional<DeploymentTarget> readDeploymentTarget(Map<String, String> propsMap, String pluginId) {
+    private static DeploymentTarget readDeploymentTarget(Map<String, String> propsMap, String pluginId) {
         String rawValue = propsMap.remove("deployment.target");
-        if (rawValue == null || rawValue.isBlank()) {
-            return Optional.empty();
+        if (rawValue == null) {
+            return DeploymentTarget.ALL;
         }
         try {
-            return Optional.of(DeploymentTarget.valueOf(rawValue.trim()));
+            return DeploymentTarget.valueOf(rawValue.trim());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                 Strings.format(
@@ -316,7 +316,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String esVer = readElasticsearchVersion(propsMap, name);
         String javaVer = readJavaVersion(propsMap, name);
         boolean isModular = readBoolean(propsMap, name, "modular");
-        Optional<DeploymentTarget> deploymentTarget = readDeploymentTarget(propsMap, name);
+        DeploymentTarget deploymentTarget = readDeploymentTarget(propsMap, name);
 
         return new PluginDescriptor(
             name,
@@ -483,9 +483,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     }
 
     /**
-     * The deployment target of this plugin, specifically if to include the plugin in stateless mode or not.
+     * The deployment target of this plugin, specifically if to include the plugin in stateful and/or stateless mode.
      */
-    public Optional<DeploymentTarget> getDeploymentTarget() {
+    public DeploymentTarget getDeploymentTarget() {
         return deploymentTarget;
     }
 
@@ -543,7 +543,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         appendLine(lines, prefix, "Licensed: ", isLicensed);
         appendLine(lines, prefix, "Extended Plugins: ", extendedPlugins.toString());
         appendLine(lines, prefix, " * Classname: ", classname);
-        deploymentTarget.ifPresent(dt -> appendLine(lines, prefix, "Deployment Target: ", dt.name()));
+        appendLine(lines, prefix, "Deployment Target: ", deploymentTarget.name());
 
         return String.join(System.lineSeparator(), lines);
     }

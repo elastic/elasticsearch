@@ -176,10 +176,10 @@ public class PluginsLoader {
     }
 
     private static Predicate<PluginDescriptor> deploymentTargetPredicate(boolean isStatelessMode) {
-        return descriptor -> switch (descriptor.getDeploymentTarget().orElse(DeploymentTarget.ALWAYS)) {
+        return descriptor -> switch (descriptor.getDeploymentTarget()) {
             case STATEFUL_ONLY -> isStatelessMode == false;
             case STATELESS_ONLY -> isStatelessMode;
-            case ALWAYS -> true; // always loaded
+            case ALL -> true;
         };
     }
 

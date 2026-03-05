@@ -17,4 +17,5 @@
 * [`SAMPLE`](/reference/query-languages/esql/commands/sample.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`SORT`](/reference/query-languages/esql/commands/sort.md)
 * [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
+* [`URI_PARTS`](/reference/query-languages/esql/commands/uri-parts.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`WHERE`](/reference/query-languages/esql/commands/where.md)

@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -2378,5 +2379,43 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         var firstSubPlanFilter = as(firstSubPlanAggregate.child(), Filter.class);
         // important bit below: the filter that is executed in the right hand side is the same as the one in the left hand side
         assertEquals(left, firstSubPlanFilter);
+    }
+
+    public void testPushDownFilterPastUriParts() {
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        String query = """
+            FROM test
+            | WHERE emp_no > 10000
+            | uri_parts u = first_name
+            | WHERE u.domain == "elastic.co" AND salary > 5000
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        // 1. The top level plan should be a Limit (can't be pushed down past filters)
+        var limit = as(plan, Limit.class);
+
+        // 2. Top filter should be the non-pushable filter that depends on the UriParts output
+        var topFilter = as(limit.child(), Filter.class);
+        assertThat(topFilter.condition(), instanceOf(Equals.class));
+        var topEquals = as(topFilter.condition(), Equals.class);
+        assertThat(as(topEquals.left(), ReferenceAttribute.class).name(), is("u.domain"));
+
+        // 3. Then the UriParts node
+        var uriParts = as(topFilter.child(), UriParts.class);
+
+        // 4. Below UriParts should be the combined pushable filters
+        var bottomFilter = as(uriParts.child(), Filter.class);
+        assertThat(bottomFilter.condition(), instanceOf(And.class));
+        var bottomAnd = as(bottomFilter.condition(), And.class);
+
+        // Check that both the original filter and the pushed-down filters are present
+        var condition1 = as(bottomAnd.left(), GreaterThan.class);
+        assertThat(as(condition1.left(), FieldAttribute.class).name(), is("emp_no"));
+
+        var condition2 = as(bottomAnd.right(), GreaterThan.class);
+        assertThat(as(condition2.left(), FieldAttribute.class).name(), is("salary"));
+
+        // 5. Finally, the relation
+        as(bottomFilter.child(), EsRelation.class);
     }
 }

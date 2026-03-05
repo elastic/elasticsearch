@@ -28,6 +28,7 @@ import java.util.Map;
  * to appropriate StorageProvider implementations based on the URI scheme:
  * <ul>
  *   <li>{@code s3://}, {@code s3a://}, {@code s3n://} → S3StorageProvider</li>
+ *   <li>{@code gs://} → GcsStorageProvider</li>
  *   <li>{@code http://}, {@code https://} → HttpStorageProvider</li>
  *   <li>{@code file://} → LocalStorageProvider</li>
  * </ul>
@@ -110,7 +111,7 @@ public class StorageManager implements Closeable {
                     + ". "
                     + "No storage provider registered for this scheme. "
                     + "Install the appropriate data source plugin (e.g., esql-datasource-http for http/https/file, "
-                    + "esql-datasource-s3 for s3)."
+                    + "esql-datasource-s3 for s3, esql-datasource-gcs for gs)."
             );
         }
 

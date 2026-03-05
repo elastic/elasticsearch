@@ -17,6 +17,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 public class GPUSupport {
 
     private static final Logger LOG = LogManager.getLogger(GPUSupport.class);
@@ -24,27 +26,27 @@ public class GPUSupport {
     // Set the minimum at 7.5GB: 8GB GPUs (which are our targeted minimum) report less than that via the API
     private static final long MIN_DEVICE_MEMORY_IN_BYTES = 8053063680L;
 
-    private static class Holder {
-        static final long TOTAL_GPU_MEMORY;
-        static final boolean IS_SUPPORTED;
+    private static final AtomicLong GPU_USAGE_COUNT = new AtomicLong();
 
-        static {
-            TOTAL_GPU_MEMORY = initializeGpuInfo();
-            IS_SUPPORTED = TOTAL_GPU_MEMORY != -1L;
-        }
+    private record GpuInfo(long totalMemory, String name) {
+        static final GpuInfo UNSUPPORTED = new GpuInfo(-1L, null);
+    }
+
+    private static class Holder {
+        static final GpuInfo GPU_INFO = initializeGpuInfo();
     }
 
     /**
      * Initializes GPU support information by finding the first compatible GPU.
-     * Returns the total GPU memory in bytes, or -1 if GPU is not found or supported.
+     * Returns a {@link GpuInfo} with memory and name, or {@link GpuInfo#UNSUPPORTED} if no compatible GPU is found.
      */
-    private static long initializeGpuInfo() {
+    private static GpuInfo initializeGpuInfo() {
         try {
             var gpuInfoProvider = CuVSProvider.provider().gpuInfoProvider();
             var availableGPUs = gpuInfoProvider.availableGPUs();
             if (availableGPUs.isEmpty()) {
                 LOG.warn("No GPU found");
-                return -1L;
+                return GpuInfo.UNSUPPORTED;
             }
 
             for (var gpu : availableGPUs) {
@@ -72,11 +74,11 @@ public class GPUSupport {
                     );
                 } else {
                     LOG.info("Found compatible GPU [{}] (id: [{}])", gpu.name(), gpu.gpuId());
-                    return gpu.totalDeviceMemoryInBytes();
+                    return new GpuInfo(gpu.totalDeviceMemoryInBytes(), gpu.name());
                 }
             }
 
-            return -1L;
+            return GpuInfo.UNSUPPORTED;
         } catch (UnsupportedOperationException uoe) {
             final String msg;
             if (uoe.getMessage() == null) {
@@ -90,19 +92,19 @@ public class GPUSupport {
                 msg = uoe.getMessage();
             }
             LOG.warn("GPU based vector indexing is not supported on this platform; " + msg);
-            return -1L;
+            return GpuInfo.UNSUPPORTED;
         } catch (Throwable t) {
             if (t instanceof ExceptionInInitializerError ex) {
                 t = ex.getCause();
             }
             LOG.warn("Exception occurred during creation of cuvs resources", t);
-            return -1L;
+            return GpuInfo.UNSUPPORTED;
         }
     }
 
     /** Tells whether the platform supports cuvs. */
     public static boolean isSupported() {
-        return Holder.IS_SUPPORTED;
+        return Holder.GPU_INFO != GpuInfo.UNSUPPORTED;
     }
 
     /** Returns a resources if supported, otherwise null. */
@@ -137,6 +139,27 @@ public class GPUSupport {
      * @return total device memory in bytes, or -1 if GPU is not available or supported
      */
     public static long getTotalGpuMemory() {
-        return Holder.TOTAL_GPU_MEMORY;
+        return Holder.GPU_INFO.totalMemory();
+    }
+
+    /**
+     * Returns the name of the first available compatible GPU, or null if no GPU is available.
+     */
+    public static String getGpuName() {
+        return Holder.GPU_INFO.name();
+    }
+
+    /**
+     * Increments the GPU index build count on this node.
+     */
+    public static void incrementUsageCount() {
+        GPU_USAGE_COUNT.incrementAndGet();
+    }
+
+    /**
+     * Returns how many times GPU indexing was used on this node since it started.
+     */
+    public static long getUsageCount() {
+        return GPU_USAGE_COUNT.get();
     }
 }

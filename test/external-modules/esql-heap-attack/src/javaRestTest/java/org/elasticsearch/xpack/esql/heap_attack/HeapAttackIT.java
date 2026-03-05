@@ -19,8 +19,13 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -42,6 +47,7 @@ import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.matchesRegex;
 
 /**
@@ -618,6 +624,67 @@ public class HeapAttackIT extends HeapAttackTestCase {
         return responseAsMap(query(query.toString(), "columns"));
     }
 
+    public void testManyExponentialHistograms() throws IOException {
+        initManyExponentialHistograms(10_000, 100);
+
+        // Run a successful query first as sanity check
+        queryAndVerifyDuplicatedHistograms("many_exponential_histograms", "histo", 1);
+
+        // and now blow up the memory
+        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_exponential_histograms", "histo", attempt * 10));
+    }
+
+    public void testManyTDigests() throws IOException {
+        initManyTDigests(10_000, 100, TDigestFieldType.TDIGEST);
+
+        // Run a successful query first as sanity check
+        queryAndVerifyDuplicatedHistograms("many_tdigests", "histo", 1);
+
+        // and now blow up the memory
+        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_tdigests", "histo", attempt * 10));
+    }
+
+    public void testManyHistograms() throws IOException {
+        initManyTDigests(10_000, 100, TDigestFieldType.HISTOGRAM);
+
+        // Run a successful query first as sanity check
+        queryAndVerifyDuplicatedHistograms("many_tdigests", "TO_TDIGEST(histo)", 1);
+
+        // and now blow up the memory
+        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_tdigests", "TO_TDIGEST(histo)", attempt * 10));
+    }
+
+    private void queryAndVerifyDuplicatedHistograms(String index, String column, int numDuplications) throws IOException {
+        Map<String, Object> responseMap = queryDuplicatedHistograms(index, column, numDuplications);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "dummy").entry("type", "double"));
+        ListMatcher values = matchesList(List.of(matchesList(List.of(isA(Double.class)))));
+        assertResultMap(responseMap, columns, values);
+    }
+
+    /**
+     * Creates a query which loads each histogram n-times into memory.
+     * We do this by querying n percentiles on each histogram, each with a different filter condition which however never is false.
+     * PERCENTILES() is implemented using a surrogate histogram merge, which means at the end of the STATS we
+     * have n copies of each histogram in memory.
+     */
+    private Map<String, Object> queryDuplicatedHistograms(String index, String column, int numDuplications) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("FROM " + index);
+        query.append("| STATS ");
+        query.append(
+            IntStream.range(0, numDuplications)
+                .mapToObj(i -> "val_" + i + " = PERCENTILE(" + column + ", 50) WHERE histo_id != -" + i)
+                .collect(Collectors.joining(", "))
+        );
+        query.append("BY histo_id");
+        // in the end aggregate it all to a single sum to not blow up the result set
+        query.append("| EVAL vals_sum = ");
+        query.append(IntStream.range(0, numDuplications).mapToObj(i -> "val_" + i).collect(Collectors.joining(" + ")));
+        query.append("| STATS dummy = SUM(vals_sum)\"}");
+        String queryStr = query.toString().replace("\n", "\\n");
+        return responseAsMap(query(queryStr, null));
+    }
+
     private void initManyLongs(int countPerLong) throws IOException {
         logger.info("loading many documents with longs");
         StringBuilder bulk = new StringBuilder();
@@ -839,6 +906,108 @@ public class HeapAttackIT extends HeapAttackTestCase {
             }
         }
         initIndex("mv_longs", bulk.toString());
+    }
+
+    private void initManyExponentialHistograms(int numHistograms, int numBucketsPerHistogram) throws IOException {
+        logger.info("loading many documents with exponential histograms");
+
+        createIndex("many_exponential_histograms", Settings.EMPTY, """
+            {
+                "properties": {
+                  "histo": {
+                    "type": "exponential_histogram"
+                  },
+                  "histo_id": {
+                    "type": "long"
+                  }
+                }
+            }
+            """);
+
+        StringBuilder bulk = new StringBuilder();
+        int flush = 0;
+        for (int i = 0; i < numHistograms; i++) {
+
+            // The scale doesn't actually matter here
+            ExponentialHistogramBuilder builder = ExponentialHistogram.builder(10, ExponentialHistogramCircuitBreaker.noop());
+            for (int j = 0; j < numBucketsPerHistogram; j++) {
+                builder.setPositiveBucket(i + j, 1 + i + j * 2);
+            }
+            String histoJson;
+            try (XContentBuilder xContentBuilder = JsonXContent.contentBuilder()) {
+                ExponentialHistogramXContent.serialize(xContentBuilder, builder.build());
+                histoJson = Strings.toString(xContentBuilder);
+            }
+            ;
+
+            bulk.append(String.format(Locale.ROOT, """
+                {"create":{}}
+                {"histo_id":%d,"histo":%s}
+                """, i + 1, histoJson));
+            flush++;
+            if (flush % 10_000 == 0) {
+                bulk("many_exponential_histograms", bulk.toString());
+                bulk.setLength(0);
+                logger.info("flushing {}/{} to many_exponential_histograms", flush, numHistograms);
+            }
+        }
+        // Load the remaining data and also do a force merge
+        initIndex("many_exponential_histograms", bulk.toString());
+    }
+
+    enum TDigestFieldType {
+        TDIGEST,
+        HISTOGRAM
+    }
+
+    private void initManyTDigests(int numHistograms, int numCentroidsPerHistogram, TDigestFieldType fieldType) throws IOException {
+        logger.info("loading many documents with tdigests");
+
+        createIndex("many_tdigests", Settings.EMPTY, """
+            {
+                "properties": {
+                  "histo": {
+                    "type": "%s"
+                  },
+                  "histo_id": {
+                    "type": "long"
+                  }
+                }
+            }
+            """.formatted(fieldType == TDigestFieldType.TDIGEST ? "tdigest" : "histogram"));
+
+        StringBuilder bulk = new StringBuilder();
+        int flush = 0;
+        String centroidsFieldName = fieldType == TDigestFieldType.TDIGEST ? "centroids" : "values";
+        for (int i = 0; i < numHistograms; i++) {
+            StringBuilder histoJson = new StringBuilder("{");
+            histoJson.append("\"").append(centroidsFieldName).append("\":");
+            histoJson.append(
+                IntStream.range(i, i + numCentroidsPerHistogram).mapToObj(Integer::toString).collect(Collectors.joining(",", "[", "]"))
+            );
+            histoJson.append(",\"counts\":");
+            int finalI = i;
+            histoJson.append(
+                IntStream.range(0, numCentroidsPerHistogram)
+                    .map(j -> 1 + finalI + (j * 2))
+                    .mapToObj(Integer::toString)
+                    .collect(Collectors.joining(",", "[", "]"))
+            );
+            histoJson.append("}");
+
+            bulk.append(String.format(Locale.ROOT, """
+                {"create":{}}
+                {"histo_id":%d,"histo":%s}
+                """, i + 1, histoJson));
+            flush++;
+            if (flush % 10_000 == 0) {
+                bulk("many_tdigests", bulk.toString());
+                bulk.setLength(0);
+                logger.info("flushing {}/{} to many_tdigests", flush, numHistograms);
+            }
+        }
+        // Load the remaining data and also do a force merge
+        initIndex("many_tdigests", bulk.toString());
     }
 
 }

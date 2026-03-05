@@ -49,17 +49,8 @@ final class GlobMatcher {
         return glob;
     }
 
-    /**
-     * Converts a glob pattern to a Java regex string.
-     * <ul>
-     *   <li>{@code **} matches zero or more path segments (including separators)</li>
-     *   <li>{@code *} matches zero or more characters within a single path segment (no separators)</li>
-     *   <li>{@code ?} matches exactly one character (not a separator)</li>
-     *   <li>{@code {a,b,c}} matches any of the comma-separated alternatives</li>
-     *   <li>{@code [abc]} matches any single character in the set</li>
-     *   <li>{@code [!abc]} or {@code [^abc]} matches any single character not in the set</li>
-     * </ul>
-     */
+    // Converts a glob pattern to a Java regex string.
+    // Supports: ** (recursive), * (single segment), ? (one char), {a,b} (alternatives), [abc] (char class)
     @SuppressWarnings("RegexpMultiline")
     static String globToRegex(String glob) {
         StringBuilder regex = new StringBuilder();

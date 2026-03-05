@@ -11,10 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
@@ -52,9 +50,7 @@ public final class DataSourceModule implements Closeable {
     private final Map<String, TableCatalogFactory> tableCatalogs;
     private final Map<String, SourceOperatorFactoryProvider> operatorFactories;
     private final FilterPushdownRegistry filterPushdownRegistry;
-    private final Map<String, StorageProviderFactory> spiStorageFactories;
     private final Settings settings;
-    private final BlockFactory blockFactory;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -63,8 +59,7 @@ public final class DataSourceModule implements Closeable {
         ExecutorService executor
     ) {
         this.settings = settings;
-        this.blockFactory = blockFactory;
-        this.storageProviderRegistry = new StorageProviderRegistry();
+        this.storageProviderRegistry = new StorageProviderRegistry(settings);
         this.formatReaderRegistry = new FormatReaderRegistry();
 
         Map<String, StorageProviderFactory> storageFactories = new HashMap<>();
@@ -118,22 +113,15 @@ public final class DataSourceModule implements Closeable {
             }
         }
 
+        // Register factories lazily -- providers and readers are created on first access
         for (Map.Entry<String, StorageProviderFactory> entry : storageFactories.entrySet()) {
-            String scheme = entry.getKey();
-            StorageProviderFactory spiFactory = entry.getValue();
-            StorageProvider provider = spiFactory.create(settings);
-            // Use registerWithProvider to track the provider for proper cleanup
-            storageProviderRegistry.registerWithProvider(scheme, provider);
+            storageProviderRegistry.registerFactory(entry.getKey(), entry.getValue());
         }
 
         for (Map.Entry<String, FormatReaderFactory> entry : formatFactories.entrySet()) {
-            FormatReaderFactory factory = entry.getValue();
-            FormatReader prototype = factory.create(settings, blockFactory);
-            formatReaderRegistry.register(prototype);
+            formatReaderRegistry.registerLazy(entry.getKey(), entry.getValue(), settings, blockFactory);
         }
 
-        this.spiStorageFactories = Map.copyOf(storageFactories);
-        storageProviderRegistry.setSpiFactories(this.spiStorageFactories);
         this.tableCatalogs = Map.copyOf(catalogFactories);
         this.operatorFactories = Map.copyOf(operatorFactoryProviders);
         this.filterPushdownRegistry = new FilterPushdownRegistry(filterPushdownProviders);
@@ -146,10 +134,6 @@ public final class DataSourceModule implements Closeable {
 
     public StorageProviderRegistry storageProviderRegistry() {
         return storageProviderRegistry;
-    }
-
-    public Map<String, StorageProviderFactory> spiStorageFactories() {
-        return spiStorageFactories;
     }
 
     public FormatReaderRegistry formatReaderRegistry() {

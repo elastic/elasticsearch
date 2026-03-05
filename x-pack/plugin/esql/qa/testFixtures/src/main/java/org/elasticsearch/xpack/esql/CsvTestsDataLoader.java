@@ -195,6 +195,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
     private static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16");
     private static final TestDataset DENSE_VECTOR_ARITHMETIC = new TestDataset("dense_vector_arithmetic");
+    private static final TestDataset WEB_LOGS = new TestDataset("web_logs");
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
     private static final TestDataset BASE_CONVERSION = new TestDataset("base_conversion");
@@ -302,6 +303,7 @@ public class CsvTestsDataLoader {
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
         Map.entry(DENSE_VECTOR_BFLOAT16.indexName, DENSE_VECTOR_BFLOAT16),
         Map.entry(DENSE_VECTOR_ARITHMETIC.indexName, DENSE_VECTOR_ARITHMETIC),
+        Map.entry(WEB_LOGS.indexName, WEB_LOGS),
         Map.entry(COLORS.indexName, COLORS),
         Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
         Map.entry(BASE_CONVERSION.indexName, BASE_CONVERSION),

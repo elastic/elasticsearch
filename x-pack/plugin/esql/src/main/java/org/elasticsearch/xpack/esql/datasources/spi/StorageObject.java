@@ -24,6 +24,10 @@ import java.util.concurrent.Executor;
  * Provides metadata access and methods to open streams for reading.
  * Uses standard Java InputStream for compatibility with existing Elasticsearch code.
  * Random access is handled via range-based reads (like BlobContainer pattern).
+ * <p>
+ * StorageObject instances themselves do not hold open resources and do not need closing.
+ * The {@link java.io.InputStream} instances returned by {@link #newStream()} and
+ * {@link #newStream(long, long)} are the resources that callers must close.
  */
 public interface StorageObject {
 

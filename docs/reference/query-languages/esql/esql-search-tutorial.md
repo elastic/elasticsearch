@@ -571,6 +571,120 @@ This enables you to:
 - Translate or transform text using LLMs
 - Create dynamic content based on your data
 
+### Extract relevant snippets with `TOP_SNIPPETS`
+
+```{applies_to}
+stack: preview 9.3
+serverless: preview
+```
+
+The [`TOP_SNIPPETS` function](/reference/query-languages/esql/functions-operators/search-functions.md#esql-top_snippets) is like the [`CHUNK` function](/reference/query-languages/esql/functions-operators/string-functions.md#esql-chunk) with additional relevance ranking capabilities. `TOP_SNIPPETS` ranks chunks by relevance to your query and returns only the top matches.
+
+This is very useful for context engineering with LLMs: instead of sending entire field values, you send only the most relevant portions. This reduces token costs, helps you stay within context limits, and avoids the ["lost in the middle"](https://arxiv.org/abs/2307.03172) problem where important information is overlooked in large blocks of text.
+
+#### Basic snippet extraction
+
+Here's the basic syntax for extracting top snippets from a text field:
+
+```esql
+FROM cooking_blog
+| WHERE description:"vegetarian curry"
+| EVAL snippets = TOP_SNIPPETS(description, "vegetarian curry")
+| KEEP title, snippets
+| LIMIT 5
+```
+
+This query searches for "vegetarian curry" and extracts the top matching snippets from the `description` field.
+
+::::{dropdown} Example response
+:icon: code
+
+```text
+                    title                     |                                                                                                                snippets
+----------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Spicy Thai Green Curry: A Vegetarian Adventure|Dive into the flavors of Thailand with this vibrant green curry. Packed with vegetables and aromatic herbs, this dish is both healthy and satisfying. Don't worry about the heat - you can easily adjust the spice level to your liking.
+```
+
+Notice how `TOP_SNIPPETS` extracted the full description as the most relevant snippet for the query "vegetarian curry".
+::::
+
+#### Control snippet size and count
+
+You can fine-tune the snippet extraction using named parameters:
+
+```esql
+FROM cooking_blog
+| WHERE description:"healthy quick meals"
+| EVAL snippets = TOP_SNIPPETS(description, "healthy quick meals", {"num_snippets": 3, "num_words": 25})
+| KEEP title, snippets
+| LIMIT 5
+```
+
+The parameters control:
+- `num_snippets`: Maximum number of matching snippets to return (useful when a query matches multiple parts of a document)
+- `num_words`: Maximum number of words per snippet (helps control token usage for LLM inference). This parameter automatically configures sentence-based chunking; other custom chunking configurations are not currently supported.
+
+::::{dropdown} Example response
+:icon: code
+
+```text
+                    title                     |                                                                               snippets
+----------------------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Spicy Thai Green Curry: A Vegetarian Adventure|Dive into the flavors of Thailand with this vibrant green curry. Packed with vegetables and aromatic herbs, this dish is both healthy and satisfying.
+Vegan Chocolate Avocado Mousse                |Discover the magic of avocado in this rich, vegan chocolate mousse. Creamy, indulgent, and secretly healthy, it's the perfect guilt-free dessert for chocolate lovers.
+```
+
+Notice how the snippets are now limited to approximately 25 words each, compared to the basic example which returned the full description. The `num_words` parameter helps you control snippet length for more precise LLM context.
+
+Because `TOP_SNIPPETS` uses sentence-based chunking, it prioritizes breaking at the nearest sentence boundary rather than cutting off mid-sentence, which may result in a slightly lower word count than requested.
+::::
+
+#### Combine with `COMPLETION` for efficient LLM context
+
+The real power of `TOP_SNIPPETS` emerges when combined with `COMPLETION`. Instead of sending entire documents to an LLM, send only the most relevant snippets:
+
+```esql
+FROM cooking_blog METADATA _score
+| WHERE semantic_description:"vegetarian recipes" <1>
+| SORT _score DESC
+| LIMIT 10 <2>
+| EVAL snippets = TOP_SNIPPETS(semantic_description, "vegetarian recipes", {"num_snippets": 3, "num_words": 30}) <3>
+| EVAL prompt = CONCAT("Based on these recipe snippets, suggest quick meal ideas: ", snippets) <4>
+| COMPLETION answer = prompt WITH {"inference_id": "my_llm_endpoint"} <5>
+| KEEP title, answer
+```
+
+1. Perform initial semantic search
+2. Limit to top 10 most relevant documents
+3. Extract the 3 most relevant snippets (max 30 words each) from each document
+4. Build a prompt using the extracted snippets
+5. Send the snippet-based prompt to the LLM
+
+This approach significantly reduces token costs compared to sending full field values, while maintaining high-quality context for the LLM.
+
+#### Combine with `RERANK` for precision
+
+You can also use `TOP_SNIPPETS` with the `RERANK` command to rerank based on extracted snippets rather than entire field values:
+
+```esql
+FROM cooking_blog METADATA _score
+| WHERE description:"healthy meals"
+| SORT _score DESC
+| LIMIT 100
+| EVAL snippets = TOP_SNIPPETS(description, "quick healthy vegetarian", {"num_snippets": 3, "num_words": 25})
+| RERANK "quick healthy vegetarian" ON snippets <1>
+| LIMIT 5
+| KEEP title, description, snippets, _score
+```
+
+1. Rerank based on the extracted snippets instead of the full description field
+
+This can improve reranking precision for models that work better with focused text rather than long documents.
+
+:::{tip}
+To learn more about `TOP_SNIPPETS` refer to this [blog post](https://www.elastic.co/search-labs/blog/llm-chunking-snippet-extraction). You can also learn about the equivalent `chunk_rescorer` parameter in the [`text_similarity_reranker` retriever](/reference/elasticsearch/rest-apis/retrievers/text-similarity-reranker-retriever.md).
+:::
+
 ### Vector search with KNN, similarity functions and TEXT_EMBEDDING
 
 :::{note}

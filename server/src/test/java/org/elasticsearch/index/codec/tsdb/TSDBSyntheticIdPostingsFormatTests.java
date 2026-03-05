@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -29,12 +30,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.bloomfilter.LazyFilterTermsEnum;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -47,6 +50,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -205,22 +209,29 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
                 final Terms terms = leafReader.terms(IdFieldMapper.NAME);
                 assertNotNull(terms);
-                final TermsEnum wrappedTermsEnum = asInstanceOf(LazyFilterTermsEnum.class, terms.iterator());
-                final TermsEnum unwrappedTermsEnum = asInstanceOf(SyntheticIdTermsEnum.class, LazyFilterTermsEnum.unwrap(wrappedTermsEnum));
+                final TermsEnum delegatingBloomTermsEnum = terms.iterator();
+                final TermsEnum lazyTermsEnum = asInstanceOf(LazyFilterTermsEnum.class, delegatingBloomTermsEnum);
+                final TermsEnum syntheticIdTermsEnum = asInstanceOf(SyntheticIdTermsEnum.class, LazyFilterTermsEnum.unwrap(lazyTermsEnum));
 
-                TermsEnum termsEnum = unwrappedTermsEnum;
+                TermsEnum termsEnum = randomFrom(syntheticIdTermsEnum, lazyTermsEnum, delegatingBloomTermsEnum);
 
                 // Test seek the exact term
                 {
                     for (var docIdTerm : docsIdsTerms) {
                         if (rarely()) {
-                            termsEnum = randomFrom(random(), () -> unwrappedTermsEnum, () -> wrappedTermsEnum, () -> {
-                                try {
-                                    return leafReader.terms(IdFieldMapper.NAME).iterator();
-                                } catch (IOException e) {
-                                    throw new AssertionError(e);
+                            termsEnum = randomFrom(
+                                random(),
+                                () -> syntheticIdTermsEnum,
+                                () -> lazyTermsEnum,
+                                () -> delegatingBloomTermsEnum,
+                                () -> {
+                                    try {
+                                        return leafReader.terms(IdFieldMapper.NAME).iterator();
+                                    } catch (IOException e) {
+                                        throw new AssertionError(e);
+                                    }
                                 }
-                            });
+                            );
                         }
                         switch (randomInt(2)) {
                             case 0:
@@ -306,9 +317,19 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                 // Test seek after the last term
                 {
                     final var termAfterEnd = randomTermAfter(finalDocs.navigableKeySet().getLast());
+
+                    // If the terms enum is a SyntheticIdTermsEnum, then seekCeil/seekExact to a term after the last term should correctly
+                    // position the enum after the last term.
+                    //
+                    // When the enum uses a bloom filter, the exact term to seek with seekExact is not found and the result is immediately
+                    // returned without positioning the delegate terms enum. In that case we cannot tell what the #next() method will
+                    // return. But when seekCeil is used, the bloom filter delegates so the delegating terms enum is positioned afterwards.
+                    final var isPositionedAfterSeek = termsEnum instanceof SyntheticIdTermsEnum;
+
                     switch (randomInt(2)) {
                         case 0:
                             assertThat(termsEnum.seekCeil(termAfterEnd), equalTo(TermsEnum.SeekStatus.END));
+                            assertThat(termsEnum.next(), nullValue());
                             break;
                         case 1:
                             assertThat(termsEnum.seekExact(termAfterEnd), equalTo(false));
@@ -329,7 +350,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                         default:
                             throw new AssertionError();
                     }
-                    assertThat(termsEnum.next(), nullValue());
+                    if (isPositionedAfterSeek) {
+                        assertThat(termsEnum.next(), nullValue());
+                    }
                 }
 
                 // Test seek to non-existing terms
@@ -458,6 +481,11 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             directory.setCheckIndexOnClose(false);
 
             final var indexWriterConfig = newIndexWriterConfig();
+            indexWriterConfig.setCodec(
+                new ES93TSDBDefaultCompressionLucene103Codec(
+                    new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                )
+            );
             // Configure the index writer for time-series indices
             indexWriterConfig.setMergePolicy(indexSettings.getMergePolicy(true));
             indexWriterConfig.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
@@ -504,9 +532,6 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                                         "time_series_metric": "counter"
                                     }
                                 }
-                            },
-                            "version": {
-                                "type": "integer"
                             }
                         }
                     }""")
@@ -636,6 +661,12 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
 
         var expectedDocId = TsidExtractingIdFieldMapper.createSyntheticId(expectedTsId, expectedTimestamp, doc.routing());
         assertThat(Uid.decodeId(docId.binaryValue()), equalTo(expectedDocId));
+
+        // version field is set by the engine, not after parsing, so we set it manually here
+        var docVersion = luceneDoc.getField(VersionFieldMapper.NAME);
+        assertThat(docVersion, notNullValue());
+        assertThat(docVersion.numericValue().longValue(), equalTo(-1L /* default value after parsing */));
+        parsedDoc.version().setLongValue(doc.version());
     }
 
     private static BytesRef buildTsId(Doc doc) {

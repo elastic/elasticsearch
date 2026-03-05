@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.CrossProjectSearchStatsSnapshot;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -225,6 +226,11 @@ public class DatafeedRunner {
     public SearchInterval getSearchInterval(TransportStartDatafeedAction.DatafeedTask task) {
         Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
         return holder == null ? null : holder.datafeedJob.getSearchInterval();
+    }
+
+    public CrossProjectSearchStatsSnapshot getCrossProjectStats(TransportStartDatafeedAction.DatafeedTask task) {
+        Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
+        return holder == null ? null : holder.datafeedJob.getCrossProjectSearchStats().snapshot();
     }
 
     // Important: Holder must be created and assigned to DatafeedTask before setting state to started,

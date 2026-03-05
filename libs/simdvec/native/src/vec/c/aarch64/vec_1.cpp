@@ -98,7 +98,101 @@ static inline void cosi8_inner_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    for (int c = 0; c < count; c++) {
+    const int blk = dims & ~15;
+
+    // First of all, calculate the b norm
+    int32x4_t b_norms0 = vdupq_n_s32(0);
+    int32x4_t b_norms1 = vdupq_n_s32(0);
+
+    int bi = 0;
+    for(; bi < blk; bi += 16) {
+        int8x16_t vb8 = vld1q_s8(b + bi);
+
+        int16x8_t lo = vmull_s8(vget_low_s8(vb8),  vget_low_s8(vb8));
+        int16x8_t hi = vmull_s8(vget_high_s8(vb8), vget_high_s8(vb8));
+
+        b_norms0 = vpadalq_s16(b_norms0, lo);
+        b_norms1 = vpadalq_s16(b_norms1, hi);
+    }
+    int32_t b_norm = vaddvq_s32(b_norms0) + vaddvq_s32(b_norms1);
+    for (; bi < dims; bi++) {
+        b_norm += b[bi] * b[bi];
+    }
+
+    int c = 0;
+
+    // Process 2 vectors at a time; this helps the CPU scheduler/prefetcher
+    for (; c + 1 < count; c += 2) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        const int8_t* a1 = a + mapper(c + 1, offsets) * pitch;
+
+        int32x4_t sums00 = vdupq_n_s32(0);
+        int32x4_t sums01 = vdupq_n_s32(0);
+        int32x4_t sums10 = vdupq_n_s32(0);
+        int32x4_t sums11 = vdupq_n_s32(0);
+        int32x4_t a_norms00 = vdupq_n_s32(0);
+        int32x4_t a_norms01 = vdupq_n_s32(0);
+        int32x4_t a_norms10 = vdupq_n_s32(0);
+        int32x4_t a_norms11 = vdupq_n_s32(0);
+
+        for (int i = 0; i < blk; i += 16) {
+            int8x16_t vb = vld1q_s8(b + i);
+
+            int8x16_t v0 = vld1q_s8(a0 + i);
+            int16x8_t sum_lo0 = vmull_s8(vget_low_s8(v0), vget_low_s8(vb));
+            int16x8_t sum_hi0 = vmull_s8(vget_high_s8(v0), vget_high_s8(vb));
+            int16x8_t norm_lo0 = vmull_s8(vget_low_s8(v0), vget_low_s8(v0));
+            int16x8_t norm_hi0 = vmull_s8(vget_high_s8(v0), vget_high_s8(v0));
+            sums00 = vpadalq_s16(sums00, sum_lo0);
+            sums01 = vpadalq_s16(sums01, sum_hi0);
+            a_norms00 = vpadalq_s16(a_norms00, norm_lo0);
+            a_norms01 = vpadalq_s16(a_norms01, norm_hi0);
+
+            int8x16_t v1 = vld1q_s8(a1 + i);
+            int16x8_t sum_lo1 = vmull_s8(vget_low_s8(v1), vget_low_s8(vb));
+            int16x8_t sum_hi1 = vmull_s8(vget_high_s8(v1), vget_high_s8(vb));
+            int16x8_t norm_lo1 = vmull_s8(vget_low_s8(v1), vget_low_s8(v1));
+            int16x8_t norm_hi1 = vmull_s8(vget_high_s8(v1), vget_high_s8(v1));
+            sums10 = vpadalq_s16(sums10, sum_lo1);
+            sums11 = vpadalq_s16(sums11, sum_hi1);
+            a_norms10 = vpadalq_s16(a_norms10, norm_lo1);
+            a_norms11 = vpadalq_s16(a_norms11, norm_hi1);
+        }
+        int32x4_t sums0 = vaddq_s32(sums00, sums01);
+        int32x4_t sums1 = vaddq_s32(sums10, sums11);
+        int32x4_t a_norms0 = vaddq_s32(a_norms00, a_norms01);
+        int32x4_t a_norms1 = vaddq_s32(a_norms10, a_norms11);
+
+        int32_t sum0 = vaddvq_s32(sums0);
+        int32_t sum1 = vaddvq_s32(sums1);
+        int32_t norm0 = vaddvq_s32(a_norms0);
+        int32_t norm1 = vaddvq_s32(a_norms1);
+        if (blk != dims) {
+            // scalar tail
+            for (int t = blk; t < dims; t++) {
+                int32_t a0i = (int32_t) a0[t];
+                int32_t a1i = (int32_t) a1[t];
+                int32_t bi = (int32_t) b[t];
+                sum0 += a0i * bi;
+                sum1 += a1i * bi;
+                norm0 += a0i * a0i;
+                norm1 += a1i * a1i;
+            }
+        }
+
+        float32x2_t sum  = vcvt_f32_s32(vcreate_s32(((uint64_t)sum1 << 32) | (uint32_t)sum0));
+        float32x2_t a_norm = vcvt_f32_s32(vcreate_s32(((uint64_t)norm1 << 32) | (uint32_t)norm0));
+        float32x2_t b_norm_vec = vcvt_f32_s32(vdup_n_s32(b_norm));
+
+        // sum / sqrt(a_norm * b_norm)
+        float32x2_t res = vdiv_f32(sum, vsqrt_f32(vmul_f32(a_norm, b_norm_vec)));
+
+        // store directly in results
+        vst1_f32(results + c, res);
+    }
+
+    // Tail-handling: remaining vectors
+    for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
         results[c] = vec_cosi8(a0, b, dims);
     }

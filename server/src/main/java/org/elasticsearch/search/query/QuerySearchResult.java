@@ -300,7 +300,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         // On the shard, register top_hits for release when there was no partial reduce (list empty).
         // When there was a partial reduce, the reduce context already registered merged refs here.
         if (aggregations != null && (topHitsToRelease == null || topHitsToRelease.isEmpty())) {
-            InternalAggregations.addTopHitsToReleaseList(aggregations, getOrCreateTopHitsToReleaseList());
+            InternalAggregations.addTopHitsToReleaseList(aggregations, topHitsToReleaseCollector());
         }
         releaseAggsContext();
     }
@@ -584,7 +584,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Used when building the aggregation reduce context for partial reduction on the shard, so that
      * merged top_hits from InternalTopHits.reduce are registered here and released in decRef().
      */
-    public List<SearchHits> getOrCreateTopHitsToReleaseList() {
+    public List<SearchHits> topHitsToReleaseCollector() {
         if (topHitsToRelease == null) {
             topHitsToRelease = new ArrayList<>();
         }

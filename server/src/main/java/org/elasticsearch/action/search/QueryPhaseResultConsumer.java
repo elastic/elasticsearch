@@ -142,7 +142,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     protected synchronized void doClose() {
         assert assertFailureAndBreakerConsistent();
         releaseBuffer();
-        if (topHitsToRelease != null && !topHitsOwnershipTransferred) {
+        if (topHitsToRelease != null && topHitsOwnershipTransferred == false) {
             for (SearchHits h : topHitsToRelease) {
                 h.decRef();
             }

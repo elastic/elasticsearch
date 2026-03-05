@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchShardTarget;
@@ -66,7 +67,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         searchPhaseController = new SearchPhaseController((t, s) -> new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction(
-                @org.elasticsearch.core.Nullable List<org.elasticsearch.search.SearchHits> topHitsToRelease
+                @Nullable List<org.elasticsearch.search.SearchHits> topHitsToRelease
             ) {
                 return new AggregationReduceContext.ForPartial(
                     BigArrays.NON_RECYCLING_INSTANCE,
@@ -80,7 +81,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
             @Override
             public AggregationReduceContext forFinalReduction(
-                @org.elasticsearch.core.Nullable List<org.elasticsearch.search.SearchHits> topHitsToRelease
+                @Nullable List<org.elasticsearch.search.SearchHits> topHitsToRelease
             ) {
                 return new AggregationReduceContext.ForFinal(
                     BigArrays.NON_RECYCLING_INSTANCE,

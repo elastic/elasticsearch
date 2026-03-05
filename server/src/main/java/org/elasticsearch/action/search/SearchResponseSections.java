@@ -56,7 +56,7 @@ public class SearchResponseSections implements Releasable {
     protected final int numReducePhases;
     protected final Long timeRangeFilterFromMillis;
     // List of top_hits SearchHits to release; cleared when transferred to SearchResponse so close() does not release
-    protected List<SearchHits> topHitsToRelease;
+    private List<SearchHits> topHitsToRelease;
 
     public SearchResponseSections(
         SearchHits hits,

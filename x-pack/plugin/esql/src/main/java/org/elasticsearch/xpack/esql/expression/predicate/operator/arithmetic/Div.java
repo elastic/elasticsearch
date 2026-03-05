@@ -129,21 +129,10 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
         double value = lhs / rhs;
 
-<<<<<<< Updated upstream
-        if (Double.isInfinite(value)) {
-            throw new ArithmeticException("double overflow");
-        }
-
-        if (Double.isNaN(value)) {
-            throw new ArithmeticException("invalid floating point operation");
-        }
-
-=======
         if (Double.isFinite(value) == false) {
             throw new ArithmeticException("double overflow");
         }
 
->>>>>>> Stashed changes
         return value;
     }
 }

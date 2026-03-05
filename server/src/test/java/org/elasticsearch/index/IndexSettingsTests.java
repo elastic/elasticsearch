@@ -1097,16 +1097,10 @@ public class IndexSettingsTests extends ESTestCase {
 
         var builder = Settings.builder().put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         if (randomBoolean()) {
-            builder.put(
-                IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
-                SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
-            );
+            builder.put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
         }
         var indexMetadata = newIndexMeta("some-index", builder.build(), indexVersion);
-        var e = assertThrows(
-            IllegalArgumentException.class,
-            () -> new IndexSettings(indexMetadata, Settings.EMPTY)
-        );
+        var e = assertThrows(IllegalArgumentException.class, () -> new IndexSettings(indexMetadata, Settings.EMPTY));
         assertThat(
             e.getMessage(),
             Matchers.containsString(

@@ -207,7 +207,7 @@ public class AggregateMetricDoublePartialBlockLoaderTests extends ESTestCase {
         }
     }
 
-    protected final TestBlock read(BlockLoader loader, BlockLoader.AllReader reader, LeafReaderContext ctx, BlockLoader.Docs docs)
+    protected final TestBlock read(BlockLoader loader, BlockLoader.ColumnAtATimeReader reader, LeafReaderContext ctx, BlockLoader.Docs docs)
         throws IOException {
         return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
     }

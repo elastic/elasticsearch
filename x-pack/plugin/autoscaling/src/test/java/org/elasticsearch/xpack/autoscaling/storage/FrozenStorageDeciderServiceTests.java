@@ -12,9 +12,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -50,22 +53,28 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     public void testScale() {
+        @NotMultiProjectCapable(description = "FrozenStorageDeciderService is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
+
         FrozenStorageDeciderService service = new FrozenStorageDeciderService();
 
         int shards = between(1, 3);
         int replicas = between(0, 2);
         Metadata metadata = Metadata.builder()
             .put(
-                IndexMetadata.builder("index")
-                    .settings(FrozenUtilsTests.indexSettings(DataTier.DATA_FROZEN))
-                    .numberOfShards(shards)
-                    .numberOfReplicas(replicas)
+                ProjectMetadata.builder(projectId)
+                    .put(
+                        IndexMetadata.builder("index")
+                            .settings(FrozenUtilsTests.indexSettings(DataTier.DATA_FROZEN))
+                            .numberOfShards(shards)
+                            .numberOfReplicas(replicas)
+                    )
             )
             .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         AutoscalingDeciderContext context = mock(AutoscalingDeciderContext.class);
         when(context.state()).thenReturn(state);
-        final Tuple<Long, ClusterInfo> sizeAndClusterInfo = sizeAndClusterInfo(metadata.getProject().index("index"));
+        final Tuple<Long, ClusterInfo> sizeAndClusterInfo = sizeAndClusterInfo(metadata.getProject(projectId).index("index"));
         final long dataSetSize = sizeAndClusterInfo.v1();
         final ClusterInfo info = sizeAndClusterInfo.v2();
         when(context.info()).thenReturn(info);

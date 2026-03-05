@@ -1,11 +1,12 @@
 * [`BIT_LENGTH`](../../functions-operators/string-functions/bit_length.md)
 * [`BYTE_LENGTH`](../../functions-operators/string-functions/byte_length.md)
-* [`CHUNK`](../../functions-operators/string-functions/chunk.md)
+* [`CHUNK`](../../functions-operators/string-functions/chunk.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 * [`CONCAT`](../../functions-operators/string-functions/concat.md)
-* [`CONTAINS`](../../functions-operators/string-functions/contains.md)
+* [`CONTAINS`](../../functions-operators/string-functions/contains.md) {applies_to}`stack: ga 9.2`
 * [`ENDS_WITH`](../../functions-operators/string-functions/ends_with.md)
 * [`FROM_BASE64`](../../functions-operators/string-functions/from_base64.md)
 * [`HASH`](../../functions-operators/string-functions/hash.md)
+* [`JSON_EXTRACT`](../../functions-operators/string-functions/json_extract.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`LEFT`](../../functions-operators/string-functions/left.md)
 * [`LENGTH`](../../functions-operators/string-functions/length.md)
 * [`LOCATE`](../../functions-operators/string-functions/locate.md)
@@ -26,6 +27,6 @@
 * [`TO_LOWER`](../../functions-operators/string-functions/to_lower.md)
 * [`TO_UPPER`](../../functions-operators/string-functions/to_upper.md)
 * [`TRIM`](../../functions-operators/string-functions/trim.md)
-* [`URL_ENCODE`](../../functions-operators/string-functions/url_encode.md)
-* [`URL_ENCODE_COMPONENT`](../../functions-operators/string-functions/url_encode_component.md)
-* [`URL_DECODE`](../../functions-operators/string-functions/url_decode.md)
+* [`URL_DECODE`](../../functions-operators/string-functions/url_decode.md) {applies_to}`stack: ga 9.2`
+* [`URL_ENCODE`](../../functions-operators/string-functions/url_encode.md) {applies_to}`stack: ga 9.2`
+* [`URL_ENCODE_COMPONENT`](../../functions-operators/string-functions/url_encode_component.md) {applies_to}`stack: ga 9.2`

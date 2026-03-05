@@ -74,8 +74,6 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
                 if (fieldName.startsWith(RESERVED_FIELD_NAME_PREFIX)) {
                     continue;
                 }
-                // Filter out Unicode surrogates to avoid encoding differences with
-                // JsonWriteFeature.COMBINE_UNICODE_SURROGATES_IN_UTF8 in Jackson 2.21.0+
                 if (containsSurrogates(fieldName)) {
                     continue;
                 }
@@ -86,9 +84,7 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
         private boolean containsSurrogates(String str) {
             for (int i = 0; i < str.length(); i++) {
-                char c = str.charAt(i);
-                // Check for high surrogates (U+D800 to U+DBFF) or low surrogates (U+DC00 to U+DFFF)
-                if (Character.isSurrogate(c)) {
+                if (Character.isSurrogate(str.charAt(i))) {
                     return true;
                 }
             }

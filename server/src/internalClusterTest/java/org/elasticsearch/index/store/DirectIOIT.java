@@ -146,7 +146,7 @@ public class DirectIOIT extends ESIntegTestCase {
             String indexName = indexVectors(true);
 
             // do a search
-            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, 10f, null, null));
+            var knn = List.of(new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null));
             assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }
@@ -174,7 +174,7 @@ public class DirectIOIT extends ESIntegTestCase {
             String indexName = indexVectors(false);
 
             // do a search
-            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, 10f, null, null));
+            var knn = List.of(new KnnSearchBuilder("fooVector", VectorData.fromBytes(new byte[64]), 10, 20, 10f, null, null));
             assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }

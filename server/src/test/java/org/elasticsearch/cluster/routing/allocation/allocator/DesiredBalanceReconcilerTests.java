@@ -615,20 +615,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             shardIdentifierFromRouting(clusterState.routingTable().shardRoutingTable("index-existing", 0).primaryShard()),
             existingShardSize
         );
-        final var clusterInfo = new ClusterInfo(
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            shardSizesBuilder.build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            Set.of()
-        );
-
+        final var clusterInfo = ClusterInfo.builder().shardSizes(shardSizesBuilder.build()).build();
         final var restoredShardSize = randomNonNegativeLong();
         final var snapshotSizesBuilder = ImmutableOpenMap.<InternalSnapshotsInfoService.SnapshotShard, Long>builder();
         snapshotSizesBuilder.put(
@@ -1284,7 +1271,11 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new ConcurrentRebalanceAllocationDecider(clusterSettings),
             new ThrottlingAllocationDecider(clusterSettings) };
 
-        var reconciler = new DesiredBalanceReconciler(clusterSettings, new DeterministicTaskQueue().getThreadPool());
+        var reconciler = new DesiredBalanceReconciler(
+            clusterSettings,
+            new DeterministicTaskQueue().getThreadPool(),
+            new ShardRelocationOrder.DefaultOrder()
+        );
 
         var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
         for (int i = 0; i < numberOfNodes; i++) {
@@ -1367,7 +1358,11 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .build();
 
         var timeProvider = new AdvancingTimeProvider();
-        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), timeProvider);
+        var reconciler = new DesiredBalanceReconciler(
+            createBuiltInClusterSettings(),
+            timeProvider,
+            new ShardRelocationOrder.DefaultOrder()
+        );
         final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
         timeProvider.advanceByMillis(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
@@ -1469,7 +1464,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                 .build()
         );
         final var timeProvider = new AdvancingTimeProvider();
-        final var reconciler = new DesiredBalanceReconciler(clusterSettings, timeProvider);
+        final var reconciler = new DesiredBalanceReconciler(clusterSettings, timeProvider, new ShardRelocationOrder.DefaultOrder());
 
         final var currentStateHolder = new AtomicReference<ClusterState>();
 
@@ -1638,10 +1633,11 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         AtomicReference<DesiredBalanceMetrics.AllocationStats> allocationStatsAtomicReference
     ) {
         allocationStatsAtomicReference.set(
-            new DesiredBalanceReconciler(createBuiltInClusterSettings(), new AdvancingTimeProvider()).reconcile(
-                desiredBalance,
-                routingAllocation
-            )
+            new DesiredBalanceReconciler(
+                createBuiltInClusterSettings(),
+                new AdvancingTimeProvider(),
+                new ShardRelocationOrder.DefaultOrder()
+            ).reconcile(desiredBalance, routingAllocation)
         );
     }
 

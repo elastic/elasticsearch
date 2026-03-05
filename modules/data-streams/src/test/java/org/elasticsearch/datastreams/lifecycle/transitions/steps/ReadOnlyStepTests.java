@@ -42,8 +42,10 @@ import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
@@ -63,6 +65,7 @@ public class ReadOnlyStepTests extends ESTestCase {
     private DataStreamLifecycleErrorStore errorStore;
     private ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> deduplicator;
     private AtomicReference<ActionListener<AddIndexBlockResponse>> capturedListener;
+    private AtomicReference<AddIndexBlockRequest> capturedRequest;
 
     @Before
     public void setup() {
@@ -74,6 +77,7 @@ public class ReadOnlyStepTests extends ESTestCase {
         errorStore = new DataStreamLifecycleErrorStore(System::currentTimeMillis);
         deduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         capturedListener = new AtomicReference<>();
+        capturedRequest = new AtomicReference<>();
 
         client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
             @Override
@@ -84,6 +88,7 @@ public class ReadOnlyStepTests extends ESTestCase {
                 ActionListener<Response> listener
             ) {
                 if (request instanceof AddIndexBlockRequest) {
+                    capturedRequest.set((AddIndexBlockRequest) request);
                     capturedListener.set((ActionListener<AddIndexBlockResponse>) listener);
                 }
             }
@@ -180,7 +185,7 @@ public class ReadOnlyStepTests extends ESTestCase {
 
         // Error should be recorded
         assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
-        assertThat(errorStore.getError(projectId, indexName).error(), containsString("not acknowledged"));
+        assertThat(Objects.requireNonNull(errorStore.getError(projectId, indexName)).error(), containsString("not acknowledged"));
     }
 
     public void testExecuteWithUnacknowledgedResponseWithIndexResult() {
@@ -195,8 +200,7 @@ public class ReadOnlyStepTests extends ESTestCase {
 
         // Error should be recorded
         assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
-        // noinspection DataFlowIssue
-        assertThat(errorStore.getError(projectId, indexName).error(), containsString("not acknowledged"));
+        assertThat(Objects.requireNonNull(errorStore.getError(projectId, indexName)).error(), containsString("not acknowledged"));
     }
 
     public void testExecuteWithGlobalExceptionInBlockResult() {
@@ -215,7 +219,7 @@ public class ReadOnlyStepTests extends ESTestCase {
 
         // Error should be recorded
         assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
-        assertThat(errorStore.getError(projectId, indexName).error(), containsString("global failure"));
+        assertThat(Objects.requireNonNull(errorStore.getError(projectId, indexName)).error(), containsString("global failure"));
     }
 
     public void testExecuteWithShardFailuresInBlockResult() {
@@ -242,7 +246,7 @@ public class ReadOnlyStepTests extends ESTestCase {
 
         // Error should be recorded with shard failure details
         assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
-        assertThat(errorStore.getError(projectId, indexName).error(), containsString("shard failure"));
+        assertThat(Objects.requireNonNull(errorStore.getError(projectId, indexName)).error(), containsString("shard failure"));
     }
 
     public void testExecuteWithIndexNotFoundExceptionClearsError() {
@@ -271,7 +275,7 @@ public class ReadOnlyStepTests extends ESTestCase {
 
         // Error should be recorded
         assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
-        assertThat(errorStore.getError(projectId, indexName).error(), containsString("some error"));
+        assertThat(Objects.requireNonNull(errorStore.getError(projectId, indexName)).error(), containsString("some error"));
     }
 
     public void testStepCompletedWithDifferentBlocks() {
@@ -330,7 +334,7 @@ public class ReadOnlyStepTests extends ESTestCase {
 
         // Error should be recorded with both shard failures
         assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
-        String errorMessage = errorStore.getError(projectId, indexName).error();
+        String errorMessage = Objects.requireNonNull(errorStore.getError(projectId, indexName)).error();
         assertThat(errorMessage, containsString("shard 0 failure"));
         assertThat(errorMessage, containsString("shard 1 failure"));
     }
@@ -356,7 +360,17 @@ public class ReadOnlyStepTests extends ESTestCase {
 
         // Error should be recorded because response was not acknowledged
         assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
-        assertThat(errorStore.getError(projectId, indexName).error(), containsString("not acknowledged"));
+        assertThat(Objects.requireNonNull(errorStore.getError(projectId, indexName)).error(), containsString("not acknowledged"));
+    }
+
+    public void testAddIndexBlockRequestHasVerifiedSetToTrue() {
+        ProjectState projectState = createProjectState();
+        DlmStepContext stepContext = createStepContext(projectState);
+
+        readOnlyStep.execute(stepContext);
+
+        assertThat(capturedRequest.get(), is(notNullValue()));
+        assertTrue("AddIndexBlockRequest should have verified set to true", capturedRequest.get().markVerified());
     }
 
     private ProjectState createProjectState() {
@@ -376,6 +390,6 @@ public class ReadOnlyStepTests extends ESTestCase {
     }
 
     private DlmStepContext createStepContext(ProjectState projectState) {
-        return new DlmStepContext(index, projectState, deduplicator, errorStore, randomIntBetween(1, 10), client);
+        return new DlmStepContext(index, projectState, deduplicator, errorStore, randomIntBetween(1, 10), client, Clock.systemUTC());
     }
 }

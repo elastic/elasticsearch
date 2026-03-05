@@ -8,13 +8,12 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.HashSet;
 
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModelsTests.randomElserModel;
 
-public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTestCase<ElserInternalServiceSettings> {
+public class ElserInternalServiceSettingsTests extends AbstractElasticsearchInternalServiceSettingsTests<ElserInternalServiceSettings> {
 
     public static ElserInternalServiceSettings createRandom() {
         return new ElserInternalServiceSettings(ElasticsearchInternalServiceSettingsTests.validInstance(randomElserModel()));
@@ -66,5 +65,10 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
             }
             default -> throw new IllegalStateException();
         };
+    }
+
+    @Override
+    protected void assertUpdated(ElserInternalServiceSettings original, ElserInternalServiceSettings updated) {
+        // Nothing to do as there are no additional properties
     }
 }

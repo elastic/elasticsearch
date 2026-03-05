@@ -58,7 +58,7 @@ $if(BytesRef)$
 
 $endif$
     @Override
-    $Type$Vector filter(int... positions);
+    $Type$Vector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     $Type$Block keepMask(BooleanVector mask);

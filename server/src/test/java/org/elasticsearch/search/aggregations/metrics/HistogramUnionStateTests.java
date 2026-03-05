@@ -474,4 +474,34 @@ public class HistogramUnionStateTests extends ESTestCase {
         }
     }
 
+    public void testCreateUsingParamsFromEmptyState() {
+        try (HistogramUnionState original = HistogramUnionState.create(breaker(), TDigestState.Type.HYBRID, 42)) {
+            try (HistogramUnionState copy = HistogramUnionState.createUsingParamsFrom(original)) {
+
+                assertThat(copy.compression(), equalTo(42.0));
+
+                // Mutate the copy to ensure that the original is unaffected
+                try (RandomState randomState = randomState()) {
+                    copy.add(randomState.unionState());
+                }
+
+                assertThat(original.size(), equalTo(0L));
+            }
+        }
+    }
+
+    public void testCreateUsingParamsFromPopulatedState() {
+        try (RandomState randomState = randomState()) {
+            HistogramUnionState original = randomState.unionState();
+            try (HistogramUnionState copy = HistogramUnionState.createUsingParamsFrom(original)) {
+
+                assertThat(copy.size(), equalTo(0L));
+                assertThat(copy.compression(), equalTo(original.compression()));
+
+                // Verify original is unchanged
+                assertThat(original.size(), equalTo(randomState.reference().size()));
+            }
+        }
+    }
+
 }

@@ -30,10 +30,13 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
@@ -59,7 +62,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -72,7 +75,7 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
 /** See GoldenTestsReadme.md for more information about these tests. */
 @Listeners({ GoldenTestCase.GoldenTestReproduceInfoPrinter.class })
-@LuceneTestCase.SuppressFileSystems("ExtrasFS") // ExtraFS can create extraneous files in the output directory.
+@LuceneTestCase.SuppressFileSystems("ExtrasFS") // ExtrasFS can create extraneous files in the output directory.
 public abstract class GoldenTestCase extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(GoldenTestCase.class);
     private final Path baseFile;
@@ -209,10 +212,15 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
-            var statement = EsqlParser.INSTANCE.createStatement(esqlQuery);
-            var parsedPlan = statement.plan();
-            Files.createDirectories(outputPath());
-            Files.writeString(outputPath("query.esql"), esqlQuery);
+            EsqlStatement statement = EsqlParser.INSTANCE.createStatement(esqlQuery);
+            LogicalPlan parsedPlan = statement.plan();
+            String[] queryPathParts = new String[nestedPath.length + 2];
+            queryPathParts[0] = testName;
+            System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);
+            queryPathParts[queryPathParts.length - 1] = "query.esql";
+            Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
+            Files.createDirectories(queryPath.getParent());
+            Files.writeString(queryPath, esqlQuery);
             var analyzer = new Analyzer(
                 new AnalyzerContext(
                     EsqlTestUtils.TEST_CFG,
@@ -261,7 +269,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     ExchangeExec exec = EsqlTestUtils.singleValue(physicalPlan.collect(ExchangeExec.class));
                     var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
                     var reductionPlan = ComputeService.reductionPlan(
-                        EsqlTestUtils.TEST_PLANNER_SETTINGS,
+                        PlannerSettings.DEFAULTS,
                         new EsqlFlags(false),
                         conf,
                         conf.newFoldContext(),
@@ -284,18 +292,24 @@ public abstract class GoldenTestCase extends ESTestCase {
                     }
                     if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
                         var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
-                        switch (reductionPlan.nodeReduceLocalPhysicalOptimization()) {
+                        switch (reductionPlan.localPhysicalOptimization()) {
                             // If there is no local node-reduce physical optimization, there's nothing to verify!
                             case DISABLED -> {
-                                var foo = localOptimize(reductionPlan.dataNodePlan(), conf);
-                                var bar = verifyOrWrite(foo, expectedOutputPath(dualFileOutput.dataNodeOutput()));
-                                result.add(Tuple.tuple(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION, bar));
+                                result.add(
+                                    Tuple.tuple(
+                                        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
+                                        verifyOrWrite(
+                                            localOptimize(reductionPlan.dataNodePlan(), conf),
+                                            outputPath(dualFileOutput.dataNodeOutput())
+                                        )
+                                    )
+                                );
                             }
                             case ENABLED -> {
                                 var finalizedResult = new ReductionPlan(
                                     (ExchangeSinkExec) localOptimize(reductionPlan.nodeReducePlan(), conf),
                                     (ExchangeSinkExec) localOptimize(reductionPlan.dataNodePlan(), conf),
-                                    reductionPlan.nodeReduceLocalPhysicalOptimization()
+                                    reductionPlan.localPhysicalOptimization()
                                 );
                                 result.addAll(
                                     addDualPlanResult(
@@ -313,14 +327,6 @@ public abstract class GoldenTestCase extends ESTestCase {
             return result;
         }
 
-        private Path outputPath(String... extraArrayElements) {
-            var paths = new String[nestedPath.length + 1 + extraArrayElements.length];
-            paths[0] = testName;
-            System.arraycopy(nestedPath, 0, paths, 1, nestedPath.length);
-            System.arraycopy(extraArrayElements, 0, paths, 1 + nestedPath.length, extraArrayElements.length);
-            return PathUtils.get(basePath.toString(), paths);
-        }
-
         private enum TestResult {
             SUCCESS,
             FAILURE,
@@ -333,8 +339,8 @@ public abstract class GoldenTestCase extends ESTestCase {
             String nodeReduceName,
             String dataNodeName
         ) throws IOException {
-            var reduceResult = verifyOrWrite(plan.nodeReducePlan(), expectedOutputPath(nodeReduceName));
-            var dataResult = verifyOrWrite(plan.dataNodePlan(), expectedOutputPath(dataNodeName));
+            var reduceResult = verifyOrWrite(plan.nodeReducePlan(), outputPath(nodeReduceName));
+            var dataResult = verifyOrWrite(plan.dataNodePlan(), outputPath(dataNodeName));
             var result = new ArrayList<Tuple<Stage, TestResult>>();
             if (reduceResult == TestResult.FAILURE || dataResult == TestResult.FAILURE) {
                 result.add(Tuple.tuple(stage, TestResult.FAILURE));
@@ -353,7 +359,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private <T extends QueryPlan<T>> TestResult verifyOrWrite(T plan, Stage stage) throws IOException {
-            return verifyOrWrite(plan, expectedOutputPath(stage));
+            return verifyOrWrite(plan, outputPath(stage));
         }
 
         private <T extends QueryPlan<T>> TestResult verifyOrWrite(T plan, Path outputFile) throws IOException {
@@ -370,17 +376,21 @@ public abstract class GoldenTestCase extends ESTestCase {
             }
         }
 
-        private Path expectedOutputPath(Stage stage) {
-            return expectedOutputPath(((SingleFileOutput) stage.fileOutput).output());
+        private Path outputPath(Stage stage) {
+            return outputPath(((SingleFileOutput) stage.fileOutput).output());
         }
 
-        private Path expectedOutputPath(String stageName) {
-            return outputPath(stageName + ".expected");
+        private Path outputPath(String stageName) {
+            var paths = new String[nestedPath.length + 2];
+            paths[0] = testName;
+            System.arraycopy(nestedPath, 0, paths, 1, nestedPath.length);
+            paths[paths.length - 1] = Strings.format("%s.expected", stageName);
+            return PathUtils.get(basePath.toString(), paths);
         }
 
         private PhysicalPlan localOptimize(PhysicalPlan plan, Configuration conf) {
             return PlannerUtils.localPlan(
-                EsqlTestUtils.TEST_PLANNER_SETTINGS,
+                PlannerSettings.DEFAULTS,
                 new EsqlFlags(false),
                 conf,
                 conf.newFoldContext(),
@@ -396,57 +406,63 @@ public abstract class GoldenTestCase extends ESTestCase {
             throw new IllegalStateException("Extra output files should not be created automatically:" + output);
         }
         Files.createDirectories(output.getParent());
-        Files.writeString(output, toCanonicalString(plan), StandardCharsets.UTF_8);
+        String full = plan.toString(Node.NodeStringFormat.FULL);
+        Files.writeString(output, normalizeNameIds(normalizeSyntheticNames(full)), StandardCharsets.UTF_8);
         return Test.TestResult.CREATED;
     }
 
-    private static String toCanonicalString(Node<?> plan) {
-        String full = plan.toString(Node.NodeStringFormat.FULL);
-        return normalizeNameIds(normalizeSyntheticNames(full));
+    /**
+     * Rewrites node IDs ({@code #n}) in the plan string to a stable numbering by order of first appearance.
+     * Actual IDs assigned during plan building can vary between runs, so this is needed to keep golden output deterministic.
+     */
+    private static String normalizeNameIds(String planString) {
+        return replaceMatches(planString, IDENTIFIER_PATTERN, (matcher, idMap) -> {
+            int originalId = Integer.parseInt(matcher.group().substring(1)); // Drop the initial '#' prefix
+            return "#" + idMap.getId(originalId);
+        });
     }
-
-    private static String normalizeNameIds(String plan) {
-        var idMap = new IdMap();
-        return normalizeHelper(plan, IDENTIFIER_PATTERN, s -> "#" + idMap.getId(s));
-    }
-
     /**
      * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
      * Replaces them with $$firstSegment$runningInt so golden output is stable across runs.
      */
-    private static String normalizeSyntheticNames(String plan) {
-        var idMap = new IdMap();
-        return normalizeHelper(plan, SYNTHETIC_PATTERN, s -> "$$" + s + "$" + idMap.getId(s));
+    private static String normalizeSyntheticNames(String full) {
+        return replaceMatches(full, SYNTHETIC_PATTERN, (matcher, idMap) -> {
+            String firstSegment = matcher.group(1);
+            return "$$" + firstSegment + "$" + idMap.getId(firstSegment);
+        });
     }
 
-    private static String normalizeHelper(String s, Pattern p, Function<String, String> replacer) {
-        Matcher matcher = p.matcher(s);
+    private static <K> String replaceMatches(String input, Pattern pattern, BiFunction<Matcher, IdMap<K>, String> replacer) {
+        var idMap = new IdMap<K>();
+        Matcher matcher = pattern.matcher(input);
         StringBuilder sb = new StringBuilder();
         int lastEnd = 0;
         while (matcher.find()) {
-            sb.append(s, lastEnd, matcher.start());
-            sb.append(replacer.apply(matcher.group(1)));
+            sb.append(input, lastEnd, matcher.start());
+            sb.append(replacer.apply(matcher, idMap));
             lastEnd = matcher.end();
         }
-        sb.append(s, lastEnd, s.length());
+        sb.append(input, lastEnd, input.length());
         return sb.toString();
-
     }
 
+    // Matches synthetic names like $$alias$1$2#3, since those $digits are generated during the test run and may differ each time. The
+    // #digit are removed by the next pattern.
     private static final Pattern SYNTHETIC_PATTERN = Pattern.compile("\\$\\$([^$\\s]+)(\\$\\d+)+(?=[{#])");
-    private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#(\\d+)");
+    private static final Pattern IDENTIFIER_PATTERN = Pattern.compile("#\\d+");
 
-    private static class IdMap {
-        private final Map<String, Integer> map = new HashMap<>();
+    private static class IdMap<K> {
+        private final Map<K, Integer> map = new HashMap<>();
         private int counter = 0;
 
-        public int getId(String key) {
+        public int getId(K key) {
             return map.computeIfAbsent(key, k -> counter++);
         }
     }
 
     private static Test.TestResult verifyExisting(Path output, QueryPlan<?> plan) throws IOException {
-        String testString = normalize(toCanonicalString(plan));
+        String full = plan.toString(Node.NodeStringFormat.FULL);
+        String testString = normalize(normalizeNameIds(normalizeSyntheticNames(full)));
         if (testString.equals(normalize(Files.readString(output)))) {
             if (System.getProperty("golden.cleanactual") != null) {
                 Path path = actualPath(output);
@@ -505,6 +521,7 @@ public abstract class GoldenTestCase extends ESTestCase {
          * A combination of {@link Stage#NODE_REDUCE} and {@link  Stage#LOCAL_PHYSICAL_OPTIMIZATION}: first produce the node
          * reduce and data node plans, and then perform local physical optimization on both.
          */
+        // TODO should result in only one plan, see https://github.com/elastic/elasticsearch/issues/142392.
         NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION(
             new DualFileOutput("local_reduce_physical_optimization_reduce_driver", "local_reduce_physical_optimization_data_driver")
         );

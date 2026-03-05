@@ -9,8 +9,10 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -22,10 +24,13 @@ import java.util.Objects;
 
 public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardRequest> {
 
+    private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("multi_get_split_shard_count_summary");
+
     private int shardId;
     private String preference;
     private boolean realtime;
     private boolean refresh;
+    private final SplitShardCountSummary splitShardCountSummary;
 
     List<Integer> locations;
     List<MultiGetRequest.Item> items;
@@ -38,7 +43,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
      */
     private boolean forceSyntheticSource;
 
-    MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
+    MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId, SplitShardCountSummary splitShardCountSummary) {
         super(index);
         this.shardId = shardId;
         locations = new ArrayList<>();
@@ -47,6 +52,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         realtime = multiGetRequest.realtime;
         refresh = multiGetRequest.refresh;
         forceSyntheticSource = multiGetRequest.isForceSyntheticSource();
+        this.splitShardCountSummary = splitShardCountSummary;
     }
 
     @Override
@@ -61,12 +67,13 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
             && Objects.equals(preference, other.preference)
             && Objects.equals(index, other.index)
             && Objects.equals(locations, other.locations)
-            && Objects.equals(items, other.items);
+            && Objects.equals(items, other.items)
+            && Objects.equals(splitShardCountSummary, other.splitShardCountSummary);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(shardId, preference, realtime, refresh, index, locations, items, forceSyntheticSource);
+        return Objects.hash(shardId, preference, realtime, refresh, index, locations, items, forceSyntheticSource, splitShardCountSummary);
     }
 
     MultiGetShardRequest(StreamInput in) throws IOException {
@@ -84,6 +91,11 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         refresh = in.readBoolean();
         realtime = in.readBoolean();
         forceSyntheticSource = in.readBoolean();
+        if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            this.splitShardCountSummary = new SplitShardCountSummary(in);
+        } else {
+            splitShardCountSummary = SplitShardCountSummary.UNSET;
+        }
     }
 
     @Override
@@ -100,6 +112,9 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
         out.writeBoolean(forceSyntheticSource);
+        if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary.writeTo(out);
+        }
     }
 
     @Override
@@ -161,6 +176,10 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     void add(int location, MultiGetRequest.Item item) {
         this.locations.add(location);
         this.items.add(item);
+    }
+
+    public SplitShardCountSummary getSplitShardCountSummary() {
+        return splitShardCountSummary;
     }
 
     @Override

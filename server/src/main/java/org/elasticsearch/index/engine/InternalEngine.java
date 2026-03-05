@@ -2816,7 +2816,8 @@ public class InternalEngine extends Engine {
                 Lucene.SOFT_DELETES_FIELD,
                 () -> softDeletesPolicy.getRetentionQuery(engineConfig.getIndexSettings().seqNoIndexOptions()),
                 useTsdbSyntheticId ? mergePolicy : new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME)
-            )
+            ),
+            engineConfig.getIndexSettings().useTimeSeriesSyntheticId()
         );
         if (SHUFFLE_FORCE_MERGE) {
             // We wrap the merge policy for all indices even though it is mostly useful for time-based indices
@@ -3238,7 +3239,7 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Returns the number of times a version was looked up either from the index.
+     * Returns the number of times a version was looked up from the index.
      * Note this is only available if assertions are enabled
      */
     long getNumIndexVersionsLookups() { // for testing
@@ -3343,8 +3344,7 @@ public class InternalEngine extends Engine {
                     fromSeqNo,
                     toSeqNo,
                     requiredFullRange,
-                    accessStats,
-                    config().getIndexSettings().getIndexVersionCreated()
+                    accessStats
                 );
             } else {
                 snapshot = new LuceneChangesSnapshot(
@@ -3355,8 +3355,7 @@ public class InternalEngine extends Engine {
                     toSeqNo,
                     requiredFullRange,
                     singleConsumer,
-                    accessStats,
-                    config().getIndexSettings().getIndexVersionCreated()
+                    accessStats
                 );
             }
             searcher = null;

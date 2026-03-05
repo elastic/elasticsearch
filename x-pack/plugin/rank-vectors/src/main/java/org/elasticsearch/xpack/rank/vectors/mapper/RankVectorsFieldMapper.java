@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -133,6 +132,11 @@ public class RankVectorsFieldMapper extends FieldMapper {
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { elementType, dims, meta };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -322,8 +326,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             }
             var builder = (Builder) getMergeBuilder();
             builder.dimensions(currentDims);
-            Mapper update = builder.build(context.createDynamicMapperBuilderContext());
-            context.addDynamicMapper(update);
+            context.addDynamicMapper(builder, fullPath());
             return;
         }
         int dims = fieldType().dims;

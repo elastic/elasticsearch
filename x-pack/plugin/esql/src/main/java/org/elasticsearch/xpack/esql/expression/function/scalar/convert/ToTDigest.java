@@ -18,6 +18,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -39,12 +42,16 @@ public class ToTDigest extends AbstractConvertFunction {
         Map.entry(DataType.HISTOGRAM, ToTDigestFromHistogramEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "tdigest", description = "Converts an untyped histogram to a TDigest, assuming the values are centroids"
-    // TODO: examples
+    @FunctionInfo(
+        returnType = "tdigest",
+        description = "Converts an untyped histogram to a TDigest, assuming the values are centroids.",
+        examples = { @Example(file = "histogram", tag = "to_tdigest") },
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
     public ToTDigest(
         Source source,
-        @Param(name = "field", type = { "histogram" }, description = "The histogram value to be converted") Expression field
+        @Param(name = "field", type = { "histogram", "tdigest" }, description = "The histogram value to be converted") Expression field
     ) {
         super(source, field);
     }

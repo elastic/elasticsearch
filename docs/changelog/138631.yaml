@@ -1,5 +1,0 @@
-pr: 138631
-summary: Improved bulk loading for binary doc values
-area: Codec
-type: enhancement
-issues: []

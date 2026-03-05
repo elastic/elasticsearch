@@ -256,7 +256,7 @@ foo:null
 null
 ;
 
-statsAggs
+statsAggsGrouped
 required_capability: optional_fields_nullify_tech_preview
 required_capability: fix_agg_on_null_by_replacing_with_eval
 
@@ -499,7 +499,7 @@ x:integer      |does_not_exist:null |y:keyword | language_name:keyword
 1              |null                |null      |null
 ;
 
-partiallyUnmappedKeyword
+partiallyUnmappedKeywordMultiIndex
 required_capability: optional_fields_nullify_tech_preview
 required_capability: index_metadata_field
 
@@ -526,46 +526,46 @@ sample_data            | 2023-10-23T12:27:28.948Z  | Connected to 10.1.0.2
 sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
 ;
 
-partiallyUnmappedNonKeyword
+partiallyUnmappedNonKeywordMultiIndexCast
 required_capability: optional_fields_nullify_tech_preview
 required_capability: index_metadata_field
 
 SET unmapped_fields="nullify"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
-| EVAL event_duration = event_duration::DOUBLE
-| KEEP _index, event_duration
-| SORT _index, event_duration
+| EVAL duration = event_duration::DOUBLE
+| KEEP _index, @timestamp, duration
+| SORT _index, @timestamp DESC
 ;
 
-_index:keyword         | event_duration:double
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-no_mapping_sample_data | null
-sample_data            | 725448.0
-sample_data            | 1232382.0
-sample_data            | 1756467.0
-sample_data            | 2764889.0
-sample_data            | 3450233.0
-sample_data            | 5033755.0
-sample_data            | 8268153.0
+_index:keyword         | @timestamp:date           | duration:double
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+no_mapping_sample_data | null                      | null
+sample_data            | 2023-10-23T13:55:01.543Z  | 1756467.0
+sample_data            | 2023-10-23T13:53:55.832Z  | 5033755.0
+sample_data            | 2023-10-23T13:52:55.015Z  | 8268153.0
+sample_data            | 2023-10-23T13:51:54.732Z  | 725448.0
+sample_data            | 2023-10-23T13:33:34.937Z  | 1232382.0
+sample_data            | 2023-10-23T12:27:28.948Z  | 2764889.0
+sample_data            | 2023-10-23T12:15:03.360Z  | 3450233.0
 ;
 
-partiallyUnmappedMixedTypes
+partiallyUnmappedMixedTypesMultiIndexCast
 required_capability: optional_fields_nullify_tech_preview
 required_capability: index_metadata_field
 
 SET unmapped_fields="nullify"\;
 FROM sample_data, logs, no_mapping_sample_data METADATA _index
-| EVAL message = message::KEYWORD
-| KEEP _index, @timestamp, message
+| EVAL msg = message::KEYWORD
+| KEEP _index, @timestamp, msg
 | SORT _index, @timestamp DESC
 ;
 
-_index:keyword         | @timestamp:date           | message:keyword
+_index:keyword         | @timestamp:date           | msg:keyword
 logs                   | 2023-10-23T13:57:01.544Z  | Running cats (cycle 3)
 logs                   | 2023-10-23T13:56:01.544Z  | Running cats (cycle 2)
 logs                   | 2023-10-23T13:56:01.543Z  | No response
@@ -587,4 +587,59 @@ sample_data            | 2023-10-23T13:51:54.732Z  | Connection error
 sample_data            | 2023-10-23T13:33:34.937Z  | Disconnected
 sample_data            | 2023-10-23T12:27:28.948Z  | Connected to 10.1.0.2
 sample_data            | 2023-10-23T12:15:03.360Z  | Connected to 10.1.0.3
+;
+
+unmappedFieldNullifiedTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| KEEP @timestamp, cluster, event_log
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:date            | cluster:keyword | event_log:null
+2024-05-10T00:00:29.000Z   | staging        | null
+2024-05-10T00:00:33.000Z   | staging        | null
+2024-05-10T00:00:51.000Z   | prod           | null
+2024-05-10T00:00:57.000Z   | prod           | null
+2024-05-10T00:01:25.000Z   | qa             | null
+;
+
+rateOnUnmappedTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+required_capability: tbucket
+required_capability: fix_agg_on_null_by_replacing_with_eval
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| STATS r = MAX(RATE(nonexistent_counter)) BY tbucket = tbucket(1 hour)
+| SORT tbucket
+| LIMIT 3
+;
+
+r:double | tbucket:datetime
+null    | 2024-05-10T00:00:00.000Z
+;
+
+explicitLastOverTimeUnmappedNullifyTsIndex
+required_capability: optional_fields_nullify_tech_preview
+required_capability: ts_command_v0
+
+SET unmapped_fields="nullify"\;
+TS k8s_unmapped
+| STATS x = max(max_over_time(event_log)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| SORT cluster, time_bucket
+| LIMIT 5
+;
+
+x:null | cluster:keyword | time_bucket:datetime
+null     | prod            | 2024-05-10T00:00:00.000Z
+null     | prod            | 2024-05-10T00:10:00.000Z
+null     | prod            | 2024-05-10T00:20:00.000Z
+null     | qa              | 2024-05-10T00:00:00.000Z
+null     | qa              | 2024-05-10T00:10:00.000Z
 ;

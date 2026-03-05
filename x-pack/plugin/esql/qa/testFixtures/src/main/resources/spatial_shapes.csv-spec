@@ -399,6 +399,96 @@ count:long | min:integer | max:integer | avg:double        | sum:long
 ;
 
 ###############################################
+# Tests for ST_CENTROID_AGG on GEO_SHAPE type
+#
+
+centroidFromCountriesBbox
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_shapes
+
+FROM countries_bbox
+| WHERE id IN ("NOR", "SWE", "FIN")
+| STATS centroid=ST_CENTROID_AGG(shape)
+;
+
+centroid:geo_point
+POINT (19.306472392149942 63.98699665426565)
+;
+
+centroidFromCountriesBboxGrouped
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_shapes
+
+FROM countries_bbox
+| WHERE id IN ("NOR", "SWE", "FIN", "DNK", "ISL")
+| STATS centroid=ST_CENTROID_AGG(shape), count=COUNT() BY id
+| SORT id
+;
+
+centroid:geo_point                              | count:long | id:keyword
+POINT (11.6210405 56.1539545)                   | 1          | DNK
+POINT (25.546677 64.9477045)                    | 1          | FIN
+POINT (-19.018923 64.96305000000001)            | 1          | ISL
+POINT (17.931088039753522 64.5674534269385)     | 2          | NOR
+POINT (17.6401725 62.199732)                    | 1          | SWE
+;
+
+centroidFromLiteralGeoShape
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_shapes
+
+ROW shape = TO_GEOSHAPE("POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))")
+| STATS centroid=ST_CENTROID_AGG(shape)
+;
+
+centroid:geo_point
+POINT (25.454545454545453 26.96969696969697)
+;
+
+centroidFromLiteralMultipleGeoShapes
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_shapes
+
+ROW wkt = ["POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))"]
+| MV_EXPAND wkt
+| EVAL shape = TO_GEOSHAPE(wkt)
+| STATS centroid=ST_CENTROID_AGG(shape)
+;
+
+centroid:geo_point
+POINT (22.307692307692307 23.589743589743588)
+;
+
+centroidFromMixedGeoPointsAndShapes
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_shapes
+
+ROW wkt = ["POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", "POINT (50 50)"]
+| MV_EXPAND wkt
+| EVAL shape = TO_GEOSHAPE(wkt)
+| STATS centroid=ST_CENTROID_AGG(shape)
+;
+
+// When mixing shapes of different dimensional types, only the highest dimensional type contributes
+// Since the polygon covers an area, which is infinitely more points, only the polygon contributes
+centroid:geo_point
+POINT (25.454545454545453 26.96969696969697)
+;
+
+centroidFromCityBoundaries
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_shapes
+
+FROM airport_city_boundaries
+| WHERE abbrev IN ("CPH", "ARN", "OSL")
+| STATS centroid=ST_CENTROID_AGG(city_boundary), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (12.973735060997761 59.48035329632207)  | 3
+;
+
+###############################################
 # Tests for CARTESIAN_SHAPE type
 #
 
@@ -690,4 +780,81 @@ FROM countries_bbox_web
 
 count:long | min:integer | max:integer | avg:double | sum:long
 248        | 4           | 4           | 4.0        | 992
+;
+
+###############################################
+# Tests for ST_CENTROID_AGG on CARTESIAN_SHAPE type
+#
+
+centroidFromCountriesBboxWeb
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_shapes
+
+FROM countries_bbox_web
+| WHERE id IN ("NOR", "SWE", "FIN")
+| STATS centroid=ST_CENTROID_AGG(shape)
+;
+
+centroid:cartesian_point
+POINT (2154196.3800808704 9554932.722600969)
+;
+
+centroidFromCountriesBboxWebGrouped
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_shapes
+
+FROM countries_bbox_web
+| WHERE id IN ("NOR", "SWE", "FIN", "DNK", "ISL")
+| STATS centroid=ST_CENTROID_AGG(shape), count=COUNT() BY id
+| SORT id
+;
+
+centroid:cartesian_point                         | count:long | id:keyword
+POINT (1293648.310767932 7595724.7317548925)     | 1          | DNK
+POINT (2843843.0747043677 9727233.166956387)     | 1          | FIN
+POINT (-2117176.8235017657 9610830.84487306)     | 1          | ISL
+POINT (1996094.1775590854 9709682.55992701)      | 2          | NOR
+POINT (1963695.0199321592 9098757.16364795)      | 1          | SWE
+;
+
+centroidFromLiteralCartesianShape
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_shapes
+
+ROW shape = TO_CARTESIANSHAPE("POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))")
+| STATS centroid=ST_CENTROID_AGG(shape)
+;
+
+centroid:cartesian_point
+POINT (2829422.7678378066 3220826.2726097186)
+;
+
+centroidFromLiteralMultipleCartesianShapes
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_shapes
+
+ROW wkt = ["POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))", "POLYGON ((0 0, 100000 0, 100000 100000, 0 100000, 0 0))"]
+| MV_EXPAND wkt
+| EVAL shape = TO_CARTESIANSHAPE(wkt)
+| STATS centroid=ST_CENTROID_AGG(shape)
+;
+
+centroid:cartesian_point
+POINT (2825817.8130007233 3216713.661300181)
+;
+
+centroidFromMixedCartesianPointsAndShapes
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_shapes
+
+ROW wkt = ["POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))", "POINT (5000000 5000000)"]
+| MV_EXPAND wkt
+| EVAL shape = TO_CARTESIANSHAPE(wkt)
+| STATS centroid=ST_CENTROID_AGG(shape)
+;
+
+// When mixing shapes of different dimensional types, only the highest dimensional type contributes
+// Since the polygon covers an area, which is infinitely more points, only the polygon contributes
+centroid:cartesian_point
+POINT (2829422.7678378066 3220826.2726097186)
 ;

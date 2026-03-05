@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -378,7 +379,9 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         false,
                         new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
                         ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(),
-                        Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
+                        Metadata.builder()
+                            .put(ProjectMetadata.builder(projectId).put(shard.indexSettings().getIndexMetadata(), false))
+                            .build(),
                         new SnapshotInfo(
                             new Snapshot(repository.getMetadata().name(), snapshotId),
                             shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),

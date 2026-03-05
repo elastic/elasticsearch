@@ -17,6 +17,21 @@ package org.elasticsearch.benchmark.vector.scorer;
  */
 class ScalarOperations {
 
+    static float cosine(byte[] a, byte[] b) {
+        int sum = 0;
+        int norm1 = 0;
+        int norm2 = 0;
+
+        for (int i = 0; i < a.length; i++) {
+            byte elem1 = a[i];
+            byte elem2 = b[i];
+            sum += elem1 * elem2;
+            norm1 += elem1 * elem1;
+            norm2 += elem2 * elem2;
+        }
+        return (float) (sum / Math.sqrt((double) norm1 * (double) norm2));
+    }
+
     static float dotProduct(float[] a, float[] b) {
         float res = 0;
         for (int i = 0; i < a.length; i++) {

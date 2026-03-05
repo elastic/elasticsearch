@@ -87,7 +87,7 @@ Rebalancing is important to ensure the cluster returns to a healthy and fully re
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Defines the number of concurrent shard rebalances are allowed across the whole cluster. Defaults to `2`. Note that this setting only controls the number of concurrent shard relocations due to imbalances in the cluster. This setting does not limit shard relocations due to [allocation filtering](#cluster-shard-allocation-filtering) or [forced awareness](docs-content://deploy-manage/distributed-architecture/shard-allocation-relocation-recovery/shard-allocation-awareness.md#forced-awareness). Increasing this setting may cause the cluster to use additional resources moving shards between nodes, so we generally do not recommend adjusting this setting from its default of `2`.
 
 `cluster.routing.allocation.type`
-:   Selects the algorithm used for computing the cluster balance. Defaults to `desired_balance` which selects the *desired balance allocator*. This allocator runs a background task which computes the desired balance of shards in the cluster. Once this background task completes, {{es}} moves shards to their desired locations.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Selects the algorithm used for computing the cluster balance. Defaults to `desired_balance` which selects the *desired balance allocator*. This allocator runs a background task which computes the desired balance of shards in the cluster. Once this background task completes, {{es}} moves shards to their desired locations.
 
 
 :::{admonition} Deprecated in 8.8

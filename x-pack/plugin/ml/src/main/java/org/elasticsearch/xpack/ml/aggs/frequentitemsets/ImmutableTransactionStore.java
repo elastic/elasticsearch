@@ -35,6 +35,8 @@ public final class ImmutableTransactionStore extends TransactionStore {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ImmutableTransactionStore.class) + 2
         * RamUsageEstimator.shallowSizeOfInstance(BytesRefArray.class) + 2 * RamUsageEstimator.shallowSizeOfInstance(LongArray.class);
 
+    private boolean closed = false;
+
     // internal constructor for {@link HashBasedTransactionStore} that takes over the ownership of BytesRefArray
     ImmutableTransactionStore(
         BigArrays bigArrays,
@@ -134,7 +136,10 @@ public final class ImmutableTransactionStore extends TransactionStore {
 
     @Override
     public void close() {
-        Releasables.close(items, itemCounts, transactions, transactionCounts);
+        if (closed == false) {
+            closed = true;
+            Releasables.close(items, itemCounts, transactions, transactionCounts);
+        }
     }
 
     @Override

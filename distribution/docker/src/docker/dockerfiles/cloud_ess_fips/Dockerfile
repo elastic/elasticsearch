@@ -25,7 +25,7 @@
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:11d66ae7ec7ca1d5a7289750bdd96eb3d8eb592e5b7377f1fc8e4fb556fa7383 AS builder
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:e4cb92038b58c8c881962a17ec0b9970857a801c0a52f75550258f92f1e93ca1 AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
@@ -104,7 +104,7 @@ WORKDIR /usr/share/elasticsearch/config
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:11d66ae7ec7ca1d5a7289750bdd96eb3d8eb592e5b7377f1fc8e4fb556fa7383
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:e4cb92038b58c8c881962a17ec0b9970857a801c0a52f75550258f92f1e93ca1
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
@@ -124,6 +124,7 @@ RUN groupadd -g 1000 elasticsearch && \
     chown -R 0:0 /usr/share/elasticsearch
 
 ENV ELASTIC_CONTAINER=true
+ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0
 
 WORKDIR /usr/share/elasticsearch
 

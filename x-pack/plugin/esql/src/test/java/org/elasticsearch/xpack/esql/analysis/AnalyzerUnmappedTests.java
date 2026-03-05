@@ -18,17 +18,15 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -46,14 +44,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.List;
 import java.util.Map;
@@ -67,77 +62,16 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedReso
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class AnalyzerUnmappedTests extends ESTestCase {
     private static final Map<String, IndexFieldCapabilities> TIMESTAMP_MESSAGE_CAPS = AnalyzerTestUtils.fieldResponseMap(
         Map.of("@timestamp", "date", "message", "keyword")
     );
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Project[[does_not_exist_field{r}#16]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#16]]
-     *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
-     */
-    public void testKeep() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | KEEP does_not_exist_field
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var project = as(limit.child(), Project.class);
-        assertThat(project.projections(), hasSize(1));
-        assertThat(Expressions.name(project.projections().getFirst()), is("does_not_exist_field"));
-
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("does_not_exist_field"));
-        var literal = as(alias.child(), Literal.class);
-        assertThat(literal.dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Project[[does_not_exist_field{r}#18]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#17]]
-     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     */
-    public void testKeepRepeated() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | KEEP does_not_exist_field, does_not_exist_field
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var project = as(limit.child(), Project.class);
-        assertThat(project.projections(), hasSize(1));
-        assertThat(Expressions.name(project.projections().getFirst()), is("does_not_exist_field"));
-
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("does_not_exist_field"));
-        var literal = as(alias.child(), Literal.class);
-        assertThat(literal.dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
 
     public void testFailKeepAndNonMatchingStar() {
         var query = """
@@ -147,70 +81,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var failure = "No matches found for pattern [does_not_exist_field*]";
         verificationFailure(setUnmappedNullify(query), failure);
         verificationFailure(setUnmappedLoad(query), failure);
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Project[[emp_no{f}#6, does_not_exist_field{r}#18]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#18]]
-     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     */
-    public void testKeepAndMatchingStar() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | KEEP emp_*, does_not_exist_field
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var project = as(limit.child(), Project.class);
-        assertThat(project.projections(), hasSize(2));
-        assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "does_not_exist_field")));
-
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("does_not_exist_field"));
-        var literal = as(alias.child(), Literal.class);
-        assertThat(literal.dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Project[[does_not_exist_field1{r}#20, does_not_exist_field2{r}#22]]
-     *   \_Eval[[TOINTEGER(does_not_exist_field1{r}#20) + 42[INTEGER] AS x#5]]
-     *     \_Eval[[null[NULL] AS does_not_exist_field1#20, null[NULL] AS does_not_exist_field2#22]]
-     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
-     */
-    public void testEvalAndKeep() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | EVAL x = does_not_exist_field1::INTEGER + 42
-            | KEEP does_not_exist_field1, does_not_exist_field2
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var project = as(limit.child(), Project.class);
-        assertThat(project.projections(), hasSize(2));
-        assertThat(Expressions.names(project.projections()), is(List.of("does_not_exist_field1", "does_not_exist_field2")));
-
-        var eval1 = as(project.child(), Eval.class);
-        assertThat(eval1.fields(), hasSize(1));
-        var aliasX = as(eval1.fields().getFirst(), Alias.class);
-        assertThat(aliasX.name(), is("x"));
-        assertThat(Expressions.name(aliasX.child()), is("does_not_exist_field1::INTEGER + 42"));
-
-        var eval2 = as(eval1.child(), Eval.class);
-        assertThat(Expressions.names(eval2.fields()), is(List.of("does_not_exist_field1", "does_not_exist_field2")));
-
-        var relation = as(eval2.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
     }
 
     public void testFailKeepAndMatchingAndNonMatchingStar() {
@@ -234,187 +104,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailure(setUnmappedLoad(query), failure);
     }
 
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Eval[[does_not_exist_field{r}#22 + 2[INTEGER] AS y#9]]
-     *   \_Eval[[emp_no{f}#11 + 1[INTEGER] AS x#6]]
-     *     \_Project[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
-     *          languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16, does_not_exist_field{r}#22]]
-     *       \_Eval[[null[NULL] AS does_not_exist_field#22]]
-     *         \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
-     */
-    public void testEvalAfterKeepStar() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | KEEP *
-            | EVAL x = emp_no + 1
-            | EVAL y = does_not_exist_field + 2
-            """));
-
-        // Top implicit limit 1000
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        // Eval for y = does_not_exist_field + 2
-        var evalY = as(limit.child(), Eval.class);
-        assertThat(evalY.fields(), hasSize(1));
-        assertThat(evalY.fields().get(0).name(), is("y"));
-
-        // The child is Eval for x = emp_no + 1
-        var evalX = as(evalY.child(), Eval.class);
-        assertThat(evalX.fields(), hasSize(1));
-        assertThat(evalX.fields().get(0).name(), is("x"));
-
-        // The child is Project with all fields plus does_not_exist_field
-        var esqlProject = as(evalX.child(), Project.class);
-        assertThat(
-            Expressions.names(esqlProject.output()),
-            is(
-                List.of(
-                    "_meta_field",
-                    "emp_no",
-                    "first_name",
-                    "gender",
-                    "hire_date",
-                    "job",
-                    "job.raw",
-                    "languages",
-                    "last_name",
-                    "long_noidx",
-                    "salary",
-                    "does_not_exist_field"
-                )
-            )
-        );
-
-        // The child is Eval introducing does_not_exist_field as null
-        var evalNull = as(esqlProject.child(), Eval.class);
-        assertThat(evalNull.fields(), hasSize(1));
-        var alias = as(evalNull.fields().get(0), Alias.class);
-        assertThat(alias.name(), is("does_not_exist_field"));
-        var lit = as(alias.child(), Literal.class);
-        assertThat(lit.dataType(), is(DataType.NULL));
-
-        // The child is EsRelation
-        var relation = as(evalNull.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Eval[[emp_does_not_exist_field{r}#23 + 2[INTEGER] AS y#10]]
-     *   \_Eval[[emp_no{f}#12 + 1[INTEGER] AS x#7]]
-     *     \_Project[[emp_no{f}#12, _meta_field{f}#18, first_name{f}#13, gender{f}#14, hire_date{f}#19, job{f}#20, job.raw{f}#21,
-     *          languages{f}#15, last_name{f}#16, long_noidx{f}#22, salary{f}#17, emp_does_not_exist_field{r}#23]]
-     *       \_Eval[[null[NULL] AS emp_does_not_exist_field#23]]
-     *         \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
-     */
-    public void testEvalAfterMatchingKeepWithWildcard() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | KEEP emp_no, *
-            | EVAL x = emp_no + 1
-            | EVAL y = emp_does_not_exist_field + 2
-            """));
-
-        // Top implicit limit 1000
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        // Eval for y = emp_does_not_exist_field + 2
-        var evalY = as(limit.child(), Eval.class);
-        assertThat(evalY.fields(), hasSize(1));
-        assertThat(evalY.fields().get(0).name(), is("y"));
-
-        // The child is Eval for x = emp_no + 1
-        var evalX = as(evalY.child(), Eval.class);
-        assertThat(evalX.fields(), hasSize(1));
-        assertThat(evalX.fields().get(0).name(), is("x"));
-
-        // The child is Project with all fields plus emp_does_not_exist_field
-        var esqlProject = as(evalX.child(), Project.class);
-        assertThat(
-            Expressions.names(esqlProject.output()),
-            is(
-                List.of(
-                    "emp_no",
-                    "_meta_field",
-                    "first_name",
-                    "gender",
-                    "hire_date",
-                    "job",
-                    "job.raw",
-                    "languages",
-                    "last_name",
-                    "long_noidx",
-                    "salary",
-                    "emp_does_not_exist_field"
-                )
-            )
-        );
-
-        // The child is Eval introducing emp_does_not_exist_field as null
-        var evalNull = as(esqlProject.child(), Eval.class);
-        assertThat(evalNull.fields(), hasSize(1));
-        var alias = as(evalNull.fields().get(0), Alias.class);
-        assertThat(alias.name(), is("emp_does_not_exist_field"));
-        var lit = as(alias.child(), Literal.class);
-        assertThat(lit.dataType(), is(DataType.NULL));
-
-        // The child is EsRelation
-        var relation = as(evalNull.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, languages{f}#9,
-     *      last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#17, null[NULL] AS neither_this#18]]
-     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     */
-    public void testDrop() {
-        var extraField = randomFrom("", "does_not_exist_field", "neither_this");
-        var hasExtraField = extraField.isEmpty() == false;
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | DROP does_not_exist_field
-            """ + (hasExtraField ? ", " : "") + extraField)); // add emp_no to avoid "no fields left" case
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var project = as(limit.child(), Project.class);
-        // All fields from the original relation are projected, as the dropped field did not exist.
-        assertThat(project.projections(), hasSize(11));
-        assertThat(
-            Expressions.names(project.projections()),
-            is(
-                List.of(
-                    "_meta_field",
-                    "emp_no",
-                    "first_name",
-                    "gender",
-                    "hire_date",
-                    "job",
-                    "job.raw",
-                    "languages",
-                    "last_name",
-                    "long_noidx",
-                    "salary"
-                )
-            )
-        );
-
-        var eval = as(project.child(), Eval.class);
-        var expectedNames = hasExtraField && extraField.equals("does_not_exist_field") == false
-            ? List.of("does_not_exist_field", extraField)
-            : List.of("does_not_exist_field");
-        assertThat(Expressions.names(eval.fields()), is(expectedNames));
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
     public void testFailDropWithNonMatchingStar() {
         var query = """
             FROM test
@@ -423,48 +112,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var failure = "No matches found for pattern [does_not_exist_field*]";
         verificationFailure(setUnmappedNullify(query), failure);
         verificationFailure(setUnmappedLoad(query), failure);
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Project[[_meta_field{f}#12, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, languages{f}#9,
-     *      last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#18]]
-     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     */
-    public void testDropWithMatchingStar() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | DROP emp_*, does_not_exist_field
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var project = as(limit.child(), Project.class);
-        assertThat(project.projections(), hasSize(10));
-        assertThat(
-            Expressions.names(project.projections()),
-            is(
-                List.of(
-                    "_meta_field",
-                    "first_name",
-                    "gender",
-                    "hire_date",
-                    "job",
-                    "job.raw",
-                    "languages",
-                    "last_name",
-                    "long_noidx",
-                    "salary"
-                )
-            )
-        );
-
-        var eval = as(project.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), is(List.of("does_not_exist_field")));
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
     }
 
     public void testFailDropWithMatchingAndNonMatchingStar() {
@@ -487,56 +134,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var failure = "3:12: Unknown column [does_not_exist_field]";
         verificationFailure(setUnmappedNullify(query), failure);
         verificationFailure(setUnmappedLoad(query), failure);
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Project[[_meta_field{f}#16, emp_no{f}#10 AS employee_number#8, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18,
-     *      job.raw{f}#19, languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15,
-     *      now_it_does#12 AS does_not_exist_field{r}#21]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#21]]
-     *     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
-     */
-    public void testRename() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | RENAME does_not_exist_field AS now_it_does, emp_no AS employee_number
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var project = as(limit.child(), Project.class);
-        assertThat(project.projections(), hasSize(12));
-        assertThat(
-            Expressions.names(project.projections()),
-            is(
-                List.of(
-                    "_meta_field",
-                    "employee_number",
-                    "first_name",
-                    "gender",
-                    "hire_date",
-                    "job",
-                    "job.raw",
-                    "languages",
-                    "last_name",
-                    "long_noidx",
-                    "salary",
-                    "now_it_does"
-                )
-            )
-        );
-
-        var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("does_not_exist_field"));
-        var literal = as(alias.child(), Literal.class);
-        assertThat(literal.dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
     }
 
     /*
@@ -591,199 +188,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var relation = as(eval.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Eval[[does_not_exist{r}#21 + 1[INTEGER] AS x#8]]
-     *   \_Project[[_meta_field{f}#16, emp_no{f}#10 AS employee_number#5, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18,
-     *          job.raw{f}#19, languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15, does_not_exist{r}#21]]
-     *     \_Eval[[null[NULL] AS does_not_exist#21]]
-     *       \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
-     */
-    public void testEvalAfterRename() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | RENAME emp_no AS employee_number
-            | EVAL x = does_not_exist + 1
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var eval = as(limit.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        assertThat(eval.fields().get(0).name(), is("x"));
-        assertThat(
-            Expressions.names(eval.output()),
-            is(
-                List.of(
-                    "_meta_field",
-                    "employee_number",
-                    "first_name",
-                    "gender",
-                    "hire_date",
-                    "job",
-                    "job.raw",
-                    "languages",
-                    "last_name",
-                    "long_noidx",
-                    "salary",
-                    "does_not_exist",
-                    "x"
-                )
-            )
-        );
-
-        var esqlProject = as(eval.child(), Project.class);
-        assertThat(
-            Expressions.names(esqlProject.output()),
-            is(
-                List.of(
-                    "_meta_field",
-                    "employee_number",
-                    "first_name",
-                    "gender",
-                    "hire_date",
-                    "job",
-                    "job.raw",
-                    "languages",
-                    "last_name",
-                    "long_noidx",
-                    "salary",
-                    "does_not_exist"
-                )
-            )
-        );
-
-        var evalNull = as(esqlProject.child(), Eval.class);
-        assertThat(evalNull.fields(), hasSize(1));
-        var alias = as(evalNull.fields().get(0), Alias.class);
-        assertThat(alias.name(), is("does_not_exist"));
-        var lit = as(alias.child(), Literal.class);
-        assertThat(lit.dataType(), is(DataType.NULL));
-
-        var relation = as(evalNull.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Eval[[does_not_exist_field{r}#18 + 1[INTEGER] AS x#5]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#18]]
-     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     */
-    public void testEval() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | EVAL x = does_not_exist_field + 1
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var outerEval = as(limit.child(), Eval.class);
-        assertThat(outerEval.fields(), hasSize(1));
-        var aliasX = as(outerEval.fields().getFirst(), Alias.class);
-        assertThat(aliasX.name(), is("x"));
-        assertThat(Expressions.name(aliasX.child()), is("does_not_exist_field + 1"));
-
-        var innerEval = as(outerEval.child(), Eval.class);
-        assertThat(innerEval.fields(), hasSize(1));
-        var aliasField = as(innerEval.fields().getFirst(), Alias.class);
-        assertThat(aliasField.name(), is("does_not_exist_field"));
-        var literal = as(aliasField.child(), Literal.class);
-        assertThat(literal.dataType(), is(DataType.NULL));
-
-        var relation = as(innerEval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Eval[[b{r}#25 + c{r}#27 AS y#12]]
-     *   \_Eval[[a{r}#4 + b{r}#25 AS x#8]]
-     *     \_Eval[[1[INTEGER] AS a#4, null[NULL] AS b#25, null[NULL] AS c#27]]
-     *       \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
-     */
-    public void testMultipleEvaled() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | EVAL a = 1
-            | EVAL x = a + b
-            | EVAL y = b + c
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var evalY = as(limit.child(), Eval.class);
-        assertThat(evalY.fields(), hasSize(1));
-        assertThat(evalY.fields().get(0).name(), is("y"));
-
-        var evalX = as(evalY.child(), Eval.class);
-        assertThat(evalX.fields(), hasSize(1));
-        assertThat(evalX.fields().get(0).name(), is("x"));
-
-        var evalABC = as(evalX.child(), Eval.class);
-        assertThat(Expressions.names(evalABC.fields()), is(List.of("a", "b", "c")));
-        for (var field : evalABC.fields()) {
-            var alias = as(field, Alias.class);
-            var literal = as(alias.child(), Literal.class);
-            if (alias.name().equals("a") == false) {
-                assertThat(literal.dataType(), is(DataType.NULL));
-                assertThat(literal.value(), is(nullValue()));
-            }
-        }
-
-        var relation = as(evalABC.child(), EsRelation.class);
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Eval[[TOLONG(does_not_exist_field{r}#18) AS x#5]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#18]]
-     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     */
-    public void testCasting() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | EVAL x = does_not_exist_field::LONG
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var outerEval = as(limit.child(), Eval.class);
-        assertThat(outerEval.fields(), hasSize(1));
-        var aliasX = as(outerEval.fields().getFirst(), Alias.class);
-        assertThat(aliasX.name(), is("x"));
-        assertThat(Expressions.name(aliasX.child()), is("does_not_exist_field::LONG"));
-
-        var innerEval = as(outerEval.child(), Eval.class);
-        assertThat(innerEval.fields(), hasSize(1));
-        var aliasField = as(innerEval.fields().getFirst(), Alias.class);
-        assertThat(aliasField.name(), is("does_not_exist_field"));
-        var literal = as(aliasField.child(), Literal.class);
-        assertThat(literal.dataType(), is(DataType.NULL));
-
-        var relation = as(innerEval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Eval[[TOLONG(does_not_exist_field{r}#17) AS does_not_exist_field::LONG#4]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#17]]
-     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     */
-    public void testCastingNoAliasing() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | EVAL does_not_exist_field::LONG
-            """));
-
-        assertThat(Expressions.names(plan.output()), hasItems("does_not_exist_field", "does_not_exist_field::LONG"));
     }
 
     /*
@@ -931,106 +335,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var failure = "line 3:12: Unknown column [emp_no]";
         verificationFailure(setUnmappedNullify(query), failure);
         verificationFailure(setUnmappedLoad(query), failure);
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[],[COUNT(does_not_exist_field{r}#18,true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#5]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#18]]
-     *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
-     */
-    public void testStatsAgg() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | STATS cnt = COUNT(does_not_exist_field)
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var agg = as(limit.child(), Aggregate.class);
-        assertThat(agg.groupings(), hasSize(0));
-        assertThat(agg.aggregates(), hasSize(1));
-        var alias = as(agg.aggregates().getFirst(), Alias.class);
-        assertThat(alias.name(), is("cnt"));
-        assertThat(Expressions.name(alias.child()), is("COUNT(does_not_exist_field)"));
-
-        var eval = as(agg.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var aliasField = as(eval.fields().getFirst(), Alias.class);
-        assertThat(aliasField.name(), is("does_not_exist_field"));
-        var literal = as(aliasField.child(), Literal.class);
-        assertThat(literal.dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[does_not_exist_field{r}#16],[does_not_exist_field{r}#16]]
-     *   \_Eval[[null[NULL] AS does_not_exist_field#16]]
-     *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
-     */
-    public void testStatsGroup() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | STATS BY does_not_exist_field
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var agg = as(limit.child(), Aggregate.class);
-        assertThat(agg.groupings(), hasSize(1));
-        assertThat(Expressions.name(agg.groupings().getFirst()), is("does_not_exist_field"));
-
-        var eval = as(agg.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var aliasField = as(eval.fields().getFirst(), Alias.class);
-        assertThat(aliasField.name(), is("does_not_exist_field"));
-        var literal = as(aliasField.child(), Literal.class);
-        assertThat(literal.dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[does_not_exist2{r}#19],[SUM(does_not_exist1{r}#20,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS s
-     * #6, does_not_exist2{r}#19]]
-     *   \_Eval[[null[NULL] AS does_not_exist2#19, null[NULL] AS does_not_exist1#20]]
-     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
-     */
-    public void testStatsAggAndGroup() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | STATS s = SUM(does_not_exist1) BY does_not_exist2
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var agg = as(limit.child(), Aggregate.class);
-        assertThat(agg.groupings(), hasSize(1));
-        assertThat(Expressions.name(agg.groupings().getFirst()), is("does_not_exist2"));
-        assertThat(agg.aggregates(), hasSize(2)); // includes grouping key
-        var alias = as(agg.aggregates().getFirst(), Alias.class);
-        assertThat(alias.name(), is("s"));
-        assertThat(Expressions.name(alias.child()), is("SUM(does_not_exist1)"));
-
-        var eval = as(agg.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(2));
-        var alias2 = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias2.name(), is("does_not_exist2"));
-        assertThat(as(alias2.child(), Literal.class).dataType(), is(DataType.NULL));
-        var alias1 = as(eval.fields().getLast(), Alias.class);
-        assertThat(alias1.name(), is("does_not_exist1"));
-        assertThat(as(alias1.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
     }
 
     /*
@@ -1210,304 +514,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(eval.fields(), hasSize(3));
         assertThat(Expressions.names(eval.fields()), is(List.of("does_not_exist3", "does_not_exist2", "does_not_exist1")));
         eval.fields().forEach(a -> assertThat(as(as(a, Alias.class).child(), Literal.class).dataType(), is(DataType.NULL)));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Filter[TOLONG(does_not_exist{r}#33) > 0[INTEGER]]
-     *   \_Eval[[null[NULL] AS does_not_exist#33]]
-     *     \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
-     */
-    public void testWhere() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | WHERE does_not_exist::LONG > 0
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var filter = as(limit.child(), Filter.class);
-        assertThat(Expressions.name(filter.condition()), is("does_not_exist::LONG > 0"));
-
-        var eval = as(filter.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("does_not_exist"));
-        assertThat(as(alias.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Filter[TOLONG(does_not_exist{r}#195) > 0[INTEGER] OR emp_no{f}#184 > 0[INTEGER]]
-     *   \_Eval[[null[NULL] AS does_not_exist#195]]
-     *     \_EsRelation[test][_meta_field{f}#190, emp_no{f}#184, first_name{f}#18..]
-     */
-    public void testWhereConjunction() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | WHERE does_not_exist::LONG > 0 OR emp_no > 0
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var filter = as(limit.child(), Filter.class);
-        assertThat(Expressions.name(filter.condition()), is("does_not_exist::LONG > 0 OR emp_no > 0"));
-
-        var eval = as(filter.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("does_not_exist"));
-        assertThat(as(alias.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Filter[TOLONG(does_not_exist1{r}#491) > 0[INTEGER] OR emp_no{f}#480 > 0[INTEGER]
-     *      AND TOLONG(does_not_exist2{r}#492) < 100[INTEGER]]
-     *   \_Eval[[null[NULL] AS does_not_exist1#491, null[NULL] AS does_not_exist2#492]]
-     *     \_EsRelation[test][_meta_field{f}#486, emp_no{f}#480, first_name{f}#48..]
-     */
-    public void testWhereConjunctionMultipleFields() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | WHERE does_not_exist1::LONG > 0 OR emp_no > 0 AND does_not_exist2::LONG < 100
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var filter = as(limit.child(), Filter.class);
-        assertThat(Expressions.name(filter.condition()), is("does_not_exist1::LONG > 0 OR emp_no > 0 AND does_not_exist2::LONG < 100"));
-
-        var eval = as(filter.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(2));
-        var alias1 = as(eval.fields().get(0), Alias.class);
-        assertThat(alias1.name(), is("does_not_exist1"));
-        assertThat(as(alias1.child(), Literal.class).dataType(), is(DataType.NULL));
-        var alias2 = as(eval.fields().get(1), Alias.class);
-        assertThat(alias2.name(), is("does_not_exist2"));
-        assertThat(as(alias2.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[],[FilteredExpression[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]),
-     *      TOLONG(does_not_exist1{r}#94) > 0[INTEGER]] AS c#81]]
-     *   \_Eval[[null[NULL] AS does_not_exist1#94]]
-     *     \_EsRelation[test][_meta_field{f}#89, emp_no{f}#83, first_name{f}#84, ..]
-     */
-    public void testAggsFiltering() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | STATS c = COUNT(*) WHERE does_not_exist1::LONG > 0
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var agg = as(limit.child(), Aggregate.class);
-        assertThat(agg.groupings(), hasSize(0));
-        assertThat(agg.aggregates(), hasSize(1));
-        var alias = as(agg.aggregates().getFirst(), Alias.class);
-        assertThat(alias.name(), is("c"));
-        var filteredExpr = as(alias.child(), FilteredExpression.class);
-        var delegate = as(filteredExpr.delegate(), Count.class);
-        var greaterThan = as(filteredExpr.filter(), GreaterThan.class);
-        var tolong = as(greaterThan.left(), ToLong.class);
-        assertThat(Expressions.name(tolong.field()), is("does_not_exist1"));
-
-        var eval = as(agg.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias1 = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias1.name(), is("does_not_exist1"));
-        assertThat(as(alias1.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[],[FilteredExpression[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]),
-     *      TOLONG(does_not_exist1{r}#620) > 0[INTEGER] OR emp_no{f}#609 > 0[INTEGER]
-     *      OR TOLONG(does_not_exist2{r}#621) < 100[INTEGER]] AS c1#602,
-     *      FilteredExpression[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]),ISNULL(does_not_exist3{r}#622)] AS c2#607]]
-     *   \_Eval[[null[NULL] AS does_not_exist1#620, null[NULL] AS does_not_exist2#621, null[NULL] AS does_not_exist3#622]]
-     *     \_EsRelation[test][_meta_field{f}#615, emp_no{f}#609, first_name{f}#61..]
-     */
-    public void testAggsFilteringMultipleFields() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | STATS c1 = COUNT(*) WHERE does_not_exist1::LONG > 0 OR emp_no > 0 OR does_not_exist2::LONG < 100,
-                    c2 = COUNT(*) WHERE does_not_exist3 IS NULL
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var agg = as(limit.child(), Aggregate.class);
-        assertThat(agg.groupings(), hasSize(0));
-        assertThat(agg.aggregates(), hasSize(2));
-
-        var alias1 = as(agg.aggregates().getFirst(), Alias.class);
-        assertThat(alias1.name(), is("c1"));
-        assertThat(
-            Expressions.name(alias1.child()),
-            is("c1 = COUNT(*) WHERE does_not_exist1::LONG > 0 OR emp_no > 0 OR does_not_exist2::LONG < 100")
-        );
-
-        var alias2 = as(agg.aggregates().get(1), Alias.class);
-        assertThat(alias2.name(), is("c2"));
-        assertThat(Expressions.name(alias2.child()), is("c2 = COUNT(*) WHERE does_not_exist3 IS NULL"));
-
-        var eval = as(agg.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(3));
-        var aliasDne1 = as(eval.fields().get(0), Alias.class);
-        assertThat(aliasDne1.name(), is("does_not_exist1"));
-        assertThat(as(aliasDne1.child(), Literal.class).dataType(), is(DataType.NULL));
-        var aliasDne2 = as(eval.fields().get(1), Alias.class);
-        assertThat(aliasDne2.name(), is("does_not_exist2"));
-        assertThat(as(aliasDne2.child(), Literal.class).dataType(), is(DataType.NULL));
-        var aliasDne3 = as(eval.fields().get(2), Alias.class);
-        assertThat(aliasDne3.name(), is("does_not_exist3"));
-        assertThat(as(aliasDne3.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_OrderBy[[Order[does_not_exist{r}#16,ASC,LAST]]]
-     *   \_Eval[[null[NULL] AS does_not_exist#16]]
-     *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
-     */
-    public void testSort() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | SORT does_not_exist ASC
-            """));
-
-        // Top implicit limit 1000
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        // OrderBy over the Eval-produced alias
-        var orderBy = as(limit.child(), OrderBy.class);
-
-        // Eval introduces does_not_exist as NULL
-        var eval = as(orderBy.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("does_not_exist"));
-        assertThat(as(alias.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        // Underlying relation
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_OrderBy[[Order[TOLONG(does_not_exist{r}#485) + 1[INTEGER],ASC,LAST]]]
-     *   \_Eval[[null[NULL] AS does_not_exist#485]]
-     *     \_EsRelation[test][_meta_field{f}#480, emp_no{f}#474, first_name{f}#47..]
-     */
-    public void testSortExpression() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | SORT does_not_exist::LONG + 1
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var orderBy = as(limit.child(), OrderBy.class);
-        assertThat(orderBy.order(), hasSize(1));
-        assertThat(Expressions.name(orderBy.order().getFirst().child()), is("does_not_exist::LONG + 1"));
-
-        var eval = as(orderBy.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("does_not_exist"));
-        assertThat(as(alias.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_OrderBy[[Order[TOLONG(does_not_exist{r}#370) + 1[INTEGER],ASC,LAST], Order[does_not_exist2{r}#371,DESC,FIRST],
-     *      Order[emp_no{f}#359,ASC,LAST]]]
-     *   \_Eval[[null[NULL] AS does_not_exist1#370, null[NULL] AS does_not_exist2#371]]
-     *     \_EsRelation[test][_meta_field{f}#365, emp_no{f}#359, first_name{f}#36..]
-     */
-    public void testSortExpressionMultipleFields() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | SORT does_not_exist1::LONG + 1, does_not_exist2 DESC, emp_no ASC
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var orderBy = as(limit.child(), OrderBy.class);
-        assertThat(orderBy.order(), hasSize(3));
-        assertThat(Expressions.name(orderBy.order().get(0).child()), is("does_not_exist1::LONG + 1"));
-        assertThat(Expressions.name(orderBy.order().get(1).child()), is("does_not_exist2"));
-        assertThat(Expressions.name(orderBy.order().get(2).child()), is("emp_no"));
-
-        var eval = as(orderBy.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(2));
-        var alias1 = as(eval.fields().get(0), Alias.class);
-        assertThat(alias1.name(), is("does_not_exist1"));
-        assertThat(as(alias1.child(), Literal.class).dataType(), is(DataType.NULL));
-        var alias2 = as(eval.fields().get(1), Alias.class);
-        assertThat(alias2.name(), is("does_not_exist2"));
-        assertThat(as(alias2.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_MvExpand[does_not_exist{r}#17,does_not_exist{r}#20]
-     *   \_Eval[[null[NULL] AS does_not_exist#17]]
-     *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
-     */
-    public void testMvExpand() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | MV_EXPAND does_not_exist
-            """));
-
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        var mvExpand = as(limit.child(), MvExpand.class);
-        assertThat(Expressions.name(mvExpand.expanded()), is("does_not_exist"));
-
-        var eval = as(mvExpand.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
-        assertThat(alias.name(), is("does_not_exist"));
-        assertThat(as(alias.child(), Literal.class).dataType(), is(DataType.NULL));
 
         var relation = as(eval.child(), EsRelation.class);
         assertThat(relation.indexPattern(), is("test"));
@@ -3038,40 +2044,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_OrderBy[[Order[does_not_exist2{r}#46,ASC,LAST]]]
-     *   \_Fork[[c{r}#45, does_not_exist2{r}#46, _fork{r}#47, d{r}#48]]
-     *     |_Limit[1000[INTEGER],false,false]
-     *     | \_Project[[c{r}#6, does_not_exist2{r}#39, _fork{r}#7, d{r}#42]]
-     *     |   \_Eval[[null[DOUBLE] AS d#42]]
-     *     |     \_Eval[[fork1[KEYWORD] AS _fork#7]]
-     *     |       \_Aggregate[[does_not_exist2{r}#39],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS c#6, does_not_exist2{r}#39]]
-     *     |         \_Filter[ISNULL(does_not_exist1{r}#35)]
-     *     |           \_Eval[[null[NULL] AS does_not_exist1#35, null[NULL] AS does_not_exist2#39]]
-     *     |             \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
-     *     \_Limit[1000[INTEGER],false,false]
-     *       \_Project[[c{r}#43, does_not_exist2{r}#44, _fork{r}#7, d{r}#10]]
-     *         \_Eval[[null[LONG] AS c#43, null[NULL] AS does_not_exist2#44]]
-     *           \_Eval[[fork2[KEYWORD] AS _fork#7]]
-     *             \_Aggregate[[],[AVG(salary{f}#29,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS d#10]]
-     *               \_Filter[ISNULL(does_not_exist1{r}#37)]
-     *                 \_Eval[[null[NULL] AS does_not_exist1#37]]
-     *                   \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
-     */
-    public void testForkBranchesAfterStats1stBranch() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | WHERE does_not_exist1 IS NULL
-            | FORK (STATS c = COUNT(*) BY does_not_exist2)
-                   (STATS d = AVG(salary))
-            | SORT does_not_exist2
-            """));
-
-        // TODO: golden testing
-        assertThat(Expressions.names(plan.output()), is(List.of("c", "does_not_exist2", "_fork", "d")));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
      * \_OrderBy[[Order[does_not_exist2{r}#48,ASC,LAST]]]
      *   \_Fork[[c{r}#45, _fork{r}#46, d{r}#47, does_not_exist2{r}#48]]
      *     |_Limit[1000[INTEGER],false,false]
@@ -3118,100 +2090,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         var failure = "line 7:12: Unknown column [does_not_exist3]";
         verificationFailure(setUnmappedNullify(query), failure);
         verificationFailure(setUnmappedLoad(query), failure);
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_InlineStats[]
-     *   \_Aggregate[[does_not_exist2{r}#19],[SUM(does_not_exist1{r}#20,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS c#5,
-     *          does_not_exist2{r}#19]]
-     *     \_Eval[[null[NULL] AS does_not_exist2#19, null[NULL] AS does_not_exist1#20]]
-     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
-     */
-    public void testInlineStats() {
-        var plan = analyzeStatement(setUnmappedNullify("""
-            FROM test
-            | INLINE STATS c = SUM(does_not_exist1) BY does_not_exist2
-            """));
-
-        // Top implicit limit 1000
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        // InlineStats wrapping Aggregate
-        var inlineStats = as(limit.child(), InlineStats.class);
-        var agg = as(inlineStats.child(), Aggregate.class);
-
-        // Grouping by does_not_exist2 and SUM over does_not_exist1
-        assertThat(agg.groupings(), hasSize(1));
-        var groupRef = as(agg.groupings().getFirst(), ReferenceAttribute.class);
-        assertThat(groupRef.name(), is("does_not_exist2"));
-
-        assertThat(agg.aggregates(), hasSize(2));
-        var cAlias = as(agg.aggregates().getFirst(), Alias.class);
-        assertThat(cAlias.name(), is("c"));
-        as(cAlias.child(), Sum.class);
-
-        // Upstream Eval introduces does_not_exist2 and does_not_exist1 as NULL
-        var eval = as(agg.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(2));
-
-        var dne2Alias = as(eval.fields().get(0), Alias.class);
-        assertThat(dne2Alias.name(), is("does_not_exist2"));
-        assertThat(as(dne2Alias.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var dne1Alias = as(eval.fields().get(1), Alias.class);
-        assertThat(dne1Alias.name(), is("does_not_exist1"));
-        assertThat(as(dne1Alias.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        // Underlying relation
-        var relation = as(eval.child(), EsRelation.class);
-        assertThat(relation.indexPattern(), is("test"));
-    }
-
-    /*
-     * Limit[1000[INTEGER],false,false]
-     * \_LookupJoin[LEFT,[language_code{r}#5],[language_code{f}#19],false,null]
-     *   |_Eval[[TOINTEGER(does_not_exist{r}#21) AS language_code#5]]
-     *   | \_Eval[[null[NULL] AS does_not_exist#21]]
-     *   |   \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
-     *   \_EsRelation[languages_lookup][LOOKUP][language_code{f}#19, language_name{f}#20]
-     */
-    public void testLookupJoin() {
-        String query = """
-            FROM test
-            | EVAL language_code = does_not_exist::INTEGER
-            | LOOKUP JOIN languages_lookup ON language_code
-            """;
-        var plan = analyzeStatement(setUnmappedNullify(query));
-
-        // Top implicit limit 1000
-        var limit = as(plan, Limit.class);
-        assertThat(limit.limit().fold(FoldContext.small()), is(1000));
-
-        // LookupJoin over alias `language_code`
-        var lj = as(limit.child(), LookupJoin.class);
-        assertThat(lj.config().type(), is(JoinTypes.LEFT));
-
-        // Left child: EVAL language_code = TOINTEGER(does_not_exist), with upstream NULL alias for does_not_exist
-        var leftEval = as(lj.left(), Eval.class);
-        assertThat(leftEval.fields(), hasSize(1));
-        var langCodeAlias = as(leftEval.fields().getFirst(), Alias.class);
-        assertThat(langCodeAlias.name(), is("language_code"));
-        as(langCodeAlias.child(), ToInteger.class);
-
-        var upstreamEval = as(leftEval.child(), Eval.class);
-        assertThat(upstreamEval.fields(), hasSize(1));
-        var dneAlias = as(upstreamEval.fields().getFirst(), Alias.class);
-        assertThat(dneAlias.name(), is("does_not_exist"));
-        assertThat(as(dneAlias.child(), Literal.class).dataType(), is(DataType.NULL));
-
-        var leftRel = as(upstreamEval.child(), EsRelation.class);
-        assertThat(leftRel.indexPattern(), is("test"));
-
-        // Right lookup table
-        var rightRel = as(lj.right(), EsRelation.class);
-        assertThat(rightRel.indexPattern(), is("languages_lookup"));
     }
 
     public void testFailLookupJoinWithoutCast() {
@@ -3355,6 +2233,141 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertThat(Expressions.name(row.fields().getFirst()), is("x"));
     }
 
+    public void testFailMetadataFieldInKeep() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | KEEP " + field;
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldInEval() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | EVAL x = " + field;
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldInWhere() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | WHERE " + field + " IS NOT NULL";
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldInSort() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | SORT " + field;
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldInStats() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | STATS x = COUNT(" + field + ")";
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldInRename() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var query = "FROM test | RENAME " + field + " AS renamed";
+            var failure = "Unknown column [" + field + "]";
+            verificationFailure(setUnmappedNullify(query), failure);
+            verificationFailure(setUnmappedLoad(query), failure);
+        }
+    }
+
+    public void testFailMetadataFieldAfterStats() {
+        var query = """
+            FROM test
+            | STATS c = COUNT(*)
+            | KEEP _score
+            """;
+        var failure = "Unknown column [_score]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
+    public void testFailMetadataFieldInFork() {
+        var query = """
+            FROM test
+            | FORK (WHERE _score > 1)
+                   (WHERE salary > 50000)
+            """;
+        var failure = "Unknown column [_score]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
+    public void testFailMetadataFieldInSubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        var query = """
+            FROM
+                (FROM test
+                 | WHERE _score > 1)
+            """;
+        var failure = "Unknown column [_score]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[_score{m}#5]]
+     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, ...]
+     */
+    public void testMetadataFieldDeclaredNullify() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var plan = analyzeStatement(setUnmappedNullify("FROM test METADATA " + field + " | KEEP " + field));
+
+            var limit = as(plan, Limit.class);
+            assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+            var project = as(limit.child(), Project.class);
+            assertThat(project.projections(), hasSize(1));
+            assertThat(Expressions.name(project.projections().getFirst()), is(field));
+            assertThat(project.projections().getFirst(), instanceOf(MetadataAttribute.class));
+
+            // No Eval(NULL) — the field was resolved via METADATA, not nullified
+            var relation = as(project.child(), EsRelation.class);
+            assertThat(relation.indexPattern(), is("test"));
+        }
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[_score{m}#5]]
+     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, ...]
+     */
+    public void testMetadataFieldDeclaredLoad() {
+        for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
+            var plan = analyzeStatement(setUnmappedLoad("FROM test METADATA " + field + " | KEEP " + field));
+
+            var limit = as(plan, Limit.class);
+            assertThat(limit.limit().fold(FoldContext.small()), is(1000));
+
+            var project = as(limit.child(), Project.class);
+            assertThat(project.projections(), hasSize(1));
+            assertThat(Expressions.name(project.projections().getFirst()), is(field));
+            assertThat(project.projections().getFirst(), instanceOf(MetadataAttribute.class));
+
+            // The field was resolved via METADATA, not loaded as an unmapped field into EsRelation
+            var relation = as(project.child(), EsRelation.class);
+            assertThat(relation.indexPattern(), is("test"));
+        }
+    }
+
     public void testChangedTimestmapFieldWithRate() {
         verificationFailure(setUnmappedNullify("""
             TS k8s
@@ -3396,7 +2409,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     private static String setUnmappedLoad(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
+        assumeTrue("Requires OPTIONAL_FIELDS_V2", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V2.isEnabled());
         return "SET unmapped_fields=\"load\"; " + query;
     }
 

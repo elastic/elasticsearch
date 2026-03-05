@@ -9,8 +9,10 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -132,6 +134,33 @@ public class IndexRoutingTableTests extends ESTestCase {
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
         assertTrue(indexRoutingTable.readyForSearch());
+    }
+
+    private record RandomIndexRoutingTable(IndexRoutingTable irt, RoutingTableGenerator.ShardCounter counter) {
+        static RandomIndexRoutingTable generate(String indexName, int priLow, int priHigh, int repLow, int repHigh) {
+            assert indexName != null;
+            assert priLow <= priHigh && repLow <= repHigh;
+            final var rtGen = new RoutingTableGenerator();
+            final var counter = new RoutingTableGenerator.ShardCounter();
+            final var indexMeta = IndexMetadata.builder(randomIndexName())
+                .settings(settings(IndexVersion.current()))
+                .numberOfShards(between(1, 10))
+                .numberOfReplicas(between(0, 9))
+                .build();
+            final var irt = rtGen.genIndexRoutingTable(indexMeta, counter);
+            return new RandomIndexRoutingTable(irt, counter);
+        }
+    }
+
+    public void testAllActivePrimaries() {
+        final var randomIRT = RandomIndexRoutingTable.generate(randomIndexName(), 1, 10, 0, 9);
+        assertEquals(randomIRT.counter.primaryActive, randomIRT.irt.allActivePrimaries().count());
+    }
+
+    public void testAllActiveReplicas() {
+        final var randomIRT = RandomIndexRoutingTable.generate(randomIndexName(), 1, 10, 0, 9);
+        final var activeReplicas = randomIRT.counter.active - randomIRT.counter.primaryActive;
+        assertEquals(activeReplicas, randomIRT.irt.allActiveReplicas().count());
     }
 
     private ShardRouting getShard(ShardId shardId, boolean isPrimary, ShardRoutingState state, ShardRouting.Role role) {

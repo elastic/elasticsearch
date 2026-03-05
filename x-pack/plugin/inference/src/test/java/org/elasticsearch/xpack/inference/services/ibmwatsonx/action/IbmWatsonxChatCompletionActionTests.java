@@ -22,13 +22,19 @@ import java.net.URISyntaxException;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator.COMPLETION_HANDLER;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator.USER_ROLE;
-import static org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelTests.createModel;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelTests.createCompletionModel;
 
 public class IbmWatsonxChatCompletionActionTests extends ChatCompletionActionTests {
     public static final URI TEST_URI = URI.create("abc.com");
 
     protected ExecutableAction createAction(String url, Sender sender) throws URISyntaxException {
-        var model = createModel(TEST_URI, randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
+        var model = createCompletionModel(
+            TEST_URI,
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8)
+        );
         var manager = new GenericRequestManager<>(
             threadPool,
             model,

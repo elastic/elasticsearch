@@ -20,7 +20,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
@@ -100,7 +101,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
     }
 
     public void testExecute_CompletionRequest() {
-        var model = AmazonBedrockChatCompletionModelTests.createModel(
+        var model = AmazonBedrockChatCompletionModelTests.createCompletionModel(
             "id",
             "region",
             "model",
@@ -124,7 +125,7 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
     }
 
     public void testExecute_CompletionFailsProperly_WithElasticsearchException() {
-        var model = AmazonBedrockChatCompletionModelTests.createModel(
+        var model = AmazonBedrockChatCompletionModelTests.createCompletionModel(
             "id",
             "region",
             "model",
@@ -157,13 +158,14 @@ public class AmazonBedrockExecutorTests extends ESTestCase {
             new AmazonBedrockCompletionTaskSettings(null, null, null, null),
             new AwsSecretSettings(new SecureString("accessKey"), new SecureString("secretKey"))
         );
-        var content = new UnifiedCompletionRequest.ContentString("content");
-        var toolCall = new UnifiedCompletionRequest.ToolCall(
-            "id",
-            new UnifiedCompletionRequest.ToolCall.FunctionField("function", model.model()),
-            ""
+        var content = new ContentString("content");
+        var toolCall = new ToolCall("id", new ToolCall.FunctionField("function", model.model()), "");
+        var message = new org.elasticsearch.inference.completion.Message(
+            content,
+            "user",
+            "tooluse_Z7IP83_eTt2y_TECni1ULw",
+            List.of(toolCall)
         );
-        var message = new UnifiedCompletionRequest.Message(content, "user", "tooluse_Z7IP83_eTt2y_TECni1ULw", List.of(toolCall));
 
         var requestEntity = new AmazonBedrockChatCompletionRequestEntity(
             List.of(message),

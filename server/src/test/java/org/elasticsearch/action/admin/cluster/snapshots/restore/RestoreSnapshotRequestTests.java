@@ -30,8 +30,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 
 public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase<RestoreSnapshotRequest> {
     private RestoreSnapshotRequest randomState(RestoreSnapshotRequest instance) {
@@ -89,7 +87,8 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
                             randomBoolean(),
                             randomBoolean(),
                             instance.indicesOptions().ignoreAliases() == false,
-                            randomBoolean()
+                            randomBoolean(),
+                            false // Specifying views in the restore snapshot request is not supported
                         )
                     )
                     .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true).build())

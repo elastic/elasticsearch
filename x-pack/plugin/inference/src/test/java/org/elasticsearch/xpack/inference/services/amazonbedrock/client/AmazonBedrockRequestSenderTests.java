@@ -125,7 +125,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
         try (var sender = createSender(senderFactory)) {
             sender.startSynchronously();
 
-            var model = AmazonBedrockChatCompletionModelTests.createModel(
+            var model = AmazonBedrockChatCompletionModelTests.createCompletionModel(
                 "test_id",
                 "test_region",
                 "test_model",

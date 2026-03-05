@@ -38,25 +38,24 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     public static final String HOST = "host";
     public static final String WORKSPACE_NAME = "workspace";
     public static final String HTTP_SCHEMA_NAME = "http_schema";
+    private static final Set<String> VALID_SCHEMAS = Set.of("https", "http");
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
-    public static AlibabaCloudSearchServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+    public static AlibabaCloudSearchServiceSettings fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
 
-        String modelId = extractRequiredString(map, SERVICE_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String host = extractRequiredString(map, HOST, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var serviceId = extractRequiredString(map, SERVICE_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var host = extractRequiredString(map, HOST, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var workspaceName = extractRequiredString(map, WORKSPACE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var httpSchema = extractOptionalString(map, HTTP_SCHEMA_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (httpSchema != null) {
-            var validSchemas = Set.of("https", "http");
-            if (validSchemas.contains(httpSchema) == false) {
-                validationException.addValidationError("Invalid value for [http_schema]. Must be one of [https, http]");
-            }
-        }
+        validateHttpSchema(httpSchema, validationException);
 
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -64,11 +63,13 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        return new AlibabaCloudSearchServiceSettings(serviceId, host, workspaceName, httpSchema, rateLimitSettings);
+    }
 
-        return new AlibabaCloudSearchServiceSettings(modelId, host, workspaceName, httpSchema, rateLimitSettings);
+    static void validateHttpSchema(String httpSchema, ValidationException validationException) {
+        if (httpSchema != null && VALID_SCHEMAS.contains(httpSchema) == false) {
+            validationException.addValidationError("Invalid value for [http_schema]. Must be one of [https, http]");
+        }
     }
 
     private final String serviceId;
@@ -92,16 +93,46 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
     }
 
     public AlibabaCloudSearchServiceSettings(StreamInput in) throws IOException {
-        serviceId = in.readString();
-        host = in.readString();
-        workspaceName = in.readString();
-        httpSchema = in.readOptionalString();
-        rateLimitSettings = new RateLimitSettings(in);
+        this.serviceId = in.readString();
+        this.host = in.readString();
+        this.workspaceName = in.readString();
+        this.httpSchema = in.readOptionalString();
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
     public String modelId() {
         return serviceId;
+    }
+
+    public AlibabaCloudSearchServiceSettings updateServiceSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
+        var extractedHttpSchema = extractOptionalString(
+            serviceSettings,
+            HTTP_SCHEMA_NAME,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        validateHttpSchema(extractedHttpSchema, validationException);
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            AlibabaCloudSearchService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        return new AlibabaCloudSearchServiceSettings(
+            this.serviceId,
+            this.host,
+            this.workspaceName,
+            extractedHttpSchema != null ? extractedHttpSchema : this.httpSchema,
+            extractedRateLimitSettings
+        );
     }
 
     public String getHost() {

@@ -170,7 +170,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends AbstractGen
             resetValue = idsForUpperBound.get(idsForUpperBound.size() - 2);
         }
         var resetUpperBound = new TransportVersionUpperBound(upperBound.name(), resetValue.definition().name(), resetValue.id());
-        resources.writeUpperBound(resetUpperBound, false);
+        resources.writeUpperBound(resetUpperBound);
     }
 
     private void removeUnusedNamedDefinitions(
@@ -190,6 +190,6 @@ public abstract class GenerateTransportVersionDefinitionTask extends AbstractGen
     @Override
     protected void writeUpperBound(TransportVersionResourcesService resources, TransportVersionUpperBound newUpperBound)
         throws IOException {
-        resources.writeUpperBound(newUpperBound, false);
+        resources.writeUpperBound(newUpperBound);
     }
 }

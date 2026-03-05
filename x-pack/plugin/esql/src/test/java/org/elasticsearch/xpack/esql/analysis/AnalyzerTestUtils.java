@@ -524,7 +524,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
-        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
+        return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false);
     }
 
     public static IndexResolution mergedResolution(String indexPattern, FieldCapabilitiesResponse caps) {

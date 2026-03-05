@@ -8,16 +8,15 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
+import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 
 import java.util.EnumSet;
-import java.util.Optional;
 
 /**
  * Golden tests for analyzer behavior with unmapped fields using SET unmapped_fields="nullify" and "load".
  * These tests verify that unmapped fields are properly handled.
  */
-public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
+public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS);
 
     public void testKeep() throws Exception {
@@ -388,10 +387,13 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
     }
 
     public void testTimeSeriesRateUnmapped() throws Exception {
-        runTestsNullifyOnly("""
-            TS k8s
-            | STATS r = RATE(does_not_exist) BY tbucket(1 hour)
-            """);
+        runTestsNullifyOnly(
+            """
+                TS k8s
+                | STATS r = RATE(does_not_exist) BY tbucket(1 hour)
+                """,
+            STAGES
+        );
     }
 
     public void testTimeSeriesFirstOverTimeUnmapped() throws Exception {
@@ -430,11 +432,14 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
     }
 
     public void testMappedToNonKeywordInOneIndexOnlyCast() throws Exception {
-        runTestsLoadOnly("""
-            FROM sample_data, no_mapping_sample_data
-            | EVAL event_duration = event_duration :: DOUBLE
-            | KEEP event_duration
-            """, EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION, Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION));
+        runTestsLoadOnly(
+            """
+                FROM sample_data, no_mapping_sample_data
+                | EVAL event_duration = event_duration :: DOUBLE
+                | KEEP event_duration
+                """,
+            EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION, Stage.PHYSICAL_OPTIMIZATION, Stage.LOCAL_PHYSICAL_OPTIMIZATION)
+        );
     }
 
     public void testDifferentTypesAndUnmapped() throws Exception {
@@ -451,55 +456,7 @@ public class AnalyzerUnmappedGoldenTests extends GoldenTestCase {
             """);
     }
 
-    private static String setUnmappedNullify(String query) {
-        return "SET unmapped_fields=\"nullify\"; " + query;
-    }
-
-    private static String setUnmappedLoad(String query) {
-        return "SET unmapped_fields=\"load\"; " + query;
-    }
-
     private void runTests(String query) {
-        var nullifyException = tryRunTestsNullifyOnly(query);
-        var loadException = tryRunTestsLoadOnly(query);
-        if (nullifyException.isPresent() && loadException.isPresent()) {
-            throw new AssertionError("Both nullify and load modes failed", nullifyException.get());
-        } else if (nullifyException.isPresent()) {
-            throw new AssertionError("Nullify mode failed (but load succeeded)", nullifyException.get());
-        } else if (loadException.isPresent()) {
-            throw new AssertionError("Load mode failed (but nullify succeeded)", loadException.get());
-        }
-    }
-
-    private void runTestsNullifyOnly(String query) {
-        var nullifyException = tryRunTestsNullifyOnly(query);
-        if (nullifyException.isPresent()) {
-            throw new RuntimeException("Nullify mode failed", nullifyException.get());
-        }
-    }
-
-    private Optional<Throwable> tryRunTestsNullifyOnly(String query) {
-        return EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled()
-            ? builder(setUnmappedNullify(query)).nestedPath("nullify").stages(STAGES).tryRun()
-            : Optional.empty();
-    }
-
-    private void runTestsLoadOnly(String query) {
-        runTestsLoadOnly(query, STAGES);
-    }
-
-    private void runTestsLoadOnly(String query, EnumSet<Stage> stages) {
-        Optional<Throwable> result = EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
-            ? builder(setUnmappedLoad(query)).nestedPath("load").stages(stages).tryRun()
-            : Optional.empty();
-        if (result.isPresent()) {
-            throw new RuntimeException("Load mode failed", result.get());
-        }
-    }
-
-    private Optional<Throwable> tryRunTestsLoadOnly(String query) {
-        return EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled()
-            ? builder(setUnmappedLoad(query)).nestedPath("load").stages(STAGES).tryRun()
-            : Optional.empty();
+        runTestsNullifyAndLoad(query, STAGES);
     }
 }

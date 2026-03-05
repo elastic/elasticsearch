@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapperTests;
 import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.SyntheticSourceMalformedValueSorter;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
@@ -410,10 +411,14 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             List<Object> in = values.stream().map(Value::input).toList();
 
             List<Double> outputFromDocValues = values.stream().filter(v -> v.malformedOutput == null).map(Value::output).sorted().toList();
-            Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+            List<Object> malformedOutput = values.stream()
+                .filter(v -> v.malformedOutput != null)
+                .map(Value::malformedOutput)
+                .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                .toList();
 
-            // Malformed values are always last in the implementation.
-            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
+            // Malformed values are always last in the implementation (sorted by encoded BytesRef).
+            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
             return new SyntheticSourceExample(in, out, this::mapping);

@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -21,19 +21,19 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -493,11 +493,7 @@ public class ExternalDistributionTests extends ESTestCase {
 
         assertTrue("Expected TopNExec at top", collapsed instanceof TopNExec);
         TopNExec collapsedTopN = (TopNExec) collapsed;
-        assertEquals(
-            "InputOrdering should be reset to NOT_SORTED after collapse",
-            InputOrdering.NOT_SORTED,
-            collapsedTopN.inputOrdering()
-        );
+        assertEquals("InputOrdering should be reset to NOT_SORTED after collapse", InputOrdering.NOT_SORTED, collapsedTopN.inputOrdering());
         assertTrue("Expected FragmentExec child", collapsedTopN.child() instanceof FragmentExec);
     }
 

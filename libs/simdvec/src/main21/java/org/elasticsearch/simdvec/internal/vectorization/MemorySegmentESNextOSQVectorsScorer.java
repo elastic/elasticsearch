@@ -16,9 +16,12 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.internal.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -39,18 +42,19 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         byte indexBits,
         int dimensions,
         int dataLength,
-        int bulkSize,
-        MemorySegment memorySegment
+        int bulkSize
     ) {
         super(in, queryBits, indexBits, dimensions, dataLength);
         if (queryBits == 4 && indexBits == 1) {
-            this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
+            this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         } else if (queryBits == 4 && indexBits == 4) {
-            this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
+            this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         } else if (queryBits == 4 && indexBits == 2) {
-            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
+            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+        } else if (queryBits == 7 && indexBits == 7) {
+            this.scorer = new MSD7Q7ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         } else {
-            throw new IllegalArgumentException("Only asymmetric 4-bit query and 1-bit index supported");
+            throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
         }
     }
 
@@ -147,7 +151,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
     }
 
     abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSDibitToInt4ESNextOSQVectorsScorer,
-        MSInt4SymmetricESNextOSQVectorsScorer {
+        MSInt4SymmetricESNextOSQVectorsScorer, MSD7Q7ESNextOSQVectorsScorer {
 
         // TODO: split Panama and Native implementations
         static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
@@ -169,18 +173,46 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
         static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
 
-        protected final MemorySegment memorySegment;
+        static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+        static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+
         protected final IndexInput in;
         protected final int length;
         protected final int dimensions;
         protected final int bulkSize;
 
-        MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment segment) {
+        private byte[] scratch;
+
+        /**
+         * Creates a new MemorySegmentScorer. The index input must be a
+         * {@link MemorySegmentAccessInput} or {@link DirectAccessInput};
+         * otherwise an {@link IllegalArgumentException} is thrown.
+         *
+         * <p> Memory segment access is handled by
+         * {@link org.elasticsearch.simdvec.internal.IndexInputUtils#withSlice
+         * IndexInputUtils.withSlice}, which probes the index input for
+         * {@link MemorySegmentAccessInput} /
+         * {@link DirectAccessInput} support and
+         * falls back to a heap copy when neither is available.
+         *
+         * @param in the index input
+         * @param dimensions the vector dimensions
+         * @param dataLength the length in bytes, per data vector
+         * @param bulkSize the number of vectors per bulk
+         */
+        MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+            IndexInputUtils.checkInputType(in);
             this.in = in;
             this.length = dataLength;
             this.dimensions = dimensions;
-            this.memorySegment = segment;
             this.bulkSize = bulkSize;
+        }
+
+        protected byte[] getScratch(int len) {
+            if (scratch == null || scratch.length < len) {
+                scratch = new byte[len];
+            }
+            return scratch;
         }
 
         abstract long quantizeScore(byte[] q) throws IOException;
@@ -223,6 +255,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         ) throws IOException;
 
         protected float applyCorrectionsIndividually(
+            MemorySegment memorySegment,
             float queryAdditionalCorrection,
             VectorSimilarityFunction similarityFunction,
             float centroidDp,
@@ -230,32 +263,28 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
             float[] scores,
             int bulkSize,
             int limit,
-            long offset,
             float ay,
             float ly,
             float y1,
             float maxScore
         ) {
             for (int j = limit; j < bulkSize; j++) {
-                float ax = memorySegment.get(
-                    ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + (long) j * Float.BYTES
-                );
+                float ax = memorySegment.get(ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN), (long) j * Float.BYTES);
 
                 float lx = memorySegment.get(
                     ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + 4L * bulkSize + (long) j * Float.BYTES
+                    4L * bulkSize + (long) j * Float.BYTES
                 );
                 lx = (lx - ax) * indexBitScale;
 
                 int targetComponentSum = memorySegment.get(
                     ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + 8L * bulkSize + (long) j * Integer.BYTES
+                    8L * bulkSize + (long) j * Integer.BYTES
                 );
 
                 float additionalCorrection = memorySegment.get(
                     ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
-                    offset + 12L * bulkSize + (long) j * Float.BYTES
+                    12L * bulkSize + (long) j * Float.BYTES
                 );
 
                 float qcDist = scores[j];
@@ -284,4 +313,5 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
             return maxScore;
         }
     }
+
 }

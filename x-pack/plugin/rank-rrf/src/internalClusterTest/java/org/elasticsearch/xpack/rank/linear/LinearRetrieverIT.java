@@ -34,6 +34,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -808,7 +809,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         // this will too retrieve just doc 7
         KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
             "vector",
-            null,
+            (VectorData) null,
             new TestQueryVectorBuilderPlugin.TestQueryVectorBuilder(new float[] { 3 }),
             10,
             10,
@@ -866,7 +867,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 throw new IllegalStateException("Should not be called");
             }
         };
-        var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null, null);
+        var knn = new KnnRetrieverBuilder("vector", (VectorData) null, vectorBuilder, 10, 10, null, null, null);
         var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, 10f, null));
         var rrf = new LinearRetrieverBuilder(
             List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),

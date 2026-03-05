@@ -71,10 +71,6 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
         Expression literal = buildLiteralExpression(testCase).children().getFirst();
         Expression field = buildFieldExpression(testCase).children().getLast();
         var expression = build(testCase.getSource(), List.of(literal, field));
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         var factory = evaluator(expression);
         final String evaluatorName = getBaseEvaluatorName()
@@ -97,10 +93,6 @@ public abstract class AbstractVectorSimilarityFunctionTestCase extends AbstractV
         Expression literal = buildLiteralExpression(testCase).children().getFirst();
         Expression field = buildFieldExpression(testCase).children().getLast();
         var expression = build(testCase.getSource(), List.of(literal, field));
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         var factory = evaluator(expression);
         if (testCase.getExpectedBuildEvaluatorWarnings() != null) {

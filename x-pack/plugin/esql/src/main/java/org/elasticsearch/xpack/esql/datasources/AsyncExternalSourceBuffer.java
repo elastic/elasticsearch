@@ -199,6 +199,7 @@ public final class AsyncExternalSourceBuffer {
             discardPages();
         }
         notifyNotEmpty();
+        notifyNotFull(); // wake producers so they observe noMoreInputs and exit
         if (drainingPages || queueSize.get() == 0) {
             if (failure != null) {
                 completionFuture.onFailure(new Exception(failure));

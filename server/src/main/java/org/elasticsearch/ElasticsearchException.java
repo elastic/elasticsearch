@@ -1945,7 +1945,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         SEARCH_CONTEXT_MISSING_NODES_EXCEPTION(
             SearchContextMissingNodesException.class,
             SearchContextMissingNodesException::new,
-            184,
+            185,
             SEARCH_CONTEXT_MISSING_NODES_EXCEPTION_VERSION
         );
 

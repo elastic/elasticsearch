@@ -990,7 +990,7 @@ public class Security extends Plugin
         components.add(
             new PluginComponentBinding<>(
                 SamlAuthenticateResponseHandler.class,
-                samlAuthenticateResponseHandlerFactory.get().create(settings, tokenService, getClock())
+                samlAuthenticateResponseHandlerFactory.get().create(settings, tokenService, clusterService, getClock())
             )
         );
         this.fileRolesStore.set(

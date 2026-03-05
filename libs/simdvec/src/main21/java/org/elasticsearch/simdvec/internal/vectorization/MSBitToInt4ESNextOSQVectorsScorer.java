@@ -738,7 +738,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                 scores,
                 bulkSize,
                 limit,
-                i,
+                0,
                 ay,
                 ly,
                 y1,

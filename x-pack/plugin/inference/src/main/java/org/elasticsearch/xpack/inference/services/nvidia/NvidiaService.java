@@ -96,7 +96,7 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
         TaskType.RERANK
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new NvidiaChatCompletionResponseHandler(
-        "Nvidia chat completion",
+        "NVIDIA chat completion",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
     private static final NvidiaChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new NvidiaChatCompletionModelCreator();
@@ -376,7 +376,7 @@ public class NvidiaService extends SenderService<NvidiaModel> implements Reranki
                     MODEL_ID,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("""
                         The name of the model to use for the inference task. Refer to the \
-                        Nvidia models documentation for the list of available models.""")
+                        NVIDIA models documentation for the list of available models.""")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)

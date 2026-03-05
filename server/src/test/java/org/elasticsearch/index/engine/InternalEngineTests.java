@@ -7772,6 +7772,7 @@ public class InternalEngineTests extends EngineTestCase {
         Settings settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);

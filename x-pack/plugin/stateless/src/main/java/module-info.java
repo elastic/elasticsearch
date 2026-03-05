@@ -42,7 +42,11 @@ module org.elasticsearch.xpack.stateless {
     requires org.apache.log4j;
 
     // TODO: remove unnecessary "to" clauses ES-13786
-    exports org.elasticsearch.xpack.stateless to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
+    exports org.elasticsearch.xpack.stateless
+        to
+            org.elasticsearch.server,
+            org.elasticsearch.serverless.stateless,
+            org.elasticsearch.metering;
     exports org.elasticsearch.xpack.stateless.action to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.xpack to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.recovery to org.elasticsearch.server, org.elasticsearch.serverless.stateless;

@@ -34,7 +34,7 @@ import java.util.List;
 public final class EncodedTDigest implements TDigestReadView {
 
     /**
-     *
+     * The size of a single EncodedTDigest instance in bytes, excluding the underlying encoded digest bytes array.
      */
     public static final long RAM_BYTES = RamUsageEstimator.shallowSizeOfInstance(EncodedTDigest.class) + RamUsageEstimator
         .shallowSizeOfInstance(BytesRef.class);

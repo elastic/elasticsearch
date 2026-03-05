@@ -485,4 +485,39 @@ maroon     | [128.0, 0.0, 0.0]        | null
 navy       | [0.0, 0.0, 128.0]        | null
 gray       | [128.0, 128.0, 128.0]    | null          
 chartreuse | [127.0, 255.0, 0.0]      | null          
-;          
+;
+
+knnBeforeMvExpand
+required_capability: knn_function_v5
+
+from colors metadata _score
+| where knn(rgb_vector, [0, 120, 0]) and color == "green"
+| eval x = [1, 2, 3]
+| mv_expand x
+| keep color, x
+;
+
+color:text | x:integer
+green      | 1
+green      | 2
+green      | 3
+;
+
+knnBeforeMvExpandWithStats
+required_capability: knn_function_v5
+
+from colors metadata _score
+| where knn(rgb_vector, [0, 120, 0])
+| sort _score desc, color asc
+| limit 3
+| eval x = [1, 2]
+| mv_expand x
+| stats count = count(*) by color
+| sort color
+;
+
+count:long | color:text
+2          | black
+2          | green
+2          | olive
+;

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.FileSet;
 
 import java.util.Collections;
@@ -43,21 +45,19 @@ public record SourceOperatorContext(
     List<Attribute> attributes,
     int batchSize,
     int maxBufferSize,
+    int rowLimit,
     Executor executor,
     Map<String, Object> config,
     Map<String, Object> sourceMetadata,
     Object pushedFilter,
     FileSet fileSet,
     @Nullable ExternalSplit split,
-    Set<String> partitionColumnNames
+    Set<String> partitionColumnNames,
+    @Nullable ExternalSliceQueue sliceQueue
 ) {
     public SourceOperatorContext {
-        if (path == null) {
-            throw new IllegalArgumentException("path cannot be null");
-        }
-        if (executor == null) {
-            throw new IllegalArgumentException("executor cannot be null");
-        }
+        Check.notNull(path, "path cannot be null");
+        Check.notNull(executor, "executor cannot be null");
         projectedColumns = projectedColumns != null ? List.copyOf(projectedColumns) : List.of();
         attributes = attributes != null ? List.copyOf(attributes) : List.of();
         config = config != null ? Map.copyOf(config) : Map.of();
@@ -95,12 +95,14 @@ public record SourceOperatorContext(
             attributes,
             batchSize,
             maxBufferSize,
+            FormatReader.NO_LIMIT,
             executor,
             config,
             sourceMetadata,
             pushedFilter,
             fileSet,
             split,
+            null,
             null
         );
     }
@@ -125,11 +127,13 @@ public record SourceOperatorContext(
             attributes,
             batchSize,
             maxBufferSize,
+            FormatReader.NO_LIMIT,
             executor,
             config,
             sourceMetadata,
             pushedFilter,
             fileSet,
+            null,
             null,
             null
         );
@@ -154,10 +158,13 @@ public record SourceOperatorContext(
             attributes,
             batchSize,
             maxBufferSize,
+            FormatReader.NO_LIMIT,
             executor,
             config,
             sourceMetadata,
             pushedFilter,
+            null,
+            null,
             null,
             null
         );
@@ -173,7 +180,23 @@ public record SourceOperatorContext(
         Executor executor,
         Map<String, Object> config
     ) {
-        this(sourceType, path, projectedColumns, attributes, batchSize, maxBufferSize, executor, config, Map.of(), null, null, null, null);
+        this(
+            sourceType,
+            path,
+            projectedColumns,
+            attributes,
+            batchSize,
+            maxBufferSize,
+            FormatReader.NO_LIMIT,
+            executor,
+            config,
+            Map.of(),
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     public static Builder builder() {
@@ -187,6 +210,7 @@ public record SourceOperatorContext(
         private List<Attribute> attributes;
         private int batchSize = 1000;
         private int maxBufferSize = 10;
+        private int rowLimit = FormatReader.NO_LIMIT;
         private Executor executor;
         private Map<String, Object> config;
         private Map<String, Object> sourceMetadata;
@@ -194,6 +218,7 @@ public record SourceOperatorContext(
         private FileSet fileSet;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
+        private ExternalSliceQueue sliceQueue;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -222,6 +247,11 @@ public record SourceOperatorContext(
 
         public Builder maxBufferSize(int maxBufferSize) {
             this.maxBufferSize = maxBufferSize;
+            return this;
+        }
+
+        public Builder rowLimit(int rowLimit) {
+            this.rowLimit = rowLimit;
             return this;
         }
 
@@ -260,6 +290,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder sliceQueue(ExternalSliceQueue sliceQueue) {
+            this.sliceQueue = sliceQueue;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -268,13 +303,15 @@ public record SourceOperatorContext(
                 attributes,
                 batchSize,
                 maxBufferSize,
+                rowLimit,
                 executor,
                 config,
                 sourceMetadata,
                 pushedFilter,
                 fileSet,
                 split,
-                partitionColumnNames
+                partitionColumnNames,
+                sliceQueue
             );
         }
     }

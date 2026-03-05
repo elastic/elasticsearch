@@ -12,6 +12,8 @@ package org.elasticsearch.datastreams.lifecycle.transitions;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.index.Index;
 
+import java.util.List;
+
 /**
  * A step within a Data Lifecycle Management action. Each step is responsible for determining if it has been completed for a given index
  * and executing the necessary operations to complete the step.
@@ -42,4 +44,17 @@ public interface DlmStep {
      */
     String stepName();
 
+    /**
+     * Returns a list of possible index name patterns that this step may end up creating. This is then used by later steps to
+     * determine the name of the index they should work on after this step is run. The order is important as the first pattern that
+     * matches an existing index will be used by the later step.
+     * <br>
+     * The default implementation returns in the steps input index name as the only possible output index name pattern,
+     * which is sufficient for steps that do not change the index name.
+     * @param indexName Index name this step ran on
+     * @return List of possible index name patterns that this step may end up creating
+     */
+    default List<String> possibleOutputIndexNamePatterns(String indexName) {
+        return List.of(indexName);
+    }
 }

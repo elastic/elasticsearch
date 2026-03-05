@@ -48,6 +48,7 @@ public class VectorScorerByteBulkBenchmarkTests extends ESTestCase {
                 bench.dims = dims;
                 bench.numVectors = 1000;
                 bench.numVectorsToScore = 200;
+                bench.bulkSize = 200;
                 bench.setup(vectorData);
 
                 try {
@@ -78,6 +79,7 @@ public class VectorScorerByteBulkBenchmarkTests extends ESTestCase {
                 bench.dims = dims;
                 bench.numVectors = 1000;
                 bench.numVectorsToScore = 200;
+                bench.bulkSize = 200;
                 bench.setup(vectorData);
 
                 try {
@@ -109,6 +111,7 @@ public class VectorScorerByteBulkBenchmarkTests extends ESTestCase {
                 bench.dims = dims;
                 bench.numVectors = 1000;
                 bench.numVectorsToScore = 200;
+                bench.bulkSize = 200;
                 bench.setup(vectorData);
 
                 try {

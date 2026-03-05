@@ -60,6 +60,7 @@ import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -231,7 +232,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             })),
             new IndexedByShardIdFromList<>(shardContexts),
             randomBoolean(),
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true)
         );
     }
 
@@ -479,7 +481,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 List.of(testCase.info(), fieldInfo(mapperService(indexKey).fieldType("key"), ElementType.INT)),
                 new IndexedByShardIdFromList<>(shardContexts),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             ).get(driverContext)
         );
         List<Page> results = drive(operators, input.iterator(), driverContext);
@@ -550,7 +553,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 ),
                 new IndexedByShardIdFromList<>(shardContexts),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -564,7 +568,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     b.stream().map(i -> i.info()).toList(),
                     new IndexedByShardIdFromList<>(shardContexts),
                     randomBoolean(),
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true)
                 ).get(driverContext)
             );
         }
@@ -649,7 +654,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     List.of(i.info()),
                     new IndexedByShardIdFromList<>(shardContexts),
                     randomBoolean(),
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true)
                 ).get(driverContext)
             )
             .toList();
@@ -926,7 +932,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                         ),
                         new IndexedByShardIdFromList<>(shardContexts),
                         randomBoolean(),
-                        0
+                        0,
+                        randomDoubleBetween(0.1, 10.0, true)
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -961,7 +968,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 new ValuesSourceReaderOperator.ShardContext(reader(indexKey), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)
             ),
             randomBoolean(),
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true)
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -1012,7 +1020,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 })),
                 new IndexedByShardIdFromList<>(readerShardContexts),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             );
             DriverContext driverContext = driverContext();
             List<Page> results = drive(
@@ -1052,7 +1061,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            new TestDriverRunner().run(d);
+            /*
+             * We use a 3-minute timer because many of the cases can
+             * take 40 seconds in CI. Locally it's taking 9 seconds.
+             */
+            new TestDriverRunner().timeout(TimeValue.timeValueMinutes(3)).run(d);
             success = true;
         } finally {
             if (success == false) {

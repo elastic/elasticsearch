@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.util.Check;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +27,6 @@ import java.util.Set;
 final class VirtualColumnInjector {
 
     private final List<Attribute> fullOutput;
-    private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
     private final BlockFactory blockFactory;
     private final int[] dataColumnIndices;
@@ -38,17 +38,10 @@ final class VirtualColumnInjector {
         Map<String, Object> partitionValues,
         BlockFactory blockFactory
     ) {
-        if (fullOutput == null || fullOutput.isEmpty()) {
-            throw new IllegalArgumentException("fullOutput cannot be null or empty");
-        }
-        if (partitionColumnNames == null) {
-            throw new IllegalArgumentException("partitionColumnNames cannot be null");
-        }
-        if (blockFactory == null) {
-            throw new IllegalArgumentException("blockFactory cannot be null");
-        }
+        Check.isTrue(fullOutput != null && fullOutput.isEmpty() == false, "fullOutput cannot be null or empty");
+        Check.notNull(partitionColumnNames, "partitionColumnNames cannot be null");
+        Check.notNull(blockFactory, "blockFactory cannot be null");
         this.fullOutput = fullOutput;
-        this.partitionColumnNames = partitionColumnNames;
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.blockFactory = blockFactory;
 

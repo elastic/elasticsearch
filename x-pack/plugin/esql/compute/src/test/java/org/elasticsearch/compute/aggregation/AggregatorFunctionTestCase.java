@@ -125,8 +125,9 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     }
 
     /**
-     * Whether to skip inserting null rows into the input before it is fed to the aggregator.
-     * @return
+     * Whether to skip inserting null rows into the input before it is fed to the aggregator. Only override in aggregators that don't
+     * ignore null positions.
+     * @return boolean
      */
     protected boolean skipInsertingNullRows() {
         return false;

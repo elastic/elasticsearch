@@ -36,6 +36,10 @@ public class IndexEngineTestUtils {
         return IndexEngine.getLatestCommittedGeneration(directoryReader);
     }
 
+    public static RefreshManager getRefreshManager(IndexEngine indexEngine) {
+        return indexEngine.getRefreshManager();
+    }
+
     public static void flushHollow(IndexEngine indexEngine, ActionListener<Engine.FlushResult> listener) {
         indexEngine.flushHollow(listener);
     }

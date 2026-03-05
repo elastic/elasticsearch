@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
-import org.elasticsearch.xpack.stateless.engine.RefreshThrottler;
+import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
@@ -130,7 +130,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
             StatelessCommitService statelessCommitService,
             HollowShardsService hollowShardsService,
             SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
-            RefreshThrottler.Factory refreshThrottlerFactory,
+            RefreshManagerService refreshManagerService,
             ReshardIndexService reshardIndexService,
             DocumentParsingProvider documentParsingProvider,
             IndexEngine.EngineMetrics engineMetrics
@@ -142,7 +142,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
                 statelessCommitService,
                 hollowShardsService,
                 sharedBlobCacheWarmingService,
-                refreshThrottlerFactory,
+                refreshManagerService,
                 reshardIndexService,
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,

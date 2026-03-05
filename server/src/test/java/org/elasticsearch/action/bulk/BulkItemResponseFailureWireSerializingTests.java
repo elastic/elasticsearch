@@ -32,35 +32,12 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
         return FailureWrapper::new;
     }
 
-    /**
-     * Mutates a single, representative field of the wrapped {@link BulkItemResponse.Failure}.
-     * <p>
-     * {@code AbstractWireSerializingTestCase#mutateInstance(Object)} is intended to verify that
-     * a serialized instance is not considered equal to a meaningfully different instance. It
-     * does <em>not</em> require exhaustive mutation of every field.
-     * <p>
-     * In this test, only a subset of fields (index, id, cause, and failure store status) are
-     * mutated because:
-     * <ul>
-     *     <li>Other fields (such as {@code seqNo}, {@code term}, and {@code aborted}) are already
-     *     extensively exercised through random instance generation and round‑trip
-     *     serialization.</li>
-     *     <li>Some fields are interdependent or constructor‑driven, and mutating them in
-     *     isolation would require reconstructing the {@link Failure} via a different constructor,
-     *     adding noise without increasing serialization coverage.</li>
-     *     <li>Changing any one of the selected fields is sufficient to ensure that equality
-     *     and hash‑based comparisons fail if serialization does not faithfully preserve state.</li>
-     * </ul>
-     * <p>
-     * This approach keeps mutation focused and stable while still providing strong guarantees
-     * that wire serialization preserves the observable semantics of {@link Failure}.
-     */
     @Override
     protected FailureWrapper mutateInstance(FailureWrapper instance) {
         Failure failure = instance.failure();
-        int fieldToMutate = randomIntBetween(0, 3);
+        int fieldToMutate = randomIntBetween(0, 6);
         Failure mutated = switch (fieldToMutate) {
-            case 0 -> randomFailure(
+            case 0 -> new Failure(
                 randomValueOtherThan(failure.getIndex(), () -> randomAlphaOfLengthBetween(3, 10)),
                 failure.getId(),
                 failure.getCause(),
@@ -69,7 +46,7 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
                 failure.isAborted(),
                 failure.getFailureStoreStatus()
             );
-            case 1 -> randomFailure(
+            case 1 -> new Failure(
                 failure.getIndex(),
                 randomValueOtherThan(failure.getId(), () -> randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null),
                 failure.getCause(),
@@ -78,7 +55,7 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
                 failure.isAborted(),
                 failure.getFailureStoreStatus()
             );
-            case 2 -> randomFailure(
+            case 2 -> new Failure(
                 failure.getIndex(),
                 failure.getId(),
                 randomValueOtherThan(failure.getCause(), BulkItemResponseFailureWireSerializingTests::randomException),
@@ -87,7 +64,40 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
                 failure.isAborted(),
                 failure.getFailureStoreStatus()
             );
-            case 3 -> randomFailure(
+            case 3 -> new Failure(
+                failure.getIndex(),
+                failure.getId(),
+                failure.getCause(),
+                randomValueOtherThan(
+                    failure.getSeqNo(),
+                    () -> randomBoolean() ? randomNonNegativeLong() : SequenceNumbers.UNASSIGNED_SEQ_NO
+                ),
+                failure.getTerm(),
+                failure.isAborted(),
+                failure.getFailureStoreStatus()
+            );
+            case 4 -> new Failure(
+                failure.getIndex(),
+                failure.getId(),
+                failure.getCause(),
+                failure.getSeqNo(),
+                randomValueOtherThan(
+                    failure.getTerm(),
+                    () -> randomBoolean() ? randomNonNegativeLong() : SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+                ),
+                failure.isAborted(),
+                failure.getFailureStoreStatus()
+            );
+            case 5 -> new Failure(
+                failure.getIndex(),
+                failure.getId(),
+                failure.getCause(),
+                failure.getSeqNo(),
+                failure.getTerm(),
+                !failure.isAborted(),
+                failure.getFailureStoreStatus()
+            );
+            case 6 -> new Failure(
                 failure.getIndex(),
                 failure.getId(),
                 failure.getCause(),
@@ -99,37 +109,6 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
             default -> throw new AssertionError();
         };
         return new FailureWrapper(mutated);
-    }
-
-    /**
-     * Custom equality assertion for wire-serialization testing.
-     * <p>
-     * {@link AbstractWireSerializingTestCase} requires a semantic comparison between
-     * the expected and actual instances after a serialization round-trip. For
-     * {@link BulkItemResponse.Failure}, default equality semantics are insufficient
-     * because it contains an {@link Exception}, whose equality is based on object
-     * identity rather than logical content.
-     * <p>
-     * This method performs a field-by-field comparison of the meaningful state,
-     * including exception class and message (but not identity), to ensure that
-     * wire serialization faithfully preserves the observable failure information
-     * without requiring {@link BulkItemResponse.Failure} to implement or change
-     * {@code equals}/{@code hashCode()} semantics in production code.
-     */
-    @Override
-    protected void assertEqualInstances(FailureWrapper expected, FailureWrapper actual) {
-        Failure e = expected.failure();
-        Failure a = actual.failure();
-        assertEquals(e.getIndex(), a.getIndex());
-        assertEquals(e.getId(), a.getId());
-        assertEquals(e.getSeqNo(), a.getSeqNo());
-        assertEquals(e.getTerm(), a.getTerm());
-        assertEquals(e.isAborted(), a.isAborted());
-        assertEquals(e.getFailureStoreStatus(), a.getFailureStoreStatus());
-        assertEquals(e.getStatus(), a.getStatus());
-        // Exception comparison: semantic, not identity
-        assertEquals(e.getCause().getClass(), a.getCause().getClass());
-        assertEquals(e.getCause().getMessage(), a.getCause().getMessage());
     }
 
     /**
@@ -189,7 +168,7 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
             );
         }
 
-        private static boolean failuresEqual(Failure a, Failure b) {
+        public static boolean failuresEqual(Failure a, Failure b) {
             return Objects.equals(a.getIndex(), b.getIndex())
                 && Objects.equals(a.getId(), b.getId())
                 && a.getSeqNo() == b.getSeqNo()
@@ -206,7 +185,7 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
         String index = randomAlphaOfLengthBetween(3, 10);
         String id = randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null;
         Exception cause = randomException();
-        return randomFailure(
+        return new Failure(
             index,
             id,
             cause,
@@ -215,29 +194,6 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
             randomBoolean(),
             randomFrom(IndexDocFailureStoreStatus.values())
         );
-    }
-
-    static Failure randomFailure(
-        String index,
-        String id,
-        Exception cause,
-        long seqNo,
-        long term,
-        boolean aborted,
-        IndexDocFailureStoreStatus failureStoreStatus
-    ) {
-        Failure failure;
-        if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO || term != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
-            failure = new Failure(index, id, cause, seqNo, term);
-        } else if (aborted) {
-            failure = new Failure(index, id, cause, true);
-        } else if (failureStoreStatus != IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN) {
-            failure = new Failure(index, id, cause, failureStoreStatus);
-        } else {
-            failure = new Failure(index, id, cause);
-        }
-        failure.setFailureStoreStatus(failureStoreStatus);
-        return failure;
     }
 
     static Exception randomException() {

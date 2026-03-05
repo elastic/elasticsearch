@@ -67,17 +67,12 @@ public class BulkItemResponseWireSerializingTests extends AbstractWireSerializin
                 original.getResponse(),
                 original.getFailure()
             );
-            case 2 -> {
-                if (original.isFailed()) {
-                    yield recreate(original.getItemId(), original.getOpType(), randomResponse(), null);
-                } else {
-                    DocWriteResponse newResponse = randomValueOtherThan(
-                        original.getResponse(),
-                        BulkItemResponseWireSerializingTests::randomResponse
-                    );
-                    yield recreate(original.getItemId(), original.getOpType(), newResponse, null);
-                }
-            }
+            case 2 -> recreate(
+                original.getItemId(),
+                original.getOpType(),
+                randomValueOtherThan(original.getResponse(), BulkItemResponseWireSerializingTests::randomResponse),
+                null
+            );
             case 3 -> {
                 if (original.isFailed()) {
                     Failure newFailure = randomValueOtherThan(
@@ -92,44 +87,6 @@ public class BulkItemResponseWireSerializingTests extends AbstractWireSerializin
             default -> throw new AssertionError();
         };
         return new BulkItemResponseWrapper(mutated);
-    }
-
-    /**
-     * Custom semantic equality assertion for wire-serialization testing.
-     * <p>
-     * {@link AbstractWireSerializingTestCase} verifies that an object survives a
-     * serialize/deserialize round-trip without losing meaningful state. For
-     * {@link BulkItemResponse}, relying on default equality is insufficient
-     * because:
-     * <ul>
-     *     <li>{@link BulkItemResponse} does not implement {@code equals}/{@code hashCode()}.</li>
-     *     <li>The response is polymorphic ({@link DocWriteResponse} subclasses) or a
-     *     {@link Failure}, each with different equality requirements.</li>
-     *     <li>Failures contain {@link Exception} instances whose equality is based on
-     *     identity rather than semantic content.</li>
-     * </ul>
-     * <p>
-     * This method performs a field-by-field comparison of the observable state,
-     * asserting semantic equivalence (including response type and exception class
-     * and message) while explicitly avoiding identity-based comparisons. This
-     * allows reliable verification of wire serialization behavior without
-     * imposing production equality semantics on {@link BulkItemResponse}.
-     */
-    @Override
-    protected void assertEqualInstances(BulkItemResponseWrapper expected, BulkItemResponseWrapper actual) {
-        BulkItemResponse e = expected.response();
-        BulkItemResponse a = actual.response();
-        assertNotSame(e, a);
-        assertEquals(e.getItemId(), a.getItemId());
-        assertEquals(e.getOpType(), a.getOpType());
-        assertEquals(e.isFailed(), a.isFailed());
-        if (e.isFailed()) {
-            assertNull(a.getResponse());
-            assertFailuresEqual(e.getFailure(), a.getFailure());
-        } else {
-            assertNull(a.getFailure());
-            assertResponsesEqual(e.getResponse(), a.getResponse());
-        }
     }
 
     /**
@@ -194,14 +151,7 @@ public class BulkItemResponseWireSerializingTests extends AbstractWireSerializin
 
     private static boolean failuresEqual(Failure e, Failure a) {
         if (e == null || a == null) return e == a;
-        return Objects.equals(e.getIndex(), a.getIndex())
-            && Objects.equals(e.getId(), a.getId())
-            && e.getStatus() == a.getStatus()
-            && e.isAborted() == a.isAborted()
-            && e.getSeqNo() == a.getSeqNo()
-            && e.getFailureStoreStatus() == a.getFailureStoreStatus()
-            && e.getCause().getClass().equals(a.getCause().getClass())
-            && Objects.equals(e.getCause().getMessage(), a.getCause().getMessage());
+        return BulkItemResponseFailureWireSerializingTests.FailureWrapper.failuresEqual(e, a);
     }
 
     private static boolean responsesEqual(DocWriteResponse e, DocWriteResponse a) {
@@ -213,34 +163,6 @@ public class BulkItemResponseWireSerializingTests extends AbstractWireSerializin
             && e.getVersion() == a.getVersion()
             && e.getResult() == a.getResult()
             && Objects.equals(e.getShardId(), a.getShardId());
-    }
-
-    private static void assertFailuresEqual(Failure expected, Failure actual) {
-        assertEquals("index mismatch", expected.getIndex(), actual.getIndex());
-        assertEquals("id mismatch", expected.getId(), actual.getId());
-        assertEquals("status mismatch", expected.getStatus(), actual.getStatus());
-        assertEquals("aborted mismatch", expected.isAborted(), actual.isAborted());
-        assertEquals("seqNo mismatch", expected.getSeqNo(), actual.getSeqNo());
-        assertEquals("failureStoreStatus mismatch", expected.getFailureStoreStatus(), actual.getFailureStoreStatus());
-        // Compare exception class + message only (never instance equality)
-        if (expected.getCause() == null) {
-            assertNull(actual.getCause());
-        } else {
-            assertNotNull(actual.getCause());
-            assertEquals("exception class mismatch", expected.getCause().getClass(), actual.getCause().getClass());
-            assertEquals("exception message mismatch", expected.getCause().getMessage(), actual.getCause().getMessage());
-        }
-    }
-
-    private static void assertResponsesEqual(DocWriteResponse expected, DocWriteResponse actual) {
-        assertEquals("response class mismatch", expected.getClass(), actual.getClass());
-        assertEquals("index mismatch", expected.getIndex(), actual.getIndex());
-        assertEquals("id mismatch", expected.getId(), actual.getId());
-        assertEquals("seqNo mismatch", expected.getSeqNo(), actual.getSeqNo());
-        assertEquals("primaryTerm mismatch", expected.getPrimaryTerm(), actual.getPrimaryTerm());
-        assertEquals("version mismatch", expected.getVersion(), actual.getVersion());
-        assertEquals("result mismatch", expected.getResult(), actual.getResult());
-        assertEquals("shardId mismatch", expected.getShardId(), actual.getShardId());
     }
 
     private static BulkItemResponse recreate(int itemId, OpType opType, DocWriteResponse response, Failure failure) {

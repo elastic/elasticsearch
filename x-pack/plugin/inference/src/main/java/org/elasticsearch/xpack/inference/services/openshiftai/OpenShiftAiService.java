@@ -74,7 +74,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
  * using models deployed to OpenShift AI environment.
  * The service uses {@link OpenShiftAiActionCreator} to create actions for executing inference requests.
  */
-public class OpenShiftAiService extends SenderService implements RerankingInferenceService {
+public class OpenShiftAiService extends SenderService<OpenShiftAiModel> implements RerankingInferenceService {
     public static final String NAME = "openshift_ai";
     /**
      * The optimal batch size depends on the model deployed in OpenShift AI.
@@ -113,7 +113,7 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
     }
 
     public OpenShiftAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -245,31 +245,6 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
     }
 
     @Override
-    public OpenShiftAiModel parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        return createModelFromPersistent(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            secretSettingsMap,
-            taskSettingsMap,
-            chunkingSettings
-        );
-    }
-
-    @Override
     public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
             MODEL_CREATORS,
@@ -278,20 +253,6 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
             config.getService(),
             ConfigurationParseContext.PERSISTENT
         ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
-    public OpenShiftAiModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        ChunkingSettings chunkingSettingsMap = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-            chunkingSettingsMap = ChunkingSettingsBuilder.fromMap(
-                removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
-            );
-        }
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, null, taskSettingsMap, chunkingSettingsMap);
     }
 
     @Override
@@ -322,25 +283,6 @@ public class OpenShiftAiService extends SenderService implements RerankingInfere
             chunkingSettings,
             secretSettings,
             context
-        );
-    }
-
-    private OpenShiftAiModel createModelFromPersistent(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> secretSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings
-    ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            secretSettings,
-            taskSettings,
-            chunkingSettings,
-            ConfigurationParseContext.PERSISTENT
         );
     }
 

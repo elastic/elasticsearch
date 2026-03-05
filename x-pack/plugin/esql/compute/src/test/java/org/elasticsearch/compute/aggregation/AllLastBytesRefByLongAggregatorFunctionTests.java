@@ -30,7 +30,7 @@ public class AllLastBytesRefByLongAggregatorFunctionTests extends AggregatorFunc
         return new ListRowsBlockSourceOperator(
             blockFactory,
             List.of(ElementType.BYTES_REF, ElementType.LONG),
-            IntStream.range(0, size).mapToObj(l -> List.of(randomInt(), tsgen.gen())).toList()
+            IntStream.range(0, size).mapToObj(l -> List.of(randomAlphanumericOfLength(randomInt(20)), tsgen.gen())).toList()
         );
     }
 

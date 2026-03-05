@@ -7,14 +7,23 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FrameIndex;
+import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -23,7 +32,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -37,6 +48,38 @@ import java.util.function.BiFunction;
  * each file's partition values to prune files that cannot match the filter.
  */
 public class FileSplitProvider implements SplitProvider {
+
+    private static final Logger LOGGER = LogManager.getLogger(FileSplitProvider.class);
+
+    static final long DEFAULT_TARGET_SPLIT_SIZE = -1;
+    static final long DEFAULT_MACRO_SPLIT_TARGET = 32 * 1024 * 1024; // 32MB compressed
+    static final String FIRST_SPLIT_KEY = "_first_split";
+    static final String LAST_SPLIT_KEY = "_last_split";
+
+    private final long targetSplitSizeBytes;
+    private final DecompressionCodecRegistry codecRegistry;
+    private final StorageProviderRegistry storageRegistry;
+    private final Settings settings;
+
+    public FileSplitProvider() {
+        this(DEFAULT_TARGET_SPLIT_SIZE, null, null, Settings.EMPTY);
+    }
+
+    public FileSplitProvider(long targetSplitSizeBytes) {
+        this(targetSplitSizeBytes, null, null, Settings.EMPTY);
+    }
+
+    public FileSplitProvider(
+        long targetSplitSizeBytes,
+        DecompressionCodecRegistry codecRegistry,
+        StorageProviderRegistry storageRegistry,
+        Settings settings
+    ) {
+        this.targetSplitSizeBytes = targetSplitSizeBytes;
+        this.codecRegistry = codecRegistry;
+        this.storageRegistry = storageRegistry;
+        this.settings = settings != null ? settings : Settings.EMPTY;
+    }
 
     @Override
     public List<ExternalSplit> discoverSplits(SplitDiscoveryContext context) {
@@ -76,10 +119,226 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
 
-            splits.add(new FileSplit("file", filePath, 0, entry.length(), format, config, partitionValues));
+            long fileLength = entry.length();
+
+            // Try block-aligned splitting for splittable compressed files (e.g. .ndjson.bz2).
+            // This is independent of targetSplitSizeBytes — compressed files with splittable
+            // codecs are always split at block boundaries when possible.
+            if (tryBlockAlignedSplits(filePath, fileLength, format, config, partitionValues, splits)) {
+                continue;
+            }
+
+            if (targetSplitSizeBytes > 0 && fileLength > targetSplitSizeBytes && isSplittableFormat(format)) {
+                long offset = 0;
+                while (offset < fileLength) {
+                    long chunkLength = Math.min(targetSplitSizeBytes, fileLength - offset);
+                    splits.add(new FileSplit("file", filePath, offset, chunkLength, format, config, partitionValues));
+                    offset += chunkLength;
+                }
+            } else {
+                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues));
+            }
         }
 
         return List.copyOf(splits);
+    }
+
+    /**
+     * Attempts to create block-aligned splits for files with splittable compression.
+     * Returns true if block-aligned splits were created, false if the file should
+     * fall through to normal splitting logic.
+     *
+     * <p>Records straddling a block boundary are handled by the line-alignment protocol:
+     * the first split reads to end-of-stream, subsequent splits skip the first partial
+     * line. A record whose bytes span two blocks will be dropped without failing the
+     * query (a malformed-line warning is logged). This matches Hadoop/Spark behavior
+     * and is acceptable for line-oriented formats with small records relative to block
+     * size (100k–900k).
+     */
+    private boolean tryBlockAlignedSplits(
+        StoragePath filePath,
+        long fileLength,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        List<ExternalSplit> splits
+    ) {
+        if (codecRegistry == null || storageRegistry == null || format == null) {
+            return false;
+        }
+
+        DecompressionCodec codec = codecRegistry.byExtension(format);
+
+        // Prefer IndexedDecompressionCodec (e.g. zstd seekable) over SplittableDecompressionCodec
+        // (e.g. bzip2) when an index is available, since index-based splitting avoids scanning.
+        if (codec instanceof IndexedDecompressionCodec indexedCodec) {
+            if (tryIndexedSplits(indexedCodec, filePath, fileLength, format, config, partitionValues, splits)) {
+                return true;
+            }
+        }
+
+        if (codec instanceof SplittableDecompressionCodec == false) {
+            return false;
+        }
+        SplittableDecompressionCodec splittableCodec = (SplittableDecompressionCodec) codec;
+
+        try {
+            // When config is empty, provider() returns a cached instance (no leak).
+            // When config is non-empty, createProvider() returns a fresh instance that
+            // is not tracked by the registry. This is acceptable because the same provider
+            // will be created for actual reads, and the boundary-scan provider only holds
+            // lightweight state (no persistent connections).
+            StorageProvider provider;
+            if (config != null && config.isEmpty() == false) {
+                provider = storageRegistry.createProvider(filePath.scheme(), settings, config);
+            } else {
+                provider = storageRegistry.provider(filePath);
+            }
+            StorageObject object = provider.newObject(filePath, fileLength);
+            long[] boundaries = splittableCodec.findBlockBoundaries(object, 0, fileLength);
+
+            if (boundaries.length == 0) {
+                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues));
+                return true;
+            }
+
+            // Coalesce block boundaries into macro-splits targeting DEFAULT_MACRO_SPLIT_TARGET
+            // compressed bytes. This reduces hundreds of tiny per-block splits into 10-40
+            // macro-splits while preserving parallelism.
+            int[][] macroSplitRanges = groupBoundaries(boundaries, fileLength, DEFAULT_MACRO_SPLIT_TARGET);
+
+            for (int m = 0; m < macroSplitRanges.length; m++) {
+                int firstBlockIdx = macroSplitRanges[m][0];
+                int lastBlockIdx = macroSplitRanges[m][1];
+                long start = boundaries[firstBlockIdx];
+                boolean isLastMacroSplit = (m == macroSplitRanges.length - 1);
+
+                long end;
+                if (isLastMacroSplit) {
+                    end = fileLength;
+                } else {
+                    // Overlap by one block beyond the nominal end for record correctness
+                    int nextMacroFirstBlock = macroSplitRanges[m + 1][0];
+                    int overlapBlockIdx = nextMacroFirstBlock;
+                    end = (overlapBlockIdx + 1 < boundaries.length) ? boundaries[overlapBlockIdx + 1] : fileLength;
+                }
+
+                Map<String, Object> splitConfig = new HashMap<>(config);
+                if (m == 0) {
+                    splitConfig.put(FIRST_SPLIT_KEY, "true");
+                }
+                if (isLastMacroSplit) {
+                    splitConfig.put(LAST_SPLIT_KEY, "true");
+                }
+                splits.add(new FileSplit("file", filePath, start, end - start, format, splitConfig, partitionValues));
+            }
+            return true;
+        } catch (IOException e) {
+            LOGGER.warn("Failed to scan block boundaries for [{}], falling back to single split", filePath, e);
+            return false;
+        }
+    }
+
+    private boolean tryIndexedSplits(
+        IndexedDecompressionCodec indexedCodec,
+        StoragePath filePath,
+        long fileLength,
+        String format,
+        Map<String, Object> config,
+        Map<String, Object> partitionValues,
+        List<ExternalSplit> splits
+    ) {
+        try {
+            StorageProvider provider;
+            if (config != null && config.isEmpty() == false) {
+                provider = storageRegistry.createProvider(filePath.scheme(), settings, config);
+            } else {
+                provider = storageRegistry.provider(filePath);
+            }
+            StorageObject object = provider.newObject(filePath, fileLength);
+
+            if (indexedCodec.hasIndex(object) == false) {
+                return false;
+            }
+
+            FrameIndex index = indexedCodec.readIndex(object);
+            List<FrameIndex.FrameEntry> frames = index.frames();
+            if (frames.isEmpty()) {
+                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues));
+                return true;
+            }
+
+            // Group frames into macro-splits targeting DEFAULT_MACRO_SPLIT_TARGET
+            long accumulated = 0;
+            long groupStart = frames.get(0).compressedOffset();
+            int splitCount = 0;
+
+            for (int i = 0; i < frames.size(); i++) {
+                FrameIndex.FrameEntry frame = frames.get(i);
+                accumulated += frame.compressedSize();
+                boolean isLast = (i == frames.size() - 1);
+
+                if (accumulated >= DEFAULT_MACRO_SPLIT_TARGET || isLast) {
+                    long groupEnd = frame.compressedOffset() + frame.compressedSize();
+                    Map<String, Object> splitConfig = new HashMap<>(config);
+                    if (splitCount == 0) {
+                        splitConfig.put(FIRST_SPLIT_KEY, "true");
+                    }
+                    if (isLast) {
+                        splitConfig.put(LAST_SPLIT_KEY, "true");
+                    }
+                    splits.add(new FileSplit("file", filePath, groupStart, groupEnd - groupStart, format, splitConfig, partitionValues));
+                    splitCount++;
+                    accumulated = 0;
+                    if (isLast == false) {
+                        groupStart = frames.get(i + 1).compressedOffset();
+                    }
+                }
+            }
+            return true;
+        } catch (IOException e) {
+            LOGGER.warn("Failed to read frame index for [{}], falling back", filePath, e);
+            return false;
+        }
+    }
+
+    /**
+     * Groups consecutive block boundary indices into macro-splits, each targeting
+     * approximately {@code targetSize} compressed bytes. Returns an array of
+     * {@code [firstBlockIndex, lastBlockIndex]} pairs (inclusive).
+     */
+    static int[][] groupBoundaries(long[] boundaries, long fileLength, long targetSize) {
+        if (boundaries.length == 0) {
+            return new int[0][];
+        }
+        if (boundaries.length == 1) {
+            return new int[][] { { 0, 0 } };
+        }
+
+        List<int[]> groups = new ArrayList<>();
+        int groupStart = 0;
+
+        for (int i = 1; i < boundaries.length; i++) {
+            long groupSpan = boundaries[i] - boundaries[groupStart];
+            if (groupSpan >= targetSize) {
+                groups.add(new int[] { groupStart, i - 1 });
+                groupStart = i;
+            }
+        }
+        // Last group
+        groups.add(new int[] { groupStart, boundaries.length - 1 });
+
+        return groups.toArray(new int[0][]);
+    }
+
+    static boolean isSplittableFormat(String format) {
+        if (format == null) {
+            return false;
+        }
+        return switch (format) {
+            case ".csv", ".tsv", ".ndjson", ".jsonl", ".json", ".txt" -> true;
+            default -> false;
+        };
     }
 
     static boolean matchesPartitionFilters(Map<String, Object> partitionValues, List<Expression> filters) {
@@ -93,42 +352,37 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     static Boolean evaluateFilter(Expression filter, Map<String, Object> partitionValues) {
-        if (filter instanceof Equals eq) {
-            return evaluateComparison(eq.left(), eq.right(), partitionValues, FileSplitProvider::compareEquals);
-        }
-        if (filter instanceof NotEquals neq) {
-            Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, FileSplitProvider::compareEquals);
-            return result != null ? result == false : null;
-        }
-        if (filter instanceof GreaterThanOrEqual gte) {
-            return evaluateComparison(gte.left(), gte.right(), partitionValues, (a, b) -> compareValues(a, b) >= 0);
-        }
-        if (filter instanceof GreaterThan gt) {
-            return evaluateComparison(gt.left(), gt.right(), partitionValues, (a, b) -> compareValues(a, b) > 0);
-        }
-        if (filter instanceof LessThanOrEqual lte) {
-            return evaluateComparison(lte.left(), lte.right(), partitionValues, (a, b) -> compareValues(a, b) <= 0);
-        }
-        if (filter instanceof LessThan lt) {
-            return evaluateComparison(lt.left(), lt.right(), partitionValues, (a, b) -> compareValues(a, b) < 0);
-        }
-        if (filter instanceof In in) {
-            String columnName = extractColumnName(in.value());
-            if (columnName == null || partitionValues.containsKey(columnName) == false) {
-                return null;
+        return switch (filter) {
+            case Equals eq -> evaluateComparison(eq.left(), eq.right(), partitionValues, FileSplitProvider::compareEquals);
+            case NotEquals neq -> {
+                Boolean result = evaluateComparison(neq.left(), neq.right(), partitionValues, FileSplitProvider::compareEquals);
+                yield result != null ? result == false : null;
             }
-            Object partitionValue = partitionValues.get(columnName);
-            for (Expression listItem : in.list()) {
-                if (listItem instanceof Literal lit == false) {
-                    return null;
+            case GreaterThanOrEqual gte -> evaluateComparison(gte.left(), gte.right(), partitionValues, (a, b) -> compareValues(a, b) >= 0);
+            case GreaterThan gt -> evaluateComparison(gt.left(), gt.right(), partitionValues, (a, b) -> compareValues(a, b) > 0);
+            case LessThanOrEqual lte -> evaluateComparison(lte.left(), lte.right(), partitionValues, (a, b) -> compareValues(a, b) <= 0);
+            case LessThan lt -> evaluateComparison(lt.left(), lt.right(), partitionValues, (a, b) -> compareValues(a, b) < 0);
+            case In in -> {
+                String columnName = extractColumnName(in.value());
+                if (columnName == null || partitionValues.containsKey(columnName) == false) {
+                    yield null;
                 }
-                if (compareEquals(partitionValue, ((Literal) listItem).value())) {
-                    return true;
+                Object partitionValue = partitionValues.get(columnName);
+                Boolean found = false;
+                for (Expression listItem : in.list()) {
+                    if (listItem instanceof Literal lit) {
+                        if (compareEquals(partitionValue, lit.value())) {
+                            found = true;
+                            break;
+                        }
+                    } else {
+                        yield null;
+                    }
                 }
+                yield found;
             }
-            return false;
-        }
-        return null;
+            default -> null;
+        };
     }
 
     private static Boolean evaluateComparison(
@@ -153,20 +407,18 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     private static String extractColumnName(Expression expr) {
-        if (expr instanceof FieldAttribute fa) {
-            return fa.name();
-        }
-        if (expr instanceof NamedExpression ne) {
-            return ne.name();
-        }
-        return null;
+        return switch (expr) {
+            case FieldAttribute fa -> fa.name();
+            case NamedExpression ne -> ne.name();
+            default -> null;
+        };
     }
 
     private static Object extractLiteralValue(Expression expr) {
-        if (expr instanceof Literal lit) {
-            return lit.value();
-        }
-        return null;
+        return switch (expr) {
+            case Literal lit -> lit.value();
+            default -> null;
+        };
     }
 
     private static boolean compareEquals(Object a, Object b) {

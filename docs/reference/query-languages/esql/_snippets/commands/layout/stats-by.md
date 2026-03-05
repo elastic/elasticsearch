@@ -186,7 +186,7 @@ employee, then pass the result to `AVG`:
 :::{include} ../examples/stats.csv-spec/docsStatsAvgNestedExpression.md
 :::
 
-Grouping expressions aren't limited to column references — any expression
+Grouping expressions aren't limited to column references: any expression
 works. For example, group by a derived value using `LEFT`:
 
 :::{include} ../examples/stats.csv-spec/docsStatsByExpression.md

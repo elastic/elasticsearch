@@ -10,20 +10,29 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -86,7 +95,7 @@ public class ExternalSourceResolver {
 
         executor.execute(() -> {
             try {
-                Map<String, ExternalSourceResolution.ResolvedSource> resolved = new HashMap<>();
+                Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
 
                 for (String path : paths) {
                     Map<String, Expression> params = pathParams.get(path);
@@ -163,6 +172,12 @@ public class ExternalSourceResolver {
         SourceMetadata metadata = resolveSingleSource(firstFile.toString(), config);
 
         ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
+
+        PartitionMetadata partitionMetadata = fileSet.partitionMetadata();
+        if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
+            extMetadata = enrichSchemaWithPartitionColumns(extMetadata, partitionMetadata);
+        }
+
         return new ExternalSourceResolution.ResolvedSource(extMetadata, fileSet);
     }
 
@@ -170,7 +185,7 @@ public class ExternalSourceResolver {
         if (config == null) {
             return true;
         }
-        Object value = config.get("hive_partitioning");
+        Object value = config.get(PartitionConfig.CONFIG_PARTITIONING_HIVE);
         if (value == null) {
             return true;
         }
@@ -219,12 +234,61 @@ public class ExternalSourceResolver {
         );
     }
 
+    static ExternalSourceMetadata enrichSchemaWithPartitionColumns(ExternalSourceMetadata metadata, PartitionMetadata partitionMetadata) {
+        List<Attribute> originalSchema = metadata.schema();
+        Map<String, DataType> partitionColumns = partitionMetadata.partitionColumns();
+
+        Set<String> partitionNames = new LinkedHashSet<>(partitionColumns.keySet());
+        List<Attribute> enrichedSchema = new ArrayList<>();
+
+        for (Attribute attr : originalSchema) {
+            if (partitionNames.contains(attr.name()) == false) {
+                enrichedSchema.add(attr);
+            }
+        }
+
+        for (Map.Entry<String, DataType> entry : partitionColumns.entrySet()) {
+            String name = entry.getKey();
+            DataType type = entry.getValue();
+            enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, true));
+        }
+
+        List<Attribute> finalSchema = List.copyOf(enrichedSchema);
+
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return finalSchema;
+            }
+
+            @Override
+            public String sourceType() {
+                return metadata.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return metadata.sourceMetadata();
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+        };
+    }
+
     private Map<String, Object> paramsToConfigMap(@Nullable Map<String, Expression> params) {
         if (params == null || params.isEmpty()) {
             return Map.of();
         }
 
-        Map<String, Object> config = new HashMap<>();
+        Map<String, Object> config = Maps.newHashMapWithExpectedSize(params.size());
         for (Map.Entry<String, Expression> entry : params.entrySet()) {
             String key = entry.getKey();
             Expression expr = entry.getValue();

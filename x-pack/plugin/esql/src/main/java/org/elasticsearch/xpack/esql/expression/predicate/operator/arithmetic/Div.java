@@ -126,16 +126,30 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
     @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
         double value = lhs / rhs;
-        if (Double.isNaN(value) || Double.isInfinite(value)) {
-            throw new ArithmeticException("/ by zero");
+        if (Double.isNaN(value)) {
+            throw new ArithmeticException("result is NaN");
+        }
+        if (Double.isInfinite(value)) {
+            if (rhs == 0.0) {
+                throw new ArithmeticException("/ by zero");
+            } else {
+                throw new ArithmeticException("result overflows double precision");
+            }
         }
         return value;
     }
 
     private static float divDenseVectorElements(float lhs, float rhs) {
         float value = lhs / rhs;
-        if (Float.isNaN(value) || Float.isInfinite(value)) {
-            throw new ArithmeticException("/ by zero");
+        if (Float.isNaN(value)) {
+            throw new ArithmeticException("result is NaN");
+        }
+        if (Float.isInfinite(value)) {
+            if (rhs == 0.0f) {
+                throw new ArithmeticException("/ by zero");
+            } else {
+                throw new ArithmeticException("result overflows float precision");
+            }
         }
         return value;
     }

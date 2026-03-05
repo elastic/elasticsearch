@@ -26,16 +26,26 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Unit tests for circuit breaker release logic used by SearchService and SearchTransportService.
- * <p>
- * For transport paths (fetch, scroll-fetch), the circuit-breaker reservation is released right
- * after serialization inside {@code SearchTransportService.asBytesResponse}. For the query phase
- * (which may produce a {@code QueryFetchSearchResult} consumed locally by
- * {@code SearchQueryThenFetchAsyncAction}), the circuit breaker is released after the listener
- * consumes the response via {@code SearchService.releaseCircuitBreakerOnResponse}.
- * <p>
- * Because {@code FetchSearchResult.releaseCircuitBreakerBytes} uses {@code AtomicLong.getAndSet(0)},
- * multiple releases from different paths are idempotent.
+ * Tests that circuit-breaker bytes reserved for search fetch results are correctly released.
+ *
+ * <p><b>Background:</b> when a fetch phase produces {@link org.elasticsearch.search.SearchHits}, the
+ * serialized size is reserved on the request circuit breaker. That reservation must be released once
+ * the response has been serialized (transport path) or consumed (local path), otherwise the breaker
+ * stays artificially inflated and blocks future requests.
+ *
+ * <p><b>Release happens in two places:</b>
+ * <ol>
+ *   <li>{@code SearchTransportService.asBytesResponse} -- releases right after the response is
+ *       serialized to bytes, before sending over the network. This covers fetch, scroll-fetch,
+ *       and the single-shard query+fetch transport paths.</li>
+ *   <li>{@code SearchService.releaseCircuitBreakerOnResponse} -- releases after the listener
+ *       consumes the response. This is a safety net for the query phase; on transport paths the
+ *       bytes are already gone so this call is a no-op.</li>
+ * </ol>
+ *
+ * <p>Both paths are safe to call on the same result because
+ * {@code FetchSearchResult.releaseCircuitBreakerBytes} uses {@code AtomicLong.getAndSet(0)},
+ * making repeated calls idempotent.
  */
 public class SearchServiceCircuitBreakerTests extends ESTestCase {
 

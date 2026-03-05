@@ -1638,12 +1638,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Wraps a listener to release circuit breaker bytes from a FetchSearchResult after the response is consumed.
-     * Used for the query phase when a single-shard optimisation produces a {@code QueryFetchSearchResult} that is
-     * consumed locally (e.g. by {@code SearchQueryThenFetchAsyncAction}). For transport paths the circuit-breaker
-     * reservation is released by {@code SearchTransportService.asBytesResponse} right after serialization.
-     * Because {@link FetchSearchResult#releaseCircuitBreakerBytes} uses {@code AtomicLong.getAndSet(0)}, the
-     * release here is a safe no-op for transport paths — the bytes have already been released.
+     * Wraps a listener so that circuit-breaker bytes held by a {@link FetchSearchResult} are released after
+     * the response is handed off to the next listener in the chain.
+     *
+     * <p><b>When this matters:</b> the single-shard query optimisation can produce a
+     * {@code QueryFetchSearchResult} that contains fetch data with a circuit-breaker reservation. On the
+     * transport path that reservation is already freed earlier by
+     * {@code SearchTransportService.asBytesResponse} (right after serialization). This wrapper acts as a
+     * second line of defence: because {@link FetchSearchResult#releaseCircuitBreakerBytes} uses
+     * {@code AtomicLong.getAndSet(0)}, calling it again here is a harmless no-op if the bytes were already
+     * released.
      */
     private <T> ActionListener<T> releaseCircuitBreakerOnResponse(
         ActionListener<T> listener,

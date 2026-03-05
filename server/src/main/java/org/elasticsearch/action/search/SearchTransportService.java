@@ -695,25 +695,32 @@ public class SearchTransportService {
     }
 
     /**
-     * Creates a listener that releases circuit-breaker reservations (via {@code afterSerialize}) and sends the
-     * response over the channel. For network channels the response is pre-serialized into a
-     * {@link BytesTransportResponse} so that the original in-memory data can be freed by the caller's
-     * {@code respondAndRelease}. For local (direct) channels the original response is forwarded as-is,
-     * because {@code TransportService.DirectResponseChannel} passes the object directly to the response
-     * handler without serialization/deserialization.
-     * <p>
-     * The caller is responsible for calling {@code response.decRef()} (typically via
-     * {@link ActionListener#respondAndRelease}); this method never calls it.
-     * <p>
-     * <b>Direct-channel timing note:</b> on the direct (local) path, {@code afterSerialize} runs after
-     * {@code channel.sendResponse()} returns. If the response handler uses a non-direct executor,
-     * {@code sendResponse()} may return before the handler fully processes the response, so
-     * {@code afterSerialize} can execute concurrently with the handler. This is safe because
-     * {@code afterSerialize} only releases circuit-breaker <em>accounting</em> (not the response data
-     * itself, which is ref-counted).
+     * Wraps a transport channel so that the circuit-breaker bytes reserved for the response are released as
+     * early as possible -- right after the response has been converted to bytes, rather than after those bytes
+     * have been fully written to the network.
      *
-     * @param afterSerialize called after serialization (network) or after {@code channel.sendResponse()} returns
-     *                       (local) to release resources such as circuit-breaker reservations; must not throw
+     * <p><b>Why this exists:</b> search responses (fetch results, query+fetch results) reserve circuit-breaker
+     * memory while their {@link org.elasticsearch.search.SearchHits} are held in Java objects. Without this
+     * wrapper the reservation is only freed after the full network send completes, keeping the breaker
+     * artificially inflated under high concurrency and causing spurious {@code CircuitBreakingException}s.
+     *
+     * <p><b>How it works -- two paths:</b>
+     * <ol>
+     *   <li><b>Network (remote node):</b> the response is serialized into a {@link BytesTransportResponse}.
+     *       Once the bytes are produced, {@code afterSerialize} is called to release the breaker, and only
+     *       then are the bytes sent over the wire. The original in-memory response can be freed immediately.</li>
+     *   <li><b>Direct (same node):</b> no serialization is needed -- the Java object is handed directly to
+     *       the response handler. {@code afterSerialize} is called right after {@code channel.sendResponse()}
+     *       returns. This is safe because the callback only updates breaker <em>accounting</em>; the actual
+     *       response data is protected by ref-counting and stays alive until the handler is done with it.</li>
+     * </ol>
+     *
+     * <p>The caller is responsible for calling {@code response.decRef()} (typically via
+     * {@link ActionListener#respondAndRelease}); this method never calls it.
+     *
+     * @param afterSerialize callback invoked once the response bytes have been produced (network) or once
+     *                       {@code channel.sendResponse()} returns (direct); used to release circuit-breaker
+     *                       reservations. Must not throw.
      */
     static <T extends TransportResponse> ActionListener<T> asBytesResponse(
         TransportService transportService,

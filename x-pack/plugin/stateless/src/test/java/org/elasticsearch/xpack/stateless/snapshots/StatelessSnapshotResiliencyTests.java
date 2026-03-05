@@ -68,6 +68,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -80,6 +81,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
@@ -861,6 +863,15 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                                 return null;
                             });
                         });
+                    }
+
+                    @Override
+                    public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
+                        if (reason == IndexRemovalReason.DELETED) {
+                            statelessCommitService.markIndexDeleting(
+                                indexService.shardIds().stream().map(id -> new ShardId(indexService.index(), id)).toList()
+                            );
+                        }
                     }
 
                     @Override

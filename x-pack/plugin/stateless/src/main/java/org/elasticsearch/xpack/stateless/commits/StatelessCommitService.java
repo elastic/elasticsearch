@@ -54,6 +54,8 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -948,6 +950,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
     }
 
+    public void markIndexDeleting(List<ShardId> shardIds) {
+        shardIds.forEach(shardId -> {
+            ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+            commitState.markIndexDeleting();
+        });
+    }
+
     public void closeShard(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         commitState.close();
@@ -1178,6 +1187,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // Does not need to be volatile because it uses reads/writes of state for visibility
         private boolean relocated = false;
         private volatile State state = State.RUNNING;
+        private volatile boolean isDeletingIndex;
         private volatile boolean isDeleted;
         // map BCC generations to BCC blob instances
         private final Map<PrimaryTermAndGeneration, BlobReference> primaryTermAndGenToBlobReference = new ConcurrentHashMap<>();
@@ -2342,6 +2352,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
+        // Package private for testing only. Do not use it in production or other tests!!!
+        // Will be removed in https://github.com/elastic/elasticsearch-serverless/pull/5668
+        Releasable incRef(PrimaryTermAndGeneration primaryTermAndGeneration) {
+            final var blobReference = primaryTermAndGenToBlobReference.get(primaryTermAndGeneration);
+            blobReference.incRef();
+            return Releasables.releaseOnce(blobReference::decRef);
+        }
+
         private void unregistered() {
             if (isDeleted) {
                 // clear all unpromotable references
@@ -2424,10 +2442,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return maxGenerationToUploadForFlush.get();
         }
 
+        public void markIndexDeleting() {
+            isDeletingIndex = true;
+        }
+
         /**
          * Marks the shard as deleted. Any related {@link ShardCommitState.BlobReference} will be deleted in the upcoming {@link #close()}.
          */
         public void delete() {
+            assert isDeletingIndex : "shard " + shardId + " is deleted without the index marked as deleting";
             // idempotent
             synchronized (this) {
                 isDeleted = true;
@@ -3055,6 +3078,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             @Override
             protected void closeInternal() {
+                // Do not clear resources if the shard is closed but not deleted
+                // TODO: Instead of Closed, we should consider prevent deletion on RELOCATING, i.e. commits released
+                // between beginning of relocation and completion should not be deleted by the old primary. Ideally,
+                // these deletions should be deferred so that if relocation fails, the old primary can process them again.
+                // Today, this is not an issue since no commit needed by the new primary can reach here during this period.
+                // But we should consider making it more robust to be future proof.
+                if (isClosed() && isDeletingIndex == false) {
+                    return;
+                }
+                // The shard is either NOT closed or the index is being deleted (which implies shard closed)
+                // It is possible that the shard closes right after the above check. Such a request is surely
+                // received _before_ the shard is marked as closed so that it is OK to proceed.
                 logger.trace(() -> format("%s cleared all references to %s", shardId, primaryTermAndGeneration));
                 final BlobReference released = this;
                 internalFiles.forEach(fileName -> {

@@ -187,12 +187,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .delegateFailureAndWrap((l, responses) -> {
                 Map<String, ResolvedIndexExpressions> resolvedRemoteExpressions = responses.stream()
                     .filter(e -> e.getValue().response() instanceof ResolveIndexAction.Response)
-                    .collect(
-                        Collectors.toMap(
-                            Map.Entry::getKey,
-                            e -> ((ResolveIndexAction.Response) e.getValue().response()).getResolvedIndexExpressions()
-                        )
-                    );
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> ((ResolveIndexAction.Response) e.getValue().response()).getResolvedIndexExpressions()));
                 final Exception ex = CrossProjectIndexResolutionValidator.validate(
                     originalIndicesOptions,
                     request.getProjectRouting(),

@@ -22,6 +22,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -50,9 +52,12 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.BytesTransportResponse;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -66,6 +71,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 /**
  * An encapsulation of {@link SearchService} operations exposed through
@@ -457,7 +463,11 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+                asBytesResponse(transportService, channel, response -> {
+                    if (response instanceof QueryFetchSearchResult qfr) {
+                        qfr.fetchResult().releaseCircuitBreakerBytes(searchService.getCircuitBreaker());
+                    }
+                })
             )
         );
         TransportActionProxy.registerProxyActionWithDynamicResponseType(
@@ -513,7 +523,11 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeFetchPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+                asBytesResponse(
+                    transportService,
+                    channel,
+                    response -> response.result().fetchResult().releaseCircuitBreakerBytes(searchService.getCircuitBreaker())
+                )
             )
         );
         TransportActionProxy.registerProxyAction(
@@ -541,7 +555,15 @@ public class SearchTransportService {
         );
 
         final TransportRequestHandler<ShardFetchRequest> shardFetchRequestHandler = (request, channel, task) -> searchService
-            .executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
+            .executeFetchPhase(
+                request,
+                (SearchShardTask) task,
+                asBytesResponse(
+                    transportService,
+                    channel,
+                    response -> response.releaseCircuitBreakerBytes(searchService.getCircuitBreaker())
+                )
+            );
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -670,6 +692,73 @@ public class SearchTransportService {
             // can be skipped when assertions are not enabled
             return true;
         }
+    }
+
+    /**
+     * Creates a listener that releases circuit-breaker reservations (via {@code afterSerialize}) and sends the
+     * response over the channel. For network channels the response is pre-serialized into a
+     * {@link BytesTransportResponse} so that the original in-memory data can be freed by the caller's
+     * {@code respondAndRelease}. For local (direct) channels the original response is forwarded as-is,
+     * because TransportService.DirectResponseChannel} passes the object directly to the response
+     * handler without serialization/deserialization.
+     * <p>
+     * The caller is responsible for calling {@code response.decRef()} (typically via
+     * {@link ActionListener#respondAndRelease}); this method never calls it.
+     *
+     * @param afterSerialize called after serialization (network) or after the handler processes the response (local)
+     *                       to release resources such as circuit-breaker reservations
+     */
+    static <T extends TransportResponse> ActionListener<T> asBytesResponse(
+        TransportService transportService,
+        TransportChannel channel,
+        Consumer<T> afterSerialize
+    ) {
+        TransportChannel innerChannel = channel instanceof TaskTransportChannel ttc ? ttc.getChannel() : channel;
+        if (TransportService.isDirectResponseChannel(innerChannel)) {
+            var channelListener = new ChannelActionListener<T>(channel);
+            return new ActionListener<>() {
+                @Override
+                public void onResponse(T response) {
+                    try {
+                        channelListener.onResponse(response);
+                    } finally {
+                        afterSerialize.accept(response);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    channelListener.onFailure(e);
+                }
+            };
+        }
+
+        var channelListener = new ChannelActionListener<BytesTransportResponse>(channel);
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T response) {
+                RecyclerBytesStreamOutput out = transportService.newNetworkBytesStream();
+                try {
+                    out.setTransportVersion(channel.getVersion());
+                    response.writeTo(out);
+                } catch (Exception e) {
+                    Releasables.close(out);
+                    afterSerialize.accept(response);
+                    channelListener.onFailure(e);
+                    return;
+                }
+                afterSerialize.accept(response);
+                ActionListener.respondAndRelease(
+                    channelListener,
+                    new BytesTransportResponse(out.moveToBytesReference(), out.getTransportVersion())
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                channelListener.onFailure(e);
+            }
+        };
     }
 
     public void cancelSearchTask(SearchTask task, String reason) {

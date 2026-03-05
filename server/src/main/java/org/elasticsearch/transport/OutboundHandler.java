@@ -146,10 +146,6 @@ public final class OutboundHandler {
     ) {
         assert assertValidTransportVersion(transportVersion);
         assert response.hasReferences();
-        final Releasable afterSendRelease = response.consumeAfterSendRelease();
-        final Releasable onAfter = afterSendRelease != null
-            ? Releasables.wrap(() -> messageListener.onResponseSent(requestId, action), afterSendRelease)
-            : () -> messageListener.onResponseSent(requestId, action);
         try {
             sendMessage(
                 channel,
@@ -161,10 +157,9 @@ public final class OutboundHandler {
                 compressionScheme,
                 transportVersion,
                 responseStatsConsumer,
-                onAfter
+                () -> messageListener.onResponseSent(requestId, action)
             );
         } catch (Exception ex) {
-            Releasables.closeExpectNoException(afterSendRelease);
             if (isHandshake) {
                 logger.error(
                     () -> format(

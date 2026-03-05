@@ -1570,7 +1570,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void sendResponse(TransportResponse response) {
-            final Releasable afterSendRelease = response.consumeAfterSendRelease();
+            service.onResponseSent(requestId, action);
             try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
                 if (shutdownBlock == null) {
                     // already shutting down, the handler will be completed by sendRequestInternal or doStop
@@ -1602,11 +1602,6 @@ public class TransportService extends AbstractLifecycleComponent
                             return "delivery of response to [" + requestId + "][" + action + "]: " + response;
                         }
                     });
-                }
-            } finally {
-                service.onResponseSent(requestId, action);
-                if (afterSendRelease != null) {
-                    afterSendRelease.close();
                 }
             }
         }

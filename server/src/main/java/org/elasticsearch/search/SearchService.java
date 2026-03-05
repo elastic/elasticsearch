@@ -139,7 +139,6 @@ import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
@@ -1210,13 +1209,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        },
-            wrapFailureListener(
-                releaseCircuitBreakerOnResponse(listener, result -> result.result().fetchResult()),
-                readerContext,
-                markAsUsed
-            )
-        );
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     public void executeFetchPhase(ShardFetchRequest request, CancellableTask task, ActionListener<FetchSearchResult> listener) {
@@ -1255,7 +1248,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // we handle the failure in the failure listener below
                     throw e;
                 }
-            }, wrapFailureListener(releaseCircuitBreakerOnResponse(listener, result -> result), readerContext, markAsUsed));
+            }, wrapFailureListener(listener, readerContext, markAsUsed));
         }));
     }
 
@@ -1645,30 +1638,26 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Wraps a listener so that circuit breaker bytes are released after the response bytes have been
-     * written to the network, rather than immediately after the send is queued. The release is attached
-     * to the {@link TransportResponse} via {@code afterSendRelease} and executed by the transport layer
-     * on write completion.
+     * Wraps a listener to release circuit breaker bytes from a FetchSearchResult after the response is consumed.
+     * Used for the query phase when a single-shard optimisation produces a {@code QueryFetchSearchResult} that is
+     * consumed locally (e.g. by {@code SearchQueryThenFetchAsyncAction}). For transport paths the circuit-breaker
+     * reservation is extracted (atomically zeroed) by {@code SearchTransportService.asBytesResponse} right after
+     * serialization and deferred until Netty completes the write. Because
+     * {@link FetchSearchResult#extractCircuitBreakerRelease} uses {@code AtomicLong.getAndSet(0)}, the release
+     * here is a safe no-op for transport paths — the bytes have already been taken.
      */
-    private <T extends TransportResponse> ActionListener<T> releaseCircuitBreakerOnResponse(
+    private <T> ActionListener<T> releaseCircuitBreakerOnResponse(
         ActionListener<T> listener,
         Function<T, FetchSearchResult> fetchResultExtractor
     ) {
         return ActionListener.wrap(response -> {
-            FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
-            if (fetchResult != null && fetchResult.getSearchHitsSizeBytes() > 0) {
-                response.setAfterSendRelease(() -> fetchResult.releaseCircuitBreakerBytes(circuitBreaker));
-            }
             try {
                 listener.onResponse(response);
             } finally {
-                // The transport layer normally consumes afterSendRelease and releases it
-                // when the network write completes. If it was not consumed (e.g. an
-                // exception prevented the response from reaching the transport), release
-                // it here to avoid leaking circuit breaker bytes.
-                Releasable unconsumed = response.consumeAfterSendRelease();
-                if (unconsumed != null) {
-                    Releasables.closeExpectNoException(unconsumed);
+                // Release bytes after the response handler completes
+                FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
+                if (fetchResult != null) {
+                    fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
                 }
             }
         }, listener::onFailure);

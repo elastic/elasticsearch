@@ -1471,7 +1471,7 @@ public abstract class FieldMapper extends Mapper {
              * {@code NO} restricts the field to a single value per document.
              * {@code SORTED} stores multiple values sorted per document (numeric types).
              * {@code SORTED_SET} stores multiple values sorted and deduplicated per document (keyword/IP types).
-             * {@code ARRAYS} allows multiple values and keeps original ordering.
+             * {@code ARRAYS} allows multiple values, keeps original ordering, and supports null values.
              */
             public enum MultiValue {
                 NO,

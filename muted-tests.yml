@@ -345,3 +345,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlRetryIT
   method: testQueryWhileDeletingIndices
   issue: https://github.com/elastic/elasticsearch/issues/143639
+- class: org.elasticsearch.xpack.esql.action.EsqlRetryIT
+  method: testRetryOnShardFailures
+  issue: https://github.com/elastic/elasticsearch/issues/143640

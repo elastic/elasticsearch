@@ -1,5 +1,0 @@
-area: Engine
-issues: []
-pr: 143583
-summary: Prune sequence numbers during merges
-type: enhancement

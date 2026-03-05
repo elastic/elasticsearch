@@ -40,6 +40,8 @@ dependencies {
   // for parent/child testing
   testImplementation project(':modules:parent-join')
   testImplementation project(':modules:rest-root')
+  // for data stream integration tests
+  internalClusterTestImplementation project(':modules:data-streams')
 
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:parent-join')

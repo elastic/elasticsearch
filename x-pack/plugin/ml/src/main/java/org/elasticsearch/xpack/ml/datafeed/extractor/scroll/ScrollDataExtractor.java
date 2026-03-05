@@ -27,6 +27,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.LinkedProjectState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.ml.extractor.SourceSupplier;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -60,6 +62,7 @@ class ScrollDataExtractor implements DataExtractor {
     private Long timestampOnCancel;
     protected Long lastTimestamp;
     private boolean searchHasShardFailure;
+    private volatile List<LinkedProjectState> lastLinkedProjectStates;
 
     ScrollDataExtractor(Client client, ScrollDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
         this.client = Objects.requireNonNull(client);
@@ -105,7 +108,11 @@ class ScrollDataExtractor implements DataExtractor {
         if (stream.isPresent() == false) {
             hasNext = false;
         }
-        return new Result(new SearchInterval(context.queryContext.start, context.queryContext.end), stream);
+        return new Result(
+            new SearchInterval(context.queryContext.start, context.queryContext.end),
+            stream,
+            lastLinkedProjectStates != null ? lastLinkedProjectStates : List.of()
+        );
     }
 
     private Optional<InputStream> tryNextStream() throws IOException {
@@ -128,6 +135,7 @@ class ScrollDataExtractor implements DataExtractor {
         try {
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            lastLinkedProjectStates = DataExtractorUtils.extractLinkedProjectStates(searchResponse);
             scrollId = searchResponse.getScrollId();
             return processAndConsumeSearchHits(searchResponse.getHits());
         } finally {
@@ -142,6 +150,10 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private SearchResponse checkForSkippedClusters(SearchResponse searchResponse) {
+        // Capture linked project states before the skipped-clusters check so that
+        // CrossProjectSearchStats can observe the SKIPPED status and begin unlinking
+        // tracking even when the check throws.
+        lastLinkedProjectStates = DataExtractorUtils.extractLinkedProjectStates(searchResponse);
         boolean success = false;
         try {
             DataExtractorUtils.checkForSkippedClusters(searchResponse);
@@ -248,6 +260,7 @@ class ScrollDataExtractor implements DataExtractor {
             }
             logger.debug("[{}] Search response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            lastLinkedProjectStates = DataExtractorUtils.extractLinkedProjectStates(searchResponse);
             scrollId = searchResponse.getScrollId();
             return processAndConsumeSearchHits(searchResponse.getHits());
         } finally {

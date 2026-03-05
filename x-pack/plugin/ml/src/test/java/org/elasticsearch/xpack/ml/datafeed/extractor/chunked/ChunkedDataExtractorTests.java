@@ -516,9 +516,9 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         public Result next() {
             if (streams.isEmpty()) {
                 hasNext = false;
-                return new Result(searchInterval, Optional.empty());
+                return new Result(searchInterval, Optional.empty(), List.of());
             }
-            return new Result(searchInterval, Optional.of(streams.remove(0)));
+            return new Result(searchInterval, Optional.of(streams.remove(0)), List.of());
         }
 
         @Override

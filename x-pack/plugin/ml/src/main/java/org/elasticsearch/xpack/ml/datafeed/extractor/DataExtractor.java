@@ -7,14 +7,16 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.ml.datafeed.LinkedProjectState;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Optional;
 
 public interface DataExtractor {
 
-    record Result(SearchInterval searchInterval, Optional<InputStream> data) {}
+    record Result(SearchInterval searchInterval, Optional<InputStream> data, List<LinkedProjectState> linkedProjectStates) {}
 
     record DataSummary(Long earliestTime, Long latestTime, long totalHits) {
         public boolean hasData() {

@@ -327,8 +327,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                         // get progress information
                         SearchRequest request = new SearchRequest(transformConfig.getSource().getIndex());
                         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().runtimeMappings(
-                        transformConfig.getSource().getRuntimeMappings()
-                    );
+                            transformConfig.getSource().getRuntimeMappings()
+                        );
 
                         function.buildSearchQueryForInitialProgress(searchSourceBuilder);
                         searchSourceBuilder.query(QueryBuilders.boolQuery().filter(buildFilterQuery()).filter(searchSourceBuilder.query()));

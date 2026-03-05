@@ -460,6 +460,9 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                             // Reduce sync interval to speedup this integraton test,
                             // otherwise by default it will take 30 seconds before minimum retained seqno is updated:
                             .put("index.soft_deletes.retention_lease.sync_interval", "100ms")
+                            // This test checks that _id's are pruned, that only applies
+                            // when regular _id's are used.
+                            .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
                             .build(),
                         new CompressedXContent(MAPPING_TEMPLATE),
                         null

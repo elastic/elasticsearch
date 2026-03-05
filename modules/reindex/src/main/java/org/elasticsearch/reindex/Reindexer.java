@@ -155,7 +155,13 @@ public class Reindexer {
 
         // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
-        final ActionListener<BulkByScrollResponse> listenerWithRelocations = listenerWithRelocations(task, request, listener);
+        final ActionListener<BulkByScrollResponse> responseListener = wrapWithMetrics(
+            listenerWithRelocations(task, request, listener),
+            reindexMetrics,
+            task,
+            request,
+            startTime
+        );
 
         Consumer<Version> workerAction = remoteVersion -> {
             ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
@@ -170,26 +176,18 @@ public class Reindexer {
                 projectResolver.getProjectState(clusterService.state()),
                 reindexSslConfig,
                 request,
-                wrapWithMetrics(listenerWithRelocations, reindexMetrics, task, request, startTime),
+                responseListener,
                 remoteVersion
             );
             searchAction.start();
         };
-
-        final ActionListener<BulkByScrollResponse> responseListener = wrapWithMetrics(
-            listenerWithRelocations,
-            reindexMetrics,
-            task,
-            request,
-            startTime
-        );
 
         /**
          * If this is a request to reindex from remote, then we need to determine the remote version prior to execution
          * NB {@link ReindexRequest} forbids remote requests and slices > 1, so we're guaranteed to be running on the only slice
          */
         if (featureService.clusterHasFeature(clusterService.state(), REINDEX_PIT_SEARCH_FEATURE) && request.getRemoteInfo() != null) {
-            lookupRemoteVersionAndExecute(task, request, listenerWithRelocations, workerAction);
+            lookupRemoteVersionAndExecute(task, request, responseListener, workerAction);
         } else {
             BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
                 task,

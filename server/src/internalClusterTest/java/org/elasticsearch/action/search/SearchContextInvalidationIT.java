@@ -45,10 +45,11 @@ public class SearchContextInvalidationIT extends ESIntegTestCase {
         String dataNode1 = internalCluster().startDataOnlyNode();
 
         assertAcked(
-            prepareCreate("test-index").setSettings(Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put("index.routing.allocation.require._name", dataNode1)
+            prepareCreate("test-index").setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.routing.allocation.require._name", dataNode1)
             )
         );
 

@@ -229,6 +229,11 @@ public abstract class FilterXContentParser implements XContentParser {
     }
 
     @Override
+    public XContentLocation getCurrentLocation() {
+        return delegate().getCurrentLocation();
+    }
+
+    @Override
     public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
         return delegate().namedObject(categoryClass, name, context);
     }

@@ -161,10 +161,10 @@ public class Last extends AggregateFunction implements ToAggregator {
         ).and(
             isType(
                 sort,
-                dt -> dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
+                dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
                 sourceText(),
                 SECOND,
-                "long or date_nanos or datetime"
+                "int or long or date_nanos or datetime"
             )
         );
     }

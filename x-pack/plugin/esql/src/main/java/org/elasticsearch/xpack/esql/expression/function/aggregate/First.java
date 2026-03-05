@@ -88,7 +88,7 @@ public class First extends AggregateFunction implements ToAggregator {
             type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date", "date_nanos" },
             description = "The search field"
         ) Expression field,
-        @Param(name = "sortField", type = { "long", "date", "date_nanos" }, description = "The sort field") Expression sort
+        @Param(name = "sortField", type = { "integer", "long", "date", "date_nanos" }, description = "The sort field") Expression sort
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, sort);
     }
@@ -161,10 +161,10 @@ public class First extends AggregateFunction implements ToAggregator {
         ).and(
             isType(
                 sort,
-                dt -> dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
+                dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
                 sourceText(),
                 SECOND,
-                "long or date_nanos or datetime"
+                "int or long or date_nanos or datetime"
             )
         );
     }

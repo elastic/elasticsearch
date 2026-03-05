@@ -303,8 +303,8 @@ public class Reindexer {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 if (bulkByScrollResponse.getTaskResumeInfo().isPresent()) {
-                    // Task is being relocated; do not record metrics on the source node, the destination node will record metrics when
-                    // the relocated task completes
+                    // Task will be relocated to a different node
+                    // Do not record metrics on the source node, the destination node will record metrics when the relocated task completes
                     assert bulkByScrollResponse.getBulkFailures().isEmpty() : "bulk failures should be empty if relocating";
                     assert bulkByScrollResponse.getSearchFailures().isEmpty() : "search failures should be empty if relocating";
                     listener.onResponse(bulkByScrollResponse);

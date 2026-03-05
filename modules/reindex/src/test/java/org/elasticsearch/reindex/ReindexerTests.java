@@ -170,9 +170,7 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
-        verify(metrics, never()).recordTookTime(anyLong(), anyBoolean(), any());
+        verifyNoMoreInteractions(metrics);
     }
 
     // listenerWithRelocations tests

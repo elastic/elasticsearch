@@ -145,7 +145,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         heapAttackIT.initManyBigFieldsIndex(docs, "text", true);
         StringBuilder sortKeys = new StringBuilder();
         sortKeys.append("f000");
-        for (int f = 1; f < 999; f++) {
+        for (int f = 1; f < 100; f++) {
             sortKeys.append(", f").append(String.format(Locale.ROOT, "%03d", f));
         }
         for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {

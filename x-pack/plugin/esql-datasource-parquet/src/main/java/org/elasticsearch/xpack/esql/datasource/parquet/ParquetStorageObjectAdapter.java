@@ -50,14 +50,16 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
     }
 
     /**
-     * SeekableInputStream implementation that uses StorageObject's range-based reads.
-     *
-     * <p>This implementation provides efficient random access by:
+     * SeekableInputStream implementation that combines two I/O strategies:
      * <ul>
-     *   <li>Tracking current position in the stream</li>
-     *   <li>Using range reads for seek operations</li>
-     *   <li>Buffering data from the current stream until a seek is needed</li>
+     *   <li><b>Byte-array reads</b> ({@code read()}, {@code read(byte[])}, {@code readFully(byte[])})
+     *       use a cached InputStream for efficient sequential access.</li>
+     *   <li><b>ByteBuffer reads</b> ({@code read(ByteBuffer)}, {@code readFully(ByteBuffer)})
+     *       use {@link StorageObject#readBytes(long, java.nio.ByteBuffer)} for provider-native
+     *       I/O that avoids temporary allocations and data duplication.</li>
      * </ul>
+     * After a ByteBuffer read, the cached InputStream is invalidated since the position has
+     * advanced independently. It is lazily re-opened on the next byte-array read.
      */
     private static class StorageObjectSeekableInputStream extends SeekableInputStream {
         private final StorageObject storageObject;
@@ -71,7 +73,6 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.length = storageObject.length();
             this.position = 0;
             this.streamStartPosition = 0;
-            // Open initial stream from beginning
             this.currentStream = storageObject.newStream();
         }
 
@@ -89,44 +90,59 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 throw new IOException("Cannot seek beyond end of file: " + newPos + " > " + length);
             }
 
-            // If we're seeking within the current stream, try to skip forward
-            if (newPos >= streamStartPosition && newPos >= position) {
+            if (currentStream != null && newPos >= streamStartPosition && newPos >= position) {
                 long skipAmount = newPos - position;
                 if (skipAmount > 0) {
                     long skipped = currentStream.skip(skipAmount);
                     if (skipped != skipAmount) {
-                        // Skip failed, need to reopen stream
                         reopenStreamAt(newPos);
                     } else {
                         position = newPos;
                     }
                 }
-                // If newPos == position, we're already there
                 return;
             }
 
-            // For backward seeks or large forward seeks, reopen the stream
-            reopenStreamAt(newPos);
+            // For backward seeks, large forward seeks, or when stream was invalidated
+            if (newPos != position) {
+                reopenStreamAt(newPos);
+            }
         }
 
-        /**
-         * Reopens the stream at the specified position using a range read.
-         */
         private void reopenStreamAt(long newPos) throws IOException {
-            // Close current stream
-            if (currentStream != null) {
-                currentStream.close();
-            }
-
-            // Open new stream from the target position to the end
+            invalidateStream();
             long remainingBytes = length - newPos;
             currentStream = storageObject.newStream(newPos, remainingBytes);
             streamStartPosition = newPos;
             position = newPos;
         }
 
+        /**
+         * Ensures a valid InputStream is available at the current position.
+         * Re-opens the stream if it was invalidated by a ByteBuffer read.
+         */
+        private void ensureStream() throws IOException {
+            if (currentStream == null) {
+                long remainingBytes = length - position;
+                currentStream = storageObject.newStream(position, remainingBytes);
+                streamStartPosition = position;
+            }
+        }
+
+        /**
+         * Closes the current InputStream. Called before ByteBuffer reads that bypass the
+         * stream, since those advance the position independently.
+         */
+        private void invalidateStream() throws IOException {
+            if (currentStream != null) {
+                currentStream.close();
+                currentStream = null;
+            }
+        }
+
         @Override
         public int read() throws IOException {
+            ensureStream();
             int b = currentStream.read();
             if (b >= 0) {
                 position++;
@@ -141,6 +157,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
+            ensureStream();
             int bytesRead = currentStream.read(b, off, len);
             if (bytesRead > 0) {
                 position += bytesRead;
@@ -150,6 +167,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
         @Override
         public long skip(long n) throws IOException {
+            ensureStream();
             long skipped = currentStream.skip(n);
             position += skipped;
             return skipped;
@@ -157,15 +175,15 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
         @Override
         public int available() throws IOException {
+            if (currentStream == null) {
+                return (int) Math.min(length - position, Integer.MAX_VALUE);
+            }
             return currentStream.available();
         }
 
         @Override
         public void close() throws IOException {
-            if (currentStream != null) {
-                currentStream.close();
-                currentStream = null;
-            }
+            invalidateStream();
         }
 
         @Override
@@ -187,39 +205,36 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             }
         }
 
+        /**
+         * Reads into a ByteBuffer using {@link StorageObject#readBytes(long, java.nio.ByteBuffer)}.
+         * For local files this results in zero-copy FileChannel I/O; for GCS it uses native
+         * ReadChannel I/O. For other providers the default avoids allocating a full-size temporary
+         * array by using a small chunked transfer buffer for direct ByteBuffers, or reading
+         * directly into the backing array for heap ByteBuffers.
+         */
         @Override
         public int read(java.nio.ByteBuffer buf) throws IOException {
             if (buf.hasRemaining() == false) {
                 return 0;
             }
-
-            if (buf.hasArray()) {
-                int bytesRead = read(buf.array(), buf.arrayOffset() + buf.position(), buf.remaining());
-                if (bytesRead > 0) {
-                    buf.position(buf.position() + bytesRead);
-                }
-                return bytesRead;
-            }
-
-            byte[] temp = new byte[buf.remaining()];
-            int bytesRead = read(temp, 0, temp.length);
+            invalidateStream();
+            int bytesRead = storageObject.readBytes(position, buf);
             if (bytesRead > 0) {
-                buf.put(temp, 0, bytesRead);
+                position += bytesRead;
             }
             return bytesRead;
         }
 
         @Override
         public void readFully(java.nio.ByteBuffer buf) throws IOException {
-            if (buf.hasArray()) {
-                readFully(buf.array(), buf.arrayOffset() + buf.position(), buf.remaining());
-                buf.position(buf.limit());
-                return;
+            invalidateStream();
+            while (buf.hasRemaining()) {
+                int bytesRead = storageObject.readBytes(position, buf);
+                if (bytesRead <= 0) {
+                    throw new IOException("Reached end of stream before reading all bytes at position " + position);
+                }
+                position += bytesRead;
             }
-
-            byte[] temp = new byte[buf.remaining()];
-            readFully(temp, 0, temp.length);
-            buf.put(temp);
         }
     }
 }

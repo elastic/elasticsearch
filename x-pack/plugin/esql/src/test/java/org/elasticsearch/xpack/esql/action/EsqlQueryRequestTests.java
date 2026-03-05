@@ -696,12 +696,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(KEYWORD));
-        try (
-            BytesRefBlock.Builder builder = new BlockFactory(
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                BigArrays.NON_RECYCLING_INSTANCE
-            ).newBytesRefBlockBuilder(10)
-        ) {
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(10)) {
             builder.appendBytesRef(new BytesRef("a"));
             builder.appendBytesRef(new BytesRef("b"));
             builder.appendNull();
@@ -728,10 +723,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(INTEGER));
-        try (
-            IntBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newIntBlockBuilder(10)
-        ) {
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(10)) {
             builder.appendInt(1);
             builder.appendInt(2);
             builder.appendInt(3);
@@ -756,10 +748,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(LONG));
-        try (
-            LongBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newLongBlockBuilder(10)
-        ) {
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(10)) {
             builder.appendLong(1);
             builder.appendLong(2);
             builder.appendLong(3);
@@ -784,10 +773,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         Column c = request.tables().get("a").get("c");
         assertThat(c.type(), equalTo(DOUBLE));
-        try (
-            DoubleBlock.Builder builder = new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                .newDoubleBlockBuilder(10)
-        ) {
+        try (DoubleBlock.Builder builder = blockFactory().newDoubleBlockBuilder(10)) {
             builder.appendDouble(1.1);
             builder.appendDouble(2);
             builder.appendDouble(3.1415);
@@ -991,5 +977,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
             new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 10)),
             new RangeQueryBuilder(randomAlphaOfLength(5)).gt(randomIntBetween(0, 1000))
         );
+    }
+
+    private BlockFactory blockFactory() {
+        return BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build();
     }
 }

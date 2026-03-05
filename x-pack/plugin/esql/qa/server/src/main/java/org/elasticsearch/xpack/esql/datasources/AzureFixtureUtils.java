@@ -18,17 +18,6 @@ import com.azure.storage.common.StorageSharedKeyCredential;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.HashSet;
-import java.util.Set;
-
 /**
  * Shared utilities for Azure fixture-based integration tests.
  * Provides fixture infrastructure for testing ESQL external data sources with Azure Blob Storage.
@@ -84,50 +73,23 @@ public final class AzureFixtureUtils {
 
     /**
      * Load test fixtures from the classpath resources into the Azure fixture.
+     * Supports both filesystem paths and JAR-packaged resources.
      *
      * @param fixtureAddress the fixture address (e.g. "http://localhost:port/account")
      */
     public static void loadFixturesFromResources(String fixtureAddress) {
         try {
-            var resourceUrl = AzureFixtureUtils.class.getResource(FIXTURES_RESOURCE_PATH);
-            assert resourceUrl != null : "Fixtures resource path not found: " + FIXTURES_RESOURCE_PATH;
-            assert resourceUrl.getProtocol().equals("file") : "Fixtures resource path must be a file: " + resourceUrl;
-
-            Path fixturesPath = Paths.get(resourceUrl.toURI());
-            loadFixturesFromPath(fixtureAddress, fixturesPath);
+            int[] count = { 0 };
+            S3FixtureUtils.forEachFixtureEntry(AzureFixtureUtils.class, (relativePath, content) -> {
+                String key = S3FixtureUtils.WAREHOUSE + "/" + relativePath;
+                addBlobToFixture(fixtureAddress, key, content);
+                count[0]++;
+            });
+            logger.info("Loaded {} fixture files into Azure fixture", count[0]);
         } catch (Exception e) {
             logger.error("Failed to load fixtures from resources", e);
             throw new RuntimeException(e);
         }
-    }
-
-    private static void loadFixturesFromPath(String fixtureAddress, Path fixturesPath) throws IOException, URISyntaxException {
-        if (Files.exists(fixturesPath) == false) {
-            logger.warn("Fixtures path does not exist: {}", fixturesPath);
-            return;
-        }
-
-        BlobServiceClient blobServiceClient = createBlobServiceClient(fixtureAddress);
-        BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient(CONTAINER);
-
-        Set<String> loadedFiles = new HashSet<>();
-
-        Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                String relativePath = fixturesPath.relativize(file).toString();
-                String blobName = S3FixtureUtils.WAREHOUSE + "/" + relativePath;
-
-                byte[] content = Files.readAllBytes(file);
-                BlobClient blobClient = containerClient.getBlobClient(blobName);
-                blobClient.upload(new java.io.ByteArrayInputStream(content), content.length, true);
-
-                loadedFiles.add(blobName);
-                return FileVisitResult.CONTINUE;
-            }
-        });
-
-        logger.info("Loaded {} fixture files into Azure fixture", loadedFiles.size());
     }
 
     /**

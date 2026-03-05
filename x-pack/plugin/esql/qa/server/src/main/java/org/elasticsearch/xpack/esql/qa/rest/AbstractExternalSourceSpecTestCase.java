@@ -33,14 +33,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
@@ -95,13 +92,17 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         AZURE
     }
 
-    private static final List<StorageBackend> BACKENDS = List.of(
-        StorageBackend.S3,
-        StorageBackend.HTTP,
-        StorageBackend.LOCAL,
-        StorageBackend.GCS,
-        StorageBackend.AZURE
-    );
+    private static final List<StorageBackend> BACKENDS;
+
+    static {
+        List<StorageBackend> backends = new ArrayList<>(
+            List.of(StorageBackend.S3, StorageBackend.HTTP, StorageBackend.GCS, StorageBackend.AZURE)
+        );
+        if (S3FixtureUtils.resolveLocalFixturesPath(AbstractExternalSourceSpecTestCase.class) != null) {
+            backends.add(StorageBackend.LOCAL);
+        }
+        BACKENDS = List.copyOf(backends);
+    }
 
     /**
      * Load csv-spec files matching the given patterns and cross-product each test with all storage backends.
@@ -208,30 +209,14 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             byte[] serviceAccountBytes = TestUtils.createServiceAccount(random());
             gcsServiceAccountJson = new String(serviceAccountBytes, StandardCharsets.UTF_8);
 
-            URL resourceUrl = AbstractExternalSourceSpecTestCase.class.getResource("/iceberg-fixtures");
-            assertTrue(resourceUrl != null && "file".equals(resourceUrl.getProtocol()));
-
-            Path fixturesPath = Paths.get(resourceUrl.toURI());
-            assertTrue(Files.exists(fixturesPath));
-
-            Set<String> loadedFiles = new HashSet<>();
-            Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    String name = file.getFileName().toString();
-                    if (COMPRESSION_SUFFIXES.stream().anyMatch(name::endsWith)) {
-                        return FileVisitResult.CONTINUE;
-                    }
-                    String relativePath = fixturesPath.relativize(file).toString();
-                    String key = WAREHOUSE + "/" + relativePath;
-                    byte[] content = Files.readAllBytes(file);
-                    gcsFixture.getHandler().putBlob(key, new BytesArray(content));
-                    loadedFiles.add(key);
-                    return FileVisitResult.CONTINUE;
-                }
+            int[] count = { 0 };
+            S3FixtureUtils.forEachFixtureEntry(AbstractExternalSourceSpecTestCase.class, (relativePath, content) -> {
+                String key = WAREHOUSE + "/" + relativePath;
+                gcsFixture.getHandler().putBlob(key, new BytesArray(content));
+                count[0]++;
             });
 
-            logger.info("Loaded {} fixture files into GCS fixture", loadedFiles.size());
+            logger.info("Loaded {} fixture files into GCS fixture", count[0]);
         } catch (Exception e) {
             logger.error("Failed to load GCS fixtures", e);
         }
@@ -244,36 +229,25 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      */
     private static void generateCompressedFixtures() {
         try {
-            URL resourceUrl = AbstractExternalSourceSpecTestCase.class.getResource("/iceberg-fixtures");
-            assertTrue(resourceUrl != null && "file".equals(resourceUrl.getProtocol()));
-            Path fixturesPath = Paths.get(resourceUrl.toURI());
-            assertTrue(Files.exists(fixturesPath));
-
             int[] generated = { 0 };
-            Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    String name = file.getFileName().toString();
-                    if (name.endsWith(".csv") == false && name.endsWith(".ndjson") == false) {
-                        return FileVisitResult.CONTINUE;
-                    }
-                    byte[] content = Files.readAllBytes(file);
-                    String relativeDir = fixturesPath.relativize(file.getParent()).toString();
+            S3FixtureUtils.forEachFixtureEntry(AbstractExternalSourceSpecTestCase.class, (relativePath, content) -> {
+                String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
+                if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false) {
+                    return;
+                }
+                String relativeDir = relativePath.contains("/") ? relativePath.substring(0, relativePath.lastIndexOf('/')) : "";
 
-                    for (String suffix : COMPRESSION_SUFFIXES) {
-                        byte[] compressed = compress(content, suffix);
-                        String compressedName = name + suffix;
-                        String key = WAREHOUSE + "/" + (relativeDir.isEmpty() ? compressedName : relativeDir + "/" + compressedName);
+                for (String suffix : COMPRESSION_SUFFIXES) {
+                    byte[] compressed = compress(content, suffix);
+                    String compressedName = fileName + suffix;
+                    String key = WAREHOUSE + "/" + (relativeDir.isEmpty() ? compressedName : relativeDir + "/" + compressedName);
 
-                        addBlobToFixture(key, compressed);
-                        gcsFixture.getHandler().putBlob(key, new BytesArray(compressed));
-                        AzureFixtureUtils.addBlobToFixture(azureFixture.getAddress(), key, compressed);
-                        generated[0]++;
-                    }
-                    return FileVisitResult.CONTINUE;
+                    addBlobToFixture(key, compressed);
+                    gcsFixture.getHandler().putBlob(key, new BytesArray(compressed));
+                    AzureFixtureUtils.addBlobToFixture(azureFixture.getAddress(), key, compressed);
+                    generated[0]++;
                 }
             });
-            // Not all modules will need .csv/.ndjson in iceberg-fixtures.
             logger.info("Generated {} compressed fixture variants", generated[0]);
         } catch (Exception e) {
             logger.error("Failed to generate compressed fixtures", e);
@@ -310,19 +284,23 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * Resolve and cache the local path to the fixtures directory.
      * Writes generated compressed variants (.gz, .zst, .zstd, .bz2, .bz) alongside the
      * source fixtures so the LOCAL storage backend can access them from the same path.
+     * When fixtures are packaged in a JAR, the local path is unavailable and LOCAL backend
+     * tests will be skipped.
      */
     private static void resolveLocalFixturesPath() {
-        try {
-            URL resourceUrl = AbstractExternalSourceSpecTestCase.class.getResource("/iceberg-fixtures");
-            assertTrue(resourceUrl != null && "file".equals(resourceUrl.getProtocol()));
-            Path fixturesPath = Paths.get(resourceUrl.toURI());
-            assertTrue(Files.exists(fixturesPath));
-            writeCompressedVariantsToFixturesPath(fixturesPath);
-            localFixturesPath = fixturesPath;
-            logger.info("Local fixtures path: {}", localFixturesPath);
-        } catch (Exception e) {
-            logger.warn("Failed to resolve local fixtures path", e);
-            throw new RuntimeException(e);
+        Path fixturesPath = S3FixtureUtils.resolveLocalFixturesPath(AbstractExternalSourceSpecTestCase.class);
+        if (fixturesPath != null) {
+            try {
+                writeCompressedVariantsToFixturesPath(fixturesPath);
+                localFixturesPath = fixturesPath;
+                logger.info("Local fixtures path: {}", localFixturesPath);
+            } catch (Exception e) {
+                logger.warn("Failed to resolve local fixtures path", e);
+                throw new RuntimeException(e);
+            }
+        } else {
+            logger.info("Fixtures are inside a JAR; LOCAL storage backend will not be available");
+            localFixturesPath = null;
         }
     }
 

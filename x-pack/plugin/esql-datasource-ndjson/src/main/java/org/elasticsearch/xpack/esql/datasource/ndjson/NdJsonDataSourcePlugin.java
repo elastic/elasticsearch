@@ -31,7 +31,7 @@ public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Set<String> supportedExtensions() {
-        return Set.of(".ndjson", ".jsonl");
+        return Set.of(".ndjson", ".jsonl", ".json");
     }
 
     @Override

@@ -709,15 +709,16 @@ SET unmapped_fields="load"\;
 FROM sample_data, no_mapping_sample_data METADATA _index
 | KEEP _index, message
 | WHERE STARTS_WITH(message, "Connection error")
+| SORT _index
 ;
 
 _index:keyword         | message:keyword
-sample_data            | Connection error
-sample_data            | Connection error
-sample_data            | Connection error
 no_mapping_sample_data | Connection error?
 no_mapping_sample_data | Connection error?
 no_mapping_sample_data | Connection error?
+sample_data            | Connection error
+sample_data            | Connection error
+sample_data            | Connection error
 ;
 
 sortOnPartiallyUnmappedField

@@ -1,5 +1,6 @@
-area: "ES|QL, ES|QL"
-issues: []
+area: ES|QL
+issues:
+  - 136281
 pr: 143704
-summary: Window that is not an exact multiple of the bucket
+summary: Support of a window that is not an exact multiple of the bucket
 type: enhancement

@@ -140,28 +140,46 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public long findNextRecordBoundary(InputStream stream) throws IOException {
         long consumed = 0;
         boolean inQuotes = false;
-        int b;
-        while ((b = stream.read()) != -1) {
-            consumed++;
-            if (b == '"') {
-                if (inQuotes) {
-                    int next = stream.read();
-                    if (next == -1) {
-                        return -1;
-                    }
-                    consumed++;
-                    if (next == '"') {
+        byte[] buf = new byte[8192];
+        int bytesRead;
+        while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
+            for (int i = 0; i < bytesRead; i++) {
+                consumed++;
+                byte b = buf[i];
+                if (b == '"') {
+                    if (inQuotes) {
+                        if (i + 1 < bytesRead) {
+                            if (buf[i + 1] == '"') {
+                                i++;
+                                consumed++;
+                                continue;
+                            }
+                            inQuotes = false;
+                            if (buf[i + 1] == '\n') {
+                                consumed++;
+                                return consumed;
+                            }
+                            continue;
+                        }
+                        int next = stream.read();
+                        if (next == -1) {
+                            return -1;
+                        }
+                        consumed++;
+                        if (next == '"') {
+                            continue;
+                        }
+                        inQuotes = false;
+                        if (next == '\n') {
+                            return consumed;
+                        }
                         continue;
+                    } else {
+                        inQuotes = true;
                     }
-                    inQuotes = false;
-                    if (next == '\n') {
-                        return consumed;
-                    }
-                } else {
-                    inQuotes = true;
+                } else if (b == '\n' && inQuotes == false) {
+                    return consumed;
                 }
-            } else if (b == '\n' && inQuotes == false) {
-                return consumed;
             }
         }
         return -1;

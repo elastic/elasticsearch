@@ -81,19 +81,26 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     @Override
     public long findNextRecordBoundary(InputStream stream) throws IOException {
         long consumed = 0;
-        int b;
-        while ((b = stream.read()) != -1) {
-            consumed++;
-            if (b == '\n') {
-                return consumed;
-            }
-            if (b == '\r') {
-                int next = stream.read();
-                if (next == -1) {
+        byte[] buf = new byte[8192];
+        int bytesRead;
+        while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
+            for (int i = 0; i < bytesRead; i++) {
+                consumed++;
+                if (buf[i] == '\n') {
                     return consumed;
                 }
-                consumed++;
-                if (next == '\n') {
+                if (buf[i] == '\r') {
+                    if (i + 1 < bytesRead) {
+                        if (buf[i + 1] == '\n') {
+                            i++;
+                            consumed++;
+                        }
+                    } else {
+                        int next = stream.read();
+                        if (next == '\n') {
+                            consumed++;
+                        }
+                    }
                     return consumed;
                 }
             }

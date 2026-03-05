@@ -137,11 +137,14 @@ public class ParallelParsingBenchmark {
         @Override
         public long findNextRecordBoundary(InputStream stream) throws IOException {
             long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
+            byte[] buf = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = stream.read(buf, 0, buf.length)) > 0) {
+                for (int i = 0; i < bytesRead; i++) {
+                    consumed++;
+                    if (buf[i] == '\n') {
+                        return consumed;
+                    }
                 }
             }
             return -1;
@@ -172,7 +175,10 @@ public class ParallelParsingBenchmark {
             List<Attribute> resolvedAttributes
         ) throws IOException {
             InputStream stream = object.newStream();
-            java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(stream, StandardCharsets.UTF_8));
+            java.io.BufferedReader br = new java.io.BufferedReader(
+                new java.io.InputStreamReader(stream, StandardCharsets.UTF_8),
+                64 * 1024
+            );
             if (skipFirstLine) {
                 br.readLine();
             }
@@ -225,8 +231,12 @@ public class ParallelParsingBenchmark {
                         return null;
                     }
                     try (var builder = BLOCK_FACTORY.newBytesRefBlockBuilder(buffer.size())) {
+                        BytesRef scratch = new BytesRef();
                         for (String s : buffer) {
-                            builder.appendBytesRef(new BytesRef(s));
+                            scratch.bytes = s.getBytes(StandardCharsets.UTF_8);
+                            scratch.offset = 0;
+                            scratch.length = scratch.bytes.length;
+                            builder.appendBytesRef(scratch);
                         }
                         Block block = builder.build();
                         return new Page(buffer.size(), block);

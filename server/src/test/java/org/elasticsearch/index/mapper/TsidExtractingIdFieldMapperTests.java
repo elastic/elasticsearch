@@ -991,17 +991,13 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
         } else {
             builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "r1,r2,o.r3");
         }
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
+        if (version.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT)) {
             builder.put(IndexSettings.SYNTHETIC_ID.getKey(), syntheticId);
         }
         return builder.build();
     }
 
     private MapperService mapperService(boolean indexDimensions, boolean syntheticId, IndexVersion version) throws IOException {
-        if (syntheticId) {
-            assumeTrue("Only run with syntheticId if feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-        }
-
         return createMapperService(version, indexSettings(version, indexDimensions, syntheticId), mapping(b -> {
             b.startObject("r1").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.startObject("r2").field("type", "keyword").field("time_series_dimension", true).endObject();
@@ -1045,7 +1041,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     protected void registerParameters(ParameterChecker checker) throws IOException {}
 
     public void testSourceDescriptionWithRoutingPath() throws IOException {
-        IndexVersion minimalVersion = useSyntheticId ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94 : IndexVersions.TIME_SERIES_ID_HASHING;
+        IndexVersion minimalVersion = useSyntheticId ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT : IndexVersions.TIME_SERIES_ID_HASHING;
         IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(minimalVersion);
         assertThat(
             TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, false)),
@@ -1071,7 +1067,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     }
 
     public void testSourceDescriptionWithIndexDimensions() throws IOException {
-        IndexVersion minimalVersion = useSyntheticId ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94 : IndexVersions.TIME_SERIES_ID_HASHING;
+        IndexVersion minimalVersion = useSyntheticId ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT : IndexVersions.TIME_SERIES_ID_HASHING;
         IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(minimalVersion);
         assertThat(
             TsidExtractingIdFieldMapper.INSTANCE.documentDescription(documentParserContext(version, true)),
@@ -1118,7 +1114,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testParsedDescriptionWithRoutingPath() throws IOException {
         IndexVersion minimumVersion = useSyntheticId
-            ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94
+            ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT
             : IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID;
         IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(minimumVersion);
         assertThat(
@@ -1140,7 +1136,7 @@ public class TsidExtractingIdFieldMapperTests extends MetadataMapperTestCase {
     public void testParsedDescriptionWithIndexDimensions() throws IOException {
         // not using a random source here as the index.dimensions id is sensitive to how ips are represented (e.g. equivalent ipv4 vs ipv6)
         IndexVersion minimumVersion = useSyntheticId
-            ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94
+            ? IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT
             : IndexVersions.TSID_CREATED_DURING_ROUTING;
         IndexVersion version = IndexVersionUtils.randomVersionOnOrAfter(minimumVersion);
         assertThat(

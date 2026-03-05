@@ -1,0 +1,5 @@
+area: Reindex
+issues: []
+pr: 143465
+summary: Disable OCC in update/delete-by-query for seq_no-less indices
+type: enhancement

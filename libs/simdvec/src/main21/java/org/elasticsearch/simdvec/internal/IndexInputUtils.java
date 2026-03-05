@@ -15,7 +15,9 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.DirectAccessInput;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.function.IntFunction;
 
 /**
@@ -74,6 +76,7 @@ public final class IndexInputUtils {
             @SuppressWarnings("unchecked")
             R[] result = (R[]) new Object[1];
             boolean available = dai.withByteBufferSlice(offset, length, bb -> {
+                assert bb.isDirect();
                 in.skipBytes(length);
                 result[0] = action.apply(MemorySegment.ofBuffer(bb));
             });
@@ -81,7 +84,7 @@ public final class IndexInputUtils {
                 return result[0];
             }
         }
-        return action.apply(copyOnHeap(in, Math.toIntExact(length), scratchSupplier));
+        return copyAndApply(in, Math.toIntExact(length), scratchSupplier, action);
     }
 
     /**
@@ -100,15 +103,29 @@ public final class IndexInputUtils {
         }
     }
 
+    private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
+
     /**
-     * Reads the given number of bytes from the current position of the
-     * given IndexInput into a heap-backed memory segment. The returned
-     * segment is sliced to exactly {@code bytesToRead} bytes, even if
-     * the underlying array is larger.
+     * Reads bytes from the index input and applies the action to a memory
+     * segment containing the data. On Java 22+ a heap-backed segment is
+     * used directly. On Java 21, where heap segments cannot be passed to
+     * native downcalls, the data is copied into a confined arena.
      */
-    private static MemorySegment copyOnHeap(IndexInput in, int bytesToRead, IntFunction<byte[]> scratchSupplier) throws IOException {
+    private static <R> R copyAndApply(
+        IndexInput in,
+        int bytesToRead,
+        IntFunction<byte[]> scratchSupplier,
+        CheckedFunction<MemorySegment, R, IOException> action
+    ) throws IOException {
         byte[] buf = scratchSupplier.apply(bytesToRead);
         in.readBytes(buf, 0, bytesToRead);
-        return MemorySegment.ofArray(buf).asSlice(0, bytesToRead);
+        if (SUPPORTS_HEAP_SEGMENTS) {
+            return action.apply(MemorySegment.ofArray(buf).asSlice(0, bytesToRead));
+        }
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment nativeSegment = arena.allocate(bytesToRead);
+            MemorySegment.copy(buf, 0, nativeSegment, ValueLayout.JAVA_BYTE, 0, bytesToRead);
+            return action.apply(nativeSegment);
+        }
     }
 }

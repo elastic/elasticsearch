@@ -334,7 +334,7 @@ public class FireworksAiService extends SenderService<FireworksAiModel> {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The model ID to use for FireworksAI requests.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The model ID to use for Fireworks AI requests.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -361,7 +361,7 @@ public class FireworksAiService extends SenderService<FireworksAiModel> {
                 configurationMap.put(
                     URL,
                     new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The URL of the FireworksAI endpoint. Useful for on-demand deployments."
+                        "The URL of the Fireworks AI endpoint. Useful for on-demand deployments."
                     )
                         .setLabel("URL")
                         .setRequired(false)

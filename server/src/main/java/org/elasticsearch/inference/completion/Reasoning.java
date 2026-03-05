@@ -9,10 +9,12 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -102,10 +104,13 @@ public record Reasoning(
      */
     private void validate() {
         if ((effort == null && maxTokens == null) && Boolean.TRUE.equals(enable) == false) {
-            throw new IllegalArgumentException("Either [effort] or [max_tokens] must not be null, or [enable] must be true.");
+            throw new ElasticsearchStatusException(
+                "Either [effort] or [max_tokens] must not be null, or [enable] must be true.",
+                RestStatus.BAD_REQUEST
+            );
         }
         if (effort != null && maxTokens != null) {
-            throw new IllegalArgumentException("[effort] and [max_tokens] cannot be specified together.");
+            throw new ElasticsearchStatusException("[effort] and [max_tokens] cannot be specified together.", RestStatus.BAD_REQUEST);
         }
     }
 

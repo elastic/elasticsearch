@@ -104,7 +104,7 @@ public record Message(
         out.writeOptionalCollection(toolCalls);
         if (out.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)) {
             out.writeOptionalString(reasoning);
-            out.writeOptionalCollection(reasoningDetails);
+            out.writeOptionalNamedWriteableCollection(reasoningDetails);
         }
     }
 

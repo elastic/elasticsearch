@@ -9,6 +9,7 @@
 
 package org.elasticsearch.inference.completion;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -253,6 +255,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             return Iterators.concat(
                 ChunkedToXContentHelper.startObject(),
+                chunk((b, p) -> b.field(TYPE_FIELD, ReasoningDetailType.ENCRYPTED.value)),
                 super.toXContentChunked(params),
                 chunk((b, p) -> b.field(DATA_FIELD, data)),
                 ChunkedToXContentHelper.endObject()
@@ -309,6 +312,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         public Iterator<? extends ToXContent> toXContentChunked(Params params) {
             return Iterators.concat(
                 ChunkedToXContentHelper.startObject(),
+                chunk((b, p) -> b.field(TYPE_FIELD, ReasoningDetailType.SUMMARY.value)),
                 super.toXContentChunked(params),
                 chunk((b, p) -> b.field(SUMMARY_FIELD, summary)),
                 ChunkedToXContentHelper.endObject()
@@ -369,8 +373,9 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
          */
         private void validate() {
             if (text == null && signature == null) {
-                throw new IllegalArgumentException(
-                    "At least one of [text, signature] must be provided for reasoning details of type [reasoning.text]"
+                throw new ElasticsearchStatusException(
+                    "At least one of [text, signature] must be provided for reasoning details of type [reasoning.text]",
+                    RestStatus.BAD_REQUEST
                 );
             }
         }
@@ -391,6 +396,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field(TYPE_FIELD, ReasoningDetailType.TEXT.value);
             super.toXContent(builder, params);
             if (text != null) {
                 builder.field(TEXT_FIELD, text);
@@ -406,6 +412,7 @@ public abstract sealed class ReasoningDetail implements ToXContentObject, Chunke
         public Iterator<? extends ToXContent> toXContentChunked(Params params) {
             return Iterators.concat(
                 ChunkedToXContentHelper.startObject(),
+                chunk((b, p) -> b.field(TYPE_FIELD, ReasoningDetailType.TEXT.value)),
                 super.toXContentChunked(params),
                 optionalField(TEXT_FIELD, text),
                 optionalField(SIGNATURE_FIELD, signature),

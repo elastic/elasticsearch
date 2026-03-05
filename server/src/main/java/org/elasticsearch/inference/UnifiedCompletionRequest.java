@@ -183,17 +183,17 @@ public record UnifiedCompletionRequest(
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new),
             new NamedWriteableRegistry.Entry(Reasoning.class, Reasoning.NAME, Reasoning::new),
             new NamedWriteableRegistry.Entry(
-                ReasoningDetail.EncryptedReasoningDetail.class,
+                ReasoningDetail.class,
                 ReasoningDetail.EncryptedReasoningDetail.NAME,
                 ReasoningDetail.EncryptedReasoningDetail::new
             ),
             new NamedWriteableRegistry.Entry(
-                ReasoningDetail.SummaryReasoningDetail.class,
+                ReasoningDetail.class,
                 ReasoningDetail.SummaryReasoningDetail.NAME,
                 ReasoningDetail.SummaryReasoningDetail::new
             ),
             new NamedWriteableRegistry.Entry(
-                ReasoningDetail.TextReasoningDetail.class,
+                ReasoningDetail.class,
                 ReasoningDetail.TextReasoningDetail.NAME,
                 ReasoningDetail.TextReasoningDetail::new
             )

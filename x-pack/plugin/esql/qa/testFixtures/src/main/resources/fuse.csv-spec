@@ -877,8 +877,8 @@ required_capability: fix_agg_on_null_by_replacing_with_eval
 
 FROM employees METADATA _id, _index, _score
 | EVAL x = null
-| FORK ( WHERE emp_no:10001 )
-       ( WHERE emp_no:10002 )
+| FORK ( WHERE emp_no:10001 | LIMIT 10 )
+       ( WHERE emp_no:10002 | LIMIT 10 )
 | FUSE
 | KEEP x
 ;

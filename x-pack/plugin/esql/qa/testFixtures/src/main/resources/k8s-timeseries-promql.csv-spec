@@ -20,6 +20,21 @@ sum(avg_over_time(network.cost[5m])):double | step:date
 50.25                                       | 2024-05-10T00:20:00.000Z
 ;
 
+auto_step_buckets
+required_capability: promql_command_v0
+required_capability: promql_buckets_parameter
+PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" buckets=4 1
+| KEEP step
+| SORT step;
+
+step:datetime
+2024-05-10T00:00:00.000Z
+2024-05-10T00:05:00.000Z
+2024-05-10T00:10:00.000Z
+2024-05-10T00:15:00.000Z
+2024-05-10T00:20:00.000Z
+;
+
 not_equals_filter
 required_capability: promql_command_v0
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))
@@ -358,6 +373,24 @@ result:double | step:datetime
 1.4436354751788103 | 2024-05-10T00:00:00.000Z
 ;
 
+atanh_scalar
+required_capability: promql_command_v0
+required_capability: atanh_function
+PROMQL index=k8s step=1h result=(atanh(vector(0)));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+atanh_scalar_2
+required_capability: promql_command_v0
+required_capability: atanh_function
+PROMQL index=k8s step=1h result=(atanh(vector(0.5)));
+
+result:double | step:datetime
+0.5493061443340548 | 2024-05-10T00:00:00.000Z
+;
+
 sinh_scalar
 required_capability: promql_command_v0
 PROMQL index=k8s step=1h result=(sinh(vector(0)));
@@ -523,6 +556,29 @@ result:double          | step:datetime            | cluster:keyword | pod:keywor
 0.0                    | 2024-05-10T00:00:00.000Z | prod             | one
 ;
 
+post_processing_stats_global
+required_capability: promql_command_v0
+required_capability: promql_post_processing_stats
+PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+| STATS max_bytes=MAX(bytes);
+
+max_bytes:double
+972.0
+;
+
+post_processing_stats_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_post_processing_stats
+PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+| STATS max_bytes=MAX(bytes) BY cluster
+| SORT cluster;
+
+max_bytes:double | cluster:keyword
+931.0            | prod
+972.0            | qa
+238.0            | staging
+;
+
 // used as a reference for comparison filtering tests
 max_bytes_per_cluster
 required_capability: promql_command_v0
@@ -631,3 +687,121 @@ PROMQL index=k8s step=1h result=(rate(unmapped.metric[1h])) | SORT result;
 
 result:double | step:datetime | _timeseries:keyword
 ;
+
+scalar_single_element
+required_capability: promql_command_v0
+required_capability: promql_scalar
+PROMQL index=k8s step=1h result=(scalar(vector(42)));
+
+result:double | step:datetime
+42.0          | 2024-05-10T00:00:00.000Z
+;
+
+scalar_with_pi
+required_capability: promql_command_v0
+required_capability: promql_scalar
+PROMQL index=k8s step=1h result=(scalar(vector(pi())));
+
+result:double         | step:datetime
+3.141592653589793     | 2024-05-10T00:00:00.000Z
+;
+
+scalar_sum_global
+required_capability: promql_command_v0
+required_capability: promql_scalar
+PROMQL index=k8s step=1h result=(scalar(sum(network.bytes_in)));
+
+result:double | step:datetime
+4852.0        | 2024-05-10T00:00:00.000Z
+;
+
+scalar_sum_by_cluster_nan
+required_capability: promql_command_v0
+required_capability: promql_scalar
+// produces 3 results, scalar returns NaN
+PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)));
+
+result:double | step:datetime
+NaN           | 2024-05-10T00:00:00.000Z
+;
+
+scalar_sum_by_cluster_counter_nan
+required_capability: promql_command_v0
+required_capability: promql_scalar
+// counter field produces 3 results, scalar returns NaN
+PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in)));
+
+result:double | step:datetime
+NaN           | 2024-05-10T00:00:00.000Z
+;
+
+scalar_sum_by_cluster_counter_one
+required_capability: promql_command_v0
+required_capability: promql_scalar
+// counter field produces exactly 1 result
+PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.total_bytes_in{cluster="prod"})));
+
+result:double | step:datetime
+21193.0      | 2024-05-10T00:00:00.000Z
+;
+
+scalar_sum_by_cluster_one
+required_capability: promql_command_v0
+required_capability: promql_scalar
+// produces exactly 1 result
+PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in{cluster="prod"})));
+
+result:double | step:datetime
+2517.0        | 2024-05-10T00:00:00.000Z
+;
+
+scalar_raw_metric_nan
+required_capability: promql_command_v0
+required_capability: promql_scalar
+// raw instant vector has multiple time series, scalar returns NaN
+PROMQL index=k8s step=1h result=(scalar(network.cost));
+
+result:double | step:datetime
+NaN           | 2024-05-10T00:00:00.000Z
+;
+
+scalar_nested_avg_avg_over_time
+required_capability: promql_command_v0
+required_capability: promql_scalar
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(scalar(avg(avg_over_time(network.cost[1h]))));
+
+result:double          | step:datetime
+6.2580600391577725     | 2024-05-10T00:00:00.000Z
+;
+
+scalar_nested_four_levels
+required_capability: promql_command_v0
+required_capability: promql_scalar
+required_capability: promql_nested_aggregates
+PROMQL index=k8s step=1h result=(scalar(max(avg by (cluster) (sum by (cluster, pod) (avg_over_time(network.cost[1h]))))));
+
+result:double    | step:datetime
+6.92301245210728 | 2024-05-10T00:00:00.000Z
+;
+
+scalar_nested_count_sum_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_scalar
+required_capability: promql_nested_aggregates
+// count of 3 grouped sums produces 1 result, scalar returns it
+PROMQL index=k8s step=1h result=(scalar(count(sum by (cluster) (network.cost))));
+
+result:double | step:datetime
+3.0           | 2024-05-10T00:00:00.000Z
+;
+
+scalar_in_binary_arithmetic
+required_capability: promql_command_v0
+required_capability: promql_scalar
+PROMQL index=k8s step=1h result=(scalar(sum(network.cost)) + 1);
+
+result:double | step:datetime
+62.0          | 2024-05-10T00:00:00.000Z
+;
+

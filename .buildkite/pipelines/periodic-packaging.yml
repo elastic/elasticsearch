@@ -13,16 +13,19 @@ steps:
               - opensuse-leap-15
               - oraclelinux-8
               - oraclelinux-9
+              - oraclelinux-10
               - sles-15
               - ubuntu-2204
               - ubuntu-2404
               - rocky-8
               - rocky-9
+              - rocky-10
               - rhel-8
               - rhel-9
               - rhel-10
               - almalinux-8
               - almalinux-9
+              - almalinux-10
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
@@ -336,8 +339,8 @@ steps:
         env:
           BWC_VERSION: 8.18.8
 
-      - label: "{{matrix.image}} / 8.19.12 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.12
+      - label: "{{matrix.image}} / 8.19.13 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.19.13
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -350,7 +353,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 8.19.12
+          BWC_VERSION: 8.19.13
 
       - label: "{{matrix.image}} / 9.0.8 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.0.8
@@ -384,8 +387,8 @@ steps:
         env:
           BWC_VERSION: 9.1.9
 
-      - label: "{{matrix.image}} / 9.2.6 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.2.6
+      - label: "{{matrix.image}} / 9.2.7 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.2.7
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -398,10 +401,10 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 9.2.6
+          BWC_VERSION: 9.2.7
 
-      - label: "{{matrix.image}} / 9.3.1 / packaging-tests-upgrade"
-        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.3.1
+      - label: "{{matrix.image}} / 9.3.2 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.3.2
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -414,7 +417,7 @@ steps:
           machineType: custom-16-32768
           buildDirectory: /dev/shm/bk
         env:
-          BWC_VERSION: 9.3.1
+          BWC_VERSION: 9.3.2
 
       - label: "{{matrix.image}} / 9.4.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v9.4.0

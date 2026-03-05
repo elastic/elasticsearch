@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
@@ -187,6 +189,7 @@ public class ExpressionWritables {
         entries.add(Asinh.ENTRY);
         entries.add(Asin.ENTRY);
         entries.add(Atan.ENTRY);
+        entries.add(Atanh.ENTRY);
         entries.add(ByteLength.ENTRY);
         entries.add(Cbrt.ENTRY);
         entries.add(Ceil.ENTRY);
@@ -228,6 +231,7 @@ public class ExpressionWritables {
         entries.add(ToCartesianPoint.ENTRY);
         entries.add(ToDatetime.ENTRY);
         entries.add(ToDateNanos.ENTRY);
+        entries.add(ToDateRange.ENTRY);
         entries.add(ToDegrees.ENTRY);
         entries.add(ToDenseVector.ENTRY);
         entries.add(ToDouble.ENTRY);

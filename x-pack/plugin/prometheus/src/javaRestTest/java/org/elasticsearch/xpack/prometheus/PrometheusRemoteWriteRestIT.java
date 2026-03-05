@@ -67,6 +67,12 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         sendAndAssertSuccess(writeRequest);
     }
 
+    public void testRemoteWriteEndpointWithEmptyBody() throws Exception {
+        sendEmptyBodyAndAssertSuccess("/_prometheus/api/v1/write");
+        sendEmptyBodyAndAssertSuccess("/_prometheus/myapp/api/v1/write");
+        sendEmptyBodyAndAssertSuccess("/_prometheus/myapp/production/api/v1/write");
+    }
+
     public void testRemoteWriteIndexesGaugeMetric() throws Exception {
         long timestamp = System.currentTimeMillis();
         String metricName = "test_gauge_metric";
@@ -225,6 +231,12 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         return EntityUtils.toString(e.getResponse().getEntity());
+    }
+
+    private void sendEmptyBodyAndAssertSuccess(String endpoint) throws IOException {
+        Request request = new Request("POST", endpoint);
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(204));
     }
 
     /**

@@ -47,14 +47,14 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
-import org.elasticsearch.compute.lucene.LuceneOperator;
-import org.elasticsearch.compute.lucene.LuceneSliceQueue;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -65,6 +65,7 @@ import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -175,7 +176,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 )
             ),
             randomBoolean(),
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true)
         );
     }
 
@@ -518,7 +520,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 )
             ),
             reuseColumnLoaders,
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true)
         ).get(driverContext);
         List<Page> results = new TestDriverRunner().numThreads(1).builder(driverContext).input(input).run(load);
         assertThat(results, hasSize(input.size()));
@@ -644,7 +647,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     )
                 ),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             ).get(driverContext)
         );
         List<FieldCase> tests = new ArrayList<>();
@@ -664,7 +668,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         )
                     ),
                     randomBoolean(),
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true)
                 ).get(driverContext)
             );
         }
@@ -810,7 +815,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             )
                         ),
                         reuseBlockLoaders,
-                        0
+                        0,
+                        randomDoubleBetween(0.1, 10.0, true)
                     ).get(runner.context())
                 )
                 .toList()
@@ -967,7 +973,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             )
                         ),
                         randomBoolean(),
-                        0
+                        0,
+                        randomDoubleBetween(0.1, 10.0, true)
                     ).get(runner.context())
                 )
                 .toList()
@@ -1544,7 +1551,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 })
             )
         ) {
-            new TestDriverRunner().run(driver);
+            /*
+             * We use a 3-minute timer because many of the cases can
+             * take 40 seconds in CI. Locally it's taking 9 seconds.
+             */
+            new TestDriverRunner().timeout(TimeValue.timeValueMinutes(3)).run(driver);
         }
         assertDriverContext(driverContext);
     }
@@ -1635,7 +1646,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                             )
                         ),
                         randomBoolean(),
-                        0
+                        0,
+                        randomDoubleBetween(0.1, 10.0, true)
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
@@ -1690,7 +1702,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                         )
                     ),
                     randomBoolean(),
-                    0
+                    0,
+                    randomDoubleBetween(0.1, 10.0, true)
                 )
             );
         Checks checks = new Checks(Block.MvOrdering.UNORDERED, Block.MvOrdering.UNORDERED);
@@ -1726,7 +1739,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 )
             ),
             randomBoolean(),
-            0
+            0,
+            randomDoubleBetween(0.1, 10.0, true)
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
         try (Operator op = factory.get(driverContext())) {
@@ -1779,7 +1793,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 })),
                 new IndexedByShardIdFromList<>(readerShardContexts),
                 randomBoolean(),
-                0
+                0,
+                randomDoubleBetween(0.1, 10.0, true)
             );
             var runner = new TestDriverRunner().builder(driverContext());
             List<Page> results = runner.input(luceneFactory).run(readerFactory);

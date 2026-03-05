@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.analytics.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
@@ -38,12 +39,23 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        AllReader encodedDigestReader = encodedDigestLoader.reader(context);
-        AllReader minimaReader = minimaLoader.reader(context);
-        AllReader maximaReader = maximaLoader.reader(context);
-        AllReader sumsReader = sumsLoader.reader(context);
-        AllReader valueCountsReader = valueCountsLoader.reader(context);
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        ColumnAtATimeReader encodedDigestReader = null;
+        ColumnAtATimeReader minimaReader = null;
+        ColumnAtATimeReader maximaReader = null;
+        ColumnAtATimeReader sumsReader = null;
+        ColumnAtATimeReader valueCountsReader = null;
+        try {
+            encodedDigestReader = encodedDigestLoader.reader(breaker, context);
+            minimaReader = minimaLoader.reader(breaker, context);
+            maximaReader = maximaLoader.reader(breaker, context);
+            sumsReader = sumsLoader.reader(breaker, context);
+            valueCountsReader = valueCountsLoader.reader(breaker, context);
+        } finally {
+            if (valueCountsReader == null) {
+                Releasables.close(encodedDigestReader, minimaReader, maximaReader, sumsReader, valueCountsReader);
+            }
+        }
 
         return new TDigestReader(encodedDigestReader, minimaReader, maximaReader, sumsReader, valueCountsReader);
     }
@@ -53,20 +65,20 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
         return factory.tdigestBlockBuilder(expectedCount);
     }
 
-    static class TDigestReader implements AllReader {
+    static class TDigestReader implements ColumnAtATimeReader {
 
-        private final AllReader encodedDigestReader;
-        private final AllReader minimaReader;
-        private final AllReader maximaReader;
-        private final AllReader sumsReader;
-        private final AllReader valueCountsReader;
+        private final ColumnAtATimeReader encodedDigestReader;
+        private final ColumnAtATimeReader minimaReader;
+        private final ColumnAtATimeReader maximaReader;
+        private final ColumnAtATimeReader sumsReader;
+        private final ColumnAtATimeReader valueCountsReader;
 
         TDigestReader(
-            AllReader encodedDigestReader,
-            AllReader minimaReader,
-            AllReader maximaReader,
-            AllReader sumsReader,
-            AllReader valueCountsReader
+            ColumnAtATimeReader encodedDigestReader,
+            ColumnAtATimeReader minimaReader,
+            ColumnAtATimeReader maximaReader,
+            ColumnAtATimeReader sumsReader,
+            ColumnAtATimeReader valueCountsReader
         ) {
             this.encodedDigestReader = encodedDigestReader;
             this.minimaReader = minimaReader;
@@ -111,18 +123,13 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
         }
 
         @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            TDigestBuilder histogramBuilder = (TDigestBuilder) builder;
-            minimaReader.read(docId, storedFields, histogramBuilder.minima());
-            maximaReader.read(docId, storedFields, histogramBuilder.maxima());
-            sumsReader.read(docId, storedFields, histogramBuilder.sums());
-            valueCountsReader.read(docId, storedFields, histogramBuilder.valueCounts());
-            encodedDigestReader.read(docId, storedFields, histogramBuilder.encodedDigests());
+        public String toString() {
+            return "BlockDocValuesReader.TDigest";
         }
 
         @Override
-        public String toString() {
-            return "BlockDocValuesReader.TDigest";
+        public void close() {
+            Releasables.close(encodedDigestReader, minimaReader, maximaReader, sumsReader, valueCountsReader);
         }
     }
 }

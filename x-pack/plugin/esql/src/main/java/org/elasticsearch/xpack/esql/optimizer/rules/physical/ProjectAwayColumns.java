@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -75,8 +77,10 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                 if (child instanceof FragmentExec fragmentExec) {
                     var logicalFragment = fragmentExec.fragment();
 
-                    // no need for projection when dealing with aggs
-                    if (logicalFragment instanceof Aggregate == false) {
+                    // No need for projection when dealing with aggs, MetricsInfo, or TsInfo.
+                    if (logicalFragment instanceof Aggregate == false
+                        && logicalFragment instanceof MetricsInfo == false
+                        && logicalFragment instanceof TsInfo == false) {
                         // we should respect the order of the attributes
                         List<Attribute> output = new ArrayList<>();
                         for (Attribute attribute : logicalFragment.output()) {

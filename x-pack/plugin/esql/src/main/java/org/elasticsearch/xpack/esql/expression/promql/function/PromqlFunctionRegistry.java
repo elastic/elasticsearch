@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
@@ -337,6 +339,12 @@ public class PromqlFunctionRegistry {
             "asinh(some_metric)"
         ),
         valueTransformationFunction(
+            "atanh",
+            Atanh::new,
+            "Calculates the inverse hyperbolic tangent of all elements in the input vector.",
+            "atanh(some_metric)"
+        ),
+        valueTransformationFunction(
             "sinh",
             Sinh::new,
             "Calculates the hyperbolic sine of all elements in the input vector.",
@@ -385,6 +393,11 @@ public class PromqlFunctionRegistry {
         ),
         //
         vector("Returns the scalar as a vector with no labels.", "vector(1)"),
+        scalar(
+            "Returns the sample value of a single-element instant vector as a scalar. "
+                + "If the input vector does not have exactly one element, scalar returns NaN.",
+            "scalar(sum(http_requests_total))"
+        ),
         scalarFunction("pi", (source) -> Literal.fromDouble(source, Math.PI), "Returns the value of pi.", "pi()"),
         scalarFunctionWithStep(
             "time",
@@ -392,7 +405,7 @@ public class PromqlFunctionRegistry {
             "returns the number of seconds since January 1, 1970 UTC."
                 + " Note that this does not actually return the current time, but the time at which the expression is to be evaluated.",
             "time()"
-        ) };
+        ), };
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 
@@ -699,6 +712,18 @@ public class PromqlFunctionRegistry {
         );
     }
 
+    private static FunctionDefinition scalar(String description, String example) {
+        return new FunctionDefinition(
+            "scalar",
+            FunctionType.SCALAR_CONVERSION,
+            Arity.ONE,
+            (source, target, ctx, extraParams) -> new Scalar(source, target),
+            description,
+            List.of(INSTANT_VECTOR),
+            List.of(example)
+        );
+    }
+
     private static FunctionDefinition scalarFunction(String name, ScalarFunctionBuilder builder, String description, String example) {
         return new FunctionDefinition(
             name,
@@ -751,12 +776,8 @@ public class PromqlFunctionRegistry {
 
         // Instant vector functions
         "absent",
-        "scalar",
         "sort",
         "sort_desc",
-
-        // Trigonometric functions
-        "atanh",
 
         // Time functions
         "day_of_month",

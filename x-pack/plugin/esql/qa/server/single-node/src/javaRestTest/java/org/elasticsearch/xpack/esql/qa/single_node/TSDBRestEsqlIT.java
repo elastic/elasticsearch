@@ -48,11 +48,11 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
 
     public void testTimeSeriesQuerying() throws IOException {
         var settings = Settings.builder()
-            .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false);
+            .loadFromStream("tsdb-settings.json", CsvTestsDataLoader.getResourceStream("/tsdb-settings.json"), false);
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
             settings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
         }
-        String mapping = CsvTestsDataLoader.readTextFile(TSDBRestEsqlIT.class.getResource("/tsdb-k8s-mapping.json"));
+        String mapping = CsvTestsDataLoader.getResourceString("/tsdb-k8s-mapping.json");
         assertTrue("Failed to create index [k8s]", createIndex("k8s", settings.build(), mapping).isAcknowledged());
 
         Request bulk = new Request("POST", "/k8s/_bulk");

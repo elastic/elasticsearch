@@ -253,6 +253,15 @@ public class IndexShardSnapshotStatus {
         }
     }
 
+    /**
+     * Transition from {@link Stage#PAUSED} to {@link Stage#FAILURE}. The abort listeners and timing fields were already
+     * handled during the earlier PAUSING → PAUSED transition, so only the stage needs updating.
+     */
+    public void moveFromPausedToFailed() {
+        final boolean moved = stage.compareAndSet(Stage.PAUSED, Stage.FAILURE);
+        assert moved : "expected stage PAUSED but got " + stage.get();
+    }
+
     public ShardGeneration generation() {
         return generation.get();
     }

@@ -33,7 +33,7 @@ public class AuthorizationTaskParams implements PersistentTaskParams {
 
     AuthorizationTaskParams() {}
 
-    AuthorizationTaskParams(StreamInput in) {}
+    public AuthorizationTaskParams(StreamInput in) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

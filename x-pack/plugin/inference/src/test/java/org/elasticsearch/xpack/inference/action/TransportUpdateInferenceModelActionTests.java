@@ -52,11 +52,13 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.junit.Before;
+import org.mockito.stubbing.Answer;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -215,6 +217,24 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         verifyNoModelRegistryMutations();
     }
 
+    public void testMasterOperation_UpdatedModelIsEqualToExistingModel_ValidationAndUpdateIsSkipped() {
+        var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel);
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        GoogleVertexAiEmbeddingsModel model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        when(service.buildModelFromConfigAndSecrets(any(ModelConfigurations.class), any(ModelSecrets.class))).thenReturn(model);
+        mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
+        when(service.parsePersistedConfig(unparsedModel)).thenReturn(model);
+
+        var listener = callMasterOperationWithActionFuture();
+
+        var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(response.getModel(), is(model.getConfigurations()));
+        verifyNoModelRegistryMutations();
+    }
+
     public void testMasterOperation_UpdateModelTransactionFailedDueToRuntimeException_ThrowsSameException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
             new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
@@ -323,7 +343,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
         mockUpdateModelTransactionToReturnBoolean(true, model);
         mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
-        mockParsePersistedConfigToReturnModel(model);
+        when(service.parsePersistedConfig(unparsedModel)).thenReturn(model);
 
         var listener = callMasterOperationWithActionFuture();
         var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
@@ -374,8 +394,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     private void mockParsePersistedConfigWithSecretsToReturnModel(GoogleVertexAiEmbeddingsModel model) {
-        when(service.parsePersistedConfigWithSecrets(eq(INFERENCE_ENTITY_ID_VALUE), eq(TaskType.TEXT_EMBEDDING), anyMap(), anyMap()))
-            .thenReturn(model);
+        doAnswer((Answer<Object>) invocation -> {
+            UnparsedModel unparsedModel = invocation.getArgument(0);
+            assertThat(unparsedModel.inferenceEntityId(), equalTo(INFERENCE_ENTITY_ID_VALUE));
+            assertThat(unparsedModel.taskType(), equalTo(model.getTaskType()));
+            return model;
+        }).when(service).parsePersistedConfig(any(UnparsedModel.class));
     }
 
     private void mockServiceRegistryToReturnService(InferenceService service) {
@@ -425,10 +449,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             listener.onResponse(result);
             return Void.TYPE;
         }).when(mockModelRegistry).updateModelTransaction(any(GoogleVertexAiEmbeddingsModel.class), eq(model), any());
-    }
-
-    private void mockParsePersistedConfigToReturnModel(GoogleVertexAiEmbeddingsModel model) {
-        when(service.parsePersistedConfig(eq(INFERENCE_ENTITY_ID_VALUE), eq(TaskType.TEXT_EMBEDDING), anyMap())).thenReturn(model);
     }
 
     private void verifyNoModelRegistryMutations() {

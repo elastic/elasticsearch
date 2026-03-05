@@ -22,7 +22,6 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.IntsRef;
 
@@ -329,7 +328,6 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
                 );
             }
             this.pointValues = pointValues;
-            postInitializeCompetitiveIterator();
         }
 
         @Override
@@ -347,30 +345,6 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         @Override
         protected int docCount() {
             return pointValues.getDocCount();
-        }
-
-        /**
-         * If queue is full and global min/max point values are not competitive with bottom then set an
-         * empty iterator as competitive iterator.
-         *
-         * @throws IOException i/o exception while fetching min and max values from point values
-         */
-        void postInitializeCompetitiveIterator() throws IOException {
-            if (queueFull && hitsThresholdReached) {
-                // if some documents have missing doc values, check that missing values prohibits
-                // optimization
-                if (docCount() < maxDoc && isMissingValueCompetitive()) {
-                    return;
-                }
-                long bottom = leafComparator.bottomAsComparableLong();
-                long minValue = sortableBytesToLong(pointValues.getMinPackedValue());
-                long maxValue = sortableBytesToLong(pointValues.getMaxPackedValue());
-                if (reverse == false && bottom < minValue) {
-                    competitiveIterator.update(DocIdSetIterator.empty());
-                } else if (reverse && bottom > maxValue) {
-                    competitiveIterator.update(DocIdSetIterator.empty());
-                }
-            }
         }
 
         @Override
@@ -482,50 +456,20 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
     private class DVSkipperCompetitiveDISIBuilder extends CompetitiveDISIBuilder {
 
         private final DocValuesSkipper skipper;
-        private final TwoPhaseIterator innerTwoPhase;
 
         DVSkipperCompetitiveDISIBuilder(DocValuesSkipper skipper, NumericLeafComparator leafComparator) throws IOException {
             super(leafComparator);
             this.skipper = skipper;
-            NumericDocValues docValues = leafComparator.getNumericDocValues(leafComparator.context, field);
-            innerTwoPhase = new TwoPhaseIterator(docValues) {
-                @Override
-                public boolean matches() throws IOException {
-                    final long value = docValues.longValue();
-                    return value >= minValueAsLong && value <= maxValueAsLong;
-                }
+        }
 
-                @Override
-                public float matchCost() {
-                    return 2; // 2 comparisons
-                }
-            };
-            postInitializeCompetitiveIterator();
+        @Override
+        void setScorer(Scorable scorer) throws IOException {
+            updateCompetitiveIterator();
         }
 
         @Override
         protected int docCount() {
             return skipper.docCount();
-        }
-
-        /**
-         * If queue is full and global min/max skipper are not competitive with bottom then set an empty
-         * iterator as competitive iterator.
-         */
-        void postInitializeCompetitiveIterator() {
-            if (queueFull && hitsThresholdReached) {
-                // if some documents have missing doc values, check that missing values prohibits
-                // optimization
-                if (docCount() < maxDoc && isMissingValueCompetitive()) {
-                    return;
-                }
-                long bottom = leafComparator.bottomAsComparableLong();
-                if (reverse == false && bottom < skipper.minValue()) {
-                    competitiveIterator.update(DocIdSetIterator.empty());
-                } else if (reverse && bottom > skipper.maxValue()) {
-                    competitiveIterator.update(DocIdSetIterator.empty());
-                }
-            }
         }
 
         @Override

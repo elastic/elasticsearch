@@ -67,7 +67,7 @@ public class PromqlAstTests extends ESTestCase {
                     "PROMQL index=test start=0 end=1 step=1m (%s)",
                     "PROMQL index=test start=0 end=1 step=1m foo=(%s)",
                     "PROMQL index=test start=0 end=1 step=1m %s",
-                    "PROMQL %s"
+                    "PROMQL time=0 %s"
                 ).forEach(pattern -> {
                     var query = String.format(Locale.ROOT, pattern, q);
                     LogicalPlan esqlPlan = EsqlParser.INSTANCE.parseQuery(query);

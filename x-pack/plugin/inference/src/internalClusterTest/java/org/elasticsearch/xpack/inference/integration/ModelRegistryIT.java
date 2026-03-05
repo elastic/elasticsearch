@@ -698,9 +698,10 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     public void testMinimalServiceSettings_GivenOneNonMatchingId_AndShouldThrow() {
         var service = randomAlphaOfLength(5);
         var createdModels = new ArrayList<Model>();
+        Function<Integer, String> endpointIdCreator = i -> "endpoint_id_" + i;
 
         for (int i = 0; i < 5; i++) {
-            var model = createModel("model_id_" + i, randomFrom(TaskType.values()), service);
+            var model = createModel(endpointIdCreator.apply(i), randomFrom(TaskType.values()), service);
             createdModels.add(model);
             assertStoreModel(modelRegistry, model);
         }
@@ -708,7 +709,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
             () -> modelRegistry.getMinimalServiceSettings(
-                Set.of("model_id_" + randomIntBetween(0, createdModels.size() - 1), "non_matching_id"),
+                Set.of(endpointIdCreator.apply(randomIntBetween(0, createdModels.size() - 1)), "non_matching_id"),
                 true
             )
         );

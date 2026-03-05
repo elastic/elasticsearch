@@ -98,7 +98,19 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
-        return nullValue == null ? value : applyFlattenedNullValue(value, nullValue);
+        if (nullValue == null) {
+            return value;
+        }
+
+        var ignoreAbove = fieldMapping.get("ignore_above");
+
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        boolean usesDocValues = hasDocValues && (ignoreAbove == null || params.syntheticSource());
+        if (usesDocValues) {
+            return applyFlattenedNullValue(value, nullValue);
+        }
+
+        return value;
     }
 
     /**

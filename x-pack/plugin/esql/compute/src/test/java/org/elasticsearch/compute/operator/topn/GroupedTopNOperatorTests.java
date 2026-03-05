@@ -199,6 +199,41 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         );
     }
 
+    private List<List<Object>> runGroupedTopN(
+        List<Page> pages,
+        int topCount,
+        List<ElementType> elementTypes,
+        List<TopNEncoder> encoders,
+        List<SortOrder> sortOrders,
+        int[] groupKeys
+    ) {
+        DriverContext driverContext = driverContext();
+        List<List<Object>> actual = new ArrayList<>();
+        try (
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(pages.iterator()),
+                List.of(
+                    new GroupedTopNOperator(
+                        driverContext.blockFactory(),
+                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        topCount,
+                        elementTypes,
+                        encoders,
+                        sortOrders,
+                        groupKeys,
+                        randomPageSize(),
+                        Long.MAX_VALUE
+                    )
+                ),
+                new PageConsumerOperator(p -> readInto(actual, p))
+            )
+        ) {
+            new TestDriverRunner().run(driver);
+        }
+        return actual;
+    }
+
     /**
      * Tests that the SORTED input ordering optimization short-circuiting addInput() doesn't incorrectly skip rows
      * belonging to groups not yet populated when another group's row is rejected.
@@ -212,8 +247,6 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
      * }</pre>
      */
     public void testSortedInputWithMultipleGroups() {
-        int topCount = 1;
-        int[] groupKeys = new int[] { 1 };
         List<ElementType> elementTypes = List.of(ElementType.INT, ElementType.INT);
         List<TopNEncoder> encoders = List.of(TopNEncoder.DEFAULT_SORTABLE, DEFAULT_UNSORTABLE);
         List<SortOrder> sortOrders = List.of(new SortOrder(0, true, true));
@@ -246,31 +279,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             page2 = new Page(sortCol.build(), groupCol.build());
         }
 
-        List<List<Object>> actual = new ArrayList<>();
-        DriverContext driverContext = driverContext();
-
-        try (
-            Driver driver = TestDriverFactory.create(
-                driverContext,
-                new CannedSourceOperator(List.of(page1, page2).iterator()),
-                List.of(
-                    new GroupedTopNOperator(
-                        driverContext.blockFactory(),
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        topCount,
-                        elementTypes,
-                        encoders,
-                        sortOrders,
-                        groupKeys,
-                        randomPageSize(),
-                        Long.MAX_VALUE
-                    )
-                ),
-                new PageConsumerOperator(p -> readInto(actual, p))
-            )
-        ) {
-            new TestDriverRunner().run(driver);
-        }
+        List<List<Object>> actual = runGroupedTopN(List.of(page1, page2), 1, elementTypes, encoders, sortOrders, new int[] { 1 });
 
         // 3 groups, each with 1 value, ordered ASC: [1, 3, 4]
         assertThat(actual.get(0), equalTo(List.of(1, 3, 4)));
@@ -278,50 +287,16 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
     }
 
     public void testMultivalueGroupKey() {
-        DriverContext driverContext = driverContext();
-        BlockFactory blockFactory = driverContext.blockFactory();
-
-        int topCount = 1;
-        int[] groupKeys = new int[] { 2 }; // group key at channel 2
+        BlockFactory blockFactory = driverContext().blockFactory();
         List<ElementType> elementTypes = List.of(LONG, LONG, LONG);
         List<TopNEncoder> encoders = List.of(TopNEncoder.DEFAULT_SORTABLE, DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE);
         List<SortOrder> sortOrders = List.of(new SortOrder(0, true, false));
 
         Page page = new Page(
-            BlockUtils.fromList(
-                blockFactory,
-                List.of(
-                    // (To keep indentation)
-                    List.of(10L, 100L, List.of(1L, 2L)),
-                    List.of(20L, 200L, 1L),
-                    List.of(30L, 300L, 3L)
-                )
-            )
+            BlockUtils.fromList(blockFactory, List.of(List.of(10L, 100L, List.of(1L, 2L)), List.of(20L, 200L, 1L), List.of(30L, 300L, 3L)))
         );
 
-        List<List<Object>> actual = new ArrayList<>();
-        try (
-            Driver driver = TestDriverFactory.create(
-                driverContext,
-                new CannedSourceOperator(List.of(page).iterator()),
-                List.of(
-                    new GroupedTopNOperator(
-                        blockFactory,
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        topCount,
-                        elementTypes,
-                        encoders,
-                        sortOrders,
-                        groupKeys,
-                        randomPageSize(),
-                        Long.MAX_VALUE
-                    )
-                ),
-                new PageConsumerOperator(p -> readInto(actual, p))
-            )
-        ) {
-            new TestDriverRunner().run(driver);
-        }
+        List<List<Object>> actual = runGroupedTopN(List.of(page), 1, elementTypes, encoders, sortOrders, new int[] { 2 });
 
         // List semantics: [1,2] is one group, 1 is another, 3 is another. Sorted ASC by sort key.
         assertThat(actual.get(0), equalTo(List.of(10L, 20L, 30L))); // Sort key
@@ -330,40 +305,14 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
     }
 
     public void testMultivalueGroupKeyDuplicateWinner() {
-        DriverContext driverContext = driverContext();
-        BlockFactory bf = driverContext.blockFactory();
-
-        int topCount = 1;
-        int[] groupKeys = new int[] { 2 };
+        BlockFactory bf = driverContext().blockFactory();
         List<ElementType> elementTypes = List.of(LONG, LONG, LONG);
         List<TopNEncoder> encoders = List.of(TopNEncoder.DEFAULT_SORTABLE, DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE);
         List<SortOrder> sortOrders = List.of(new SortOrder(0, true, false));
 
         Page page = new Page(BlockUtils.fromList(bf, List.of(List.of(5L, 50L, List.of(1L, 2L)), List.of(10L, 100L, 1L))));
 
-        List<List<Object>> actual = new ArrayList<>();
-        try (
-            Driver driver = TestDriverFactory.create(
-                driverContext,
-                new CannedSourceOperator(List.of(page).iterator()),
-                List.of(
-                    new GroupedTopNOperator(
-                        bf,
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        topCount,
-                        elementTypes,
-                        encoders,
-                        sortOrders,
-                        groupKeys,
-                        randomPageSize(),
-                        Long.MAX_VALUE
-                    )
-                ),
-                new PageConsumerOperator(p -> readInto(actual, p))
-            )
-        ) {
-            new TestDriverRunner().run(driver);
-        }
+        List<List<Object>> actual = runGroupedTopN(List.of(page), 1, elementTypes, encoders, sortOrders, new int[] { 2 });
 
         // List semantics: [1,2] is one group, 1 is another. Sorted ASC by sort key.
         assertThat(actual.get(0), equalTo(List.of(5L, 10L))); // Sort key
@@ -377,11 +326,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
      * No cartesian product expansion occurs.
      */
     public void testMultipleMultivalueGroupKeys() {
-        DriverContext driverContext = driverContext();
-        BlockFactory bf = driverContext.blockFactory();
-
-        int topCount = 1;
-        int[] groupKeys = new int[] { 2, 3 }; // two group keys at channels 2 and 3
+        BlockFactory bf = driverContext().blockFactory();
         List<ElementType> elementTypes = List.of(LONG, LONG, LONG, LONG);
         List<TopNEncoder> encoders = List.of(TopNEncoder.DEFAULT_SORTABLE, DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE);
         List<SortOrder> sortOrders = List.of(new SortOrder(0, true, false));
@@ -393,29 +338,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             )
         );
 
-        List<List<Object>> actual = new ArrayList<>();
-        try (
-            Driver driver = TestDriverFactory.create(
-                driverContext,
-                new CannedSourceOperator(List.of(page).iterator()),
-                List.of(
-                    new GroupedTopNOperator(
-                        bf,
-                        nonBreakingBigArrays().breakerService().getBreaker("request"),
-                        topCount,
-                        elementTypes,
-                        encoders,
-                        sortOrders,
-                        groupKeys,
-                        randomPageSize(),
-                        Long.MAX_VALUE
-                    )
-                ),
-                new PageConsumerOperator(p -> readInto(actual, p))
-            )
-        ) {
-            new TestDriverRunner().run(driver);
-        }
+        List<List<Object>> actual = runGroupedTopN(List.of(page), 1, elementTypes, encoders, sortOrders, new int[] { 2, 3 });
 
         // List semantics: 3 distinct groups, each with 1 row, sorted ASC by sort key
         assertThat(actual.get(0), equalTo(List.of(5L, 10L, 15L))); // Sort key

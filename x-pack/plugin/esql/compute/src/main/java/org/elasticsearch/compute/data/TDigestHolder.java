@@ -59,7 +59,7 @@ public class TDigestHolder implements GenericNamedWriteable, TDigestReadView {
     );
 
     private final EncodedTDigest encodedDigest = new EncodedTDigest();
-    private final BytesRef bytesRef = new BytesRef();
+    private final BytesRef scratchBytesRef = new BytesRef();
 
     private double min = Double.NaN;
     private double max = Double.NaN;
@@ -68,8 +68,8 @@ public class TDigestHolder implements GenericNamedWriteable, TDigestReadView {
 
     public TDigestHolder() {}
 
-    protected BytesRef scratchBytesRef() {
-        return bytesRef;
+    BytesRef scratchBytesRef() {
+        return scratchBytesRef;
     }
 
     // Note that this constructor allocates the bytes without memory accounting

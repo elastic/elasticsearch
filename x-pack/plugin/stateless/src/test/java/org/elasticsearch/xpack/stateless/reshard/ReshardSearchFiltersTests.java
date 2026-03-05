@@ -353,7 +353,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
             .build();
         final var staleSummary = SplitShardCountSummary.forSearch(indexMetadata, sourceShard);
 
-        // post-split is target at SPLIT or DONE, source at DONE, or no metadata but more shards
+        // post-split is target at SPLIT or DONE, source at READY_FOR_CLEANUP or DONE, or no metadata but more shards
         IndexMetadata indexMetadataAfterSplit = null;
         if (randomBoolean()) {
             indexMetadataAfterSplit = IndexMetadata.builder("index")
@@ -375,12 +375,18 @@ public class ReshardSearchFiltersTests extends ESTestCase {
                     IndexReshardingState.Split.TargetShardState.DONE
                 );
                 if (randomBoolean()) {
-                    // source is only DONE when there are multiple source shards, otherwise metadata is immediately removed
-                    if (origShardCount > 1) {
-                        reshardingMetadata = reshardingMetadata.transitionSplitSourceToNewState(
-                            testShardId(sourceShard),
-                            IndexReshardingState.Split.SourceShardState.DONE
-                        );
+                    reshardingMetadata = reshardingMetadata.transitionSplitSourceToNewState(
+                        testShardId(sourceShard),
+                        IndexReshardingState.Split.SourceShardState.READY_FOR_CLEANUP
+                    );
+                    if (randomBoolean()) {
+                        // source is only DONE when there are multiple source shards, otherwise metadata is immediately removed
+                        if (origShardCount > 1) {
+                            reshardingMetadata = reshardingMetadata.transitionSplitSourceToNewState(
+                                testShardId(sourceShard),
+                                IndexReshardingState.Split.SourceShardState.DONE
+                            );
+                        }
                     }
                 }
             }

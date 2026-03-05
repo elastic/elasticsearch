@@ -280,7 +280,7 @@ EXPORT f32_t vec_cosi8(const int8_t* a, const int8_t* b, const int32_t dims) {
     return (f32_t) ((double) res.sum / sqrt((double) res.norm1 * res.norm2));
 }
 
-template <int64_t(*mapper)(int32_t, const int32_t*)>
+template <int64_t(*mapper)(int32_t, const int32_t*), int batches = 2>
 static inline void cosi8_inner_bulk(
     const int8_t* a,
     const int8_t* b,
@@ -308,66 +308,83 @@ static inline void cosi8_inner_bulk(
         b_norm += b[bi] * b[bi];
     }
 
-    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
+    const int8_t* current_vecs[batches];
+    init_offsets<0, batches, int8_t, mapper>(current_vecs, a, pitch, offsets, count);
 
-    // Process a batch of 2 vectors at a time, after instructing the CPU to
-    // prefetch the next batch.
+    // Process a batch of `batches` vectors at a time, after instructing the
+    // CPU to prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy. For this "older" generation of x64 processors
     // (supporting AVX2, but not AVX-512), benchmarks show that a batch of 2
     // is ideal -- more, and it starts to hurt performances due to bandwidth
-    for (; c + 3 < count; c += 2) {
-        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
-        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
+    static_assert(batches % 2 == 0, "batches must be even for vectorized cosine");
+    for (; c + 2 * batches - 1 < count; c += batches) {
+        const int8_t* next_vecs[batches];
+        __m256i sums[batches];
+        __m256i a_norms[batches];
+        apply_indexed<batches>([&](auto I) {
+            next_vecs[I] = a + mapper(c + batches + I, offsets) * pitch;
+            prefetch(next_vecs[I], lines_to_fetch);
+            sums[I] = _mm256_setzero_si256();
+            a_norms[I] = _mm256_setzero_si256();
+        });
 
-        prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
-
-        __m256i sums0 = _mm256_setzero_si256();
-        __m256i sums1 = _mm256_setzero_si256();
-        __m256i norms0 = _mm256_setzero_si256();
-        __m256i norms1 = _mm256_setzero_si256();
         int i = 0;
         for (; i < blk; i += sizeof(__m128i)) {
-            __m128i va08 = _mm_loadu_si128((const __m128i*)(a0 + i));
-            __m128i va18 = _mm_loadu_si128((const __m128i*)(a1 + i));
             __m128i vb8 = _mm_loadu_si128((const __m128i*)(b + i));
-            __m256i va016 = _mm256_cvtepi8_epi16(va08);
-            __m256i va116 = _mm256_cvtepi8_epi16(va18);
             __m256i vb16 = _mm256_cvtepi8_epi16(vb8);
 
-            sums0 = _mm256_add_epi32(_mm256_madd_epi16(va016, vb16), sums0);
-            sums1 = _mm256_add_epi32(_mm256_madd_epi16(va116, vb16), sums1);
-            norms0 = _mm256_add_epi32(_mm256_madd_epi16(va016, va016), norms0);
-            norms1 = _mm256_add_epi32(_mm256_madd_epi16(va116, va116), norms1);
+            apply_indexed<batches>([&](auto I) {
+                __m128i va8 = _mm_loadu_si128((const __m128i*)(current_vecs[I] + i));
+                __m256i va16 = _mm256_cvtepi8_epi16(va8);
+                sums[I] = _mm256_add_epi32(_mm256_madd_epi16(va16, vb16), sums[I]);
+                a_norms[I] = _mm256_add_epi32(_mm256_madd_epi16(va16, va16), a_norms[I]);
+            });
         }
 
-        int32_t sum0 = mm256_reduce_epi32<_mm_add_epi32>(sums0);
-        int32_t sum1 = mm256_reduce_epi32<_mm_add_epi32>(sums1);
-        int32_t norm0 = mm256_reduce_epi32<_mm_add_epi32>(norms0);
-        int32_t norm1 = mm256_reduce_epi32<_mm_add_epi32>(norms1);
+        int32_t sum[batches];
+        int32_t a_norm[batches];
+        apply_indexed<batches>([&](auto I) {
+            sum[I] = mm256_reduce_epi32<_mm_add_epi32>(sums[I]);
+            a_norm[I] = mm256_reduce_epi32<_mm_add_epi32>(a_norms[I]);
+        });
 
         for (; i < dims; i++) {
-            int32_t a0i = (int32_t) a0[i];
-            int32_t a1i = (int32_t) a1[i];
-            int32_t bi = (int32_t) b[i];
-            sum0 += a0i * bi;
-            sum1 += a1i * bi;
-            norm0 += a0i * a0i;
-            norm1 += a1i * a1i;
+            int32_t bv = (int32_t) b[i];
+            apply_indexed<batches>([&](auto I) {
+                int32_t av = (int32_t) current_vecs[I][i];
+                sum[I] += av * bv;
+                a_norm[I] += av * av;
+            });
         }
 
-        __m128 sum = _mm_setr_ps(sum0, sum1, 0.0f, 0.0f);
-        __m128 a_norm = _mm_setr_ps(norm0, norm1, 0.0f, 0.0f);
+        // Vectorized cosine finalization: results[i] = sum[i] / sqrt(a_norm[i] * b_norm)
+        // __m128 holds 4 floats; process full groups of 4, then a remaining
+        // pair (if batches % 4 != 0) with masked store.
+        constexpr int full_quads = batches / 4;
+        constexpr int has_remainder = (batches % 4) != 0;
 
-        // sum / sqrt(a_norm * b_norm)
-        __m128 res = _mm_div_ps(sum, _mm_sqrt_ps(_mm_mul_ps(a_norm, _mm_setr_ps(b_norm, b_norm, 0.0f, 0.0f))));
-        // write directly to results
-        _mm_maskstore_ps(results + c, _mm_setr_epi32(-1, -1, 0, 0), res);
+        apply_indexed<full_quads>([&](auto I) {
+            constexpr int j = I * 4;
+            __m128 sum_ps = _mm_setr_ps(sum[j], sum[j + 1], sum[j + 2], sum[j + 3]);
+            __m128 norm_ps = _mm_setr_ps(a_norm[j], a_norm[j + 1], a_norm[j + 2], a_norm[j + 3]);
+            __m128 b_norm_ps = _mm_set1_ps(b_norm);
+            __m128 res = _mm_div_ps(sum_ps, _mm_sqrt_ps(_mm_mul_ps(norm_ps, b_norm_ps)));
+            _mm_storeu_ps(results + c + j, res);
+        });
 
-        a0 = next_a0;
-        a1 = next_a1;
+        if constexpr (has_remainder) {
+            constexpr int j = full_quads * 4;
+            __m128 sum_ps = _mm_setr_ps(sum[j], sum[j + 1], 0.0f, 0.0f);
+            __m128 norm_ps = _mm_setr_ps(a_norm[j], a_norm[j + 1], 0.0f, 0.0f);
+            __m128 b_norm_ps = _mm_setr_ps(b_norm, b_norm, 0.0f, 0.0f);
+            __m128 res = _mm_div_ps(sum_ps, _mm_sqrt_ps(_mm_mul_ps(norm_ps, b_norm_ps)));
+            _mm_maskstore_ps(results + c + j, _mm_setr_epi32(-1, -1, 0, 0), res);
+        }
+
+        apply_indexed<batches>([&](auto I) {
+            current_vecs[I] = next_vecs[I];
+        });
     }
 
     // Tail-handling: remaining vectors

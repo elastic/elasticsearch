@@ -64,8 +64,10 @@ public class BreakingTDigestHolderTests extends ESTestCase {
     public void testSetFromTDigestReadView() {
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("test-breaker");
         MemoryTrackingTDigestArrays arrays = new MemoryTrackingTDigestArrays(breaker);
-        try (TDigest digest = TDigest.createMergingDigest(arrays, 100.0);
-            BreakingTDigestHolder holder = BreakingTDigestHolder.create(breaker)) {
+        try (
+            TDigest digest = TDigest.createMergingDigest(arrays, 100.0);
+            BreakingTDigestHolder holder = BreakingTDigestHolder.create(breaker)
+        ) {
             long expectedCount = 0L;
             double expectedSum = randomDouble();
             double expectedMin = randomDouble();
@@ -115,8 +117,10 @@ public class BreakingTDigestHolderTests extends ESTestCase {
     private TDigestHolder randomStandaloneTDigestHolder() {
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("random-holder");
         MemoryTrackingTDigestArrays arrays = new MemoryTrackingTDigestArrays(breaker);
-        try (TDigest digest = TDigest.createMergingDigest(arrays, 100.0);
-            BreakingTDigestHolder holder = BreakingTDigestHolder.create(breaker)) {
+        try (
+            TDigest digest = TDigest.createMergingDigest(arrays, 100.0);
+            BreakingTDigestHolder holder = BreakingTDigestHolder.create(breaker)
+        ) {
             int values = between(5, 20);
             double sum = 0.0;
             double min = Double.POSITIVE_INFINITY;

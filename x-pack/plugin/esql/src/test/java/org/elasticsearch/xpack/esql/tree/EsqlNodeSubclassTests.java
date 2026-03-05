@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TsidGroupingParams;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
@@ -534,6 +535,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
         if (argClass == EsQueryExec.QueryBuilderAndTags.class) {
             return randomQueryBuildAndTags();
+        }
+        if (argClass == TsidGroupingParams.class) {
+            return new TsidGroupingParams(Set.of(randomAlphaOfLength(5)));
         }
 
         try {

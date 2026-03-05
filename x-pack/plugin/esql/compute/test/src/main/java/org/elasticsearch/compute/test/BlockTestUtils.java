@@ -496,7 +496,7 @@ public class BlockTestUtils {
 
         TDigestHolder digestHolder = new TDigestHolder();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            //TODO: replace with BreakingTDigestHolder when added
+            // TODO: replace with BreakingTDigestHolder when added
             for (Centroid centroid : digest.centroids()) {
                 out.writeVLong(centroid.count());
                 out.writeDouble(centroid.mean());

@@ -43,7 +43,7 @@ public final class TDigestStates {
     }
 
     private static TDigestHolder asTDigestHolder(TDigest tdigest, double sum, double min, double max) {
-        //TODO: replace with BreakingTDigestHolder when added for proper memory accounting and reuse
+        // TODO: replace with BreakingTDigestHolder when added for proper memory accounting and reuse
         TDigestHolder holder = new TDigestHolder();
         holder.reset(EncodedTDigest.encodeCentroids(tdigest.centroids()), min, max, sum, tdigest.size());
         return holder;

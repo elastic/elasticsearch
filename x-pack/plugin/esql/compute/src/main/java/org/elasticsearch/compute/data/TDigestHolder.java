@@ -163,17 +163,20 @@ public class TDigestHolder implements GenericNamedWriteable, TDigestReadView {
                 builder.field("sum", this.getSum());
             }
 
-            Collection<Centroid> centroids = encodedDigest.centroids();
             // TODO: reuse the constans from the field type
+
             builder.startArray("centroids");
-            for (Centroid centroid : centroids) {
-                builder.value(centroid.mean());
+
+            EncodedTDigest.CentroidIterator iterator = encodedDigest.centroidIterator();
+            while (iterator.next()) {
+                builder.value(iterator.currentMean());
             }
             builder.endArray();
 
             builder.startArray("counts");
-            for (Centroid centroid : centroids) {
-                builder.value(centroid.count());
+            iterator = encodedDigest.centroidIterator();
+            while (iterator.next()) {
+                builder.value(iterator.currentCount());
             }
             builder.endArray();
             builder.endObject();

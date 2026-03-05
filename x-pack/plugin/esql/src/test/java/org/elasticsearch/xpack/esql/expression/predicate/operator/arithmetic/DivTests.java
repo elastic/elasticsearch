@@ -239,4 +239,20 @@ public class DivTests extends AbstractScalarFunctionTestCase {
         }
         return result;
     }
+
+    public void testDoubleOverflowPositive() {
+        ArithmeticException e = expectThrows(
+            ArithmeticException.class,
+            () -> Div.processDoubles(1e308, 0.1)
+        );
+        assertEquals("double overflow", e.getMessage());
+    }
+
+    public void testDoubleOverflowNegative() {
+        ArithmeticException e = expectThrows(
+            ArithmeticException.class,
+            () -> Div.processDoubles(-1e308, 0.1)
+        );
+        assertEquals("double overflow", e.getMessage());
+    }
 }

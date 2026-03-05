@@ -348,3 +348,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlRetryIT
   method: testRetryOnShardFailures
   issue: https://github.com/elastic/elasticsearch/issues/143640
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {stats.StatsByMvFieldAggExpr}
+  issue: https://github.com/elastic/elasticsearch/issues/141835

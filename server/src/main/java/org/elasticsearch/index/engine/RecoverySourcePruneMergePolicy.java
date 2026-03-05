@@ -10,7 +10,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.DocValuesProducer;
-import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FieldInfo;
@@ -19,7 +18,6 @@ import org.apache.lucene.index.FilterNumericDocValues;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -77,6 +75,8 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         Supplier<Query> retainSourceQuerySupplier,
         boolean useSyntheticId
     ) throws IOException {
+        assert pruneSeqNo == false || reader.getPointValues(SeqNoFieldMapper.NAME) == null
+            : "_seq_no points must not exist when sequence number pruning is enabled";
         NumericDocValues recoverySource = reader.getNumericDocValues(pruneNumericDVFieldName);
         final boolean hasRecoverySource = recoverySource != null && recoverySource.nextDoc() != DocIdSetIterator.NO_MORE_DOCS;
         NumericDocValues seqNoDocValues = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
@@ -193,33 +193,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
                     }
                     return numeric;
-                }
-            };
-        }
-
-        @Override
-        public PointsReader getPointsReader() {
-            final var pointsReader = super.getPointsReader();
-            if (pruneSeqNo == false || pointsReader == null) {
-                return pointsReader;
-            }
-            return new PointsReader() {
-                @Override
-                public PointValues getValues(String field) throws IOException {
-                    if (SeqNoFieldMapper.NAME.equals(field)) {
-                        return null;
-                    }
-                    return pointsReader.getValues(field);
-                }
-
-                @Override
-                public void checkIntegrity() throws IOException {
-                    pointsReader.checkIntegrity();
-                }
-
-                @Override
-                public void close() throws IOException {
-                    pointsReader.close();
                 }
             };
         }

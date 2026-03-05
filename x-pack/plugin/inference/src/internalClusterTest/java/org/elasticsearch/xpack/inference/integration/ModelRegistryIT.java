@@ -672,6 +672,78 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertModel(returnedModel, model, secrets);
     }
 
+    public void testMinimalServiceSettings_MultipleIds() {
+        var service = randomAlphaOfLength(5);
+        var createdModels = new ArrayList<Model>();
+        int modelCount = randomIntBetween(20, 30);
+
+        for (int i = 0; i < modelCount; i++) {
+            var model = createModel(randomAlphaOfLength(5), randomFrom(TaskType.values()), service);
+            createdModels.add(model);
+            assertStoreModel(modelRegistry, model);
+        }
+
+        Map<String, MinimalServiceSettings> minimalServiceSettings = modelRegistry.getMinimalServiceSettings(
+            createdModels.stream().map(Model::getInferenceEntityId).collect(Collectors.toSet()),
+            randomBoolean()
+        );
+
+        for (var model : createdModels) {
+            assertThat(minimalServiceSettings.containsKey(model.getInferenceEntityId()), is(true));
+            var thisModelSettings = minimalServiceSettings.get(model.getInferenceEntityId());
+            assertThat(thisModelSettings, equalTo(new MinimalServiceSettings(model)));
+        }
+    }
+
+    public void testMinimalServiceSettings_GivenOneNonMatchingId_AndShouldThrow() {
+        var service = randomAlphaOfLength(5);
+        var createdModels = new ArrayList<Model>();
+
+        for (int i = 0; i < 5; i++) {
+            var model = createModel("model_id_" + i, randomFrom(TaskType.values()), service);
+            createdModels.add(model);
+            assertStoreModel(modelRegistry, model);
+        }
+
+        ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> modelRegistry.getMinimalServiceSettings(
+                Set.of("model_id_" + randomIntBetween(0, createdModels.size() - 1), "non_matching_id"),
+                true
+            )
+        );
+
+        assertThat(e.getMessage(), Matchers.is("non_matching_id does not exist in this cluster."));
+    }
+
+    public void testMinimalServiceSettings_GivenOneNonMatchingId_AndShouldNotThrow() {
+        var service = randomAlphaOfLength(5);
+        var createdModels = new ArrayList<Model>();
+
+        for (int i = 0; i < 5; i++) {
+            var model = createModel("model_id_" + i, randomFrom(TaskType.values()), service);
+            createdModels.add(model);
+            assertStoreModel(modelRegistry, model);
+        }
+
+        String matchingId = "model_id_" + randomIntBetween(0, createdModels.size() - 1);
+        Map<String, MinimalServiceSettings> minimalServiceSettings = modelRegistry.getMinimalServiceSettings(
+            Set.of(matchingId, "non_matching_id"),
+            false
+        );
+
+        assertThat(minimalServiceSettings.size(), Matchers.is(1));
+        assertThat(minimalServiceSettings.containsKey(matchingId), is(true));
+        assertThat(
+            minimalServiceSettings.get(matchingId),
+            equalTo(
+                new MinimalServiceSettings(
+                    createdModels.stream().filter(m -> m.getInferenceEntityId().equals(matchingId)).findFirst().get()
+                )
+            )
+        );
+    }
+
     public void testStoreModels_StoresMultipleInferenceEndpoints() {
         var secrets = "secret";
         var inferenceId1 = "1";
@@ -742,7 +814,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(model.taskType(), Matchers.is(expected.getConfigurations().getTaskType()));
     }
 
-    public void testStoreModels_StoresOneModel_IgnoresSecondDuplicateIdenticalModel() {
+    public void testStoreModels_StoresOneModel_IgnoresDuplicateIdenticalModel() {
         var secrets = "secret";
         var inferenceId = "1";
         var temperature = randomInt(3);

@@ -274,7 +274,7 @@ public class ModelRegistry implements ClusterStateListener {
             }
 
             var existing = state.getMinimalServiceSettings(inferenceEntityId);
-            if (existing == null && inferenceEntityIds.size() == 1 && state.isUpgraded() && throwIfAnyNotFound) {
+            if (existing == null && state.isUpgraded() && throwIfAnyNotFound) {
                 throw new ResourceNotFoundException(inferenceEntityId + " does not exist in this cluster.");
             }
             if (existing != null) {

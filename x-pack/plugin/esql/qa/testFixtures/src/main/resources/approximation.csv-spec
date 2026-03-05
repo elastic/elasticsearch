@@ -26,6 +26,18 @@ count:long | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean
 ;
 
 
+approximate total count field
+required_capability: approximation_v2
+
+SET approximation={"rows":10000}\;
+FROM many_numbers | STATS count=COUNT(value)
+;
+
+count:long       | CONFIDENCE_INTERVAL(count):long     | CERTIFIED(count):boolean
+1300000..2700000 | [1300000..2700000,1300000..2700000] | {any}
+;
+
+
 approximate stats on large data
 required_capability: approximation_v2
 

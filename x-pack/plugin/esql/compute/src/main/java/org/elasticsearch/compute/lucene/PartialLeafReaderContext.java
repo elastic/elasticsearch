@@ -24,4 +24,9 @@ public record PartialLeafReaderContext(LeafReaderContext leafReaderContext, int 
     public PartialLeafReaderContext(LeafReaderContext leafReaderContext) {
         this(leafReaderContext, 0, leafReaderContext.reader().maxDoc());
     }
+
+    @Override
+    public String toString() {
+        return "leaf=" + leafReaderContext.id() + " min_doc=" + minDoc + " max_doc=" + maxDoc;
+    }
 }

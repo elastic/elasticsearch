@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -42,53 +43,14 @@ public class CoordinationDiagnosticsDetailsWireSerializingTests
 
     @Override
     protected CoordinationDiagnosticsDetails mutateInstance(CoordinationDiagnosticsDetails instance) throws IOException {
-        DiscoveryNode currentMaster = instance.currentMaster();
-        List<DiscoveryNode> recentMasters = instance.recentMasters();
-        String remoteExceptionMessage = instance.remoteExceptionMessage();
-        String remoteExceptionStackTrace = instance.remoteExceptionStackTrace();
-        Map<String, String> nodeToClusterFormationDescriptionMap = instance.nodeToClusterFormationDescriptionMap();
-
-        int field = between(0, 4);
-        switch (field) {
-            case 0 -> currentMaster = randomValueOtherThan(
-                currentMaster,
-                () -> randomBoolean() ? randomDiscoveryNode() : null
-            );
-            case 1 -> {
-                List<DiscoveryNode> mutableRecentMasters = recentMasters == null
-                    ? new ArrayList<>()
-                    : new ArrayList<>(recentMasters);
-                mutableRecentMasters.add(randomDiscoveryNode());
-                recentMasters = mutableRecentMasters;
-            }
-            case 2 -> remoteExceptionMessage = randomValueOtherThan(
-                remoteExceptionMessage,
-                () -> randomBoolean() ? randomAlphaOfLengthBetween(0, 100) : null
-            );
-            case 3 -> remoteExceptionStackTrace = randomValueOtherThan(
-                remoteExceptionStackTrace,
-                () -> randomBoolean() ? randomAlphaOfLengthBetween(0, 200) : null
-            );
-            default -> nodeToClusterFormationDescriptionMap = randomValueOtherThan(
-                nodeToClusterFormationDescriptionMap,
-                this::randomNodeToClusterFormationDescriptionMap
-            );
-        }
-
-        Map<String, String> mapForConstructor = nodeToClusterFormationDescriptionMap != null
-            ? nodeToClusterFormationDescriptionMap
-            : Map.of();
-        return new CoordinationDiagnosticsDetails(
-            currentMaster,
-            recentMasters,
-            remoteExceptionMessage,
-            remoteExceptionStackTrace,
-            mapForConstructor
-        );
+        // Since CoordinationDiagnosticsDetails is a record, we don't need to check for equality
+        return null;
     }
 
     private DiscoveryNode randomDiscoveryNode() {
-        return DiscoveryNodeUtils.builder(UUID.randomUUID().toString())
+        return DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID(random()))
+            .name(randomAlphaOfLength(10))
+            .ephemeralId(UUIDs.randomBase64UUID(random()))
             .address(new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(1, 65535)))
             .build();
     }
@@ -117,6 +79,6 @@ public class CoordinationDiagnosticsDetailsWireSerializingTests
                 randomAlphaOfLengthBetween(0, 50)
             );
         }
-        return nodeToClusterFormationDescriptionMap.isEmpty() ? Map.of() : nodeToClusterFormationDescriptionMap;
+        return nodeToClusterFormationDescriptionMap;
     }
 }

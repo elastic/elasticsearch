@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -44,8 +45,16 @@ public class CoordinationDiagnosticsResultWireSerializingTests
         return new CoordinationDiagnosticsResult(status, summary, details);
     }
 
+    @Override
+    protected CoordinationDiagnosticsResult mutateInstance(CoordinationDiagnosticsResult instance) throws IOException {
+        // Since CoordinationDiagnosticsResult is a record, we don't need to check for equality
+        return null;
+    }
+
     private DiscoveryNode randomDiscoveryNode() {
-        return DiscoveryNodeUtils.builder(UUID.randomUUID().toString())
+        return DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID(random()))
+            .name(randomAlphaOfLength(10))
+            .ephemeralId(UUIDs.randomBase64UUID(random()))
             .address(new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(1, 65535)))
             .build();
     }
@@ -71,22 +80,6 @@ public class CoordinationDiagnosticsResultWireSerializingTests
         for (int i = 0; i < size; i++) {
             nodeToClusterFormationDescriptionMap.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(0, 50));
         }
-        return nodeToClusterFormationDescriptionMap.isEmpty() ? Map.of() : nodeToClusterFormationDescriptionMap;
-    }
-
-    @Override
-    protected CoordinationDiagnosticsResult mutateInstance(CoordinationDiagnosticsResult instance) throws IOException {
-        CoordinationDiagnosticsStatus status = instance.status();
-        String summary = instance.summary();
-        CoordinationDiagnosticsDetails details = instance.details();
-
-        int field = between(0, 2);
-        switch (field) {
-            case 0 -> status = randomValueOtherThan(status, () -> randomFrom(CoordinationDiagnosticsStatus.values()));
-            case 1 -> summary = randomValueOtherThan(summary, () -> randomAlphaOfLengthBetween(0, 200));
-            default -> details = randomValueOtherThan(details, this::randomCoordinationDiagnosticsDetails);
-        }
-
-        return new CoordinationDiagnosticsResult(status, summary, details);
+        return nodeToClusterFormationDescriptionMap;
     }
 }

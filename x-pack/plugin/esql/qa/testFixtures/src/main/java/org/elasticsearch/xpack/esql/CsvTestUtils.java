@@ -620,6 +620,10 @@ public final class CsvTestUtils {
             if (actualType == Type.UNSUPPORTED) {
                 return UNSUPPORTED;
             }
+            // Dense vectors use ElementType.FLOAT but should map to Type.DENSE_VECTOR
+            if (actualType == Type.DENSE_VECTOR) {
+                return DENSE_VECTOR;
+            }
             return switch (elementType) {
                 case INT -> INTEGER;
                 case LONG -> LONG;

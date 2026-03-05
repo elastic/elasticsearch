@@ -543,7 +543,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         appendLine(lines, prefix, "Licensed: ", isLicensed);
         appendLine(lines, prefix, "Extended Plugins: ", extendedPlugins.toString());
         appendLine(lines, prefix, " * Classname: ", classname);
-        appendLine(lines, prefix, "Deployment Target: ", deploymentTarget.name());
+        appendLine(lines, prefix, "Deployment Target: ", deploymentTarget);
 
         return String.join(System.lineSeparator(), lines);
     }

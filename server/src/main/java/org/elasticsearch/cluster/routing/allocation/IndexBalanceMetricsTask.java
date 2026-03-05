@@ -44,8 +44,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -94,13 +92,25 @@ public final class IndexBalanceMetricsTask extends PersistentTasksExecutor<Index
         new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TASK_NAME, TaskParams::new)
     );
 
-    public static final String PRIMARY_IMBALANCE_METRIC_NAME = "es.index_balance.primary.imbalance.current";
-    public static final String REPLICA_IMBALANCE_METRIC_NAME = "es.index_balance.replica.imbalance.current";
+    static final String[] SEVERITY_SEGMENTS = { "none", "mild", "moderate", "severe" };
+    public static final String[] PRIMARY_METRIC_NAMES = buildMetricNames("primary");
+    public static final String[] REPLICA_METRIC_NAMES = buildMetricNames("replica");
+
+    private static String[] buildMetricNames(String tier) {
+        var names = new String[IndexBalanceMetrics.BUCKET_COUNT];
+        for (int i = 0; i < names.length; i++) {
+            names[i] = "es.index_imbalance." + tier + "." + SEVERITY_SEGMENTS[i] + ".indices.current";
+        }
+        return names;
+    }
 
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final ClusterSettings clusterSettings;
     private final IndexBalanceMetrics indexBalanceMetrics;
+    private final AtomicReference<IndexBalanceMetrics.IndexBalanceState> lastState = new AtomicReference<>(
+        IndexBalanceMetrics.IndexBalanceState.EMPTY
+    );
     private final ClusterStateListener taskStarter;
 
     /**
@@ -120,26 +130,21 @@ public final class IndexBalanceMetricsTask extends PersistentTasksExecutor<Index
         this.indexBalanceMetrics = new IndexBalanceMetrics();
         this.taskStarter = this::startTask;
         clusterService.addListener(taskStarter);
-        meterRegistry.registerLongsGauge(
-            PRIMARY_IMBALANCE_METRIC_NAME,
-            "Histogram of primary shard imbalance ratios across indices",
-            "{index}",
-            () -> buildBucketMeasurements(indexBalanceMetrics.getLastState().primaryBalanceHistogram())
-        );
-        meterRegistry.registerLongsGauge(
-            REPLICA_IMBALANCE_METRIC_NAME,
-            "Histogram of replica shard imbalance ratios across indices",
-            "{index}",
-            () -> buildBucketMeasurements(indexBalanceMetrics.getLastState().replicaBalanceHistogram())
-        );
-    }
-
-    private static Collection<LongWithAttributes> buildBucketMeasurements(int[] histogram) {
-        final var measurements = new ArrayList<LongWithAttributes>(IndexBalanceMetrics.BUCKET_COUNT);
         for (int i = 0; i < IndexBalanceMetrics.BUCKET_COUNT; i++) {
-            measurements.add(new LongWithAttributes(histogram[i], Map.of("indexImbalanceBucket", IndexBalanceMetrics.BUCKET_LABELS[i])));
+            final int bucket = i;
+            meterRegistry.registerLongGauge(
+                PRIMARY_METRIC_NAMES[i],
+                "Number of indices with " + SEVERITY_SEGMENTS[i] + " primary shard imbalance",
+                "{index}",
+                () -> new LongWithAttributes(lastState.get().primaryBalanceHistogram()[bucket])
+            );
+            meterRegistry.registerLongGauge(
+                REPLICA_METRIC_NAMES[i],
+                "Number of indices with " + SEVERITY_SEGMENTS[i] + " replica shard imbalance",
+                "{index}",
+                () -> new LongWithAttributes(lastState.get().replicaBalanceHistogram()[bucket])
+            );
         }
-        return measurements;
     }
 
     public static List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
@@ -179,7 +184,8 @@ public final class IndexBalanceMetricsTask extends PersistentTasksExecutor<Index
             clusterService.threadPool(),
             clusterSettings,
             clusterService,
-            indexBalanceMetrics
+            indexBalanceMetrics,
+            lastState
         );
     }
 
@@ -258,6 +264,7 @@ public final class IndexBalanceMetricsTask extends PersistentTasksExecutor<Index
         private final ClusterSettings clusterSettings;
         private final ClusterService clusterService;
         private final IndexBalanceMetrics indexBalanceMetrics;
+        private final AtomicReference<IndexBalanceMetrics.IndexBalanceState> lastState;
         private final ClusterStateListener routingTableChangedListener;
         private final AtomicReference<Scheduler.Cancellable> scheduledRefresh = new AtomicReference<>();
         private volatile boolean cancelled;
@@ -274,7 +281,8 @@ public final class IndexBalanceMetricsTask extends PersistentTasksExecutor<Index
             ThreadPool threadPool,
             ClusterSettings clusterSettings,
             ClusterService clusterService,
-            IndexBalanceMetrics indexBalanceMetrics
+            IndexBalanceMetrics indexBalanceMetrics,
+            AtomicReference<IndexBalanceMetrics.IndexBalanceState> lastState
         ) {
             super(id, type, action, description, parentTask, headers);
             this.threadPool = threadPool;
@@ -282,6 +290,7 @@ public final class IndexBalanceMetricsTask extends PersistentTasksExecutor<Index
             this.clusterSettings = clusterSettings;
             this.clusterService = clusterService;
             this.indexBalanceMetrics = indexBalanceMetrics;
+            this.lastState = lastState;
             this.routingTableChangedListener = this::onRoutingTableChanged;
         }
 
@@ -317,7 +326,13 @@ public final class IndexBalanceMetricsTask extends PersistentTasksExecutor<Index
         private void runRefresh() {
             if (needRefresh) {
                 needRefresh = false;
-                indexBalanceMetrics.compute(clusterService.state());
+                // Check cancelled before and after compute() to minimize the window where
+                // an in-flight computation could overwrite a state reset by onCancelled()
+                if (cancelled) return;
+                var result = indexBalanceMetrics.compute(clusterService.state());
+                if (cancelled == false) {
+                    lastState.set(result);
+                }
             }
         }
 
@@ -333,7 +348,7 @@ public final class IndexBalanceMetricsTask extends PersistentTasksExecutor<Index
             cancelled = true;
             clusterService.removeListener(routingTableChangedListener);
             cancelScheduledRefresh();
-            indexBalanceMetrics.resetState();
+            lastState.set(IndexBalanceMetrics.IndexBalanceState.EMPTY);
         }
 
         /** Package-visible for testing: returns the current scheduled refresh cancellable, or null if none. */

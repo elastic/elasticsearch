@@ -26,6 +26,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
@@ -104,7 +105,8 @@ public class IndexBalanceMetricsTaskTests extends ESTestCase {
             threadPool,
             clusterSettings,
             clusterService,
-            new IndexBalanceMetrics()
+            new IndexBalanceMetrics(),
+            new AtomicReference<>(IndexBalanceMetrics.IndexBalanceState.EMPTY)
         );
         task.startScheduledRefresh();
         final var cancellableBefore = task.getScheduledRefresh();
@@ -114,6 +116,7 @@ public class IndexBalanceMetricsTaskTests extends ESTestCase {
                 .put(IndexBalanceMetricsTask.INDEX_BALANCE_METRIC_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(45))
                 .build()
         );
+        assertThat("previous scheduled task should be cancelled", cancellableBefore.isCancelled(), equalTo(true));
         final var cancellableAfter = task.getScheduledRefresh();
         assertThat(cancellableAfter, notNullValue());
         assertThat("scheduled task should be replaced after interval change", cancellableAfter, not(sameInstance(cancellableBefore)));

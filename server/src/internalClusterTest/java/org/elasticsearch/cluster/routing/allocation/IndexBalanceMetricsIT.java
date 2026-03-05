@@ -15,17 +15,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Integration tests for {@link IndexBalanceMetricsTask} verifying task lifecycle and metric publication
@@ -52,39 +49,28 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
     public void testIndexBalanceMetricsTaskStartedAndAssigned() throws Exception {
         internalCluster().startNode();
         ensureGreen();
-        assertBusy(() -> {
-            assertThat(
-                "index balance metrics task should be present in cluster state",
-                IndexBalanceMetricsTask.Task.findTask(internalCluster().getInstance(ClusterService.class).state()),
-                notNullValue()
-            );
-        });
+        awaitClusterState(state -> IndexBalanceMetricsTask.Task.findTask(state) != null);
     }
 
     public void testTaskReassignedWhenNodeShutsDown() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();
         ensureGreen();
-        final var clusterService = internalCluster().getInstance(ClusterService.class);
-        assertBusy(() -> {
-            assertThat(
-                "index balance metrics task should be present in cluster state",
-                IndexBalanceMetricsTask.Task.findTask(clusterService.state()),
-                notNullValue()
-            );
+        awaitClusterState(state -> {
+            var task = IndexBalanceMetricsTask.Task.findTask(state);
+            return task != null && task.isAssigned();
         });
+        final var clusterService = internalCluster().getInstance(ClusterService.class);
         final var task = IndexBalanceMetricsTask.Task.findTask(clusterService.state());
-        assertThat("task should be assigned", task.isAssigned(), equalTo(true));
         final var executorNodeId = task.getAssignment().getExecutorNode();
         final var executorNodeName = clusterService.state().nodes().get(executorNodeId).getName();
         internalCluster().stopNode(executorNodeName);
         ensureGreen();
-        assertBusy(() -> {
-            final var remainingNodeClusterService = internalCluster().getInstance(ClusterService.class);
-            final var reassignedTask = IndexBalanceMetricsTask.Task.findTask(remainingNodeClusterService.state());
-            assertThat("task should still be present after node shutdown", reassignedTask, notNullValue());
-            assertThat("task should be reassigned", reassignedTask.isAssigned(), equalTo(true));
-            assertThat("task should run on the remaining node", reassignedTask.getAssignment().getExecutorNode(), notNullValue());
+        awaitClusterState(state -> {
+            var reassignedTask = IndexBalanceMetricsTask.Task.findTask(state);
+            return reassignedTask != null
+                && reassignedTask.isAssigned()
+                && executorNodeId.equals(reassignedTask.getAssignment().getExecutorNode()) == false;
         });
     }
 
@@ -101,9 +87,11 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         }
         ensureGreen();
 
+        awaitClusterState(state -> {
+            var task = IndexBalanceMetricsTask.Task.findTask(state);
+            return task != null && task.isAssigned();
+        });
         final var clusterService = internalCluster().getInstance(ClusterService.class);
-        assertBusy(() -> assertThat(IndexBalanceMetricsTask.Task.findTask(clusterService.state()), notNullValue()));
-
         final var task = IndexBalanceMetricsTask.Task.findTask(clusterService.state());
         final var executorNodeId = task.getAssignment().getExecutorNode();
         final var executorNodeName = clusterService.state().nodes().get(executorNodeId).getName();
@@ -112,23 +100,19 @@ public class IndexBalanceMetricsIT extends ESIntegTestCase {
         assertBusy(() -> {
             telemetryPlugin.resetMeter();
             telemetryPlugin.collect();
-            assertImbalanceHistogram(
-                telemetryPlugin.getLongGaugeMeasurement(IndexBalanceMetricsTask.PRIMARY_IMBALANCE_METRIC_NAME),
-                numIndices
-            );
-            assertImbalanceHistogram(
-                telemetryPlugin.getLongGaugeMeasurement(IndexBalanceMetricsTask.REPLICA_IMBALANCE_METRIC_NAME),
-                numIndices
-            );
+            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTask.PRIMARY_METRIC_NAMES, numIndices);
+            assertImbalanceMetrics(telemetryPlugin, IndexBalanceMetricsTask.REPLICA_METRIC_NAMES, numIndices);
         });
     }
 
-    private static void assertImbalanceHistogram(List<Measurement> measurements, int expectedIndexCount) {
-        assertThat(measurements, hasSize(IndexBalanceMetrics.BUCKET_COUNT));
-        assertThat(measurements.stream().mapToLong(Measurement::getLong).sum(), equalTo((long) expectedIndexCount));
-        for (int i = 0; i < IndexBalanceMetrics.BUCKET_COUNT; i++) {
-            assertThat(measurements.get(i).attributes().get("indexImbalanceBucket"), equalTo(IndexBalanceMetrics.BUCKET_LABELS[i]));
+    private static void assertImbalanceMetrics(TestTelemetryPlugin plugin, String[] metricNames, int expectedTotal) {
+        long sum = 0;
+        for (String name : metricNames) {
+            var measurements = plugin.getLongGaugeMeasurement(name);
+            assertThat(name + " should have exactly one measurement", measurements, hasSize(1));
+            sum += measurements.get(0).getLong();
         }
+        assertThat("bucket values should sum to number of indices", sum, equalTo((long) expectedTotal));
     }
 
     private static TestTelemetryPlugin getTelemetryPlugin(String nodeName) {

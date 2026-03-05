@@ -22,7 +22,7 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 
 /**
- * Computes index balance metrics from cluster state and retains the last computed result.
+ * Computes index balance metrics from cluster state.
  * Used by {@link IndexBalanceMetricsTask} which periodically triggers computation and
  * publishes the result via MeterRegistry.
  *
@@ -33,7 +33,6 @@ import java.util.stream.Stream;
 public final class IndexBalanceMetrics {
 
     static final double[] BUCKET_UPPER_BOUNDS = { 0.0, 0.2, 0.5, 1.0 };
-    static final String[] BUCKET_LABELS = { "0", "(0.0,0.2)", "[0.2,0.5)", "[0.5,1.0]" };
     static final int BUCKET_COUNT = BUCKET_UPPER_BOUNDS.length;
 
     /**
@@ -44,10 +43,6 @@ public final class IndexBalanceMetrics {
 
         public static final IndexBalanceState EMPTY = new IndexBalanceState(new int[BUCKET_COUNT], new int[BUCKET_COUNT]);
     }
-
-    private volatile IndexBalanceState lastState = IndexBalanceState.EMPTY;
-
-    public IndexBalanceMetrics() {}
 
     /**
      * Compute index balance from the current cluster state.
@@ -83,19 +78,7 @@ public final class IndexBalanceMetrics {
             replicaHist[bucketIndex(shardsImbalanceRatio(searchNodeMap))]++;
         }
 
-        final var result = new IndexBalanceState(primaryHist, replicaHist);
-        lastState = result;
-        return result;
-    }
-
-    /** Returns the last computed state, or {@link IndexBalanceState#EMPTY} if never computed. */
-    public IndexBalanceState getLastState() {
-        return lastState;
-    }
-
-    /** Resets the last computed state to {@link IndexBalanceState#EMPTY}. */
-    public void resetState() {
-        lastState = IndexBalanceState.EMPTY;
+        return new IndexBalanceState(primaryHist, replicaHist);
     }
 
     /**

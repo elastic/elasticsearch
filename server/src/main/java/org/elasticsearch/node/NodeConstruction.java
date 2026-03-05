@@ -1815,8 +1815,7 @@ class NodeConstruction {
             clusterService.getClusterSettings()
         );
         Stream<PersistentTasksExecutor<?>> builtinTaskExecutors;
-        if (meterRegistry != MeterRegistry.NOOP
-            && IndexBalanceMetricsTask.INDEX_BALANCE_METRICS_ENABLED_SETTING.get(settingsModule.getSettings())) {
+        if (IndexBalanceMetricsTask.INDEX_BALANCE_METRICS_ENABLED_SETTING.get(settingsModule.getSettings())) {
             builtinTaskExecutors = Stream.of(
                 healthNodeTaskExecutor,
                 new IndexBalanceMetricsTask(clusterService, persistentTasksService, clusterService.getClusterSettings(), meterRegistry)

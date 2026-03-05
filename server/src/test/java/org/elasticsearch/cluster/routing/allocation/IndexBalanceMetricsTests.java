@@ -38,7 +38,6 @@ import java.util.Set;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 
 /**
  * Unit tests for {@link IndexBalanceMetrics}.
@@ -64,20 +63,29 @@ public class IndexBalanceMetricsTests extends ESTestCase {
     public void testUnassignedShardsSkipped() {
         final var indexName = randomIndexName();
         final var index = new Index(indexName, "_na_");
-        final int numAssigned = between(1, 5);
+        final boolean primary = randomBoolean();
+        final var role = primary ? DiscoveryNodeRole.INDEX_ROLE : DiscoveryNodeRole.SEARCH_ROLE;
+        final int numNodes = between(2, 5);
+        final int shardsPerNode = between(1, 4);
+        final int numAssigned = numNodes * shardsPerNode;
         final int numUnassigned = between(1, 5);
         final int totalShards = numAssigned + numUnassigned;
 
+        final var nodesBuilder = DiscoveryNodes.builder();
+        for (int i = 0; i < numNodes; i++) {
+            nodesBuilder.add(DiscoveryNodeUtils.builder("node_" + i).roles(Set.of(role)).build());
+        }
+
         final var routingBuilder = IndexRoutingTable.builder(index);
         for (int i = 0; i < numAssigned; i++) {
-            routingBuilder.addShard(newShardRouting(new ShardId(index, i), "idx1", true, ShardRoutingState.STARTED));
+            routingBuilder.addShard(newShardRouting(new ShardId(index, i), "node_" + (i % numNodes), primary, ShardRoutingState.STARTED));
         }
         for (int i = numAssigned; i < totalShards; i++) {
-            routingBuilder.addShard(newShardRouting(new ShardId(index, i), null, true, ShardRoutingState.UNASSIGNED));
+            routingBuilder.addShard(newShardRouting(new ShardId(index, i), null, primary, ShardRoutingState.UNASSIGNED));
         }
 
         final var state = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.builder("idx1").roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build()))
+            .nodes(nodesBuilder)
             .metadata(
                 Metadata.builder().put(IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), totalShards, 0)))
             )
@@ -85,8 +93,10 @@ public class IndexBalanceMetricsTests extends ESTestCase {
             .build();
 
         final var result = new IndexBalanceMetrics().compute(state);
+        final var histogram = primary ? result.primaryBalanceHistogram() : result.replicaBalanceHistogram();
 
-        assertThat("one index counted in primary histogram", sum(result.primaryBalanceHistogram()), equalTo(1));
+        // Assigned shards are perfectly balanced; if unassigned shards affected the ratio this would fail
+        assertThat("evenly assigned shards should yield perfect balance", histogram[0], equalTo(1));
     }
 
     public void testNonEligibleNodesSkipped() {
@@ -200,34 +210,6 @@ public class IndexBalanceMetricsTests extends ESTestCase {
         assertThat(IndexBalanceMetrics.bucketIndex(0.5), equalTo(3));
         assertThat(IndexBalanceMetrics.bucketIndex(0.75), equalTo(3));
         assertThat(IndexBalanceMetrics.bucketIndex(1.0), equalTo(3));
-    }
-
-    public void testLastStateRetained() {
-        final var state = buildState(
-            List.of(randomIndexName()),
-            randomFrequencyMap("index_", randomNodeCount(), between(0, 40), 1),
-            randomNodeCount()
-        );
-        final var metrics = new IndexBalanceMetrics();
-
-        assertThat(metrics.getLastState(), equalTo(IndexBalanceMetrics.IndexBalanceState.EMPTY));
-
-        final var result = metrics.compute(state);
-        assertThat(metrics.getLastState(), equalTo(result));
-    }
-
-    public void testResetState() {
-        final var state = buildState(
-            List.of(randomIndexName()),
-            randomFrequencyMap("index_", randomNodeCount(), between(0, 40), 1),
-            randomNodeCount()
-        );
-        final var metrics = new IndexBalanceMetrics();
-        metrics.compute(state);
-        assertThat(metrics.getLastState(), not(equalTo(IndexBalanceMetrics.IndexBalanceState.EMPTY)));
-
-        metrics.resetState();
-        assertThat(metrics.getLastState(), equalTo(IndexBalanceMetrics.IndexBalanceState.EMPTY));
     }
 
     // -- helpers --

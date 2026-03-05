@@ -673,16 +673,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         float upperBound
     ) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        cases.add(new TypedDataSupplier("<dense vector>", () -> randomDenseVector(lowerBound, upperBound), DataType.DENSE_VECTOR));
+        cases.add(
+            new TypedDataSupplier(
+                "<dense vector>",
+                () -> randomDenseVector(randomIntBetween(64, 128), () -> randomFloatBetween(lowerBound, upperBound, true)),
+                DataType.DENSE_VECTOR
+            )
+        );
 
         unary(suppliers, expectedEvaluatorToString, cases, expectedType, v -> expectedValue.apply((List<Float>) v), List.of());
     }
 
-    private static List<Float> randomDenseVector(float lower, float upper) {
-        int dimensions = randomIntBetween(64, 128);
+    public static List<Float> randomDenseVector(int dimensions, Supplier<Float> vectorElementSupplier) {
         List<Float> vector = new ArrayList<>();
         for (int i = 0; i < dimensions; i++) {
-            vector.add(randomFloatBetween(lower, upper, true));
+            vector.add(vectorElementSupplier.get());
         }
         return vector;
     }
@@ -1768,11 +1773,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         private final String[] expectedBuildEvaluatorWarnings;
 
-        /**
-         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
-         */
-        @Deprecated
-        private final String expectedTypeError;
         private final boolean canBuildEvaluator;
 
         private final Class<? extends Throwable> foldingExceptionClass;
@@ -1789,17 +1789,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         public TestCase(List<TypedData> data, Matcher<String> evaluatorToString, DataType expectedType, Matcher<?> matcher) {
-            this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null, null);
-        }
-
-        /**
-         * Build a test case for type errors.
-         *
-         * @deprecated use a subclass of {@link ErrorsForCasesWithoutExamplesTestCase} instead
-         */
-        @Deprecated
-        public static TestCase typeError(List<TypedData> data, String expectedTypeError) {
-            return new TestCase(data, null, null, null, null, null, expectedTypeError, null, null, null);
+            this(data, evaluatorToString, expectedType, matcher, null, null, null, null, null);
         }
 
         TestCase(
@@ -1809,7 +1799,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Matcher<?> matcher,
             String[] expectedWarnings,
             String[] expectedBuildEvaluatorWarnings,
-            String expectedTypeError,
             Class<? extends Throwable> foldingExceptionClass,
             String foldingExceptionMessage,
             Object extra
@@ -1823,7 +1812,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -1840,7 +1828,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Matcher<?> matcher,
             String[] expectedWarnings,
             String[] expectedBuildEvaluatorWarnings,
-            String expectedTypeError,
             Class<? extends Throwable> foldingExceptionClass,
             String foldingExceptionMessage,
             Object extra,
@@ -1856,7 +1843,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.matcher = downcast;
             this.expectedWarnings = expectedWarnings;
             this.expectedBuildEvaluatorWarnings = expectedBuildEvaluatorWarnings;
-            this.expectedTypeError = expectedTypeError;
             this.foldingExceptionClass = foldingExceptionClass;
             this.foldingExceptionMessage = foldingExceptionMessage;
             this.extra = extra;
@@ -1928,14 +1914,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
-         * @deprecated use subclasses of {@link ErrorsForCasesWithoutExamplesTestCase}
-         */
-        @Deprecated
-        public String getExpectedTypeError() {
-            return expectedTypeError;
-        }
-
-        /**
          * Extra data embedded in the test case. Test subclasses can cast
          * as needed and extra <strong>whatever</strong> helps them.
          */
@@ -1959,7 +1937,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -1980,7 +1957,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2001,7 +1977,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2019,7 +1994,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 addWarning(expectedWarnings, warning),
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2037,7 +2011,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 warnings == null ? null : warnings.toArray(new String[0]),
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2059,7 +2032,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 addWarning(expectedBuildEvaluatorWarnings, warning),
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,
@@ -2086,7 +2058,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 clazz,
                 message,
                 extra,
@@ -2110,7 +2081,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 matcher,
                 expectedWarnings,
                 expectedBuildEvaluatorWarnings,
-                expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
                 extra,

@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -44,8 +43,8 @@ import java.util.Objects;
  * as valid bytes inside a binary value.
  */
 public class TopNOperator implements Operator, Accountable {
-    private static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
-    private static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
+    static final byte SMALL_NULL = 0x01; // "null" representation for "nulls first"
+    static final byte BIG_NULL = 0x02; // "null" representation for "nulls last"
 
     public enum InputOrdering {
         SORTED,
@@ -240,10 +239,14 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize,
-        InputOrdering inputOrdering
+        int maxPageRows,
+        long jumboPageBytes,
+        InputOrdering inputOrdering,
+        @Nullable SharedMinCompetitive.Supplier minCompetitive
     ) implements OperatorFactory {
-        public TopNOperatorFactory {
+        public TopNOperatorFactory
+
+        {
             for (ElementType e : elementTypes) {
                 if (e == null) {
                     throw new IllegalArgumentException("ElementType not known");
@@ -260,8 +263,10 @@ public class TopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                maxPageSize,
-                inputOrdering
+                maxPageRows,
+                jumboPageBytes,
+                inputOrdering,
+                minCompetitive
             );
         }
 
@@ -284,12 +289,24 @@ public class TopNOperator implements Operator, Accountable {
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
 
-    private final int maxPageSize;
+    private final int maxPageRows;
+    private final long jumboPageBytes;
 
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
     private final boolean[] channelInKey;
+
+    /**
+     * Tracker for the minimum competitive value. If this is null no one is listening
+     * for the min competitive so we don't track it.
+     */
+    @Nullable
+    private final SharedMinCompetitive minCompetitive;
+    /**
+     * How many times {@link #minCompetitive} was updated.
+     */
+    private int minCompetitiveUpdates;
 
     private Queue inputQueue;
     private Row spare;
@@ -330,16 +347,32 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        int maxPageSize,
-        InputOrdering inputOrdering
+        int maxPageRows,
+        long jumboPageBytes,
+        InputOrdering inputOrdering,
+        @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier
     ) {
+        Queue inputQueue = null;
+        SharedMinCompetitive minCompetitive = null;
+        boolean success = false;
+        try {
+            inputQueue = Queue.build(breaker, topCount);
+            minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(inputQueue, minCompetitive);
+            }
+        }
+        this.inputQueue = inputQueue;
+        this.minCompetitive = minCompetitive;
         this.blockFactory = blockFactory;
         this.breaker = breaker;
-        this.maxPageSize = maxPageSize;
+        this.maxPageRows = maxPageRows;
+        this.jumboPageBytes = jumboPageBytes;
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
-        this.inputQueue = Queue.build(breaker, topCount);
         this.inputOrdering = inputOrdering;
         this.channelInKey = new boolean[elementTypes.size()];
         for (SortOrder so : sortOrders) {
@@ -355,6 +388,7 @@ public class TopNOperator implements Operator, Accountable {
     @Override
     public void addInput(Page page) {
         long start = System.nanoTime();
+        boolean modified = false;
         /*
          * Since row tracks memory we have to be careful to close any unused rows,
          * including any rows that fail while constructing because they allocate
@@ -393,6 +427,7 @@ public class TopNOperator implements Operator, Accountable {
                     spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
                     inputQueue.add(spare);
                     spare = null;
+                    modified = true;
                 } else if (inputQueue.lessThan(inputQueue.top(), spare)) {
                     // Heap full AND this node fit in it.
                     Row nextSpare = inputQueue.top();
@@ -400,6 +435,7 @@ public class TopNOperator implements Operator, Accountable {
                     spareValuesPreAllocSize = Math.max(spare.values.length(), spareValuesPreAllocSize / 2);
                     inputQueue.updateTop(spare);
                     spare = nextSpare;
+                    modified = true;
                 } else if (inputOrdering == InputOrdering.SORTED) {
                     /*
                      The queue (min-heap) is full and we have sorted input for the input page. Any other element that comes after the one
@@ -412,11 +448,28 @@ public class TopNOperator implements Operator, Accountable {
                     break;
                 }
             }
+
+            if (modified) {
+                updateMinCompetitive();
+            }
+
         } finally {
             page.releaseBlocks();
             pagesReceived++;
             rowsReceived += page.getPositionCount();
             receiveNanos += System.nanoTime() - start;
+        }
+    }
+
+    /**
+     * Offer an update to {@link #minCompetitive} if it is non-null.
+     */
+    private void updateMinCompetitive() {
+        if (minCompetitive == null || inputQueue == null || inputQueue.size() < inputQueue.topCount) {
+            return;
+        }
+        if (minCompetitive.offer(inputQueue.top().keys.bytesRefView())) {
+            minCompetitiveUpdates++;
         }
     }
 
@@ -468,7 +521,8 @@ public class TopNOperator implements Operator, Accountable {
              * If we're in the process of outputting pages then output will contain all
              * allocated but un-emitted rows.
              */
-            output
+            output,
+            minCompetitive
         );
         // Aggressively null these so they can be GCed more quickly.
         inputQueue = null;
@@ -505,7 +559,8 @@ public class TopNOperator implements Operator, Accountable {
             pagesReceived,
             pagesEmitted,
             rowsReceived,
-            rowsEmitted
+            rowsEmitted,
+            minCompetitiveUpdates
         );
     }
 
@@ -639,7 +694,7 @@ public class TopNOperator implements Operator, Accountable {
         @Override
         public Page next() {
             long start = System.nanoTime();
-            int size = Math.min(maxPageSize, rows.size() - r);
+            int size = Math.min(maxPageRows, rows.size() - r);
             if (size <= 0) {
                 throw new IllegalStateException("can't make empty pages. " + size + " must be > 0");
             }
@@ -654,24 +709,23 @@ public class TopNOperator implements Operator, Accountable {
                         readKeys(builders, row.keys.bytesRefView());
                         readValues(builders, row.values.bytesRefView());
                     }
-                }
-
-                Block[] blocks = new Block[builders.length];
-                try {
-                    for (int b = 0; b < blocks.length; b++) {
-                        blocks[b] = builders[b].build();
-                    }
-                } finally {
-                    if (blocks[blocks.length - 1] == null) {
-                        Releasables.closeExpectNoException(blocks);
+                    if (totalSize(builders) > jumboPageBytes) {
+                        break;
                     }
                 }
-                Releasables.closeExpectNoException(builders);
-                return new Page(blocks);
+                return new Page(ResultBuilder.buildAll(builders));
             } finally {
                 Releasables.close(builders);
                 emitNanos += System.nanoTime() - start;
             }
+        }
+
+        private long totalSize(ResultBuilder[] builders) {
+            long total = 0;
+            for (ResultBuilder b : builders) {
+                total += b.estimatedBytes();
+            }
+            return total;
         }
 
         @Override

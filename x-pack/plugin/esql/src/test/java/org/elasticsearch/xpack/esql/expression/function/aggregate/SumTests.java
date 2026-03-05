@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -27,7 +29,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -39,13 +43,14 @@ public class SumTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
+        FunctionAppliesTo histogramAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100).stream().map(s -> s.withAppliesTo(histogramAppliesTo)).toList(),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).map(SumTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
@@ -94,8 +99,11 @@ public class SumTests extends AbstractAggregationTestCase {
                     );
 
                 })
+
             )
         );
+
+        suppliers.addAll(MultiRowTestCaseSupplier.denseVectorCases(1, 100).stream().map(SumTests::makeSupplier).toList());
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
@@ -105,6 +113,7 @@ public class SumTests extends AbstractAggregationTestCase {
         return new Sum(source, args.get(0));
     }
 
+    @SuppressWarnings("unchecked")
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
@@ -114,40 +123,56 @@ public class SumTests extends AbstractAggregationTestCase {
             String expectedWarning = null;
             Object expected = null;
             if (data.isEmpty() == false) {
-                try {
-                    expected = switch (type) {
-                        case INTEGER -> data.stream().mapToLong(v -> (int) v).sum();
-                        case LONG -> data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
-                        case DOUBLE -> data.stream().mapToDouble(v -> (double) v).sum();
-                        case AGGREGATE_METRIC_DOUBLE -> data.stream()
-                            .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
-                            .sum();
-                        case EXPONENTIAL_HISTOGRAM -> {
-                            var sums = data.stream()
-                                .map(obj -> (ExponentialHistogram) obj)
-                                .filter(obj -> obj.valueCount() > 0)
-                                .mapToDouble(ExponentialHistogram::sum)
-                                .toArray();
-                            yield sums.length == 0 ? null : Arrays.stream(sums).sum();
+                expected = switch (type) {
+                    case INTEGER -> data.stream().mapToLong(v -> (int) v).sum();
+                    case LONG -> {
+                        try {
+                            yield data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                        } catch (ArithmeticException e) {
+                            expectedWarning = e.toString();
+                            yield null;
                         }
-                        case TDIGEST -> {
-                            var sums = data.stream()
-                                .map(obj -> (TDigestHolder) obj)
-                                .filter(obj -> obj.getValueCount() > 0)
-                                .mapToDouble(TDigestHolder::getSum)
-                                .toArray();
-                            yield sums.length == 0 ? null : Arrays.stream(sums).sum();
-                        }
-                        default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
-                    };
-                } catch (ArithmeticException e) {
-                    expected = null;
-                    if (type == DataType.LONG) {
-                        expectedWarning = "java.lang.ArithmeticException: long overflow";
-                    } else {
-                        throw new UnsupportedOperationException("Unsupported exception in test for type " + type + ": " + e);
                     }
-                }
+                    case DOUBLE -> data.stream().mapToDouble(v -> (double) v).sum();
+                    case AGGREGATE_METRIC_DOUBLE -> data.stream()
+                        .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
+                        .sum();
+                    case EXPONENTIAL_HISTOGRAM -> {
+                        var sums = data.stream()
+                            .map(obj -> (ExponentialHistogram) obj)
+                            .filter(obj -> obj.valueCount() > 0)
+                            .mapToDouble(ExponentialHistogram::sum)
+                            .toArray();
+                        yield sums.length == 0 ? null : Arrays.stream(sums).sum();
+                    }
+                    case TDIGEST -> {
+                        var sums = data.stream()
+                            .map(obj -> (TDigestHolder) obj)
+                            .filter(obj -> obj.getValueCount() > 0)
+                            .mapToDouble(TDigestHolder::getSum)
+                            .toArray();
+                        yield sums.length == 0 ? null : Arrays.stream(sums).sum();
+                    }
+                    case DENSE_VECTOR -> {
+                        List<List<Float>> vectors = data.stream().map(v -> (List<Float>) v).toList();
+                        if (vectors.isEmpty()) {
+                            yield null;
+                        }
+                        List<Float> sum = new ArrayList<>(vectors.get(0));
+                        for (int i = 1; i < vectors.size(); i++) {
+                            for (int j = 0; j < sum.size(); j++) {
+                                sum.set(j, sum.get(j) + vectors.get(i).get(j));
+                            }
+                        }
+                        Float failedValue = sum.stream().filter(v -> Float.isFinite(v) == false).findFirst().orElse(null);
+                        if (failedValue == null) {
+                            yield sum;
+                        }
+                        expectedWarning = "java.lang.ArithmeticException: not a finite float number: " + failedValue;
+                        yield null;
+                    }
+                    default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
+                };
             }
 
             // Doubles currently return +/-Infinity on overflow.
@@ -157,7 +182,10 @@ public class SumTests extends AbstractAggregationTestCase {
                 "Sums of doubles may return infinity in their current implementation",
                 expected instanceof Double d && Double.isFinite(d) == false
             );
-            var returnType = type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE : DataType.LONG;
+
+            var returnType = type == DENSE_VECTOR ? DENSE_VECTOR
+                : type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE
+                : DataType.LONG;
 
             var testCase = new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),

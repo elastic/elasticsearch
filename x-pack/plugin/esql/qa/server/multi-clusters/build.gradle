@@ -23,6 +23,9 @@ dependencies {
   javaRestTestImplementation project(xpackModule('esql'))
 
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+  clusterPlugins project(xpackModule('esql-datasource-csv'))
+  clusterPlugins project(xpackModule('esql-datasource-ndjson'))
+  clusterPlugins project(xpackModule('esql-datasource-http'))
 }
 
 def supportedVersion = bwcVersion -> {

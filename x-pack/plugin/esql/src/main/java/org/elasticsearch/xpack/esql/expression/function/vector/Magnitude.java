@@ -18,9 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -30,8 +28,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -64,8 +64,8 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
     }
 
     @Override
-    protected UnaryScalarFunction replaceChild(Expression newChild) {
-        return new Magnitude(source(), newChild);
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new Magnitude(source(), newChildren.getFirst());
     }
 
     @Override
@@ -102,11 +102,6 @@ public class Magnitude extends UnaryScalarFunction implements EvaluatorMapper, V
     @FunctionalInterface
     public interface ScalarEvaluatorFunction {
         float calculateScalar(float[] scratch);
-    }
-
-    @Override
-    public Object fold(FoldContext ctx) {
-        return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override

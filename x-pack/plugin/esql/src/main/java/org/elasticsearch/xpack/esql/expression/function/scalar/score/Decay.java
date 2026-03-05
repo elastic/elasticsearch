@@ -210,6 +210,22 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         return ENTRY.name;
     }
 
+    Expression value() {
+        return value;
+    }
+
+    Expression origin() {
+        return origin;
+    }
+
+    Expression scale() {
+        return scale;
+    }
+
+    Expression options() {
+        return options;
+    }
+
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
@@ -366,27 +382,27 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             case INTEGER -> new DecayIntEvaluator.Factory(
                 source(),
                 valueFactory,
-                (Integer) originFolded,
-                (Integer) scaleFolded,
-                (Integer) offsetFolded,
+                ((Number) originFolded).intValue(),
+                ((Number) scaleFolded).intValue(),
+                ((Number) offsetFolded).intValue(),
                 decayFolded,
                 decayFunction
             );
             case DOUBLE -> new DecayDoubleEvaluator.Factory(
                 source(),
                 valueFactory,
-                (Double) originFolded,
-                (Double) scaleFolded,
-                (Double) offsetFolded,
+                ((Number) originFolded).doubleValue(),
+                ((Number) scaleFolded).doubleValue(),
+                ((Number) offsetFolded).doubleValue(),
                 decayFolded,
                 decayFunction
             );
             case LONG -> new DecayLongEvaluator.Factory(
                 source(),
                 valueFactory,
-                (Long) originFolded,
-                (Long) scaleFolded,
-                (Long) offsetFolded,
+                ((Number) originFolded).longValue(),
+                ((Number) scaleFolded).longValue(),
+                ((Number) offsetFolded).longValue(),
                 decayFolded,
                 decayFunction
             );

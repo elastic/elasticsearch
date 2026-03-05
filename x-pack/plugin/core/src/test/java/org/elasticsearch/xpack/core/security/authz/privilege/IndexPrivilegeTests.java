@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.esql.EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG;
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,18 +73,20 @@ public class IndexPrivilegeTests extends ESTestCase {
             equalTo(List.of("monitor", "cross_cluster_replication", "manage", "all"))
         );
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
-        assertThat(
-            findPrivilegesThatGrant(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME),
-            equalTo(List.of("create_view", "manage_view", "manage", "all"))
-        );
-        assertThat(
-            findPrivilegesThatGrant(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME),
-            equalTo(List.of("read_view_metadata", "manage_view", "manage", "all"))
-        );
-        assertThat(
-            findPrivilegesThatGrant(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME),
-            equalTo(List.of("delete_view", "manage_view", "manage", "all"))
-        );
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
+            assertThat(
+                findPrivilegesThatGrant(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME),
+                equalTo(List.of("create_view", "manage_view", "manage", "all"))
+            );
+            assertThat(
+                findPrivilegesThatGrant(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME),
+                equalTo(List.of("read_view_metadata", "manage_view", "manage", "all"))
+            );
+            assertThat(
+                findPrivilegesThatGrant(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME),
+                equalTo(List.of("delete_view", "manage_view", "manage", "all"))
+            );
+        }
 
         Predicate<IndexPrivilege> failuresOnly = p -> p.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES;
         assertThat(findPrivilegesThatGrant(TransportSearchAction.TYPE.name(), failuresOnly), equalTo(List.of("read_failure_store")));
@@ -127,25 +130,27 @@ public class IndexPrivilegeTests extends ESTestCase {
             assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
         }
-        {
-            IndexPrivilege actual = IndexPrivilege.get("create_view");
-            assertThat(actual, equalTo(IndexPrivilege.CREATE_VIEW));
-            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
-        }
-        {
-            IndexPrivilege actual = IndexPrivilege.get("delete_view");
-            assertThat(actual, equalTo(IndexPrivilege.DELETE_VIEW));
-            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
-        }
-        {
-            IndexPrivilege actual = IndexPrivilege.get("read_view_metadata");
-            assertThat(actual, equalTo(IndexPrivilege.READ_VIEW_METADATA));
-            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
-        }
-        {
-            IndexPrivilege actual = IndexPrivilege.get("manage_view");
-            assertThat(actual, equalTo(IndexPrivilege.MANAGE_VIEW));
-            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
+        if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
+            {
+                IndexPrivilege actual = IndexPrivilege.get("create_view");
+                assertThat(actual, equalTo(IndexPrivilege.CREATE_VIEW));
+                assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
+            }
+            {
+                IndexPrivilege actual = IndexPrivilege.get("delete_view");
+                assertThat(actual, equalTo(IndexPrivilege.DELETE_VIEW));
+                assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
+            }
+            {
+                IndexPrivilege actual = IndexPrivilege.get("read_view_metadata");
+                assertThat(actual, equalTo(IndexPrivilege.READ_VIEW_METADATA));
+                assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
+            }
+            {
+                IndexPrivilege actual = IndexPrivilege.get("manage_view");
+                assertThat(actual, equalTo(IndexPrivilege.MANAGE_VIEW));
+                assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
+            }
         }
     }
 
@@ -429,6 +434,7 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testViewPrivileges() {
+        assumeTrue("ESQL views feature flag is disabled", ESQL_VIEWS_FEATURE_FLAG.isEnabled());
         final IndexPrivilege createView = resolvePrivilegeAndAssertSingleton(Set.of("create_view"));
         assertThat(createView.predicate.test(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME), is(true));
         assertThat(createView.predicate.test(EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME + randomAlphaOfLengthBetween(1, 8)), is(false));

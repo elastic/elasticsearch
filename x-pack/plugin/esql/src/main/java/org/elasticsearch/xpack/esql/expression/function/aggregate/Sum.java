@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LossySumDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SumDenseVectorAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
@@ -68,7 +69,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     private final boolean useOverflowingLongSupplier;
 
     @FunctionInfo(
-        returnType = { "long", "double" },
+        returnType = { "long", "double", "dense_vector" },
         description = "The sum of a numeric expression.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -85,7 +86,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
         Source source,
         @Param(
             name = "number",
-            type = { "aggregate_metric_double", "exponential_histogram", "tdigest", "double", "integer", "long" }
+            type = { "aggregate_metric_double", "exponential_histogram", "tdigest", "double", "integer", "long", "dense_vector" }
         ) Expression field
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, SummationMode.COMPENSATED_LITERAL);
@@ -162,6 +163,9 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
     @Override
     public DataType dataType() {
         DataType dt = field().dataType();
+        if (dt == DataType.DENSE_VECTOR) {
+            return DataType.DENSE_VECTOR;
+        }
         return dt.isWholeNumber() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
     }
 
@@ -185,6 +189,11 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
             case COMPENSATED -> new SumDoubleAggregatorFunctionSupplier();
             case LOSSY -> new LossySumDoubleAggregatorFunctionSupplier();
         };
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier denseVectorSupplier() {
+        return new SumDenseVectorAggregatorFunctionSupplier(source());
     }
 
     public Expression summationMode() {
@@ -216,7 +225,8 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
             dt -> dt == DataType.AGGREGATE_METRIC_DOUBLE
                 || dt == DataType.EXPONENTIAL_HISTOGRAM
                 || dt == DataType.TDIGEST
-                || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG)
+                || dt == DataType.DENSE_VECTOR,
             sourceText(),
             DEFAULT,
             "aggregate_metric_double, exponential_histogram, tdigest or numeric except unsigned_long or counter types"
@@ -225,8 +235,12 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Transp
 
     @Override
     public Expression surrogate() {
-        var s = source();
         var field = field();
+        if (field.dataType() == DataType.DENSE_VECTOR) {
+            return null;
+        }
+
+        var s = source();
         if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
             return new Sum(
                 s,

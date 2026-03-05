@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -136,6 +137,10 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final ScriptCompiler scriptCompiler;
         private final NumberType type;
+
+        public NumberType type() {
+            return type;
+        }
 
         private boolean allowMultipleValues = true;
         private final IndexSettings indexSettings;
@@ -280,6 +285,11 @@ public class NumberFieldMapper extends FieldMapper {
                 meta,
                 dimension,
                 metric };
+        }
+
+        @Override
+        public String contentType() {
+            return type.typeName();
         }
 
         @Override
@@ -1845,8 +1855,13 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract void writeValue(XContentBuilder builder, long longValue) throws IOException;
 
-        SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName, boolean ignoreMalformed) {
-            return new SortedNumericDocValuesSyntheticFieldLoader(fieldName, fieldSimpleName, ignoreMalformed) {
+        SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+            String fieldName,
+            String fieldSimpleName,
+            boolean ignoreMalformed,
+            IndexVersion indexVersion
+        ) {
+            return new SortedNumericDocValuesSyntheticFieldLoader(fieldName, fieldSimpleName, ignoreMalformed, indexVersion) {
                 @Override
                 public void writeValue(XContentBuilder b, long value) throws IOException {
                     NumberType.this.writeValue(b, value);
@@ -2362,7 +2377,7 @@ public class NumberFieldMapper extends FieldMapper {
                 context.addIgnoredField(mappedFieldType.name());
                 if (isSyntheticSource) {
                     // Save a copy of the field so synthetic source can load it
-                    context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), context.parser()));
+                    IgnoreMalformedStoredValues.storeMalformedValueForSyntheticSource(context, fullPath(), context.parser());
                 }
                 return;
             } else {
@@ -2476,11 +2491,11 @@ public class NumberFieldMapper extends FieldMapper {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, type::writeValue));
             if (ignoreMalformed.value()) {
-                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+                layers.add(CompositeSyntheticFieldLoader.malformedValuesLayer(fullPath(), indexSettings.getIndexVersionCreated()));
             }
             return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
         } else {
-            return type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value());
+            return type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value(), indexSettings.getIndexVersionCreated());
         }
     }
 

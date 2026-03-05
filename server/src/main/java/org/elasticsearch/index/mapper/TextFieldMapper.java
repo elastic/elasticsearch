@@ -567,6 +567,11 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public TextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(
                 index,
@@ -1277,7 +1282,7 @@ public final class TextFieldMapper extends FieldMapper {
                 if (usesBinaryDocValues()) {
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
                 } else {
-                    return new BytesRefsFromOrdsBlockLoader(name());
+                    return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                 }
             }
 

@@ -510,13 +510,13 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
     @SuppressWarnings("unchecked")
     private static final Comparator<Object> CASTING_COMPARATOR = (o1, o2) -> ((Comparable<Object>) o1).compareTo(o2);
 
-    private static List<Tuple<Long, Long>> computeTopN(List<Tuple<Long, Long>> inputValues, int limit, boolean ascendingOrder) {
+    private List<Tuple<Long, Long>> computeTopN(List<Tuple<Long, Long>> inputValues, int limit, boolean ascendingOrder) {
         return computeTopN(inputValues.stream().map(e -> Arrays.asList(e.v1(), e.v2())).toList(), 1, 0, limit, ascendingOrder).stream()
             .map(l -> Tuple.tuple((Long) l.get(0), (Long) l.get(1)))
             .toList();
     }
 
-    private static List<? extends List<?>> computeTopN(
+    private List<? extends List<?>> computeTopN(
         List<? extends List<?>> inputValues,
         int groupChannel,
         int sortChannel,
@@ -529,7 +529,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             singleValueInput.add(rowAsObject);
         }
         List<SortOrder> sortOrders = List.of(new SortOrder(sortChannel, ascendingOrder, false));
-        return new GroupedTopNOperatorTests().computeTopN(singleValueInput, List.of(groupChannel), sortOrders, limit);
+        return computeTopN(singleValueInput, List.of(groupChannel), sortOrders, limit);
     }
 
     private List<List<Object>> computeTopN(

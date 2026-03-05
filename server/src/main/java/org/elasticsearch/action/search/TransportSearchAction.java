@@ -240,7 +240,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         this.activityLogger = new ActivityLogger<>(
-            "search",
             clusterService.getClusterSettings(),
             new SearchLogProducer(clusterService.getClusterSettings(), indexNameExpressionResolver.getSystemNamePredicate()),
             logWriterProvider,
@@ -534,6 +533,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             } else {
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
+                if (rewritten.allowPartialSearchResults() == null) {
+                    rewritten.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
+                }
                 if (shouldMinimizeRoundtrips(rewritten)) {
                     collectRemoteResolvedIndices(
                         parentTaskId,
@@ -1212,6 +1214,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
 
+        /*
+         * Projects that do not host the indices participating in a search should not appear in
+         * the search response's metadata. For MRT=false, this is handled by reconcileProjects().
+         * For MRT=true, we handle it here.
+         */
+        boolean includeOriginProjectInMetadata = rewritten.getResolvedIndexExpressions()
+            .expressions()
+            .stream()
+            .anyMatch(e -> e.localExpressions().localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS);
+
         ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
             rewritten.indicesOptions(),
             rewritten.getProjectRouting(),
@@ -1246,7 +1258,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             listener.onResponse(
                 new ResolvedIndices(
                     participatingLinkedProjects,
-                    resolvedIndicesForCps.getLocalIndices(),
+                    includeOriginProjectInMetadata ? originalResolvedIndices.getLocalIndices() : null,
                     resolvedIndicesForCps.getConcreteLocalIndicesMetadata()
                 )
             );
@@ -1278,13 +1290,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             l.onResponse(Map.entry(projectName, new SearchPlanningPhaseResolutionResult(null, error)));
         })
             .delegateFailure(
-                (ignored, connection) -> transportService.sendRequest(
+                (delegate, connection) -> transportService.sendRequest(
                     connection,
                     ResolveIndexAction.REMOTE_TYPE.name(),
                     resolveIndexRequest,
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(
-                        listener.map(response -> Map.entry(projectName, new SearchPlanningPhaseResolutionResult(response, null))),
+                        delegate.map(response -> Map.entry(projectName, new SearchPlanningPhaseResolutionResult(response, null))),
                         ResolveIndexAction.Response::new,
                         threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
                     )

@@ -10,16 +10,27 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
  * Iterator that reads NDJSON lines and produces ESQL Pages.
+ *
+ * <p>When {@code skipFirstLine} is true (for non-first splits), discards bytes up to
+ * and including the first newline before starting to parse. This implements the standard
+ * line-alignment protocol for split boundary handling.
+ *
+ * <p>When {@code resolvedAttributes} is provided, uses those instead of inferring schema
+ * from the split data, avoiding the risk of schema divergence across splits.
  */
 final class NdJsonPageIterator implements CloseableIterator<Page> {
 
@@ -28,13 +39,51 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     private Page nextPage;
 
     NdJsonPageIterator(StorageObject object, List<String> projectedColumns, int batchSize, BlockFactory blockFactory) throws IOException {
-        // FIXME: either read schema ahead of time, of buffer the stream and replay it to avoid opening it twice.
+        this(object, projectedColumns, batchSize, blockFactory, false, false, null);
+    }
+
+    NdJsonPageIterator(StorageObject object, List<String> projectedColumns, int batchSize, BlockFactory blockFactory, boolean skipFirstLine)
+        throws IOException {
+        this(object, projectedColumns, batchSize, blockFactory, skipFirstLine, false, null);
+    }
+
+    NdJsonPageIterator(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        boolean skipFirstLine,
+        @Nullable List<Attribute> resolvedAttributes
+    ) throws IOException {
+        this(object, projectedColumns, batchSize, blockFactory, skipFirstLine, false, resolvedAttributes);
+    }
+
+    NdJsonPageIterator(
+        StorageObject object,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        boolean skipFirstLine,
+        boolean trimLastPartialLine,
+        @Nullable List<Attribute> resolvedAttributes
+    ) throws IOException {
         List<Attribute> attributes;
-        try (var stream = object.newStream()) {
-            attributes = NdJsonSchemaInferrer.inferSchema(stream);
+        if (resolvedAttributes != null && resolvedAttributes.isEmpty() == false) {
+            attributes = resolvedAttributes;
+        } else {
+            // FIXME: either read schema ahead of time, or buffer the stream and replay it to avoid opening it twice.
+            try (var stream = object.newStream()) {
+                attributes = NdJsonSchemaInferrer.inferSchema(stream);
+            }
         }
 
-        var inputStream = object.newStream();
+        InputStream inputStream = object.newStream();
+        if (skipFirstLine) {
+            skipToNextLine(inputStream);
+        }
+        if (trimLastPartialLine) {
+            inputStream = trimLastPartialLine(inputStream);
+        }
         this.pageDecoder = new NdJsonPageDecoder(inputStream, attributes, projectedColumns, batchSize, blockFactory);
     }
 
@@ -68,5 +117,43 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     @Override
     public void close() throws IOException {
         IOUtils.close(pageDecoder);
+    }
+
+    static void skipToNextLine(InputStream stream) throws IOException {
+        int b;
+        while ((b = stream.read()) != -1) {
+            if (b == '\n') {
+                return;
+            }
+        }
+    }
+
+    private static final int TRIM_CHUNK_SIZE = 8192;
+
+    static InputStream trimLastPartialLine(InputStream in) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] chunk = new byte[TRIM_CHUNK_SIZE];
+        int lastNewline = -1;
+        int totalRead = 0;
+        int bytesRead;
+        try {
+            while ((bytesRead = in.read(chunk)) != -1) {
+                int baseOffset = totalRead;
+                buffer.write(chunk, 0, bytesRead);
+                for (int i = bytesRead - 1; i >= 0; i--) {
+                    if (chunk[i] == '\n') {
+                        lastNewline = baseOffset + i;
+                        break;
+                    }
+                }
+                totalRead += bytesRead;
+            }
+        } finally {
+            IOUtils.close(in);
+        }
+        if (lastNewline == -1) {
+            return new ByteArrayInputStream(new byte[0]);
+        }
+        return new ByteArrayInputStream(buffer.toByteArray(), 0, lastNewline + 1);
     }
 }

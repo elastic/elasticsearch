@@ -659,7 +659,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                            "supported_task_types": ["text_embedding", "sparse_embedding", "rerank", "completion"]
                          },
                          "http_schema": {
-                           "description": "",
+                           "description": "Specifies the HTTP protocol schema used when connecting to the AlibabaCloud AI Search service. Valid values are 'http' or 'https'. Defaults to 'https' if not specified.",
                            "label": "HTTP Schema",
                            "required": false,
                            "sensitive": false,

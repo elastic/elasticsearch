@@ -38,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 
@@ -229,7 +230,7 @@ public class ViewResolver {
 
         doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l1, response) -> {
             if (response.views().length == 0) {
-                listener.onResponse(unresolvedRelation);
+                listener.onResponse(stripValidConcreteViewExclusions(unresolvedRelation, patterns));
                 return;
             }
 
@@ -237,7 +238,7 @@ public class ViewResolver {
             SubscribableListener<Void> chain = SubscribableListener.newForked(l2 -> l2.onResponse(null));
             for (var view : response.views()) {
                 chain = chain.andThen(l2 -> {
-                    validateViewReference(view.name(), seenViews);
+                    validateViewReferenceAndMarkSeen(view.name(), seenViews);
                     replaceViews(
                         resolve(view, parser, viewQueries),
                         parser,
@@ -266,7 +267,7 @@ public class ViewResolver {
         }));
     }
 
-    private void validateViewReference(String viewName, LinkedHashSet<String> seenViews) {
+    private void validateViewReferenceAndMarkSeen(String viewName, LinkedHashSet<String> seenViews) {
         if (seenViews.add(viewName) == false) {
             throw new VerificationException("circular view reference '" + viewName + "': " + String.join(" -> ", seenViews));
         }
@@ -305,20 +306,48 @@ public class ViewResolver {
             }
         }
         if (unresolvedPatterns.isEmpty() == false) {
-            // TODO: viewNames contains all views regardless of user access. This is functionally correct
-            // (inaccessible views are also hidden from field caps) but ideally should be scoped to
-            // views the user can access.
             var viewNames = getMetadata().views();
             for (String pattern : originalPatterns) {
-                if (pattern.startsWith("-")) {
-                    String target = pattern.substring(1);
-                    if (Regex.isSimpleMatchPattern(target) || viewNames.containsKey(target) == false) {
-                        unresolvedPatterns.add(pattern);
-                    }
+                if (isConcreteViewExclusion(pattern, viewNames::containsKey) == false) {
+                    unresolvedPatterns.add(pattern);
                 }
             }
         }
         return unresolvedPatterns;
+    }
+
+    /**
+     * Checks whether a pattern is an exclusion targeting a concrete (non-wildcard) view name.
+     */
+    private static boolean isConcreteViewExclusion(String pattern, Predicate<String> viewExistsPredicate) {
+        if (pattern.startsWith("-") == false) {
+            return false;
+        }
+        String target = pattern.substring(1);
+        return Regex.isSimpleMatchPattern(target) == false && viewExistsPredicate.test(target);
+    }
+
+    /**
+     * Returns a copy of the unresolved relation with concrete view exclusions removed from its pattern.
+     * Used in the early return path when no views were resolved, to prevent valid view exclusions from
+     * reaching field caps where they would fail.
+     */
+    private UnresolvedRelation stripValidConcreteViewExclusions(UnresolvedRelation ur, String[] patterns) {
+        var viewNames = getMetadata().views();
+        var filtered = Arrays.stream(patterns)
+            .filter(p -> isConcreteViewExclusion(p, viewNames::containsKey) == false)
+            .toArray(String[]::new);
+        if (filtered.length == patterns.length) {
+            return ur;
+        }
+        return new UnresolvedRelation(
+            ur.source(),
+            new IndexPattern(ur.indexPattern().source(), String.join(",", filtered)),
+            ur.frozen(),
+            ur.metadataFields(),
+            ur.indexMode(),
+            ur.unresolvedMessage()
+        );
     }
 
     private ViewPlan createUnresolvedRelationPlan(UnresolvedRelation ur, List<String> unresolvedPatterns) {

@@ -126,7 +126,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("logs-nginx", "FROM logs-1 | WHERE logs.type == nginx");
         addIndex("logs-1");
         LogicalPlan plan = query("FROM logs*, -logs-nginx");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*, -logs-nginx")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*")));
     }
 
     public void testExclusionWithDuplicateViewWildcard() {
@@ -160,7 +160,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     public void testExclusionWithNoRemainingIndexMatch() {
         addView("logs-nginx", "FROM logs | WHERE logs.type == nginx");
         LogicalPlan plan = query("FROM logs*, -logs-nginx");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*, -logs-nginx")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM logs*")));
     }
 
     public void testExclusionPreservedForIndexResolution() {
@@ -183,7 +183,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");
         LogicalPlan plan = query("FROM view*, -view1, -view2");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM view*, -view1, -view2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view*")));
     }
 
     public void testExclusionKeepingViewWithPipeBody() {
@@ -239,7 +239,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");
         LogicalPlan plan = query("FROM view*, -view1, -view2");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM view*, -view1, -view2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM view*")));
     }
 
     public void testExclusionNonExistingResource() {
@@ -683,6 +683,39 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             () -> replaceViews(query("FROM view_a | FORK (WHERE emp.age > 30) (WHERE emp.age < 50)"))
         );
         assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+    }
+
+    public void testCircularViewExcludedByWildcard() {
+        addView("v_1", "FROM v_*");
+        LogicalPlan plan = query("FROM v_*,-v_1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM v_*")));
+    }
+
+    public void testCircularViewExcludedByConcreteExclusion() {
+        addView("view_a", "FROM view_b");
+        addView("view_b", "FROM view_a");
+        Exception e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM view_a,-view_b")));
+        assertThat(e.getMessage(), containsString("circular view reference 'view_a'"));
+    }
+
+    public void testCircularViewBodyWithSelfExclusion() {
+        addView("v_1", "FROM v_*,-v_1");
+        LogicalPlan plan = query("FROM v_1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM v_*")));
+    }
+
+    public void testCircularViewBodyWithSelfExclusionAndIndex() {
+        addIndex("v_idx");
+        addView("v_1", "FROM v_*,-v_1");
+        LogicalPlan plan = query("FROM v_1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM v_*")));
+    }
+
+    public void testCircularViewBodyWithSelfExclusionAndOtherView() {
+        addView("v_1", "FROM v_*,-v_1");
+        addView("v_2", "FROM emp");
+        LogicalPlan plan = query("FROM v_1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp")));
     }
 
     public void testModifiedViewDepth() {

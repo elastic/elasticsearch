@@ -163,14 +163,14 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
 
                             @Override
                             protected void channelRead0(ChannelHandlerContext ctx, HttpObject msg) {
-                                if (msg instanceof HttpResponse httpResponse) {
-                                    assertEquals(200, httpResponse.status().code());
-                                    assertEquals(0L, bytesReceived);
-                                } else if (msg instanceof HttpContent hc) {
+                                if (msg instanceof HttpContent hc) {
                                     bytesReceived += hc.content().readableBytes();
                                     if (bytesReceived > closeAfterBytes) {
                                         ctx.close();
                                     }
+                                } else {
+                                    assertEquals(200, asInstanceOf(HttpResponse.class, msg).status().code());
+                                    assertEquals(0L, bytesReceived);
                                 }
                             }
                         });

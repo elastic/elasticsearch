@@ -15,8 +15,8 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -321,7 +321,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
                     // apply the filter only in the initial phase - as the rest of the data is already filtered
                     if (aggregateFunction.hasFilter() && mode.isInputPartial() == false) {
-                        EvalOperator.ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
+                        ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
                             foldContext,
                             aggregateFunction.filter(),
                             layout,

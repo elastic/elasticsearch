@@ -22,6 +22,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.XmlProvider;
 import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.ExtensionContainer;
@@ -46,6 +47,7 @@ import org.w3c.dom.Element;
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.function.BiFunction;
 
 import javax.inject.Inject;
 
@@ -134,17 +136,15 @@ public class PublishPlugin implements Plugin<Project> {
         project.getTasks().named(LifecycleBasePlugin.ASSEMBLE_TASK_NAME).configure(assemble -> assemble.dependsOn(generatePomTask));
         var extensions = project.getExtensions();
         var archivesBaseName = providerFactory.provider(() -> getArchivesBaseName(extensions));
-        var projectVersion = providerFactory.provider(() -> project.getVersion());
+        var projectVersion = providerFactory.provider(() -> (String) project.getVersion());
         var generateMavenPoms = project.getTasks().withType(GenerateMavenPom.class);
         generateMavenPoms.configureEach(pomTask -> {
-            pomTask.setDestination(
-                (Callable<String>) () -> String.format(
-                    "%s/distributions/%s-%s.pom",
-                    projectLayout.getBuildDirectory().get().getAsFile().getPath(),
-                    archivesBaseName.get(),
-                    projectVersion.get()
-                )
-            );
+            Provider<String> namer = archivesBaseName.zip(projectVersion, (BiFunction<String, String, String>) (base, version) ->
+                String.format(
+                    "distributions/%s-%s.pom",
+                    base, version
+                ));
+            pomTask.getDestination().value(projectLayout.getBuildDirectory().file(namer));
         });
 
         var publishing = extensions.getByType(PublishingExtension.class);
@@ -155,8 +155,7 @@ public class PublishPlugin implements Plugin<Project> {
                 // Add git origin info to generated POM files for internal builds
                 addScmInfo(xml, gitInfo.get());
             });
-            // have to defer this until archivesBaseName is set
-            project.afterEvaluate(p -> publication.setArtifactId(archivesBaseName.get()));
+            publication.getArtifactId().set(archivesBaseName);
             generatePomTask.configure(t -> t.dependsOn(generateMavenPoms));
         });
     }

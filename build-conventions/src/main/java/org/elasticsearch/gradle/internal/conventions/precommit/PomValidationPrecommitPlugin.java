@@ -12,6 +12,8 @@ package org.elasticsearch.gradle.internal.conventions.precommit;
 import org.elasticsearch.gradle.internal.conventions.GUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.RegularFile;
+import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom;
 import org.gradle.api.tasks.TaskProvider;
@@ -35,7 +37,7 @@ public class PomValidationPrecommitPlugin extends PrecommitPlugin {
                     .withType(GenerateMavenPom.class)
                     .named("generatePomFileFor" + publicationName + "Publication");
                 task.dependsOn(generateMavenPom);
-                task.getPomFile().fileProvider(generateMavenPom.map(GenerateMavenPom::getDestination));
+                task.getPomFile().fileProvider(generateMavenPom.map(GenerateMavenPom::getDestination).flatMap(RegularFileProperty::getAsFile));
             });
         });
 

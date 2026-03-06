@@ -28,7 +28,7 @@ public class BuildToolsConventionsPlugin implements Plugin<Project> {
         project.getTasks().withType(Test.class).configureEach(test -> {
             test.onlyIf("FIPS mode disabled",
                     (t) -> Util.getBooleanProperty("tests.fips.enabled", false) == false);
-            test.setMaxParallelForks(defaultParallel);
+            test.getMaxParallelForks().set(defaultParallel);
         });
         // we put all our distributable files under distributions
         project.getTasks().withType(Jar.class).configureEach(j ->

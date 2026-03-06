@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -33,13 +34,16 @@ import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,6 +73,11 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
     private final int numOfSlices = randomIntBetween(1, 10);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond * bulkSize;
 
+    @BeforeClass
+    public static void skipIfReindexResilienceDisabled() {
+        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(ReindexPlugin.class, ReindexManagementPlugin.class);
@@ -80,8 +89,95 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
     }
 
     public void testGetReindexFollowsRelocation() throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final ReindexSetup setup = setupTwoNodeReindex();
 
+        // trigger relocation: shutdown nodeB
+        shutdownNodeNameAndRelocate(setup.nodeBName);
+
+        final TaskId relocatedTaskId = getRelocatedTaskIdFromTasksIndex(setup.originalTaskId, setup.nodeAId);
+
+        // GET _reindex/{originalTaskId} after relocation
+        final GetReindexResponse relocatedResponse = getReindexWithWaitForCompletion(setup.originalTaskId, false);
+        final TaskResult completedOriginal = relocatedResponse.getOriginalTask();
+        assertThat("original task should be completed", completedOriginal.isCompleted(), is(true));
+        assertThat("original start time preserved", completedOriginal.getTask().startTime(), equalTo(setup.originalStartTimeMillis));
+
+        final TaskResult relocatedTask = relocatedResponse.getRelocatedTask().orElse(null);
+        assertNotNull("relocation should be present", relocatedTask);
+        final TaskInfo relocatedInfo = relocatedTask.getTask();
+        assertThat("relocated task ID matches .tasks index", relocatedInfo.taskId(), equalTo(relocatedTaskId));
+        assertThat("relocated task should not be completed", relocatedTask.isCompleted(), is(false));
+        assertThat("relocated task should be on nodeA", relocatedInfo.taskId().getNodeId(), equalTo(setup.nodeAId));
+        assertThat("relocated task should not be cancelled", relocatedInfo.cancelled(), is(false));
+        assertThat("relocated task status should be present", relocatedInfo.status(), is(notNullValue()));
+        assertThat("relocated task started after original", relocatedInfo.startTime(), greaterThan(setup.originalStartTimeMillis));
+        assertThat("relocated task has no error", relocatedTask.getError(), is(nullValue()));
+
+        final long nanosElapsedFromReindexStart = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - setup.originalStartTimeMillis);
+
+        // Speed up reindex post-relocation to keep the test fast
+        unthrottleReindex(relocatedTaskId);
+
+        final GetReindexResponse completedResponse = getReindexWithWaitForCompletion(setup.originalTaskId, true);
+        assertCompletedReindexResponse(
+            completedResponse,
+            setup.originalTaskId,
+            setup.originalStartTimeMillis,
+            nanosElapsedFromReindexStart
+        );
+    }
+
+    /**
+     * Test that a {@code wait_for_completion=true} GET, issued to nodeA that isn't shutting down, while the reindex is still running
+     * on nodeB, returns a correct completed response after the task is relocated to nodeA,
+     * instead of returning TaskRelocatedException to user.
+     */
+    public void testGetWaitForCompletionDuringRelocation() throws Exception {
+        final ReindexSetup setup = setupTwoNodeReindex();
+
+        // Fire a blocking wait_for_completion=true GET in a background thread before relocation
+        final PlainActionFuture<GetReindexResponse> waitFuture = new PlainActionFuture<>();
+        final Thread waitThread = new Thread(() -> {
+            try {
+                waitFuture.onResponse(getReindexOnNodeWithWaitForCompletion(setup.nodeAName, setup.originalTaskId, true));
+            } catch (Exception e) {
+                waitFuture.onFailure(e);
+            }
+        }, "wait-for-completion-thread");
+        waitThread.start();
+
+        // trigger relocation: shutdown nodeB
+        shutdownNodeNameAndRelocate(setup.nodeBName);
+
+        // Speed up reindex post-relocation to keep the test fast
+        final TaskId relocatedTaskId = getRelocatedTaskIdFromTasksIndex(setup.originalTaskId, setup.nodeAId);
+        final long nanosElapsedFromReindexStart = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - setup.originalStartTimeMillis);
+        unthrottleReindex(relocatedTaskId);
+
+        // The background wait_for_completion=true GET should return a correct completed response
+        final GetReindexResponse response = waitFuture.actionGet(60, TimeUnit.SECONDS);
+        waitThread.join(10_000);
+        assertCompletedReindexResponse(response, setup.originalTaskId, setup.originalStartTimeMillis, nanosElapsedFromReindexStart);
+    }
+
+    private record ReindexSetup(
+        String nodeAName,
+        String nodeAId,
+        String nodeBName,
+        String nodeBId,
+        TaskId originalTaskId,
+        long originalStartTimeMillis
+    ) {
+        private ReindexSetup {
+            Stream.of(nodeAName, nodeAId, nodeBName, nodeBId, originalTaskId).forEach(Objects::requireNonNull);
+        }
+    }
+
+    /**
+     * Starts a two-node cluster, creates source/dest indices pinned to nodeA, indexes documents,
+     * starts a throttled async reindex on nodeB, and verifies the initial task state.
+     */
+    private ReindexSetup setupTwoNodeReindex() throws Exception {
         final String nodeAName = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
         );
@@ -97,9 +193,8 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         indexRandom(true, SOURCE_INDEX, numberOfDocumentsThatTakes60SecondsToIngest);
         ensureGreen(SOURCE_INDEX, DEST_INDEX);
 
-        // start throttled async reindex on nodeB
         final TaskId originalTaskId = startAsyncThrottledReindexOnNode(nodeBName);
-        // verify initial state via GET
+
         final GetReindexResponse initialResponse = getReindexWithWaitForCompletion(originalTaskId, false);
         final TaskResult initialTask = initialResponse.getOriginalTask();
         final TaskInfo initialInfo = initialTask.getTask();
@@ -110,39 +205,21 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         assertThat("status should be present", initialInfo.status(), is(notNullValue()));
         assertThat("no error", initialTask.getError(), is(nullValue()));
 
-        final long originalStartTimeMillis = initialInfo.startTime();
+        return new ReindexSetup(nodeAName, nodeAId, nodeBName, nodeBId, originalTaskId, initialInfo.startTime());
+    }
 
-        // trigger relocation: shutdown nodeB
-        shutdownNodeNameAndRelocate(nodeBName);
-
-        final TaskId relocatedTaskId = getRelocatedTaskIdFromTasksIndex(originalTaskId, nodeAId);
-
-        // GET _reindex/{originalTaskId} after relocation
-        final GetReindexResponse relocatedResponse = getReindexWithWaitForCompletion(originalTaskId, false);
-        final TaskResult completedOriginal = relocatedResponse.getOriginalTask();
-        assertThat("original task should be completed", completedOriginal.isCompleted(), is(true));
-        assertThat("original start time preserved", completedOriginal.getTask().startTime(), equalTo(originalStartTimeMillis));
-
-        final TaskResult relocatedTask = relocatedResponse.getRelocatedTask().orElse(null);
-        assertNotNull("relocation should be present", relocatedTask);
-        final TaskInfo relocatedInfo = relocatedTask.getTask();
-        assertThat("relocated task ID matches .tasks index", relocatedInfo.taskId(), equalTo(relocatedTaskId));
-        assertThat("relocated task should not be completed", relocatedTask.isCompleted(), is(false));
-        assertThat("relocated task should be on nodeA", relocatedInfo.taskId().getNodeId(), equalTo(nodeAId));
-        assertThat("relocated task should not be cancelled", relocatedInfo.cancelled(), is(false));
-        assertThat("relocated task status should be present", relocatedInfo.status(), is(notNullValue()));
-        assertThat("relocated task started after original", relocatedInfo.startTime(), greaterThan(originalStartTimeMillis));
-        assertThat("relocated task has no error", relocatedTask.getError(), is(nullValue()));
-
-        final long nanosElapsedFromReindexStart = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - originalStartTimeMillis);
-
-        // Speed up reindex post-relocation to keep the test fast
-        unthrottleReindex(relocatedTaskId);
-
-        final GetReindexResponse completedResponse = getReindexWithWaitForCompletion(originalTaskId, true);
+    /**
+     * Asserts that a completed reindex response preserves the original task identity and start time,
+     * contains no errors, reports correct document counts, and matches a subsequent non-waiting GET.
+     */
+    private void assertCompletedReindexResponse(
+        GetReindexResponse completedResponse,
+        TaskId originalTaskId,
+        long originalStartTimeMillis,
+        long nanosElapsedFromReindexStart
+    ) throws IOException {
         final Map<String, Object> responseMap = XContentTestUtils.convertToMap(completedResponse);
 
-        // A subsequent non-waiting GET should return the same serialized result
         final GetReindexResponse nonWaitingResponse = getReindexWithWaitForCompletion(originalTaskId, false);
         final Map<String, Object> nonWaitingMap = XContentTestUtils.convertToMap(nonWaitingResponse);
 
@@ -176,6 +253,12 @@ public class ReindexGetRelocationIT extends ESIntegTestCase {
         ensureGreen(TaskResultsService.TASK_INDEX);
 
         internalCluster().stopNode(nodeName);
+    }
+
+    private GetReindexResponse getReindexOnNodeWithWaitForCompletion(String nodeName, TaskId taskId, boolean waitForCompletion) {
+        return internalCluster().client(nodeName)
+            .execute(TransportGetReindexAction.TYPE, new GetReindexRequest(taskId, waitForCompletion, TimeValue.timeValueSeconds(30)))
+            .actionGet();
     }
 
     private GetReindexResponse getReindexWithWaitForCompletion(TaskId taskId, boolean waitForCompletion) {

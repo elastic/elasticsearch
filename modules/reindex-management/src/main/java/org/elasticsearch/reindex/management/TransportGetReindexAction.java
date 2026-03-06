@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -26,7 +25,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.reindex.TaskRelocatedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.transport.TransportService;
 
@@ -72,7 +70,8 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
                 return;
             }
 
-            followRelocationOrRespond(taskResult, null, taskId, originalRequest, l);
+            final EffectiveReindexTask effectiveTask = new EffectiveReindexTask(taskResult, null);
+            followRelocationOrRespond(effectiveTask, originalRequest, l);
         }));
     }
 
@@ -82,26 +81,19 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
      * Relocated tasks found in .tasks system index are trusted as reindex tasks without re-validation.
      */
     private void followRelocationOrRespond(
-        final TaskResult originalTask,
-        final @Nullable TaskResult relocatedTask,
-        final TaskId lastCheckedTaskId,
+        final EffectiveReindexTask task,
         final GetReindexRequest originalRequest,
         final ActionListener<GetReindexResponse> listener
     ) {
-        final TaskResult current = relocatedTask != null ? relocatedTask : originalTask;
-        final TaskId nextId = TaskRelocatedException.relocatedTaskIdFromErrorMap(current.getErrorAsMap()).orElse(null);
-        if (nextId == null) {
-            buildResponse(originalTask, relocatedTask, originalRequest, listener);
+        final TaskId relocatedTaskId = TaskRelocatedException.relocatedTaskIdFromErrorMap(task.errorAsMap()).orElse(null);
+        if (relocatedTaskId == null) {
+            buildResponse(task, originalRequest, listener);
         } else {
-            logger.debug("task [{}] relocated to [{}], following", lastCheckedTaskId, nextId);
-            final GetTaskRequest req = new GetTaskRequest().setTaskId(nextId).setWaitForCompletion(false);
-            getTaskWithNotFoundHandling(
-                req,
-                originalRequest.getTaskId(),
-                listener.delegateFailureAndWrap(
-                    (l, nextTask) -> followRelocationOrRespond(originalTask, nextTask, nextId, originalRequest, l)
-                )
-            );
+            logger.debug("task [{}] relocated to [{}], following", task.latestTaskId(), relocatedTaskId);
+            final GetTaskRequest req = new GetTaskRequest().setTaskId(relocatedTaskId).setWaitForCompletion(false);
+            getTaskWithNotFoundHandling(req, originalRequest.getTaskId(), listener.delegateFailureAndWrap((l, relocatedTask) -> {
+                followRelocationOrRespond(task.withLatestRelocatedTask(relocatedTask), originalRequest, l);
+            }));
         }
     }
 
@@ -110,34 +102,24 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
      * running, re-fetches with {@code waitForCompletion=true} before responding.
      */
     private void buildResponse(
-        final TaskResult originalTaskResult,
-        final @Nullable TaskResult finalRelocatedTaskResult,
+        final EffectiveReindexTask effectiveTask,
         final GetReindexRequest originalRequest,
         final ActionListener<GetReindexResponse> listener
     ) {
-        final TaskResult finalTaskResult = finalRelocatedTaskResult == null ? originalTaskResult : finalRelocatedTaskResult;
-        if (finalTaskResult.isCompleted() || originalRequest.getWaitForCompletion() == false) {
-            listener.onResponse(new GetReindexResponse(originalTaskResult, finalRelocatedTaskResult));
+        if (effectiveTask.isCompleted() || originalRequest.getWaitForCompletion() == false) {
+            listener.onResponse(new GetReindexResponse(effectiveTask));
             return;
         }
 
-        final TaskInfo finalTaskInfo = finalTaskResult.getTask();
         // If waiting for an uncompleted task, we reissue the get request to wait for the reindex task to complete
-        final GetTaskRequest finalWaitGetRequest = new GetTaskRequest().setTaskId(finalTaskInfo.taskId())
+        final GetTaskRequest finalWaitGetRequest = new GetTaskRequest().setTaskId(effectiveTask.latestTaskId())
             .setWaitForCompletion(true)
             .setTimeout(originalRequest.getTimeout());
 
-        getTaskWithNotFoundHandling(
-            finalWaitGetRequest,
-            originalRequest.getTaskId(),
-            listener.delegateFailureAndWrap((l, finalCompletedResult) -> {
-                if (finalRelocatedTaskResult == null) {
-                    l.onResponse(new GetReindexResponse(finalCompletedResult));
-                } else {
-                    l.onResponse(new GetReindexResponse(originalTaskResult, finalCompletedResult));
-                }
-            })
-        );
+        getTaskWithNotFoundHandling(finalWaitGetRequest, originalRequest.getTaskId(), listener.delegateFailureAndWrap((l, finalResult) -> {
+            // call back into followRelocationOrRespond to handle possible relocation which happened while we're waiting
+            followRelocationOrRespond(effectiveTask.withUpdatedResult(finalResult), originalRequest, l);
+        }));
     }
 
     /** Get a task, mapping {@link ResourceNotFoundException} into a reindex-specific error to avoid leaking internal task details. */
@@ -157,8 +139,17 @@ public class TransportGetReindexAction extends HandledTransportAction<GetReindex
             @Override
             public void onFailure(final Exception e) {
                 if (e instanceof ResourceNotFoundException) {
+                    final TaskId currentTaskId = request.getTaskId();
+                    if (currentTaskId.equals(originalTaskId)) {
+                        logger.debug("task [{}] not found, returning as reindex not found", originalTaskId);
+                    } else {
+                        logger.warn(
+                            "task [{}] was eventually relocated to [{}] but can't be found, returning as reindex not found",
+                            originalTaskId,
+                            currentTaskId
+                        );
+                    }
                     // Wraps the task not found exception to hide task details
-                    logger.debug("task [{}] not found, returning as reindex not found", originalTaskId);
                     listener.onFailure(notFoundException(originalTaskId));
                 } else {
                     listener.onFailure(e);

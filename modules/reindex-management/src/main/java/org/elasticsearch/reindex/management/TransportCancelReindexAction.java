@@ -126,7 +126,7 @@ public class TransportCancelReindexAction extends TransportTasksProjectAction<
 
         final GetReindexResponse completedReindexResponse = tasks.isEmpty()
             ? null
-            : tasks.getFirst().getCompletedTaskResult().map(GetReindexResponse::new).orElse(null);
+            : tasks.getFirst().getCompletedTaskResult().map(t -> new GetReindexResponse(new EffectiveReindexTask(t, null))).orElse(null);
         final var response = new CancelReindexResponse(taskFailures, nodeExceptions, completedReindexResponse);
         response.rethrowFailures("cancel_reindex"); // if we haven't handled any exception already, throw here
         if (tasks.isEmpty()) {

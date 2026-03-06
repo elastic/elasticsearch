@@ -16,6 +16,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -57,7 +58,8 @@ public class ListReindexResponse extends BaseTasksResponse implements ChunkedToX
             return builder;
         }), Iterators.map(tasks.iterator(), taskInfo -> (builder, p) -> {
             builder.startObject();
-            taskInfoToXContent(builder, p, taskInfo, null);
+            final EffectiveReindexTask task = new EffectiveReindexTask(new TaskResult(false, taskInfo), null);
+            taskInfoToXContent(builder, p, task);
             builder.endObject();
             return builder;
         }), Iterators.single((builder, p) -> {

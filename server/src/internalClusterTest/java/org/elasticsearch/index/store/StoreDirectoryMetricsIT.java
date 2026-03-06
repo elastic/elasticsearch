@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StoreDirectoryMetricsIT extends ESIntegTestCase {
     public void testDirectoryMetrics() throws IOException {
-        assumeTrue("feature flag must be enabled for test", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
+        assumeTrue("directry metrics feature flag must be enabled for test", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
 
         final String indexName = randomIndexName();
         createIndex(indexName, 1, 0);

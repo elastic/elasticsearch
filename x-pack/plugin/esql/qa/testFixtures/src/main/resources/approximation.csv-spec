@@ -380,12 +380,11 @@ count:long | mv:integer | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boo
 // TODO: fix this issue by moving the sample correction logic to the data nodes,
 // and re-enable this test.
 
-Approximate stats by on mixed data-Ignore
+Approximate stats by on mixed data
 required_capability: approximation_v2
 
 SET approximation={"rows":10000}\;
-FROM many_numbers
-    | STATS count=COUNT(sv_and_one_mv)
+FROM many_numbers | STATS count=COUNT(sv_and_one_mv)
 ;
 
 count:long     | CONFIDENCE_INTERVAL(count):long | CERTIFIED(count):boolean

@@ -62,7 +62,9 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                 queryExec.indexPattern(),
                 queryExec.query(),
                 queryExec.limit(),
-                tuple.v1(),
+                // Reuse the original intermediate attributes, to have the correct name IDs. This
+                // works, because there's only one aggregate. (See also comment in pushableStats.)
+                aggregateExec.intermediateAttributes(),
                 stats.get(0)
             );
         }

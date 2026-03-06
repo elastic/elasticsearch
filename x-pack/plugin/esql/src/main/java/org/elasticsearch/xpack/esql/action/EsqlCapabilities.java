@@ -2233,6 +2233,12 @@ public class EsqlCapabilities {
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
         /**
+
+         * Enables LIMIT N BY in the LIMIT command, both with and without a preceding SORT.
+         */
+        LIMIT_BY,
+
+        /**
          * https://github.com/elastic/elasticsearch/issues/142219
          */
         INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
@@ -2257,11 +2263,6 @@ public class EsqlCapabilities {
          * Dense_vector SUM aggregation function
          */
         DENSE_VECTOR_SUM_FUNCTION,
-
-        /**
-         * Support passing constants and null in the second parameter of FIRST/LAST aggs.
-         */
-        FIX_AGG_FIRST_LAST_FOLDABLES_IN_SORT_FIELD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

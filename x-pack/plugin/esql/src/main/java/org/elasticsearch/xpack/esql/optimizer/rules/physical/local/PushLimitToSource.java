@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 public class PushLimitToSource extends PhysicalOptimizerRules.OptimizerRule<LimitExec> {
     @Override
     protected PhysicalPlan rule(LimitExec limitExec) {
+        if (limitExec.groupings().isEmpty() == false) {
+            return limitExec;
+        }
         PhysicalPlan plan = limitExec;
         PhysicalPlan child = limitExec.child();
         if (child instanceof EsQueryExec queryExec) { // add_task_parallelism_above_query: false

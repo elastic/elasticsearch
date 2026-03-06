@@ -10064,4 +10064,87 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var registeredDomain = as(topN.child(), RegisteredDomain.class);
         as(registeredDomain.child(), EsRelation.class);
     }
+
+    public void testLimitByPruneIdenticalLimits() {
+        var plan = plan("""
+            FROM test
+            | LIMIT 1 BY emp_no
+            | LIMIT 2 BY emp_no
+            | LIMIT 1 BY emp_no
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
+        var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
+    }
+
+    public void testLimitByKeepDifferentGroupings() {
+        var plan = plan("""
+            FROM test
+            | LIMIT 1 BY emp_no
+            | LIMIT 1 BY first_name
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
+        var limit1 = as(defaultLimit.child(), Limit.class);
+        assertThat(limit1.groupings().size(), equalTo(1));
+        assertThat(Expressions.names(limit1.groupings()), contains("first_name"));
+        var limit2 = as(limit1.child(), Limit.class);
+        assertThat(limit2.groupings().size(), equalTo(1));
+        assertThat(Expressions.names(limit2.groupings()), contains("emp_no"));
+    }
+
+    public void testLimitByKeepNoGroupings() {
+        var plan = plan("""
+            FROM test
+            | LIMIT 1 BY emp_no
+            | LIMIT 2
+            | LIMIT 2 BY emp_no
+            """);
+
+        var defaultLimit = as(plan, Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(2));
+        var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(Expressions.names(limit.groupings()), contains("emp_no"));
+        var limit2 = as(limit.child(), Limit.class);
+        assertThat(limit2.groupings(), empty());
+        var limit3 = as(limit2.child(), Limit.class);
+        assertThat(Expressions.names(limit3.groupings()), contains("emp_no"));
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[emp_no{f}#9740]]
+     * \_Limit[1000[INTEGER],[],false,false]
+     *   \_Limit[1[INTEGER],[emp_no + 5{r}#9739],false,false]
+     *     \_Eval[[emp_no{f}#9740 + 5[INTEGER] AS emp_no + 5#9739]]
+     *       \_EsRelation[test][_meta_field{f}#9746, emp_no{f}#9740, first_name{f}#..]
+     * }</pre>
+     */
+    public void testLimitByExpressionMovedToEval() {
+        var plan = plan("""
+            FROM test
+            | KEEP emp_no
+            | LIMIT 1 BY emp_no + 5
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("emp_no"));
+        var defaultLimit = as(project.child(), Limit.class);
+        assertThat(((Literal) defaultLimit.limit()).value(), equalTo(10000));
+        var limit = as(defaultLimit.child(), Limit.class);
+        assertThat(Expressions.names(limit.groupings()), contains("emp_no + 5"));
+        var eval = as(limit.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), equalTo("emp_no + 5"));
+        var add = as(alias.child(), Add.class);
+        var left = as(add.left(), FieldAttribute.class);
+        assertThat(left.name(), equalTo("emp_no"));
+        var right = as(add.right(), Literal.class);
+        assertThat(right.value(), equalTo(5));
+        as(eval.child(), EsRelation.class);
+    }
 }

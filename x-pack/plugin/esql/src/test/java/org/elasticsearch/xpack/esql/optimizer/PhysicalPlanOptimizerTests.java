@@ -3414,7 +3414,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            containsString("Plan [LimitExec[1000[INTEGER],null]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
+            containsString("Plan [LimitExec[1000[INTEGER],[],null]] optimized incorrectly due to duplicate output attribute emp_no{f}#")
         );
     }
 

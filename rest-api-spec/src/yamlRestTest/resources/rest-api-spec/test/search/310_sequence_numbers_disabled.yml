@@ -1,7 +1,11 @@
 setup:
   - requires:
-      cluster_features: ["mapper.seq_no.unsearchable_when_disabled"]
-      reason: "requires sequence numbers disabled support"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ disable_sequence_numbers ]
+      reason: "requires support for disabling sequence numbers"
 
   - do:
       indices.create:

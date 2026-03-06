@@ -11,9 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexSettings;
 
-import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
@@ -79,68 +77,60 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_dotted_field_fix"
     );
-    static final NodeFeature SEQ_NO_FIELD_UNSEARCHABLE_WHEN_DISABLED = new NodeFeature("mapper.seq_no.unsearchable_when_disabled");
-
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        var features = new HashSet<>(
-            Set.of(
-                RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
-                IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
-                SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
-                SourceFieldMapper.SOURCE_MODE_FROM_INDEX_SETTING,
-                IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD,
-                IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
-                MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
-                DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
-                CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
-                META_FETCH_FIELDS_ERROR_CODE_CHANGED,
-                SPARSE_VECTOR_STORE_SUPPORT,
-                COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
-                SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
-                DYNAMIC_HANDLING_IN_COPY_TO,
-                TSDB_NESTED_FIELD_SUPPORT,
-                SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
-                ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
-                UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
-                DOC_VALUES_SKIPPER,
-                RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
-                DateFieldMapper.INVALID_DATE_FIX,
-                NPE_ON_DIMS_UPDATE_FIX,
-                RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
-                USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
-                IVF_FORMAT_CLUSTER_FEATURE,
-                IVF_NESTED_SUPPORT,
-                BBQ_DISK_SUPPORT,
-                SEARCH_LOAD_PER_SHARD,
-                SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
-                PATTERN_TEXT,
-                IGNORED_SOURCE_FIELDS_PER_ENTRY,
-                MULTI_FIELD_UNICODE_OPTIMISATION_FIX,
-                MATCH_ONLY_TEXT_BLOCK_LOADER_FIX,
-                PATTERN_TEXT_RENAME,
-                DISKBBQ_ON_DISK_RESCORING,
-                PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
-                INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
-                EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
-                BASE64_DENSE_VECTORS,
-                FIX_DENSE_VECTOR_WRONG_FIELDS,
-                BBQ_DISK_STATS_SUPPORT,
-                SKIPPERS_ON_UNINDEXED_FIELDS,
-                STORED_FIELDS_SPEC_MERGE_BUG,
-                GENERIC_VECTOR_FORMAT,
-                EXPONENTIAL_HISTOGRAM_TYPE,
-                STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES,
-                HIGH_CARDINALITY_LENGTH_FUNCTION_FUSE_TO_LOAD,
-                MV_MIN_FUNCTION_FUSE_TO_LOAD,
-                TDIGEST_TYPE,
-                TEXT_FIELD_DOC_VALUES,
-                DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX
-            )
+        return Set.of(
+            RangeFieldMapper.DATE_RANGE_INDEXING_FIX,
+            IgnoredSourceFieldMapper.DONT_EXPAND_DOTS_IN_IGNORED_SOURCE,
+            SourceFieldMapper.REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION,
+            SourceFieldMapper.SOURCE_MODE_FROM_INDEX_SETTING,
+            IgnoredSourceFieldMapper.IGNORED_SOURCE_AS_TOP_LEVEL_METADATA_ARRAY_FIELD,
+            IgnoredSourceFieldMapper.ALWAYS_STORE_OBJECT_ARRAYS_IN_NESTED_OBJECTS,
+            MapperService.LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT,
+            DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
+            CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
+            META_FETCH_FIELDS_ERROR_CODE_CHANGED,
+            SPARSE_VECTOR_STORE_SUPPORT,
+            COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
+            SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
+            DYNAMIC_HANDLING_IN_COPY_TO,
+            TSDB_NESTED_FIELD_SUPPORT,
+            SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
+            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
+            UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
+            DOC_VALUES_SKIPPER,
+            RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
+            DateFieldMapper.INVALID_DATE_FIX,
+            NPE_ON_DIMS_UPDATE_FIX,
+            RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
+            USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
+            IVF_FORMAT_CLUSTER_FEATURE,
+            IVF_NESTED_SUPPORT,
+            BBQ_DISK_SUPPORT,
+            SEARCH_LOAD_PER_SHARD,
+            SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
+            PATTERN_TEXT,
+            IGNORED_SOURCE_FIELDS_PER_ENTRY,
+            MULTI_FIELD_UNICODE_OPTIMISATION_FIX,
+            MATCH_ONLY_TEXT_BLOCK_LOADER_FIX,
+            PATTERN_TEXT_RENAME,
+            DISKBBQ_ON_DISK_RESCORING,
+            PROVIDE_INDEX_SORT_SETTING_DEFAULTS,
+            INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LIMIT,
+            EXCLUDE_VECTORS_DOCVALUE_BUGFIX,
+            BASE64_DENSE_VECTORS,
+            FIX_DENSE_VECTOR_WRONG_FIELDS,
+            BBQ_DISK_STATS_SUPPORT,
+            SKIPPERS_ON_UNINDEXED_FIELDS,
+            STORED_FIELDS_SPEC_MERGE_BUG,
+            GENERIC_VECTOR_FORMAT,
+            EXPONENTIAL_HISTOGRAM_TYPE,
+            STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES,
+            HIGH_CARDINALITY_LENGTH_FUNCTION_FUSE_TO_LOAD,
+            MV_MIN_FUNCTION_FUSE_TO_LOAD,
+            TDIGEST_TYPE,
+            TEXT_FIELD_DOC_VALUES,
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX
         );
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG) {
-            features.add(SEQ_NO_FIELD_UNSEARCHABLE_WHEN_DISABLED);
-        }
-        return features;
     }
 }

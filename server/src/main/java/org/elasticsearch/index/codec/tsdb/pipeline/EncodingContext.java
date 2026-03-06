@@ -39,17 +39,6 @@ public final class EncodingContext {
         this(blockSize, pipelineLength, new MetadataBuffer());
     }
 
-    /**
-     * Creates an encoding context with the specified metadata buffer capacity.
-     *
-     * @param blockSize        the number of values per block
-     * @param pipelineLength   the number of stages in the pipeline
-     * @param metadataCapacity the initial metadata buffer capacity in bytes
-     */
-    EncodingContext(int blockSize, int pipelineLength, int metadataCapacity) {
-        this(blockSize, pipelineLength, new MetadataBuffer(metadataCapacity));
-    }
-
     EncodingContext(int blockSize, int pipelineLength, final MetadataBuffer metadataBuffer) {
         this.blockSize = blockSize;
         this.pipelineLength = pipelineLength;

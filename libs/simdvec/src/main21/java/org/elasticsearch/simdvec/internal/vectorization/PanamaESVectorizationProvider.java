@@ -11,7 +11,6 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;

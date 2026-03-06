@@ -176,7 +176,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
             @Override
             public void validate(String value, Map<Setting<?>, Object> settings, boolean isPresent) {
-                if (isPresent && Strings.isEmpty(value)) {
+                if (isPresent && Strings.isNullOrBlank(value)) {
                     throw new IllegalArgumentException("[index.semantic_text.default_inference_id] must not be blank");
                 }
             }

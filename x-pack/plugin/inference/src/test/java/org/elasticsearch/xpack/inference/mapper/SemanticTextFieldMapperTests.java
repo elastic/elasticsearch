@@ -387,7 +387,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     MapperParsingException.class,
                     () -> createMapperService(IndexVersion.current(), settings, fieldMapping)
                 );
-                assertThat(e.getMessage(), containsString("[index.semantic_text.default_inference_id] must not be empty"));
+                assertThat(e.getMessage(), containsString("[index.semantic_text.default_inference_id] must not be blank"));
             }
         }
     }

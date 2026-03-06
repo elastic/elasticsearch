@@ -197,6 +197,12 @@ public class EsqlCCSUtils {
         }
     }
 
+    /**
+     * Update the state for clusters that returned zero matching indices — fail the query, mark the cluster as skipped, or mark it as done.
+     * @param executionInfo - The per-cluster CCS state
+     * @param indexResolutions - The collection of IndexResolution objects produced by field-caps
+     * @param usedFilter - Whether the query had a request-level filter.
+     */
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         Collection<IndexResolution> indexResolutions,
@@ -218,7 +224,7 @@ public class EsqlCCSUtils {
          * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere
          * 2. fail query if a cluster has no matching indices *and* a concrete index was specified - handled here
          */
-        String fatalErrorMessage = null;
+        StringBuilder fatalErrorMessage = null;
         /*
          * These are clusters in the original request that are not present in the field-caps response. They were
          * specified with an index expression that matched no indices, so the search on that cluster is done.
@@ -230,13 +236,14 @@ public class EsqlCCSUtils {
                 String error = Strings.format("Unknown index [%s]", cluster.getQualifiedIndexExpression());
                 if (executionInfo.shouldSkipOnFailure(c) == false || usedFilter) {
                     if (fatalErrorMessage == null) {
-                        fatalErrorMessage = error;
+                        fatalErrorMessage = new StringBuilder(error);
                     } else {
-                        fatalErrorMessage += "; " + error;
+                        fatalErrorMessage.append("; ").append(error);
                     }
                 }
                 if (usedFilter == false) {
-                    // We check for filter since the filter may be the reason why the index is missing, and then we don't want to mark yet
+                    // A filter can cause field-caps to return zero indices for a pattern that actually exists. If so, we don't want to
+                    // prematurely fail — we'll retry without the filter.
                     markClusterWithFinalStateAndNoShards(
                         executionInfo,
                         c,
@@ -266,8 +273,30 @@ public class EsqlCCSUtils {
                 }
             }
         }
+        // When views split a query into multiple branches, each branch gets its own IndexResolution. A branch for an unauthorized
+        // concrete index will have an empty resolution that the per-cluster check above misses. Detect these individually.
+        for (IndexResolution indexResolution : indexResolutions) {
+            if (indexResolution.isValid()
+                && indexResolution.resolvedIndices().isEmpty()
+                && concreteIndexRequested(indexResolution.get().name())) {
+                String clusterAlias = RemoteClusterAware.parseClusterAlias(indexResolution.get().name());
+                // Already handled
+                if (clustersWithNoMatchingIndices.contains(clusterAlias) || executionInfo.getCluster(clusterAlias) == null) {
+                    continue;
+                }
+                if (executionInfo.shouldSkipOnFailure(clusterAlias) == false || usedFilter) {
+                    String error = Strings.format("Unknown index [%s]", indexResolution.get().name());
+                    if (fatalErrorMessage == null) {
+                        fatalErrorMessage = new StringBuilder(error);
+                    } else {
+                        fatalErrorMessage.append("; ").append(error);
+                    }
+                }
+            }
+        }
+
         if (fatalErrorMessage != null) {
-            throw new VerificationException(fatalErrorMessage);
+            throw new VerificationException(fatalErrorMessage.toString());
         }
     }
 

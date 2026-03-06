@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.geo.Component2D;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -29,15 +29,15 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  * @param <T>
  */
 abstract class SpatialEvaluatorFactory<V, T> {
-    protected final TriFunction<Source, V, T, EvalOperator.ExpressionEvaluator.Factory> factoryCreator;
+    protected final TriFunction<Source, V, T, ExpressionEvaluator.Factory> factoryCreator;
 
-    SpatialEvaluatorFactory(TriFunction<Source, V, T, EvalOperator.ExpressionEvaluator.Factory> factoryCreator) {
+    SpatialEvaluatorFactory(TriFunction<Source, V, T, ExpressionEvaluator.Factory> factoryCreator) {
         this.factoryCreator = factoryCreator;
     }
 
-    public abstract EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier function, EvaluatorMapper.ToEvaluator toEvaluator);
+    public abstract ExpressionEvaluator.Factory get(SpatialSourceSupplier function, EvaluatorMapper.ToEvaluator toEvaluator);
 
-    static EvalOperator.ExpressionEvaluator.Factory makeSpatialEvaluator(
+    static ExpressionEvaluator.Factory makeSpatialEvaluator(
         SpatialSourceSupplier s,
         Map<SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules,
         EvaluatorMapper.ToEvaluator toEvaluator
@@ -134,20 +134,16 @@ abstract class SpatialEvaluatorFactory<V, T> {
      * They could be sourced from the index, or from previous evaluators.
      */
     protected static class SpatialEvaluatorFactoryWithFields extends SpatialEvaluatorFactory<
-        EvalOperator.ExpressionEvaluator.Factory,
-        EvalOperator.ExpressionEvaluator.Factory> {
+        ExpressionEvaluator.Factory,
+        ExpressionEvaluator.Factory> {
         SpatialEvaluatorFactoryWithFields(
-            TriFunction<
-                Source,
-                EvalOperator.ExpressionEvaluator.Factory,
-                EvalOperator.ExpressionEvaluator.Factory,
-                EvalOperator.ExpressionEvaluator.Factory> factoryCreator
+            TriFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> factoryCreator
         ) {
             super(factoryCreator);
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
+        public ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
             return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), toEvaluator.apply(s.right()));
         }
     }
@@ -156,22 +152,16 @@ abstract class SpatialEvaluatorFactory<V, T> {
      * This evaluator factory is used when the right hand side is a constant or literal,
      * and the left is sourced from the index, or from previous evaluators.
      */
-    protected static class SpatialEvaluatorWithConstantFactory extends SpatialEvaluatorFactory<
-        EvalOperator.ExpressionEvaluator.Factory,
-        Component2D> {
+    protected static class SpatialEvaluatorWithConstantFactory extends SpatialEvaluatorFactory<ExpressionEvaluator.Factory, Component2D> {
 
         SpatialEvaluatorWithConstantFactory(
-            TriFunction<
-                Source,
-                EvalOperator.ExpressionEvaluator.Factory,
-                Component2D,
-                EvalOperator.ExpressionEvaluator.Factory> factoryCreator
+            TriFunction<Source, ExpressionEvaluator.Factory, Component2D, ExpressionEvaluator.Factory> factoryCreator
         ) {
             super(factoryCreator);
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
+        public ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
             return factoryCreator.apply(
                 s.source(),
                 toEvaluator.apply(s.left()),
@@ -184,18 +174,16 @@ abstract class SpatialEvaluatorFactory<V, T> {
      * This evaluator factory is used when the right hand side is a geo-grid constant or literal,
      * and the left is sourced from the index, or from previous evaluators.
      */
-    protected static class SpatialEvaluatorWithConstantGridFactory extends SpatialEvaluatorFactory<
-        EvalOperator.ExpressionEvaluator.Factory,
-        Long> {
+    protected static class SpatialEvaluatorWithConstantGridFactory extends SpatialEvaluatorFactory<ExpressionEvaluator.Factory, Long> {
 
         SpatialEvaluatorWithConstantGridFactory(
-            TriFunction<Source, EvalOperator.ExpressionEvaluator.Factory, Long, EvalOperator.ExpressionEvaluator.Factory> factoryCreator
+            TriFunction<Source, ExpressionEvaluator.Factory, Long, ExpressionEvaluator.Factory> factoryCreator
         ) {
             super(factoryCreator);
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
+        public ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
             return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), asLong(toEvaluator.foldCtx(), s.right()));
         }
     }
@@ -207,21 +195,17 @@ abstract class SpatialEvaluatorFactory<V, T> {
      * so we need to split the shapes into multiple components and perform operations on each.
      */
     protected static class SpatialEvaluatorWithConstantArrayFactory extends SpatialEvaluatorFactory<
-        EvalOperator.ExpressionEvaluator.Factory,
+        ExpressionEvaluator.Factory,
         Component2D[]> {
 
         SpatialEvaluatorWithConstantArrayFactory(
-            TriFunction<
-                Source,
-                EvalOperator.ExpressionEvaluator.Factory,
-                Component2D[],
-                EvalOperator.ExpressionEvaluator.Factory> factoryCreator
+            TriFunction<Source, ExpressionEvaluator.Factory, Component2D[], ExpressionEvaluator.Factory> factoryCreator
         ) {
             super(factoryCreator);
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
+        public ExpressionEvaluator.Factory get(SpatialSourceSupplier s, EvaluatorMapper.ToEvaluator toEvaluator) {
             return factoryCreator.apply(
                 s.source(),
                 toEvaluator.apply(s.left()),

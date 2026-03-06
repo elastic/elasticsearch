@@ -17,10 +17,12 @@
 
 package org.elasticsearch.xpack.stateless.cluster.coordination;
 
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
@@ -170,21 +172,25 @@ public class TransportConsistentClusterStateReadIT extends AbstractStatelessPlug
         assertThat(consistentReadResponseState.metadata().getProject().hasIndex(indexName), is(true));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1734")
-    public void testConsistentClusterStateReadIsNotReturnedUntilLastStateIsAppliedLocally() throws Exception {
+    public void testConsistentClusterStateReadIsNotReturnedUntilLastStateIsAppliedLocally() {
         var masterNode = startMasterOnlyNode(Settings.builder().put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s").build());
 
         var indexNode = startIndexNode();
         ensureStableCluster(2);
 
         var disruption = new BlockClusterStateProcessing(indexNode, random());
-        ;
+
         internalCluster().setDisruptionScheme(disruption);
         disruption.startDisrupting();
 
         // Trigger a cluster state update
         var indexName = randomIdentifier();
-        client(masterNode).admin().indices().prepareCreate(indexName).setWaitForActiveShards(0).get();
+        client(masterNode).admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setWaitForActiveShards(ActiveShardCount.NONE)
+            .setTimeout(TimeValue.ZERO)
+            .get();
 
         var consistentReadFuture = client(indexNode).execute(
             TransportConsistentClusterStateReadAction.TYPE,
@@ -199,7 +205,7 @@ public class TransportConsistentClusterStateReadIT extends AbstractStatelessPlug
         disruption.stopDisrupting();
         internalCluster().clearDisruptionScheme();
 
-        var consistentReadResponse = consistentReadFuture.get();
+        var consistentReadResponse = safeGet(consistentReadFuture);
         var consistentReadResponseState = consistentReadResponse.getState();
         assertThat(consistentReadResponseState.metadata().getProject().hasIndex(indexName), is(true));
     }

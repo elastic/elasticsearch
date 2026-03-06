@@ -84,7 +84,8 @@ public enum FeatureMetric {
     FUSE(Fuse.class::isInstance),
     COMPLETION(Completion.class::isInstance),
     SAMPLE(Sample.class::isInstance),
-    SUBQUERY(Subquery.class::isInstance),
+    SUBQUERY(plan -> plan instanceof Subquery s && s.name() == null),
+    VIEWS(plan -> false), // Views are counted in EsqlSession.gatherViewMetrics, not via plan traversal
     MMR(MMR.class::isInstance),
     PROMQL(PromqlCommand.class::isInstance),
     URI_PARTS(UriParts.class::isInstance),
@@ -127,6 +128,10 @@ public enum FeatureMetric {
     }
 
     private static boolean explicitlyExcluded(LogicalPlan plan) {
+        // Named Subqueries represent views, which are counted separately in EsqlSession.gatherViewMetrics
+        if (plan instanceof Subquery s && s.name() != null) {
+            return true;
+        }
         return excluded.stream().anyMatch(x -> x.isInstance(plan));
     }
 

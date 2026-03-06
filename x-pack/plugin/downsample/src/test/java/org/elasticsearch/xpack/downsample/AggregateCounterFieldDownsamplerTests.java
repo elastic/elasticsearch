@@ -228,8 +228,9 @@ public class AggregateCounterFieldDownsamplerTests extends ESTestCase {
 
     /**
      * Two buckets with 2 different tsids. Bucket tsid_2 has monotonically increasing values
-     * with no resets. Bucket tsid_2 has values 7, 8, 0, 2 with a reset at t=30. Only the last-before-reset value (8 at t=20) is stored as a reset
-     * data point; the after-reset value (0 at t=30) is not added as it would be redundant.
+     * with no resets. Bucket tsid_2 has values 7, 8, 0, 2 with a reset at t=30. Only the
+     * last-before-reset value (8 at t=20) is stored as a reset data point; the after-reset
+     * value (0 at t=30) is not added as it would be redundant.
      * Downsampled docs: 7, 4
      * Reset docs: 8 at 20, 0 at 30
      */

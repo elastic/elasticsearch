@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -88,6 +89,7 @@ public class PlanWritables {
             Enrich.ENTRY,
             EsRelation.ENTRY,
             Eval.ENTRY,
+            ExternalRelation.ENTRY,
             Filter.ENTRY,
             Grok.ENTRY,
             InlineJoin.ENTRY,

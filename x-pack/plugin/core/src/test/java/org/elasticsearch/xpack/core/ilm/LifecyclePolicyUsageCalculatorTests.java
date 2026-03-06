@@ -252,15 +252,19 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
         IndexMetadata index = IndexMetadata.builder("myindex")
             .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
             .build();
-        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .put(index, false)
-            .put(DataStreamTestHelper.newInstance("myds", List.of(index.getIndex())))
-            .putCustom(
-                IndexLifecycleMetadata.TYPE,
-                new IndexLifecycleMetadata(
-                    Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
-                    OperationMode.RUNNING
-                )
+        final var project = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(
+                Metadata.builder()
+                    .put(index, false)
+                    .put(DataStreamTestHelper.newInstance("myds", List.of(index.getIndex())))
+                    .putCustom(
+                        IndexLifecycleMetadata.TYPE,
+                        new IndexLifecycleMetadata(
+                            Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                            OperationMode.RUNNING
+                        )
+                    )
+                    .build()
             )
             .build();
 

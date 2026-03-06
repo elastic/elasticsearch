@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 public class EncryptedReasoningDetailTests extends AbstractBWCWireSerializationTestCase<ReasoningDetail.EncryptedReasoningDetail> {
 
     public void testParsingEncryptedReasoningDetails_AllFields() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "reasoning.encrypted",
                 "format": "some encrypted reasoning detail format",
@@ -35,8 +35,8 @@ public class EncryptedReasoningDetailTests extends AbstractBWCWireSerializationT
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = ReasoningDetail.PARSER.apply(parser, null);
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
             var expected = new ReasoningDetail.EncryptedReasoningDetail(
                 "some encrypted reasoning detail format",
                 "some id 0",
@@ -44,34 +44,34 @@ public class EncryptedReasoningDetailTests extends AbstractBWCWireSerializationT
                 "some encrypted data"
             );
 
-            assertThat(request, is(expected));
+            assertThat(reasoningDetail, is(expected));
         }
     }
 
     public void testParsingEncryptedReasoningDetail_OnlyRequiredFields() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "reasoning.encrypted",
                 "data": "some encrypted data"
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = ReasoningDetail.PARSER.apply(parser, null);
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
             var expected = new ReasoningDetail.EncryptedReasoningDetail(null, null, null, "some encrypted data");
 
-            assertThat(request, is(expected));
+            assertThat(reasoningDetail, is(expected));
         }
     }
 
     public void testParsingEncryptedReasoningDetail_NoData_ThrowsException() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "reasoning.encrypted"
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
             var exception = assertThrows(XContentParseException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,

@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.is;
 public class ReasoningDetailTests extends ESTestCase {
 
     public void testParsingReasoningDetail_NoType_ThrowsException() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "format": "some encrypted reasoning detail format",
                 "id": "some id 0",
@@ -30,20 +30,20 @@ public class ReasoningDetailTests extends ESTestCase {
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
             var exception = assertThrows(IllegalArgumentException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
             assertThat(exception.getMessage(), is("Required [type]"));
         }
     }
 
     public void testParsingReasoningDetail_UnsupportedTypeValue_ThrowsException() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "unknown"
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
             var exception = assertThrows(IllegalArgumentException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
@@ -60,14 +60,14 @@ public class ReasoningDetailTests extends ESTestCase {
     }
 
     public void testParsingReasoningDetail_NegativeIndex_ThrowsException() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "reasoning.encrypted",
                 "index": -1
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
             var exception = assertThrows(IllegalArgumentException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,

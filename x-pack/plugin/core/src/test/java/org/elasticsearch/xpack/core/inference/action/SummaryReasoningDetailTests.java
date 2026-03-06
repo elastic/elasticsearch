@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 public class SummaryReasoningDetailTests extends AbstractBWCWireSerializationTestCase<ReasoningDetail.SummaryReasoningDetail> {
 
     public void testParsingSummaryReasoningDetails_AllFields() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "reasoning.summary",
                 "format": "some summary reasoning detail format",
@@ -35,8 +35,8 @@ public class SummaryReasoningDetailTests extends AbstractBWCWireSerializationTes
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = ReasoningDetail.PARSER.apply(parser, null);
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
             var expected = new ReasoningDetail.SummaryReasoningDetail(
                 "some summary reasoning detail format",
                 "some id 1",
@@ -44,34 +44,34 @@ public class SummaryReasoningDetailTests extends AbstractBWCWireSerializationTes
                 "some summary"
             );
 
-            assertThat(request, is(expected));
+            assertThat(reasoningDetail, is(expected));
         }
     }
 
     public void testParsingSummaryReasoningDetail_OnlyRequiredFields() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "reasoning.summary",
                 "summary": "some summary"
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = ReasoningDetail.PARSER.apply(parser, null);
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
             var expected = new ReasoningDetail.SummaryReasoningDetail(null, null, null, "some summary");
 
-            assertThat(request, is(expected));
+            assertThat(reasoningDetail, is(expected));
         }
     }
 
     public void testParsingSummaryReasoningDetail_NoSummary_ThrowsException() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "reasoning.summary"
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
             var exception = assertThrows(XContentParseException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,

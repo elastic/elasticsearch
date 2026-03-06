@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 public class TextReasoningDetailTests extends AbstractBWCWireSerializationTestCase<ReasoningDetail.TextReasoningDetail> {
 
     public void testParsingTextReasoningDetails_AllFields() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "reasoning.text",
                 "format": "some text reasoning detail format",
@@ -36,8 +36,8 @@ public class TextReasoningDetailTests extends AbstractBWCWireSerializationTestCa
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = ReasoningDetail.PARSER.apply(parser, null);
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
             var expected = new ReasoningDetail.TextReasoningDetail(
                 "some text reasoning detail format",
                 "some id 2",
@@ -46,50 +46,50 @@ public class TextReasoningDetailTests extends AbstractBWCWireSerializationTestCa
                 "some signature"
             );
 
-            assertThat(request, is(expected));
+            assertThat(reasoningDetail, is(expected));
         }
     }
 
     public void testParsingTextReasoningDetail_OnlyTypeAndText() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "reasoning.text",
                 "text": "some text"
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = ReasoningDetail.PARSER.apply(parser, null);
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
             var expected = new ReasoningDetail.TextReasoningDetail(null, null, null, "some text", null);
 
-            assertThat(request, is(expected));
+            assertThat(reasoningDetail, is(expected));
         }
     }
 
     public void testParsingTextReasoningDetail_OnlySignatureAndText() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "reasoning.text",
                 "signature": "some signature"
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
-            var request = ReasoningDetail.PARSER.apply(parser, null);
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
+            var reasoningDetail = ReasoningDetail.PARSER.apply(parser, null);
             var expected = new ReasoningDetail.TextReasoningDetail(null, null, null, null, "some signature");
 
-            assertThat(request, is(expected));
+            assertThat(reasoningDetail, is(expected));
         }
     }
 
     public void testParsingTextReasoningDetail_NoSummary_ThrowsException() throws IOException {
-        String requestJson = """
+        String reasoningDetailJson = """
             {
                 "type": "reasoning.text"
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningDetailJson)) {
             var exception = assertThrows(XContentParseException.class, () -> ReasoningDetail.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,

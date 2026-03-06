@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.is;
 public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoning> {
 
     public void testParsingReasoning_AllFields_WithEffort() throws IOException {
-        String requestJson = """
+        String reasoningJson = """
             {
                 "effort": "medium",
                 "summary": "detailed",
@@ -41,7 +41,7 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var reasoning = Reasoning.PARSER.apply(parser, null);
             var expected = new Reasoning(Reasoning.ReasoningEffort.MEDIUM, null, Reasoning.ReasoningSummary.DETAILED, false, false);
 
@@ -50,13 +50,13 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
     }
 
     public void testParsingReasoning_OnlyEffort() throws IOException {
-        String requestJson = """
+        String reasoningJson = """
             {
                 "effort": "medium"
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var reasoning = Reasoning.PARSER.apply(parser, null);
             var expected = new Reasoning(Reasoning.ReasoningEffort.MEDIUM, null, null, null, null);
 
@@ -65,13 +65,13 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
     }
 
     public void testParsingReasoning_OnlyMaxTokens() throws IOException {
-        String requestJson = """
+        String reasoningJson = """
             {
                 "max_tokens": 25
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var reasoning = Reasoning.PARSER.apply(parser, null);
             var expected = new Reasoning(null, 25L, null, null, null);
 
@@ -80,13 +80,13 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
     }
 
     public void testParsingReasoning_OnlyEnabled() throws IOException {
-        String requestJson = """
+        String reasoningJson = """
             {
                 "enabled": true
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var reasoning = Reasoning.PARSER.apply(parser, null);
             var expected = new Reasoning(null, null, null, null, true);
 
@@ -95,27 +95,27 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
     }
 
     public void testParsingReasoning_BothEffortAndMaxTokens_ThrowsException() throws IOException {
-        String requestJson = """
+        String reasoningJson = """
             {
                 "effort": "medium",
                 "max_tokens": 25
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var exception = assertThrows(IllegalArgumentException.class, () -> Reasoning.PARSER.apply(parser, null));
             assertThat(exception.getMessage(), is("The following fields are not allowed together: [effort, max_tokens] "));
         }
     }
 
     public void testParsingReasoning_OnlyEnabledFalse_ThrowsException() throws IOException {
-        String requestJson = """
+        String reasoningJson = """
             {
                 "enabled": false
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var exception = assertThrows(XContentParseException.class, () -> Reasoning.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
@@ -127,22 +127,22 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
     }
 
     public void testParsingReasoning_NoRequiredFields_ThrowsException() throws IOException {
-        String requestJson = "{}";
+        String reasoningJson = "{}";
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var exception = assertThrows(IllegalArgumentException.class, () -> Reasoning.PARSER.apply(parser, null));
             assertThat(exception.getMessage(), is("Required one of fields [effort, max_tokens, enabled], but none were specified."));
         }
     }
 
     public void testParsingReasoning_UnsupportedEffortValue_ThrowsException() throws IOException {
-        String requestJson = """
+        String reasoningJson = """
             {
                 "effort": "unknown"
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var exception = assertThrows(XContentParseException.class, () -> Reasoning.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
@@ -157,14 +157,14 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
     }
 
     public void testParsingReasoning_UnsupportedSummaryValue_ThrowsException() throws IOException {
-        String requestJson = """
+        String reasoningJson = """
             {
                 "effort": "medium",
                 "summary": "unknown"
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var exception = assertThrows(XContentParseException.class, () -> Reasoning.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,
@@ -179,13 +179,13 @@ public class ReasoningTests extends AbstractBWCWireSerializationTestCase<Reasoni
     }
 
     public void testParsingReasoning_MaxTokensLessThanZero_ThrowsException() throws IOException {
-        String requestJson = """
+        String reasoningJson = """
             {
                 "max_tokens": -1
             }
             """;
 
-        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+        try (var parser = createParser(JsonXContent.jsonXContent, reasoningJson)) {
             var exception = assertThrows(XContentParseException.class, () -> Reasoning.PARSER.apply(parser, null));
             ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
                 exception,

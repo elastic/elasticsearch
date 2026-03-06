@@ -128,7 +128,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "eis": "embed/text/dense",
                 "elasticsearch": "text_embedding"
               },
-              "status": "ga",
+              "status": "beta",
               "properties": [
                 "multilingual",
                 "open-weights"
@@ -258,7 +258,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "eis": "embed/text/dense",
                 "elasticsearch": "text_embedding"
               },
-              "status": "ga",
+              "status": "beta",
               "properties": [
                 "multilingual",
                 "open-weights"
@@ -309,7 +309,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
                 "eis": "embed/dense",
                 "elasticsearch": "embedding"
               },
-              "status": "ga",
+              "status": "beta",
               "properties": [
                 "multilingual",
                 "multimodal",
@@ -584,7 +584,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             JINA_EMBED_V3_ENDPOINT_ID,
             JINA_EMBED_V3_MODEL_NAME,
             createTaskTypeObject(EIS_TEXT_EMBED_PATH, "text_embedding"),
-            "ga",
+            "beta",
             List.of("multilingual", "open-weights"),
             RELEASE_DATE_STRING,
             null,
@@ -609,7 +609,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(
                     List.of("multilingual", "open-weights"),
-                    StatusHeuristic.fromString("ga"),
+                    StatusHeuristic.fromString("beta"),
                     RELEASE_DATE_PARSED,
                     null
                 ),
@@ -659,7 +659,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             JINA_CLIP_V2_ENDPOINT_ID,
             JINA_CLIP_V2_MODEL_NAME,
             createTaskTypeObject(EIS_MULTIMODAL_EMBED_PATH, "embedding"),
-            "ga",
+            "beta",
             List.of("multilingual", "multimodal", "open-weights"),
             RELEASE_DATE_STRING,
             null,
@@ -684,7 +684,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(
                     List.of("multilingual", "multimodal", "open-weights"),
-                    StatusHeuristic.fromString("ga"),
+                    StatusHeuristic.fromString("beta"),
                     LocalDate.parse(RELEASE_DATE_STRING),
                     null
                 ),

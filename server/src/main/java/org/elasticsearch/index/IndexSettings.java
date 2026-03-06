@@ -1028,12 +1028,26 @@ public final class IndexSettings {
                             )
                         );
                     }
+                    // Sequence numbers cannot be trimmed for points, so we enforce doc values only usage
+                    var seqNoIndexOptions = (SeqNoFieldMapper.SeqNoIndexOptions) settings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
+                    if (seqNoIndexOptions != SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current value: [%s].",
+                                DISABLE_SEQUENCE_NUMBERS.getKey(),
+                                SEQ_NO_INDEX_OPTIONS_SETTING.getKey(),
+                                SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY,
+                                seqNoIndexOptions
+                            )
+                        );
+                    }
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> list = List.of(SETTING_INDEX_VERSION_CREATED);
+                List<Setting<?>> list = List.of(SETTING_INDEX_VERSION_CREATED, SEQ_NO_INDEX_OPTIONS_SETTING);
                 return list.iterator();
             }
         },

@@ -28,6 +28,7 @@ import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.GroupedLimitOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MMROperator;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
@@ -270,7 +272,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             components = new ArrayList<>(components);
-            components.add(new ViewResolver(services.clusterService(), services.projectResolver()));
+            components.add(new ViewResolver(services.clusterService(), services.projectResolver(), services.client()));
             components.add(new ViewService(services.clusterService()));
         }
         return components;
@@ -343,6 +345,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 List.of(
                     new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                     new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+                    new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
                     new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
                 )
             );
@@ -392,6 +395,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
+        entries.add(GroupedLimitOperator.Status.ENTRY);
         entries.add(LuceneOperator.Status.ENTRY);
         entries.add(TopNOperatorStatus.ENTRY);
         entries.add(MvExpandOperator.Status.ENTRY);

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 143489
+summary: TS command ignores aliases in BY
+type: bug

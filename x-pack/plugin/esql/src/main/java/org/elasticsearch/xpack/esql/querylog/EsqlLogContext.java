@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.querylog;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class EsqlLogContext extends ActivityLoggerContext {
     public static final String TYPE = "esql";
@@ -35,6 +37,22 @@ public class EsqlLogContext extends ActivityLoggerContext {
 
     String getQuery() {
         return request.query();
+    }
+
+    public Optional<ShardInfo> shardInfo() {
+        return Optional.ofNullable(response).map(EsqlQueryResponse::getExecutionInfo).map(EsqlLogContext::getShardInfo);
+    }
+
+    static ShardInfo getShardInfo(EsqlExecutionInfo info) {
+        AtomicInteger successShards = new AtomicInteger(0);
+        AtomicInteger skippedShards = new AtomicInteger(0);
+        AtomicInteger failedShards = new AtomicInteger(0);
+        info.getClusters().forEach((alias, clusterInfo) -> {
+            successShards.addAndGet(clusterInfo.getSuccessfulShards());
+            skippedShards.addAndGet(clusterInfo.getSkippedShards());
+            failedShards.addAndGet(clusterInfo.getFailedShards());
+        });
+        return new ShardInfo(successShards.get(), skippedShards.get(), failedShards.get());
     }
 
     long getHits() {

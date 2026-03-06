@@ -34,6 +34,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -55,6 +56,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     private final long startTime;
     private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
+    private final AtomicLong totalBytesRead = new AtomicLong();
 
     protected SearchScrollAsyncAction(
         ParsedScrollId scrollId,
@@ -176,6 +178,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                 protected void innerOnResponse(T result) {
                     assert shardIndex == result.getShardIndex()
                         : "shard index mismatch: " + shardIndex + " but got: " + result.getShardIndex();
+                    accumulateBytesRead(result.getBytesRead());
                     onFirstPhaseResult(shardIndex, result);
                     if (counter.countDown()) {
                         SearchPhase phase = moveToNextPhase(clusterNodeLookup);
@@ -243,11 +246,21 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         };
     }
 
+    protected void accumulateBytesRead(long bytes) {
+        if (bytes > 0) {
+            totalBytesRead.addAndGet(bytes);
+        }
+    }
+
     protected final void sendResponse(
         SearchPhaseController.ReducedQueryPhase queryPhase,
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
         try {
+            searchTransportService.transportService()
+                .getThreadPool()
+                .getThreadContext()
+                .addResponseHeader(AbstractSearchAsyncAction.BYTES_READ_RESPONSE_HEADER, Long.toString(totalBytesRead.get()));
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
             String scrollId = null;

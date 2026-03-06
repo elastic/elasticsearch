@@ -245,14 +245,7 @@ public class AnthropicChatCompletionStreamingProcessor extends DelegatingProcess
                     name
                 );
                 var toolCall = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, id, function, null);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    null,
-                    null,
-                    null,
-                    List.of(toolCall),
-                    null,
-                    null
-                );
+                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, List.of(toolCall));
             } else {
                 logger.debug("Unknown content block start type [{}] for line [{}].", type, data);
                 return Stream.empty();

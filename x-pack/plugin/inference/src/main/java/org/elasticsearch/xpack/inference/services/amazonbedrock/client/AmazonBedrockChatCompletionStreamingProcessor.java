@@ -329,9 +329,7 @@ class AmazonBedrockChatCompletionStreamingProcessor extends AmazonBedrockStreami
                 // The model is requesting a tool be executed, so we set the role to assistant. The "tool" role is reserved for actual
                 // executions of a tool.
                 ChatCompletionRole.ASSISTANT.toString(),
-                List.of(toolCall),
-                null,
-                null
+                List.of(toolCall)
             );
             var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
             var chunk = createChatCompletionChunk(List.of(choice), null);

@@ -1636,11 +1636,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             );
         }
     }
-
-    /**
-     * Wraps a listener so that circuit-breaker bytes held by a {@link FetchSearchResult} are released after
-     * the response is handed off to the next listener in the chain.
-     */
+    
     private <T> ActionListener<T> releaseCircuitBreakerOnResponse(
         ActionListener<T> listener,
         Function<T, FetchSearchResult> fetchResultExtractor

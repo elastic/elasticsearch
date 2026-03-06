@@ -10,11 +10,17 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstBooleanByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstBooleanByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstBytesRefByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstBytesRefByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstDoubleByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstDoubleByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstFloatByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstFloatByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstIntByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstIntByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstLongByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstLongByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBytesRefAggregatorFunctionSupplier;
@@ -82,7 +88,7 @@ public class First extends AggregateFunction implements ToAggregator {
             type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date", "date_nanos" },
             description = "The search field"
         ) Expression field,
-        @Param(name = "sortField", type = { "long", "date", "date_nanos" }, description = "The sort field") Expression sort
+        @Param(name = "sortField", type = { "integer", "long", "date", "date_nanos" }, description = "The sort field") Expression sort
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, sort);
     }
@@ -155,10 +161,10 @@ public class First extends AggregateFunction implements ToAggregator {
         ).and(
             isType(
                 sort,
-                dt -> dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
+                dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
                 sourceText(),
                 SECOND,
-                "long or date_nanos or datetime"
+                "int or long or date_nanos or datetime"
             )
         );
     }
@@ -181,15 +187,31 @@ public class First extends AggregateFunction implements ToAggregator {
             };
         }
 
-        return switch (searchFieldType) {
-            case LONG, DATETIME, DATE_NANOS -> new AllFirstLongByLongAggregatorFunctionSupplier();
-            case INTEGER -> new AllFirstIntByLongAggregatorFunctionSupplier();
-            case DOUBLE -> new AllFirstDoubleByLongAggregatorFunctionSupplier();
-            case FLOAT -> new AllFirstFloatByLongAggregatorFunctionSupplier();
-            case KEYWORD, TEXT, IP -> new AllFirstBytesRefByLongAggregatorFunctionSupplier();
-            case BOOLEAN -> new AllFirstBooleanByLongAggregatorFunctionSupplier();
-            default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
-        };
+        if (sortFieldType == DataType.LONG || sortFieldType == DataType.DATETIME || sortFieldType == DataType.DATE_NANOS) {
+            return switch (searchFieldType) {
+                case LONG, DATETIME, DATE_NANOS -> new AllFirstLongByLongAggregatorFunctionSupplier();
+                case INTEGER -> new AllFirstIntByLongAggregatorFunctionSupplier();
+                case DOUBLE -> new AllFirstDoubleByLongAggregatorFunctionSupplier();
+                case FLOAT -> new AllFirstFloatByLongAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP -> new AllFirstBytesRefByLongAggregatorFunctionSupplier();
+                case BOOLEAN -> new AllFirstBooleanByLongAggregatorFunctionSupplier();
+                default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
+            };
+        }
+
+        if (sortFieldType == DataType.INTEGER) {
+            return switch (searchFieldType) {
+                case LONG, DATETIME, DATE_NANOS -> new AllFirstLongByIntAggregatorFunctionSupplier();
+                case INTEGER -> new AllFirstIntByIntAggregatorFunctionSupplier();
+                case DOUBLE -> new AllFirstDoubleByIntAggregatorFunctionSupplier();
+                case FLOAT -> new AllFirstFloatByIntAggregatorFunctionSupplier();
+                case KEYWORD, TEXT, IP -> new AllFirstBytesRefByIntAggregatorFunctionSupplier();
+                case BOOLEAN -> new AllFirstBooleanByIntAggregatorFunctionSupplier();
+                default -> throw EsqlIllegalArgumentException.illegalDataType(searchFieldType);
+            };
+        }
+
+        throw EsqlIllegalArgumentException.illegalDataType(sortFieldType);
     }
 
     @Override

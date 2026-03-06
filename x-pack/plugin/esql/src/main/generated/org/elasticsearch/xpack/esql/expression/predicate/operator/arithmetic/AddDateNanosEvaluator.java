@@ -16,22 +16,22 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Add}.
+ * {@link ExpressionEvaluator} implementation for {@link Add}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class AddDateNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class AddDateNanosEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AddDateNanosEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator dateNanos;
+  private final ExpressionEvaluator dateNanos;
 
   private final TemporalAmount temporalAmount;
 
@@ -41,7 +41,7 @@ public final class AddDateNanosEvaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings;
 
-  public AddDateNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator dateNanos,
+  public AddDateNanosEvaluator(Source source, ExpressionEvaluator dateNanos,
       TemporalAmount temporalAmount, ZoneId zoneId, DriverContext driverContext) {
     this.source = source;
     this.dateNanos = dateNanos;
@@ -126,16 +126,16 @@ public final class AddDateNanosEvaluator implements EvalOperator.ExpressionEvalu
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory dateNanos;
+    private final ExpressionEvaluator.Factory dateNanos;
 
     private final TemporalAmount temporalAmount;
 
     private final ZoneId zoneId;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory dateNanos,
+    public Factory(Source source, ExpressionEvaluator.Factory dateNanos,
         TemporalAmount temporalAmount, ZoneId zoneId) {
       this.source = source;
       this.dateNanos = dateNanos;

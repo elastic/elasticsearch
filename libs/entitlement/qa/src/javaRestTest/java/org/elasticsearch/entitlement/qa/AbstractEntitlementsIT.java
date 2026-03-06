@@ -92,6 +92,14 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
                         actualValue,
                         equalTo(result.getHeader("expectedDefaultIfDenied"))
                     );
+                    String expectedType = result.getHeader("expectedDefaultType");
+                    if (expectedType != null) {
+                        assertThat(
+                            "Action [" + actionName + "] returned unexpected default type",
+                            result.getHeader("resultType"),
+                            equalTo(expectedType)
+                        );
+                    }
                 } else {
                     fail("Action [" + actionName + "] was expected to be denied but succeeded");
                 }

@@ -43,10 +43,11 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
 
     record CheckAction(
-        CheckedFunction<Environment, String, Exception> action,
+        CheckedFunction<Environment, Object, Exception> action,
         EntitlementTest.ExpectedAccess expectedAccess,
         Class<? extends Exception> expectedExceptionIfDenied,
         String[] expectedDefaultIfDenied,
+        Class<?> expectedDefaultType,
         boolean isExpectedDefaultNull,
         boolean isExpectedNoOp,
         Integer fromJavaVersion
@@ -106,11 +107,17 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 throw new AssertionError("Entitlement test method [" + method + "] must not be private");
             }
             String[] expectedDefault = testAnnotation.expectedDefaultIfDenied();
+            Class<?> expectedDefaultType = testAnnotation.expectedDefaultType();
             boolean isExpectedDefaultNull = testAnnotation.isExpectedDefaultNull();
             boolean isExpectedNoOp = testAnnotation.isExpectedNoOp();
             boolean hasDefaultValue = expectedDefault.length > 0;
             if (hasDefaultValue && expectedDefault.length != 1) {
                 throw new AssertionError("Entitlement test method [" + method + "] expectedDefaultIfDenied must have exactly one element");
+            }
+            if (expectedDefaultType != void.class && hasDefaultValue == false) {
+                throw new AssertionError(
+                    "Entitlement test method [" + method + "] expectedDefaultType requires expectedDefaultIfDenied to be set"
+                );
             }
             int denialStrategyCount = (hasDefaultValue ? 1 : 0) + (isExpectedDefaultNull ? 1 : 0) + (isExpectedNoOp ? 1 : 0);
             if (denialStrategyCount > 1) {
@@ -129,10 +136,9 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 throw new AssertionError("Entitlement test method [" + method + "] must be void when isExpectedNoOp is set");
             }
             final CheckedFunction<Environment, Object, Exception> call = createFunctionForMethod(method);
-            CheckedFunction<Environment, String, Exception> action = env -> {
+            CheckedFunction<Environment, Object, Exception> action = env -> {
                 try {
-                    Object result = call.apply(env);
-                    return result == null ? null : result.toString();
+                    return call.apply(env);
                 } catch (IllegalAccessException e) {
                     throw new AssertionError(e);
                 } catch (InvocationTargetException e) {
@@ -149,6 +155,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 testAnnotation.expectedAccess(),
                 testAnnotation.expectedExceptionIfDenied(),
                 expectedDefault,
+                expectedDefaultType,
                 isExpectedDefaultNull,
                 isExpectedNoOp,
                 fromJavaVersion
@@ -239,15 +246,19 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             logger.info("Calling check action [{}]", actionName);
             RestResponse response;
             try {
-                String result = checkAction.action().apply(environment);
+                Object result = checkAction.action().apply(environment);
                 response = new RestResponse(RestStatus.OK, Strings.format("Successfully executed action [%s]", actionName));
                 if (result != null) {
-                    response.addHeader("resultValue", result);
+                    response.addHeader("resultValue", result.toString());
+                    response.addHeader("resultType", result.getClass().getName());
                 } else {
                     response.addHeader("resultIsNull", "true");
                 }
                 if (checkAction.expectedDefaultIfDenied().length == 1) {
                     response.addHeader("expectedDefaultIfDenied", checkAction.expectedDefaultIfDenied()[0]);
+                }
+                if (checkAction.expectedDefaultType() != void.class) {
+                    response.addHeader("expectedDefaultType", checkAction.expectedDefaultType().getName());
                 }
                 if (checkAction.isExpectedDefaultNull()) {
                     response.addHeader("isExpectedDefaultNull", "true");

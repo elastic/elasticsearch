@@ -38,9 +38,18 @@ public @interface EntitlementTest {
      * converts it via {@code toString()}. The test infrastructure will verify the returned value
      * matches the element when running in a denied context.
      * An empty array (the default) means no default value check is performed.
-     * Mutually exclusive with {@link #isExpectedDefaultNull()}.
+     * Mutually exclusive with {@link #isExpectedDefaultNull()} and {@link #isExpectedNoOp()}.
      */
     String[] expectedDefaultIfDenied() default {};
+
+    /**
+     * When set, the test infrastructure will verify that the actual result type matches this class.
+     * This disambiguates cases where different types produce the same {@code toString()} output
+     * (e.g. empty {@link java.util.List} and empty {@link java.util.Set} both produce {@code "[]"}).
+     * Only meaningful when {@link #expectedDefaultIfDenied()} is also set.
+     * {@code void.class} (the default) means no type check is performed.
+     */
+    Class<?> expectedDefaultType() default void.class;
 
     /**
      * When a denied entitlement strategy returns {@code null} instead of throwing,

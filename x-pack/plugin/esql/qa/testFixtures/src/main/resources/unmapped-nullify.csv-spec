@@ -301,6 +301,18 @@ s:long | bar:null
 0      | null
 ;
 
+statsByMissing
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| STATS c = COUNT(*) BY does_not_exist
+;
+
+c:long         |does_not_exist:null
+4              |null
+;
+
 statsGroupAliasShadowingSourceColumnNoFilter
 required_capability: optional_fields_nullify_skip_group_aliases
 

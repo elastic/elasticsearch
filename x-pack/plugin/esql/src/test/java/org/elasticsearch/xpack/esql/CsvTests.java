@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -133,13 +134,15 @@ import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
@@ -194,6 +197,10 @@ import static org.mockito.Mockito.mock;
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
+
+    private static final Set<String> ALL_ESQL_CAPABILITIES = Stream.of(EsqlCapabilities.Cap.values())
+        .map(EsqlCapabilities.Cap::capabilityName)
+        .collect(toSet());
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
 
@@ -277,6 +284,9 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
+            for (String capability : testCase.requiredCapabilities) {
+                assertTrue("Requested capability does not exist: " + capability, ALL_ESQL_CAPABILITIES.contains(capability));
+            }
             assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
             /*
              * The csv tests support all but a few features. The unsupported features
@@ -317,6 +327,10 @@ public class CsvTests extends ESTestCase {
             assumeFalseLogging(
                 "METRICS_INFO requires real shard contexts and _timeseries_metadata which are unavailable in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METRICS_INFO_COMMAND.capabilityName())
+            );
+            assumeFalseLogging(
+                "TS_INFO requires real shard contexts and _timeseries_metadata which are unavailable in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_INFO_COMMAND.capabilityName())
             );
             assumeFalseLogging(
                 "can't use QSTR function in csv tests",
@@ -373,6 +387,10 @@ public class CsvTests extends ESTestCase {
             assumeFalse(
                 "CSV tests cannot currently handle views with branching",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.capabilityName())
+            );
+            assumeFalseLogging(
+                "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
+                testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
             );
 
             if (Build.current().isSnapshot()) {
@@ -544,7 +562,7 @@ public class CsvTests extends ESTestCase {
             .stream()
             .filter(e -> e.getValue().size() < numberOfIndices)
             .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+            .collect(toSet());
         var mappings = columnNamesToFieldByIndices.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
@@ -567,9 +585,9 @@ public class CsvTests extends ESTestCase {
 
     private static EnrichResolution loadEnrichPolicies() {
         EnrichResolution enrichResolution = new EnrichResolution();
-        for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES) {
+        for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES.values()) {
             EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig);
-            CsvTestsDataLoader.TestDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
+            CsvTestsDataLoader.TestDataset sourceIndex = CSV_DATASET.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
             EsIndex esIndex = loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset.of(sourceIndex.withTypeMapping(Map.of()))).get();
@@ -638,7 +656,7 @@ public class CsvTests extends ESTestCase {
             return parsed;
         }
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            for (var viewConfig : VIEW_CONFIGS) {
+            for (var viewConfig : VIEW_CONFIGS.values()) {
                 loadView(viewService, viewConfig);
             }
             return viewService.getViewResolver().replaceViews(parsed, this::parseView).plan();
@@ -672,7 +690,7 @@ public class CsvTests extends ESTestCase {
             // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
             return Map.of(
                 new IndexPattern(Source.EMPTY, "employees"),
-                CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET_MAP.get("employees"))
+                CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET.get("employees"))
             );
         }
 
@@ -683,14 +701,14 @@ public class CsvTests extends ESTestCase {
             String indexName = indexPattern.indexPattern();
             if (indexName.endsWith("*")) {
                 String indexPrefix = indexName.substring(0, indexName.length() - 1);
-                for (var entry : CSV_DATASET_MAP.entrySet()) {
+                for (var entry : CSV_DATASET.entrySet()) {
                     if (entry.getKey().startsWith(indexPrefix)) {
                         datasets.add(entry.getValue());
                     }
                 }
             } else {
                 for (String index : indexName.split(",")) {
-                    var dataset = CSV_DATASET_MAP.get(index);
+                    var dataset = CSV_DATASET.get(index);
                     if (dataset == null) {
                         throw new IllegalArgumentException("unknown CSV dataset for table [" + index + "]");
                     }
@@ -753,9 +771,11 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            new PreAnalyzer(),
             functionRegistry,
             mapper,
             TEST_VERIFIER,
+            null,
             new PlanTelemetry(functionRegistry),
             null,
             null,
@@ -785,7 +805,7 @@ public class CsvTests extends ESTestCase {
                     // Wrap so we can capture the warnings in the calling thread
                     (next, result) -> next.onResponse(
                         new ActualResults(
-                            configuration,
+                            configuration.zoneId(),
                             result.schema().stream().map(Attribute::name).toList(),
                             result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
                             result.schema().stream().map(Attribute::dataType).toList(),
@@ -822,7 +842,11 @@ public class CsvTests extends ESTestCase {
     // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
     private void opportunisticallyAssertPlanSerialization(PhysicalPlan plan) {
         if (plan.anyMatch(
-            p -> p instanceof LocalSourceExec || p instanceof HashJoinExec || p instanceof ChangePointExec || p instanceof MergeExec
+            p -> p instanceof LocalSourceExec
+                || p instanceof HashJoinExec
+                || p instanceof ChangePointExec
+                || p instanceof MergeExec
+                || p instanceof MMRExec
         )) {
             return;
         }
@@ -860,11 +884,9 @@ public class CsvTests extends ESTestCase {
             LOGGER.trace("DataNode plan\n" + dataNodePlan);
         }
 
-        BlockFactory blockFactory = new BlockFactory(
-            bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST),
-            bigArrays,
-            ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
-        );
+        BlockFactory blockFactory = BlockFactory.builder(bigArrays)
+            .maxPrimitiveArraySize(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
+            .build();
         ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
 
@@ -881,7 +903,8 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
-            physicalOperationProviders
+            physicalOperationProviders,
+            null  // OperatorFactoryRegistry - not needed for CSV tests
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());

@@ -68,9 +68,10 @@ setup:
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [min, max]
+                metrics: [min, max, sum, value_count]
                 default_metric: max
 
+  # we keep max == avg so that the test will keep working bwc
   - do:
       index:
         index:  test
@@ -79,6 +80,8 @@ setup:
           metric:
             min: 18.2
             max: 100
+            sum: 10000
+            value_count: 100
         refresh: true
 
   - do:
@@ -89,6 +92,8 @@ setup:
           metric:
             min: 50
             max: 1000
+            sum: 20000
+            value_count: 20
         refresh: true
 
   - do:
@@ -142,9 +147,9 @@ setup:
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [min, max]
+                metrics: [min, max, sum, value_count]
                 default_metric: max
-
+  # we keep max == avg so that the test will keep working bwc
   - do:
       index:
         index:  test
@@ -153,6 +158,8 @@ setup:
           metric:
             min: 18.2
             max: 100
+            sum: 10000
+            value_count: 100
         refresh: true
 
   - do:
@@ -163,6 +170,8 @@ setup:
           metric:
             min: 50
             max: 1000
+            sum: 20000
+            value_count: 20
         refresh: true
 
   - do:
@@ -217,7 +226,7 @@ setup:
             properties:
               metric:
                 type: aggregate_metric_double
-                metrics: [min, max]
+                metrics: [min, max, sum, value_count]
                 default_metric: max
 
   - do:
@@ -228,6 +237,8 @@ setup:
           metric:
             min: 18.2
             max: 3000
+            sum: 4000
+            value_count: 5
         refresh: true
 
   - do:
@@ -238,6 +249,8 @@ setup:
           metric:
             min: 50
             max: 1000
+            sum: 4000
+            value_count: 25
         refresh: true
 
   - do:
@@ -248,6 +261,8 @@ setup:
           metric:
             min: 150
             max: 5000
+            sum: 6000
+            value_count: 5
         refresh: true
 
   - do:
@@ -285,6 +300,20 @@ setup:
         index: test
         body:
           sort: [ { metric.min: desc } ]
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          sort: [ { metric.sum: desc } ]
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          sort: [ { metric.value_count: desc } ]
 
 ---
 "Test fields api":

@@ -52,7 +52,7 @@ import java.util.Map;
  * Contextual AI inference service for reranking tasks.
  * This service uses the Contextual AI REST API to perform document reranking.
  */
-public class ContextualAiService extends SenderService implements RerankingInferenceService {
+public class ContextualAiService extends SenderService<ContextualAiModel> implements RerankingInferenceService {
     public static final String NAME = "contextualai";
     private static final String SERVICE_NAME = "Contextual AI";
 
@@ -73,7 +73,7 @@ public class ContextualAiService extends SenderService implements RerankingInfer
     }
 
     public ContextualAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
     }
 
     @Override
@@ -137,27 +137,6 @@ public class ContextualAiService extends SenderService implements RerankingInfer
     }
 
     @Override
-    public ContextualAiModel parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> config,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            secretSettingsMap,
-            ConfigurationParseContext.PERSISTENT
-        );
-    }
-
-    @Override
     public ContextualAiModel buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
         return retrieveModelCreatorFromMapOrThrow(
             MODEL_CREATORS,
@@ -166,14 +145,6 @@ public class ContextualAiService extends SenderService implements RerankingInfer
             config.getService(),
             ConfigurationParseContext.PERSISTENT
         ).createFromModelConfigurationsAndSecrets(config, secrets);
-    }
-
-    @Override
-    public ContextualAiModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        return createModel(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, null, ConfigurationParseContext.PERSISTENT);
     }
 
     @Override

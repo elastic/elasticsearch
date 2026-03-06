@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramMapperPlugin;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -92,8 +91,7 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
             Downsample.class,
             AggregateMetricMapperPlugin.class,
             EsqlPlugin.class,
-            AnalyticsPlugin.class,
-            ExponentialHistogramMapperPlugin.class
+            AnalyticsPlugin.class
         );
     }
 

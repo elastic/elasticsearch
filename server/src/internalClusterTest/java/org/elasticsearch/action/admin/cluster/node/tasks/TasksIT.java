@@ -400,7 +400,7 @@ public class TasksIT extends ESIntegTestCase {
                 );
                 case SearchTransportService.FETCH_ID_ACTION_NAME -> assertTrue(
                     taskInfo.description(),
-                    Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.description())
+                    Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null], shardId[[test][*]]", taskInfo.description())
                 );
                 case NODE_SEARCH_ACTION_NAME -> assertEquals("NodeQueryRequest", taskInfo.description());
                 default -> fail("Unexpected action [" + taskInfo.action() + "] with description [" + taskInfo.description() + "]");

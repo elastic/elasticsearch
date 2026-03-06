@@ -372,6 +372,10 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         final boolean pruneSequenceNumber,
         final boolean useSyntheticRecoverySource
     ) throws IOException {
+        assumeTrue(
+            "Sequence number pruning requires a feature flag",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG || pruneSequenceNumber == false
+        );
         try (var dir = newDirectory()) {
             dir.setCheckIndexOnClose(false);
 
@@ -574,6 +578,10 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         boolean syntheticRecoverySource = randomBoolean();
         boolean pruneIdField = randomBoolean();
         boolean pruneSequenceNumber = randomBoolean();
+        assumeTrue(
+            "Sequence number pruning requires a feature flag",
+            IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG || pruneSequenceNumber == false
+        );
         String pruneStoredFieldName = syntheticRecoverySource ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME;
         String pruneNumericDVFieldName = syntheticRecoverySource
             ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME

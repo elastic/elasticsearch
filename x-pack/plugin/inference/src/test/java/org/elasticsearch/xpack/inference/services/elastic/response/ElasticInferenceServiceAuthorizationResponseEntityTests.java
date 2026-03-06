@@ -609,7 +609,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(
                     List.of("multilingual", "open-weights"),
-                    StatusHeuristic.fromString("beta"),
+                    StatusHeuristic.fromString("ga"),
                     RELEASE_DATE_PARSED,
                     null
                 ),
@@ -624,7 +624,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             JINA_EMBED_V5_ENDPOINT_ID,
             JINA_EMBED_V5_MODEL_NAME,
             createTaskTypeObject(EIS_TEXT_EMBED_PATH, "text_embedding"),
-            "beta",
+            "ga",
             List.of("multilingual"),
             RELEASE_DATE_STRING,
             null,
@@ -647,7 +647,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new ElasticInferenceServiceComponents(url),
             new SentenceBoundaryChunkingSettings(250, 1),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("beta"), RELEASE_DATE_PARSED, null),
+                new EndpointMetadata.Heuristics(List.of("multilingual"), StatusHeuristic.fromString("ga"), RELEASE_DATE_PARSED, null),
                 new EndpointMetadata.Internal(JINA_EMBED_V5_FINGERPRINT, ENDPOINT_SCHEMA_VERSION),
                 new EndpointMetadata.Display(JINA_EMBED_V5_DISPLAY_NAME)
             )
@@ -659,7 +659,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             JINA_CLIP_V2_ENDPOINT_ID,
             JINA_CLIP_V2_MODEL_NAME,
             createTaskTypeObject(EIS_MULTIMODAL_EMBED_PATH, "embedding"),
-            "beta",
+            "ga",
             List.of("multilingual", "multimodal", "open-weights"),
             RELEASE_DATE_STRING,
             null,
@@ -684,7 +684,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new EndpointMetadata(
                 new EndpointMetadata.Heuristics(
                     List.of("multilingual", "multimodal", "open-weights"),
-                    StatusHeuristic.fromString("beta"),
+                    StatusHeuristic.fromString("ga"),
                     LocalDate.parse(RELEASE_DATE_STRING),
                     null
                 ),

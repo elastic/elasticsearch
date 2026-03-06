@@ -297,36 +297,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         FieldEntry entry = fields.get(fieldInfo.number);
         if (visitRatio == DYNAMIC_VISIT_RATIO) {
-            if (numCands > 0) {
-                // Two-signal model: smooth log-based visit ratio from num_candidates/k ratio and k.
-                // Produces visitRatio in [V_MIN, V_MAX] which, after the SOAR 2× multiplier,
-                // gives actual visit percentage in [~1%, ~10%].
-                // The nc/k ratio (capped at R_MAX=100) drives 85% of the signal via log scaling,
-                // while k itself (capped at K_MAX=10000) contributes the remaining 15%.
-                final float V_MIN = 0.005f;
-                final float V_MAX = 0.05f;
-                final double R_MAX = 100.0;
-                final double K_MAX = 10_000.0;
-                double r = (double) numCands / Math.max(k, 1);
-                double x = Math.log1p(r) / Math.log1p(R_MAX);
-                double y = Math.log1p(k) / Math.log1p(K_MAX);
-                x = Math.max(0.0, Math.min(1.0, x));
-                y = Math.max(0.0, Math.min(1.0, y));
-                double z = 0.85 * x + 0.15 * y;
-                visitRatio = (float) (V_MIN + (V_MAX - V_MIN) * z);
-            } else {
-                // Fallback when called without IVFKnnSearchStrategy (e.g. checkIndex).
-                // Use log-based heuristic for reasonable default behavior.
-                final float V_MIN = 0.005f;
-                final float V_MAX = 0.05f;
-                double r = 1.0; // assume nc == k
-                double x = Math.log1p(r) / Math.log1p(100.0);
-                double y = Math.log1p(k) / Math.log1p(10_000.0);
-                x = Math.max(0.0, Math.min(1.0, x));
-                y = Math.max(0.0, Math.min(1.0, y));
-                double z = 0.85 * x + 0.15 * y;
-                visitRatio = (float) (V_MIN + (V_MAX - V_MIN) * z);
-            }
+            float estimated = Math.round(Math.log10(numVectors) * Math.log10(numVectors) * (knnCollector.k()));
+            visitRatio = estimated / numVectors;
         }
         // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
         long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);

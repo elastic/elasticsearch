@@ -377,7 +377,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testEmptyDefaultInferenceIdSettingThrows() throws Exception {
         try (XContentBuilder fieldMapping = fieldMapping(this::minimalMapping)) {
 
-            for (String blank : new String[]{null, "", " ", "   "}) {
+            for (String blank : new String[] { null, "", " ", "   " }) {
                 var settings = Settings.builder()
                     .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
                     .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)

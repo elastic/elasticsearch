@@ -197,7 +197,8 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                     if (excludeFailed.isEmpty() == false) {
                         throw new IllegalArgumentException(
                             Strings.format(
-                                "Attempt to exclude cluster%s %s failed as %s not included in the list of clusters to be included",
+                                "Attempt to exclude cluster%s %s failed as %s not included in the list of clusters to be included"
+                                    + " (note: the \"include\" expression must precede the \"exclude\" expression)",
                                 excludeFailed.size() == 1 ? "" : "s",
                                 excludeFailed,
                                 excludeFailed.size() == 1 ? "it is" : "they are"

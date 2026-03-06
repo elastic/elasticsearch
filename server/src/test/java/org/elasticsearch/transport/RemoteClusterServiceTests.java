@@ -290,6 +290,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         equalTo(
                             "Attempt to exclude cluster [cluster_1] failed as it is not included in the list of clusters to "
                                 + "be included"
+                                + " (note: the \"include\" expression must precede the \"exclude\" expression)"
                         )
                     );
                 }
@@ -303,6 +304,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         equalTo(
                             "Attempt to exclude cluster [cluster_1] failed as it is not included in the list of clusters to "
                                 + "be included"
+                                + " (note: the \"include\" expression must precede the \"exclude\" expression)"
                         )
                     );
                 }

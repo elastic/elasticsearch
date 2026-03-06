@@ -171,7 +171,26 @@ public class RemoteClusterAwareTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("Attempt to exclude cluster [cluster1] failed as it is not included in the list of clusters to be included")
+            equalTo(
+                "Attempt to exclude cluster [cluster1] failed as it is not included in the list of clusters to be included"
+                    + " (note: the \"include\" expression must precede the \"exclude\" expression)"
+            )
+        );
+    }
+
+    public void testGroupClusterIndicesExclusionThenInclusion() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> remoteClusterAware.groupClusterIndices(remoteClusterNames, new String[] { "-cluster1:*", "*:logs" })
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Attempt to exclude cluster [cluster1] failed as it is not included in the list of clusters to be included"
+                    + " (note: the \"include\" expression must precede the \"exclude\" expression)"
+            )
         );
     }
 
@@ -196,7 +215,10 @@ public class RemoteClusterAwareTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("Attempt to exclude cluster [cluster2] failed as it is not included in the list of clusters to be included")
+            equalTo(
+                "Attempt to exclude cluster [cluster2] failed as it is not included in the list of clusters to be included"
+                    + " (note: the \"include\" expression must precede the \"exclude\" expression)"
+            )
         );
     }
 
@@ -292,7 +314,10 @@ public class RemoteClusterAwareTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("Attempt to exclude cluster [cluster3] failed as it is not included in the list of clusters to be included")
+            equalTo(
+                "Attempt to exclude cluster [cluster3] failed as it is not included in the list of clusters to be included"
+                    + " (note: the \"include\" expression must precede the \"exclude\" expression)"
+            )
         );
     }
 

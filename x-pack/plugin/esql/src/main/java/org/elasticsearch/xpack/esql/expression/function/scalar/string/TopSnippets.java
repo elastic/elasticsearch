@@ -85,7 +85,11 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
             """,
         examples = {
             @Example(file = "top-snippets", tag = "top-snippets-with-field", applies_to = "stack: preview 9.3.0"),
-            @Example(file = "top-snippets", tag = "top-snippets-with-options", applies_to = "stack: preview 9.3.0") }
+            @Example(file = "top-snippets", tag = "top-snippets-with-options", applies_to = "stack: preview 9.3.0"),
+            @Example(file = "rerank", tag = "rerank-top-snippets", applies_to = "stack: preview 9.3.0", explanation = """
+                This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning a fixed number of snippets with a limited
+                size, we have more control over the number of tokens that are used for semantic reranking.
+                """) }
     )
     public TopSnippets(
         Source source,
@@ -116,7 +120,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
                 ),
                 @MapParam.MapParamEntry(name = "num_words", type = "integer", description = """
                     The maximum number of words to return in each snippet.
-                    This allows better control of inference costs by limiting the size of tokens per snippet.
                     """, valueHint = { "300" }) }
         ) Expression options
     ) {

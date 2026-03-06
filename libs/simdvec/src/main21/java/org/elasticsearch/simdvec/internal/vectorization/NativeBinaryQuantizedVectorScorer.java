@@ -88,6 +88,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         float[] scores,
         int bulkSize
     ) throws IOException {
+        slice.seek(0);
         return IndexInputUtils.withSlice(slice, slice.length(), this::getScratch, segment -> {
             if (SUPPORTS_HEAP_SEGMENTS) {
                 Similarities.dotProductD1Q4BulkWithOffsets(

@@ -26,14 +26,10 @@ import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycle
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.action.TransportCreateDataStreamAction;
@@ -89,7 +85,6 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
 import java.io.IOException;
@@ -199,8 +194,12 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             services.threadPool(),
             services.clusterService()
         );
-        this.updateTimeSeriesRangeService.set(updateTimeSeriesRangeService);
-        components.add(this.updateTimeSeriesRangeService.get());
+        IndexScopedSettings indexScopedSettings = services.indicesService().getIndexScopedSettings();
+        indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
+            TimeValue timeSeriesPollInterval = updateTimeSeriesRangeService.pollInterval;
+            additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
+        });
+        components.add(updateTimeSeriesRangeService);
         errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore(services.threadPool()::absoluteTimeInMillis));
         dataStreamLifecycleErrorsPublisher.set(
             new DataStreamLifecycleHealthInfoPublisher(
@@ -265,20 +264,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
-            TimeValue timeSeriesPollInterval = updateTimeSeriesRangeService.get().pollInterval;
-            additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
-        });
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestCreateDataStreamAction());
         handlers.add(new RestDeleteDataStreamAction());

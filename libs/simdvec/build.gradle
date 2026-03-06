@@ -33,7 +33,8 @@ tasks.matching { it.name == "compileMain21Java" }.configureEach {
   options.compilerArgs << '--add-modules=jdk.incubator.vector'
   // we remove Werror, since incubating suppression (-Xlint:-incubating)
   // is only support since JDK 22
-  options.compilerArgs -= '-Werror'
+  //options.compilerArgs -= '-Werror'
+  options.compilerArgs.set(options.compilerArgs.get() - ['-Werror'])
 }
 
 tasks.named('test').configure {

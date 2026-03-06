@@ -89,6 +89,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
         return encodedHistogramsBuilder;
     }
 
+    @Override
     public ExponentialHistogramBlockBuilder append(ExponentialHistogram histogram) {
         ExponentialHistogramArrayBlock.EncodedHistogramData data = ExponentialHistogramArrayBlock.encode(histogram);
         valueCountsBuilder.appendDouble(data.count());

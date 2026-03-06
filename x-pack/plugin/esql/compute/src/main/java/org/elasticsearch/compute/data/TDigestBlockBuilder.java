@@ -159,7 +159,8 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
         Releasables.close(encodedDigestsBuilder, minimaBuilder, maximaBuilder, sumsBuilder, valueCountsBuilder);
     }
 
-    public void appendTDigest(TDigestHolder val) {
+    @Override
+    public TDigestBlockBuilder appendTDigest(TDigestHolder val) {
         encodedDigestsBuilder.appendBytesRef(val.getEncodedDigest());
         if (Double.isNaN(val.getMin())) {
             minimaBuilder.appendNull();
@@ -177,6 +178,7 @@ public final class TDigestBlockBuilder implements TDigestBlock.Builder {
             sumsBuilder.appendDouble(val.getSum());
         }
         valueCountsBuilder.appendLong(val.size());
+        return this;
     }
 
     public void deserializeAndAppend(TDigestBlock.SerializedTDigestInput input) {

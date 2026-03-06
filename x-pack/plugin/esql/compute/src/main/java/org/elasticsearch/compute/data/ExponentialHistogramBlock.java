@@ -60,6 +60,11 @@ public sealed interface ExponentialHistogramBlock extends HistogramBlock permits
     sealed interface Builder extends Block.Builder, BlockLoader.ExponentialHistogramBuilder permits ExponentialHistogramBlockBuilder {
 
         /**
+         * Appends the provided histogram to this builder.
+         */
+        Builder append(ExponentialHistogram histogram);
+
+        /**
          * Copy the values in {@code block} from the given positon into this builder.
          */
         Builder copyFrom(ExponentialHistogramBlock block, int position);

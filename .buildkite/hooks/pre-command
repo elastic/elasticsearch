@@ -33,6 +33,9 @@ export JAVA11_HOME
 JAVA16_HOME="$HOME/.java/openjdk16"
 export JAVA16_HOME
 
+JAVA22_HOME="$HOME/.java/openjdk22"
+export JAVA22_HOME
+
 if [[ "${ES_RUNTIME_JAVA:-}" ]]; then
   RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
   export RUNTIME_JAVA_HOME

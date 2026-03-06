@@ -750,10 +750,12 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.copyOf(getInferenceSettings());
+        List<Setting<?>> settings = new ArrayList<>(getClusterSettings());
+        settings.add(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID);
+        return Collections.unmodifiableList(settings);
     }
 
-    public static Set<Setting<?>> getInferenceSettings() {
+    public static Set<Setting<?>> getClusterSettings() {
         Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(HttpSettings.getSettingsDefinitions());
         settings.addAll(HttpClientManager.getSettingsDefinitions());
@@ -764,7 +766,6 @@ public class InferencePlugin extends Plugin
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
         settings.add(INFERENCE_QUERY_TIMEOUT);
-        settings.add(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID);
         settings.addAll(InferenceEndpointRegistry.getSettingsDefinitions());
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         settings.addAll(CCMSettings.getSettingsDefinitions());

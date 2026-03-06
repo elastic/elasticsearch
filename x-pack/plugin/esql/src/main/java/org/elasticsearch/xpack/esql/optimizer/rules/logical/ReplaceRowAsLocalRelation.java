@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -19,9 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public final class ReplaceRowAsLocalRelation extends OptimizerRules.ParameterizedOptimizerRule<Row, LogicalOptimizerContext> {
     public ReplaceRowAsLocalRelation() {
@@ -32,17 +32,24 @@ public final class ReplaceRowAsLocalRelation extends OptimizerRules.Parameterize
     protected LogicalPlan rule(Row row, LogicalOptimizerContext context) {
         var fields = row.fields();
 
-        // Fold all fields (including shadowed ones) and index by NameId
-        Map<NameId, Object> foldedById = HashMap.newHashMap(fields.size());
+        // fold all fields (including shadowed ones) keyed by attribute identity (NameId).
+        // ReferenceAttributes are resolved against already-folded values instead of calling fold() directly.
+        AttributeMap.Builder<Object> builder = AttributeMap.builder(fields.size());
+        AttributeMap<Object> folded = builder.build();
         for (var f : fields) {
-            foldedById.put(f.id(), f.child().fold(context.foldCtx()));
+            Expression child = f.child();
+            if (child instanceof ReferenceAttribute ref) {
+                builder.put(f.toAttribute(), folded.get(ref));
+            } else {
+                builder.put(f.toAttribute(), child.fold(context.foldCtx()));
+            }
         }
 
-        // Collect values aligned with deduplicated output
+        // collect values aligned with deduplicated output
         var output = row.output();
         List<Object> values = new ArrayList<>(output.size());
         for (Attribute attr : output) {
-            values.add(foldedById.get(attr.id()));
+            values.add(folded.get(attr));
         }
 
         var blocks = BlockUtils.fromListRow(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);

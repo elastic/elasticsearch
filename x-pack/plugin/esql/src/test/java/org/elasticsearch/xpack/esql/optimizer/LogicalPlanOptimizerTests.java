@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.Extract
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.PackDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.internal.UnpackDimension;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
@@ -10072,6 +10073,38 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertEquals(2, page.getBlockCount());
         assertEquals(2, ((IntBlock) page.getBlock(0)).getInt(0));
         assertEquals(3, ((IntBlock) page.getBlock(1)).getInt(0));
+    }
+
+    /**
+     * Verifies that intra-ROW-command references to non-deterministic functions produce correct values after optimization.
+     * Since {@code random()} is an internal function, the plan is built manually.
+     * See https://github.com/elastic/elasticsearch/issues/140119
+     */
+    public void testRowFieldResolutionWithNonDeterministicReference() {
+        int v = 10000;
+        // row a = random(10000), b = a
+        var analyzed = analyzer.analyze(
+            new Row(
+                EMPTY,
+                List.of(
+                    new Alias(EMPTY, "a", new Random(EMPTY, new Literal(EMPTY, v, INTEGER))),
+                    new Alias(EMPTY, "b", new UnresolvedAttribute(EMPTY, "a"))
+                )
+            )
+        );
+        var optimized = logicalOptimizer.optimize(analyzed);
+
+        var limit = asLimit(optimized, 1000, false, false);
+        var relation = as(limit.child(), LocalRelation.class);
+        assertMap(Expressions.names(relation.output()), is(List.of("a", "b")));
+
+        Page page = relation.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(2, page.getBlockCount());
+        int aValue = ((IntBlock) page.getBlock(0)).getInt(0);
+        int bValue = ((IntBlock) page.getBlock(1)).getInt(0);
+        assertTrue("random(" + v + ") should produce a value in [0, " + v + ")", aValue >= 0 && aValue < v);
+        assertEquals("b should have the same value as a", aValue, bValue);
     }
 
     /**

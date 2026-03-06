@@ -394,7 +394,7 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         // row a = random(5), b = a
-        // (yes, random() is an internal command, thus why the test builts one "manually")
+        // (yes, random() is an internal command, thus why the test builds one "manually")
         var plan = analyzer.analyze(
             new Row(
                 EMPTY,
@@ -426,7 +426,7 @@ public class AnalyzerTests extends ESTestCase {
         Analyzer analyzer = analyzer(IndexResolution.valid(idx));
 
         // row a = random(100), b = a | eval x = random(100), y = x
-        // (yes, random() is an internal command, thus why the test builts one "manually")
+        // (yes, random() is an internal command, thus why the test builds one "manually")
         var plan = analyzer.analyze(
             new Eval(
                 EMPTY,

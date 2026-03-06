@@ -159,6 +159,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         ) Expression scale,
         @MapParam(
             name = "options",
+            description = "(Optional) Additional options such as `decay`, `offset` and `type`.",
             params = {
                 @MapParam.MapParamEntry(
                     name = OFFSET,

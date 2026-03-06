@@ -356,18 +356,18 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             addBooleanClauses(context, booleanQueryBuilder, clauses, occurs, queryVisitor);
             return;
         }
-        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        MaxClauseCountQueryVisitor clauseVisitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
         Set<Query> deduplicate = new HashSet<>();
         for (QueryBuilder query : clauses) {
             try (AutoPrefilteringScope autoPrefilteringScope = context.autoPrefilteringScope()) {
                 autoPrefilteringScope.push(collectPrefilters(query));
-                Query luceneQuery = query.toQuery(context, visitor);
+                Query luceneQuery = query.toQuery(context, clauseVisitor);
                 if (deduplicate.add(luceneQuery)) {
-                    queryVisitor.merge(visitor);
+                    queryVisitor.merge(clauseVisitor);
                 }
                 // TODO: It would be great if lucene could tell us here if the query has been deduplicated.
                 booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
-                visitor.reset();
+                clauseVisitor.reset();
             }
         }
     }

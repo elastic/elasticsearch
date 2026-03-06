@@ -150,6 +150,15 @@ public class MicrosoftGraphHttpFixture extends ExternalResource {
                 );
                 return;
             }
+            final var claims = formFields.get("claims");
+            if (claims != null && claims.toLowerCase(java.util.Locale.ROOT).contains("cp1")) {
+                graphError(
+                    exchange,
+                    RestStatus.BAD_REQUEST,
+                    "Token request must not advertise cp1 CAE capability for client_credentials flow"
+                );
+                return;
+            }
 
             final var token = XContentBuilder.builder(XContentType.JSON.xContent());
             token.startObject();

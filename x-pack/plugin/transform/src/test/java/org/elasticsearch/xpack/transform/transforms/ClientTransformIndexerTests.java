@@ -52,6 +52,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -78,6 +79,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -152,44 +154,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             final var client = new PitMockClient(threadPool, true);
-            MockClientTransformIndexer indexer = new MockClientTransformIndexer(
-                mock(ThreadPool.class),
-                mock(ClusterService.class),
-                mock(IndexNameExpressionResolver.class),
-                mock(TransformExtension.class),
-                new TransformServices(
-                    mock(IndexBasedTransformConfigManager.class),
-                    mock(TransformCheckpointService.class),
-                    mock(TransformAuditor.class),
-                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
-                ),
-                mock(CheckpointProvider.class),
-                new AtomicReference<>(IndexerState.STOPPED),
-                null,
-                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
-                mock(TransformIndexerStats.class),
-                config,
-                null,
-                new TransformCheckpoint(
-                    "transform",
-                    Instant.now().toEpochMilli(),
-                    0L,
-                    Collections.emptyMap(),
-                    Instant.now().toEpochMilli()
-                ),
-                new TransformCheckpoint(
-                    "transform",
-                    Instant.now().toEpochMilli(),
-                    2L,
-                    Collections.emptyMap(),
-                    Instant.now().toEpochMilli()
-                ),
-                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
-                mock(TransformContext.class),
-                false
-            );
+            MockClientTransformIndexer indexer = createMockIndexerForPitTest(client, config);
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
                 assertThat(response.pointInTimeId(), equalBytes(new BytesArray("the_pit_id+")));
@@ -261,44 +226,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
         try (var threadPool = createThreadPool()) {
             final var client = new PitMockClient(threadPool, false);
-            MockClientTransformIndexer indexer = new MockClientTransformIndexer(
-                mock(ThreadPool.class),
-                mock(ClusterService.class),
-                mock(IndexNameExpressionResolver.class),
-                mock(TransformExtension.class),
-                new TransformServices(
-                    mock(IndexBasedTransformConfigManager.class),
-                    mock(TransformCheckpointService.class),
-                    mock(TransformAuditor.class),
-                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
-                ),
-                mock(CheckpointProvider.class),
-                new AtomicReference<>(IndexerState.STOPPED),
-                null,
-                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
-                mock(TransformIndexerStats.class),
-                config,
-                null,
-                new TransformCheckpoint(
-                    "transform",
-                    Instant.now().toEpochMilli(),
-                    0L,
-                    Collections.emptyMap(),
-                    Instant.now().toEpochMilli()
-                ),
-                new TransformCheckpoint(
-                    "transform",
-                    Instant.now().toEpochMilli(),
-                    2L,
-                    Collections.emptyMap(),
-                    Instant.now().toEpochMilli()
-                ),
-                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
-                mock(TransformContext.class),
-                false
-            );
+            MockClientTransformIndexer indexer = createMockIndexerForPitTest(client, config);
 
             this.<SearchResponse>assertAsync(
                 listener -> indexer.doNextSearch(0, listener),
@@ -469,6 +397,64 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testPitIndexFilterOmittedWhenRuntimeMappingsPresent() throws InterruptedException {
+        // Arrange: create a config with runtime_mappings and PIT enabled
+        Map<String, Object> runtimeMappings = Map.of(
+            "total_price_with_tax",
+            Map.of("type", "double", "script", Map.of("source", "emit(1.0)"))
+        );
+        TransformConfig config = newPitEnabledConfigWithSource(
+            new SourceConfig(new String[] { "source_index" }, QueryConfig.matchAll(), runtimeMappings, null)
+        );
+
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            MockClientTransformIndexer indexer = createMockIndexerForPitTest(client, config);
+
+            // Act: trigger a search which opens a PIT
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> { assertNotNull(response.pointInTimeId()); }
+            );
+
+            // Assert: the PIT request should NOT have an indexFilter when runtime_mappings are present,
+            // because OpenPointInTimeRequest does not support runtime_mappings and the query may reference runtime fields
+            OpenPointInTimeRequest capturedPitRequest = client.getLastOpenPitRequest();
+            assertNotNull("Expected a PIT open request to have been captured", capturedPitRequest);
+            assertNull(
+                "PIT indexFilter should be null when runtime_mappings are present, "
+                    + "because OpenPointInTimeRequest does not support runtime_mappings",
+                capturedPitRequest.indexFilter()
+            );
+        }
+    }
+
+    public void testPitIndexFilterSetWhenNoRuntimeMappings() throws InterruptedException {
+        // Arrange: create a config WITHOUT runtime_mappings and PIT enabled
+        TransformConfig config = newPitEnabledConfigWithSource(
+            new SourceConfig(new String[] { "source_index" }, QueryConfig.matchAll(), Collections.emptyMap(), null)
+        );
+
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            MockClientTransformIndexer indexer = createMockIndexerForPitTest(client, config);
+
+            // Act: trigger a search which opens a PIT
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> { assertNotNull(response.pointInTimeId()); }
+            );
+
+            // Assert: the PIT request SHOULD have an indexFilter when no runtime_mappings are present
+            OpenPointInTimeRequest capturedPitRequest = client.getLastOpenPitRequest();
+            assertNotNull("Expected a PIT open request to have been captured", capturedPitRequest);
+            assertNotNull(
+                "PIT indexFilter should be set when no runtime_mappings are present for performance optimization",
+                capturedPitRequest.indexFilter()
+            );
+        }
+    }
+
     public void testHandlePitIndexNotFound() throws InterruptedException {
         // simulate a deleted index due to ILM
         try (var threadPool = createThreadPool()) {
@@ -554,6 +540,41 @@ public class ClientTransformIndexerTests extends ESTestCase {
         return resolver;
     }
 
+    private static TransformConfig newPitEnabledConfigWithSource(SourceConfig sourceConfig) {
+        return new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSource(sourceConfig)
+            .setSettings(new SettingsConfig.Builder().setUsePit(true).build())
+            .build();
+    }
+
+    private MockClientTransformIndexer createMockIndexerForPitTest(PitMockClient client, TransformConfig config) {
+        return new MockClientTransformIndexer(
+            mock(ThreadPool.class),
+            mock(ClusterService.class),
+            mock(IndexNameExpressionResolver.class),
+            mock(TransformExtension.class),
+            new TransformServices(
+                mock(IndexBasedTransformConfigManager.class),
+                mock(TransformCheckpointService.class),
+                mock(TransformAuditor.class),
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class)
+            ),
+            mock(CheckpointProvider.class),
+            new AtomicReference<>(IndexerState.STOPPED),
+            null,
+            new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
+            mock(TransformIndexerStats.class),
+            config,
+            null,
+            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 0L, Collections.emptyMap(), Instant.now().toEpochMilli()),
+            new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),
+            new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+            mock(TransformContext.class),
+            false
+        );
+    }
+
     private static class MockClientTransformIndexer extends ClientTransformIndexer {
 
         MockClientTransformIndexer(
@@ -606,10 +627,15 @@ public class ClientTransformIndexerTests extends ESTestCase {
         private final boolean pitSupported;
         private AtomicLong pitContextCounter = new AtomicLong();
         private List<Runnable> beforeCloseListeners = new ArrayList<>();
+        private final AtomicReference<OpenPointInTimeRequest> lastOpenPitRequest = new AtomicReference<>();
 
         PitMockClient(ThreadPool threadPool, boolean pitSupported) {
             super(threadPool);
             this.pitSupported = pitSupported;
+        }
+
+        public OpenPointInTimeRequest getLastOpenPitRequest() {
+            return lastOpenPitRequest.get();
         }
 
         public void addBeforeCloseListener(Runnable listener) {
@@ -627,7 +653,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            if (request instanceof OpenPointInTimeRequest) {
+            if (request instanceof OpenPointInTimeRequest openPitRequest) {
+                lastOpenPitRequest.set(openPitRequest);
                 if (pitSupported) {
                     pitContextCounter.incrementAndGet();
                     OpenPointInTimeResponse response = new OpenPointInTimeResponse(new BytesArray("the_pit_id"), 1, 1, 0, 0);

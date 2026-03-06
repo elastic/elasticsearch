@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -203,6 +204,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
@@ -240,10 +242,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -316,6 +320,7 @@ public class EsqlFunctionRegistry {
 
     @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry() {
+        // TODO build this one time in plugin construction and pass it in
         register(functions());
         buildDataTypesForStringLiteralConversion(functions());
         nameSurrogates();
@@ -434,6 +439,7 @@ public class EsqlFunctionRegistry {
                 def(Contains.class, Contains::new, "contains"),
                 def(EndsWith.class, EndsWith::new, "ends_with"),
                 def(Hash.class, Hash::new, "hash"),
+                def(JsonExtract.class, JsonExtract::new, "json_extract"),
                 def(LTrim.class, LTrim::new, "ltrim"),
                 def(Left.class, Left::new, "left"),
                 def(Length.class, Length::new, "length"),
@@ -1013,6 +1019,32 @@ public class EsqlFunctionRegistry {
 
     protected interface FunctionBuilder {
         Function build(Source source, List<Expression> children, Configuration cfg);
+    }
+
+    /**
+     * Add capabilities for registered functions to the set of capabilities.
+     */
+    public void addCapabilities(EsqlCapabilities.Builder capabilities) {
+        Set<String> filterAliases = new HashSet<>();
+        EsqlFunctionRegistry snapshots = snapshotRegistry();
+        if (snapshots != null) {
+            snapshots.addCapabilities(filterAliases, capabilities, true);
+        } else {
+            addCapabilities(filterAliases, capabilities, true);
+            if (capabilities.all()) {
+                new SnapshotFunctionRegistry().addCapabilities(filterAliases, capabilities, false);
+            }
+        }
+    }
+
+    protected final void addCapabilities(Set<String> filterAliases, EsqlCapabilities.Builder capabilities, boolean enabled) {
+        for (FunctionDefinition def : defs.values()) {
+            if (false == filterAliases.add(def.name())) {
+                continue;
+            }
+            String name = "fn_" + def.name();
+            capabilities.add(name, enabled);
+        }
     }
 
     /**

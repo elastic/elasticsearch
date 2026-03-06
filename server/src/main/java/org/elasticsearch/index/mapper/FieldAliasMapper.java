@@ -56,16 +56,6 @@ public final class FieldAliasMapper extends Mapper {
     }
 
     @Override
-    public Mapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
-        if ((mergeWith instanceof FieldAliasMapper) == false) {
-            throw new IllegalArgumentException(
-                "Cannot merge a field alias mapping [" + fullPath() + "] with a mapping that is not for a field alias."
-            );
-        }
-        return mergeWith;
-    }
-
-    @Override
     public Iterator<Mapper> iterator() {
         return Collections.emptyIterator();
     }
@@ -154,6 +144,18 @@ public final class FieldAliasMapper extends Mapper {
         public FieldAliasMapper build(MapperBuilderContext context) {
             String fullName = context.buildFullName(leafName());
             return new FieldAliasMapper(leafName(), fullName, path);
+        }
+
+        @Override
+        public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
+            if (incoming instanceof FieldAliasMapper.Builder == false) {
+                throw new IllegalArgumentException(
+                    "Cannot merge a field alias mapping ["
+                        + mergeContext.getMapperBuilderContext().buildFullName(leafName())
+                        + "] with a mapping that is not for a field alias."
+                );
+            }
+            return incoming;
         }
     }
 }

@@ -126,6 +126,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -137,8 +138,10 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -226,6 +229,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveConfigurationAware(),
             new ResolveTable(),
+            new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
@@ -443,6 +447,48 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * Resolves UnresolvedExternalRelation nodes using pre-resolved metadata from ExternalSourceResolver.
+     * This rule mirrors the ResolveTable pattern but uses ExternalSourceResolution instead of IndexResolution.
+     * <p>
+     * This rule creates {@link ExternalRelation} nodes from any SourceMetadata,
+     * avoiding the need for source-specific logical plan nodes in core ESQL code.
+     */
+    private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnresolvedExternalRelation plan, AnalyzerContext context) {
+            // Extract the table path from the expression
+            String tablePath = extractTablePath(plan.tablePath());
+            if (tablePath == null) {
+                // Path is not a simple literal (e.g., it's a parameter reference)
+                // Return the plan as-is for now
+                return plan;
+            }
+
+            // Get pre-resolved source (metadata + file set) from context
+            var resolvedSource = context.externalSourceResolution().resolvedSource(tablePath);
+            if (resolvedSource == null) {
+                // Still unresolved - return as-is to keep the error message
+                return plan;
+            }
+
+            var metadata = resolvedSource.metadata();
+            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileSet());
+        }
+
+        private String extractTablePath(Expression tablePath) {
+            if (tablePath instanceof Literal literal && literal.value() != null) {
+                Object value = literal.value();
+                if (value instanceof org.apache.lucene.util.BytesRef) {
+                    return BytesRefs.toString((org.apache.lucene.util.BytesRef) value);
+                }
+                return value.toString();
+            }
+            return null;
+        }
+    }
+
     private static class ResolveEnrich extends ParameterizedAnalyzerRule<Enrich, AnalyzerContext> {
 
         @Override
@@ -609,6 +655,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
+                case Row row -> resolveRow(row);
                 default -> plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             };
 
@@ -1349,10 +1396,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveEval(Eval eval, List<Attribute> childOutput) {
-            List<Attribute> allResolvedInputs = new ArrayList<>(childOutput);
+            var resolved = resolveFields(eval.fields(), childOutput);
+            return resolved != null ? new Eval(eval.source(), eval.child(), resolved) : eval;
+        }
+
+        /**
+         * Resolve Row fields, allowing later fields to reference earlier ones using attribute references.
+         * Field deduplication (shadowing) is handled by {@link Row#output()} via mergeOutputAttributes.
+         */
+        private LogicalPlan resolveRow(Row row) {
+            var resolved = resolveFields(row.fields(), List.of());
+            return resolved != null ? new Row(row.source(), resolved) : row;
+        }
+
+        private List<Alias> resolveFields(List<Alias> fields, List<Attribute> initialInputs) {
+            List<Attribute> allResolvedInputs = new ArrayList<>(initialInputs);
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
-            for (Alias field : eval.fields()) {
+            for (Alias field : fields) {
                 Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, allResolvedInputs));
 
                 changed |= result != field;
@@ -1370,7 +1431,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     allResolvedInputs.add(result.toAttribute());
                 }
             }
-            return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
+            return changed ? newFields : null;
         }
 
         /**

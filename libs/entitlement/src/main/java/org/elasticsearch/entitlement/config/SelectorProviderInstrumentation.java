@@ -13,6 +13,7 @@ import org.elasticsearch.entitlement.rules.EntitlementRulesBuilder;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+import java.io.IOException;
 import java.net.ProtocolFamily;
 import java.nio.channels.spi.SelectorProvider;
 
@@ -22,19 +23,21 @@ public class SelectorProviderInstrumentation implements InstrumentationConfig {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
 
         builder.on(SelectorProvider.provider().getClass(), rule -> {
-            rule.calling(SelectorProvider::inheritedChannel).enforce(Policies::changeNetworkHandling).elseThrowNotEntitled();
-            rule.calling(SelectorProvider::openDatagramChannel).enforce(Policies::outboundNetworkAccess).elseThrowNotEntitled();
+            rule.calling(SelectorProvider::inheritedChannel).enforce(Policies::changeNetworkHandling).elseThrow(e -> new IOException(e));
+            rule.calling(SelectorProvider::openDatagramChannel).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
             rule.calling(SelectorProvider::openDatagramChannel, ProtocolFamily.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrowNotEntitled();
-            rule.calling(SelectorProvider::openServerSocketChannel).enforce(Policies::inboundNetworkAccess).elseThrowNotEntitled();
+                .elseThrow(e -> new IOException(e));
+            rule.calling(SelectorProvider::openServerSocketChannel)
+                .enforce(Policies::inboundNetworkAccess)
+                .elseThrow(e -> new IOException(e));
             rule.calling(SelectorProvider::openServerSocketChannel, ProtocolFamily.class)
                 .enforce(Policies::inboundNetworkAccess)
-                .elseThrowNotEntitled();
-            rule.calling(SelectorProvider::openSocketChannel).enforce(Policies::outboundNetworkAccess).elseThrowNotEntitled();
+                .elseThrow(e -> new IOException(e));
+            rule.calling(SelectorProvider::openSocketChannel).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
             rule.calling(SelectorProvider::openSocketChannel, ProtocolFamily.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseThrowNotEntitled();
+                .elseThrow(e -> new IOException(e));
         });
     }
 }

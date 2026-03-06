@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -82,6 +83,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("logs_foo_after_2021_alias", "x-pack-test-password", "logs_foo_after_2021_alias", false)
         .user("user_without_monitor_privileges", "x-pack-test-password", "user_without_monitor_privileges", false)
         .user("user_with_monitor_privileges", "x-pack-test-password", "user_with_monitor_privileges", false)
+        .feature(FeatureFlag.ESQL_VIEWS)
         .build();
 
     @Override
@@ -316,6 +318,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
     }
 
+    public void testViewRewriteDoesNotDropUnauthorizedTargetsWhenMixedWithViews() throws Exception {
+        expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM index-user2 | STATS sum=sum(value)"));
+        expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM index-user1,index-user2 | STATS sum=sum(value)"));
+        var resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM view-user1,index-user2 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
     public void testAliasFilter() throws Exception {
         for (var index : List.of("first-alias", "first-alias,index-*", "first-*,index-*")) {
             Response resp = runESQLCommand("alias_user1", "from " + index + " METADATA _index" + "| KEEP _index, org, value | LIMIT 10");
@@ -453,6 +467,110 @@ public class EsqlSecurityIT extends ESRestTestCase {
             )
         );
         assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+    }
+
+    public void testViewRewriteDoesNotDropUnauthorizedTargets() throws Exception {
+        ResponseException resp = expectThrows(ResponseException.class, () -> runESQLCommand("user1", "FROM view | STATS sum=sum(value)"));
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("unauthorized"));
+        assertThat(errorMessage, containsString("indices [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+    }
+
+    public void testViewRewriteAllUnauthorizedTargetsFails() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM index-user2 | KEEP value, org");
+
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewRewriteMixedUnauthorizedAndMissingTargetsFails() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM index-user2,missing-view-target | KEEP value, org");
+
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [index-user2,missing-view-target]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewQueryAuthorized() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testViewWildcardFiltersUnauthorized() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user* | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testNestedViewResolutionAuthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM view-user1");
+        Response resp = runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testNestedViewInnerViewUnauthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM view-user2");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [view-user2]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewDataSelectorResolvesView() throws Exception {
+        Response resp = runESQLCommand("user1", "FROM view-user1::data | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(30.0d))));
+    }
+
+    public void testViewFailureSelectorNotResolved() throws Exception {
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user1", "FROM view-user1::failures | STATS sum=sum(value)")
+        );
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+    }
+
+    public void testViewReferencingAliasAuthorized() throws Exception {
+        createView("test-admin", "other-view-user1", "FROM first-alias");
+        Response resp = runESQLCommand("user1", "FROM other-view-user1 | STATS sum=sum(value)");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
+        assertThat(respMap.get("values"), equalTo(List.of(List.of(31.0d))));
+    }
+
+    public void testViewReferencingAliasUnauthorized() throws Exception {
+        createView("test-admin", "other-view-user2", "FROM first-alias");
+        ResponseException resp = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user2", "FROM other-view-user2 | STATS sum=sum(value)")
+        );
+        String errorMessage = EntityUtils.toString(resp.getResponse().getEntity());
+        assertThat(errorMessage, containsString("Unknown index [first-alias]"));
+        assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
     }
 
     public void testDocumentLevelSecurity() throws Exception {

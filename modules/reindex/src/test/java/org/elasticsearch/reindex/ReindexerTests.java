@@ -11,94 +11,282 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
+import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
+import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
+import org.elasticsearch.index.reindex.ResumeInfo;
+import org.elasticsearch.index.reindex.ResumeReindexAction;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class ReindexerTests extends ESTestCase {
+
+    // --- wrapWithMetrics tests ---
 
     public void testWrapWithMetricsSuccess() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true);
+        BulkByScrollTask task = createNonSlicedWorkerTask();
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
 
-        BulkByScrollResponse response = reindexResponse(null, null);
+        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics).recordSuccess(true);
-        verify(metrics, never()).recordFailure(anyBoolean(), any());
-        verify(metrics).recordTookTime(anyLong(), eq(true));
+        verify(metrics).recordSuccess(eq(false), any());
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
+        verify(metrics).recordTookTime(anyLong(), eq(false), any());
     }
 
     public void testWrapWithMetricsFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true);
+        BulkByScrollTask task = createNonSlicedWorkerTask();
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
 
         Exception exception = new Exception("random failure");
         wrapped.onFailure(exception);
 
         verify(listener).onFailure(exception);
-        verify(metrics, never()).recordSuccess(anyBoolean());
-        verify(metrics).recordFailure(true, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(true));
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics).recordFailure(eq(false), any(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any());
     }
 
     public void testWrapWithMetricsBulkFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), false);
+        BulkByScrollTask task = createNonSlicedWorkerTask();
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
-        BulkByScrollResponse response = reindexResponse(
+        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(
             List.of(new BulkItemResponse.Failure("0", "0", exception), new BulkItemResponse.Failure("1", "1", anotherException)),
             null
         );
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics, never()).recordSuccess(anyBoolean());
-        verify(metrics).recordFailure(false, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(false));
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics).recordFailure(eq(false), any(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any());
     }
 
     public void testWrapWithMetricsSearchFailure() {
         ReindexMetrics metrics = mock();
         ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
-        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, randomNonNegativeLong(), true);
+        BulkByScrollTask task = createNonSlicedWorkerTask();
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
-        BulkByScrollResponse response = reindexResponse(
+        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(
             null,
             List.of(new PaginatedHitSource.SearchFailure(exception), new PaginatedHitSource.SearchFailure(anotherException))
         );
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics, never()).recordSuccess(anyBoolean());
-        verify(metrics).recordFailure(true, exception);
-        verify(metrics).recordTookTime(anyLong(), eq(true));
+        verify(metrics, never()).recordSuccess(anyBoolean(), any());
+        verify(metrics).recordFailure(eq(false), any(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any());
     }
 
-    private BulkByScrollResponse reindexResponse(
-        List<BulkItemResponse.Failure> bulkFailures,
+    public void testWrapWithMetricsSkipsSliceWorker() {
+        ReindexMetrics metrics = mock();
+        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        BulkByScrollTask task = createSliceWorkerTask();
+
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+
+        assertSame(listener, wrapped);
+        verifyNoMoreInteractions(metrics);
+    }
+
+    public void testWrapWithMetricsWrapsLeader() {
+        ReindexMetrics metrics = mock();
+        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        BulkByScrollTask task = createLeaderTask();
+
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+
+        assertNotSame(listener, wrapped);
+
+        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        wrapped.onResponse(response);
+
+        verify(metrics).recordSuccess(eq(false), any());
+        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+    }
+
+    public void testWrapWithMetricsSkipsMetricsWhenRelocating() {
+        ReindexMetrics metrics = mock();
+        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        BulkByScrollTask task = createNonSlicedWorkerTask();
+
+        var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), randomNonNegativeLong());
+
+        BulkByScrollResponse response = reindexResponseWithResumeInfo();
+        wrapped.onResponse(response);
+
+        verify(listener).onResponse(response);
+        verifyNoMoreInteractions(metrics);
+    }
+
+    // listenerWithRelocations tests
+
+    public void testListenerWithRelocationsPassesThroughForWorkerWithLeaderParent() {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final long parentTaskId = 99;
+        final BulkByScrollTask leaderTask = new BulkByScrollTask(
+            parentTaskId,
+            "test_type",
+            "test_action",
+            "test",
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            true
+        );
+        leaderTask.setWorkerCount(2);
+
+        final TaskManager taskManager = mock(TaskManager.class);
+        when(taskManager.getCancellableTasks()).thenReturn(Map.of(parentTaskId, leaderTask));
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+
+        final Reindexer reindexer = reindexerWithRelocation(mock(ClusterService.class), transportService);
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", parentTaskId));
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+
+        final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), original);
+
+        assertSame(original, wrapped);
+        verifyNoMoreInteractions(original);
+    }
+
+    public void testListenerWithRelocationsPassesThroughWhenNoRelocationRequested() {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final Reindexer reindexer = reindexerWithRelocation();
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        // do NOT call task.requestRelocation()
+
+        final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), original);
+
+        final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        wrapped.onResponse(response);
+
+        verify(original).onResponse(response);
+        verify(original).delegateFailureAndWrap(any());
+        verifyNoMoreInteractions(original);
+    }
+
+    public void testListenerWithRelocationsPassesThroughWhenNoResumeInfo() {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final Reindexer reindexer = reindexerWithRelocation();
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.requestRelocation();
+
+        final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), original);
+
+        // response without ResumeInfo
+        final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        wrapped.onResponse(response);
+
+        verify(original).onResponse(response);
+        verify(original).delegateFailureAndWrap(any());
+        verifyNoMoreInteractions(original);
+    }
+
+    public void testListenerWithRelocationsTriggersRelocationWhenResumeInfoPresent() {
+        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
+        final ClusterService clusterService = mock(ClusterService.class);
+        final ClusterState clusterState = mock(ClusterState.class);
+        final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        final DiscoveryNode sourceNode = DiscoveryNodeUtils.builder("source-node").build();
+        final DiscoveryNode targetNode = DiscoveryNodeUtils.builder("target-node").build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.localNode()).thenReturn(sourceNode);
+        when(clusterState.nodes()).thenReturn(discoveryNodes);
+        when(discoveryNodes.get("target-node")).thenReturn(targetNode);
+
+        final TransportService transportService = mock(TransportService.class);
+        doAnswer(invocation -> {
+            TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
+            return null;
+        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+
+        final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+        task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
+        task.requestRelocation();
+
+        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(task, reindexRequest(), future);
+
+        final BulkByScrollResponse response = reindexResponseWithResumeInfo();
+        wrapped.onResponse(response);
+
+        assertTrue(future.isDone());
+        TaskRelocatedException exception = expectThrows(TaskRelocatedException.class, future::actionGet);
+        assertThat(exception.getMessage(), equalTo("Task was relocated"));
+        assertThat(exception.getMetadataKeys(), equalTo(Set.of("es.original_task_id", "es.relocated_task_id")));
+        assertThat(exception.getMetadata("es.original_task_id"), equalTo(List.of("source-node:987")));
+        assertThat(exception.getMetadata("es.relocated_task_id"), equalTo(List.of("target-node:123")));
+    }
+
+    // --- helpers ---
+
+    private BulkByScrollResponse reindexResponseWithBulkAndSearchFailures(
+        final List<BulkItemResponse.Failure> bulkFailures,
         List<PaginatedHitSource.SearchFailure> searchFailures
     ) {
         return new BulkByScrollResponse(
@@ -108,5 +296,113 @@ public class ReindexerTests extends ESTestCase {
             searchFailures,
             false
         );
+    }
+
+    private BulkByScrollResponse reindexResponseWithResumeInfo() {
+        final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
+            "test-scroll-id",
+            System.nanoTime(),
+            new BulkByScrollTask.Status(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
+            null
+        );
+        return new BulkByScrollResponse(
+            TimeValue.MINUS_ONE,
+            new BulkByScrollTask.Status(List.of(), null),
+            List.of(),
+            List.of(),
+            false,
+            new ResumeInfo(workerResumeInfo, null)
+        );
+    }
+
+    private static BulkByScrollTask createNonSlicedWorkerTask() {
+        BulkByScrollTask task = new BulkByScrollTask(
+            randomNonNegativeLong(),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            randomBoolean()
+        );
+        task.setWorker(Float.POSITIVE_INFINITY, null);
+        return task;
+    }
+
+    private static BulkByScrollTask createSliceWorkerTask() {
+        BulkByScrollTask task = new BulkByScrollTask(
+            randomNonNegativeLong(),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            new TaskId("node", 1),
+            Map.of(),
+            randomBoolean()
+        );
+        task.setWorker(randomFloat(), 0);
+        return task;
+    }
+
+    private static BulkByScrollTask createLeaderTask() {
+        BulkByScrollTask task = new BulkByScrollTask(
+            randomNonNegativeLong(),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            TaskId.EMPTY_TASK_ID,
+            Map.of(),
+            randomBoolean()
+        );
+        task.setWorkerCount(randomIntBetween(2, 10));
+        return task;
+    }
+
+    private static BulkByScrollTask createTaskWithParentIdAndRelocationEnabled(final TaskId parentTaskId) {
+        return new BulkByScrollTask(987, "test_type", "test_action", "test", parentTaskId, Collections.emptyMap(), true);
+    }
+
+    private static Reindexer reindexerWithRelocation() {
+        final TaskManager taskManager = mock(TaskManager.class);
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(taskManager);
+        return reindexerWithRelocation(mock(ClusterService.class), transportService);
+    }
+
+    private static Reindexer reindexerWithRelocation(ClusterService clusterService, TransportService transportService) {
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.generic()).thenReturn(mock(ExecutorService.class));
+        return new Reindexer(
+            clusterService,
+            mock(ProjectResolver.class),
+            mock(Client.class),
+            threadPool,
+            mock(ScriptService.class),
+            mock(ReindexSslConfig.class),
+            null,
+            transportService,
+            mock(ReindexRelocationNodePicker.class),
+            // Will default REINDEX_PIT_SEARCH_FEATURE to false
+            mock(FeatureService.class)
+        );
+    }
+
+    private static Reindexer reindexerWithRelocationAndMetrics(final ReindexMetrics metrics) {
+        return new Reindexer(
+            mock(ClusterService.class),
+            mock(ProjectResolver.class),
+            mock(Client.class),
+            mock(ThreadPool.class),
+            mock(ScriptService.class),
+            mock(ReindexSslConfig.class),
+            metrics,
+            mock(TransportService.class),
+            mock(ReindexRelocationNodePicker.class),
+            // Will default REINDEX_PIT_SEARCH_FEATURE to false
+            mock(FeatureService.class)
+        );
+    }
+
+    private static ReindexRequest reindexRequest() {
+        return new ReindexRequest();
     }
 }

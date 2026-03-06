@@ -36,7 +36,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -104,6 +106,7 @@ public class TransformIndexerTests extends ESTestCase {
 
         private BlockingDeque<Exception> searchExceptions = new LinkedBlockingDeque<>();
         private BlockingDeque<Runnable> runBeforeOnFinish = new LinkedBlockingDeque<>();
+        private final AtomicReference<SearchRequest> capturedInitialProgressRequest = new AtomicReference<>();
 
         // how many loops to execute until reporting done
         private int numberOfLoops;
@@ -154,7 +157,12 @@ public class TransformIndexerTests extends ESTestCase {
 
         @Override
         void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+            capturedInitialProgressRequest.set(request);
             responseListener.onResponse(ONE_HIT_SEARCH_RESPONSE);
+        }
+
+        public SearchRequest getCapturedInitialProgressRequest() {
+            return capturedInitialProgressRequest.get();
         }
 
         @Override
@@ -402,6 +410,63 @@ public class TransformIndexerTests extends ESTestCase {
             assertEquals(0L, indexer.getStats().getNumDeletedDocuments());
             assertEquals(0L, indexer.getStats().getDeleteTime());
         }
+    }
+
+    public void testInitialProgressSearchIncludesRuntimeMappings() throws Exception {
+        // Arrange: create a config with runtime_mappings
+        Map<String, Object> runtimeMappings = Map.of(
+            "total_price_with_tax",
+            Map.of("type", "double", "script", Map.of("source", "emit(1.0)"))
+        );
+        SourceConfig sourceWithRuntimeMappings = new SourceConfig(
+            new String[] { "source_index" },
+            QueryConfig.matchAll(),
+            runtimeMappings,
+            null
+        );
+        TransformConfig config = new TransformConfig(
+            randomAlphaOfLength(10),
+            sourceWithRuntimeMappings,
+            randomDestConfig(),
+            null,
+            new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
+            null,
+            randomPivotConfig(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        final MockedTransformIndexer indexer = createMockIndexer(
+            1,
+            config,
+            state,
+            null,
+            threadPool,
+            auditor,
+            new TransformIndexerStats(),
+            context
+        );
+
+        // Act: start the indexer, which triggers initial progress search
+        indexer.start();
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertBusy(() -> assertEquals(1L, indexer.getLastCheckpoint().getCheckpoint()), 5, TimeUnit.SECONDS);
+
+        // Assert: the initial progress search request should include runtime_mappings
+        SearchRequest capturedRequest = indexer.getCapturedInitialProgressRequest();
+        assertNotNull("Expected an initial progress search request to have been captured", capturedRequest);
+        assertEquals(
+            "Initial progress search should include runtime_mappings from the source config",
+            runtimeMappings,
+            capturedRequest.source().runtimeMappings()
+        );
     }
 
     /**

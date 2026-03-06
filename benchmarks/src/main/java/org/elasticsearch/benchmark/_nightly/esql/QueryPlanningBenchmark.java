@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark._nightly.esql;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
@@ -70,7 +70,7 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 public class QueryPlanningBenchmark {
 
     static {
-        LogConfigurator.configureESLogging();
+        Utils.configureBenchmarkLogging();
     }
 
     private PlanTelemetry telemetry;
@@ -126,7 +126,7 @@ public class QueryPlanningBenchmark {
                 minimumVersion,
                 UNMAPPED_FIELDS.defaultValue()
             ),
-            new Verifier(new Metrics(functionRegistry), new XPackLicenseState(() -> 0L))
+            new Verifier(new Metrics(functionRegistry, true, true), new XPackLicenseState(() -> 0L))
         );
         defaultOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), minimumVersion));
     }

@@ -31,30 +31,30 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
 
     protected URI uri;
-    private final AzureOpenAiRateLimitServiceSettings rateLimitServiceSettings;
+    private final AzureOpenAiServiceSettings baseServiceSettings;
 
     public AzureOpenAiModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
-        AzureOpenAiRateLimitServiceSettings rateLimitServiceSettings
+        AzureOpenAiServiceSettings baseServiceSettings
     ) {
         super(configurations, secrets);
 
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+        this.baseServiceSettings = Objects.requireNonNull(baseServiceSettings);
     }
 
     protected AzureOpenAiModel(AzureOpenAiModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
 
         this.uri = model.getUri();
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        baseServiceSettings = model.baseServiceSettings();
     }
 
-    protected AzureOpenAiModel(AzureOpenAiModel model, ServiceSettings serviceSettings) {
-        super(model, serviceSettings);
+    protected AzureOpenAiModel(AzureOpenAiModel model, ServiceSettings baseServiceSettings) {
+        super(model, baseServiceSettings);
 
         this.uri = model.getUri();
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        this.baseServiceSettings = model.baseServiceSettings();
     }
 
     public abstract ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings);
@@ -92,13 +92,23 @@ public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
         this.uri = newUri;
     }
 
-    public AzureOpenAiRateLimitServiceSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
+    public AzureOpenAiModel init() {
+        getSecretSettings().init(baseServiceSettings);
+        return this;
+    }
+
+    @Override
+    public AzureOpenAiSecretsSettings getSecretSettings() {
+        return (AzureOpenAiSecretsSettings) super.getSecretSettings();
+    }
+
+    public AzureOpenAiServiceSettings baseServiceSettings() {
+        return baseServiceSettings;
     }
 
     @Override
     public RateLimitSettings rateLimitSettings() {
-        return rateLimitServiceSettings.rateLimitSettings();
+        return baseServiceSettings.rateLimitSettings();
     }
 
     @Override
@@ -114,6 +124,4 @@ public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
     public abstract String apiVersion();
 
     public abstract String[] operationPathSegments();
-
-    public abstract void validate();
 }

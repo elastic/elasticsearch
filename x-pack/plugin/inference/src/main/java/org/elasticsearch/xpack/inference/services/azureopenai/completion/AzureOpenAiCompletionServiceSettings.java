@@ -17,7 +17,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings;
@@ -37,7 +36,7 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.Azure
 public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
-        AzureOpenAiRateLimitServiceSettings, AzureOpenAiServiceSettings {
+    AzureOpenAiServiceSettings {
 
     public static final String NAME = "azure_openai_completions_service_settings";
 

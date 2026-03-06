@@ -187,7 +187,7 @@ public class AzureOpenAiService extends SenderService {
             chunkingSettings,
             secretSettings,
             context
-        );
+        ).init();
     }
 
     @Override
@@ -224,7 +224,7 @@ public class AzureOpenAiService extends SenderService {
             config.getTaskType(),
             config.getService(),
             ConfigurationParseContext.PERSISTENT
-        ).createFromModelConfigurationsAndSecrets(config, secrets);
+        ).createFromModelConfigurationsAndSecrets(config, secrets).init();
     }
 
     @Override

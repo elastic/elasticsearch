@@ -7,10 +7,16 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
+import org.elasticsearch.action.ActionListener;
+
 import java.net.URI;
 
 public interface Request {
     HttpRequest createHttpRequest();
+
+    default void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
+        listener.onResponse(createHttpRequest());
+    }
 
     URI getURI();
 

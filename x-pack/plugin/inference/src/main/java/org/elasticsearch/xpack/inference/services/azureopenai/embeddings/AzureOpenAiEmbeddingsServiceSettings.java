@@ -21,9 +21,8 @@ import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -50,7 +49,7 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.Azure
 public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
-        AzureOpenAiRateLimitServiceSettings, AzureOpenAiServiceSettings {
+    AzureOpenAiServiceSettings {
 
     public static final String NAME = "azure_openai_embeddings_service_settings";
 

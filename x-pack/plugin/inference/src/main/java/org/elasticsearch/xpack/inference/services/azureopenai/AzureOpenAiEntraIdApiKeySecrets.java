@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.azureopenai;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR;
+import static org.elasticsearch.xpack.inference.services.azureopenai.oauth.AzureOpenAiOAuthSettings.AZURE_OPENAI_OAUTH_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
 
 /**
@@ -35,14 +37,20 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretsSettings 
     private final SecureString entraId;
     private final SecureString apiKey;
 
-    public AzureOpenAiEntraIdApiKeySecrets(@Nullable SecureString apiKey, @Nullable SecureString entraId) {
+    public AzureOpenAiEntraIdApiKeySecrets(String inferenceId, @Nullable SecureString apiKey, @Nullable SecureString entraId) {
+        super(inferenceId);
+
         Objects.requireNonNullElse(apiKey, entraId);
         this.apiKey = apiKey;
         this.entraId = entraId;
     }
 
     public AzureOpenAiEntraIdApiKeySecrets(StreamInput in) throws IOException {
-        this(in.readOptionalSecureString(), in.readOptionalSecureString());
+        this(
+            in.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS) ? in.readString() : null,
+            in.readOptionalSecureString(),
+            in.readOptionalSecureString()
+        );
     }
 
     public SecureString apiKey() {
@@ -54,18 +62,18 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretsSettings 
     }
 
     @Override
-    public void applyTo(HttpRequestBase request) {
-        if (apiKey != null && apiKey.isEmpty() == false) {
-            request.setHeader(new BasicHeader(API_KEY_HEADER, apiKey.toString()));
-        } else if (entraId != null && entraId.isEmpty() == false) {
-            request.setHeader(RequestUtils.createAuthBearerHeader(entraId));
+    public void init(AzureOpenAiServiceSettings serviceSettings) {
+        if (serviceSettings.oAuth2Settings() != null) {
+            throw new ValidationException().addValidationError(USE_CLIENT_SECRET_ERROR);
         }
     }
 
     @Override
-    protected void validateServiceSettings(AzureOpenAiServiceSettings serviceSettings) {
-        if (serviceSettings.oAuth2Settings() != null) {
-            throw new ValidationException().addValidationError(USE_CLIENT_SECRET_ERROR);
+    public void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener) {
+        if (apiKey != null && apiKey.isEmpty() == false) {
+            request.setHeader(new BasicHeader(API_KEY_HEADER, apiKey.toString()));
+        } else if (entraId != null && entraId.isEmpty() == false) {
+            request.setHeader(RequestUtils.createAuthBearerHeader(entraId));
         }
     }
 
@@ -93,6 +101,10 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretsSettings 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(AZURE_OPENAI_OAUTH_SETTINGS)) {
+            out.writeString(inferenceId);
+        }
+
         out.writeOptionalSecureString(apiKey);
         out.writeOptionalSecureString(entraId);
     }
@@ -102,11 +114,13 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretsSettings 
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         AzureOpenAiEntraIdApiKeySecrets that = (AzureOpenAiEntraIdApiKeySecrets) object;
-        return Objects.equals(entraId, that.entraId) && Objects.equals(apiKey, that.apiKey);
+        return Objects.equals(entraId, that.entraId)
+            && Objects.equals(apiKey, that.apiKey)
+            && Objects.equals(inferenceId, that.inferenceId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(entraId, apiKey);
+        return Objects.hash(entraId, apiKey, inferenceId);
     }
 }

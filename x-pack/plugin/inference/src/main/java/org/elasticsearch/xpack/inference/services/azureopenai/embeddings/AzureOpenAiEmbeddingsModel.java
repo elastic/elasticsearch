@@ -15,8 +15,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretsSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
 
@@ -51,7 +51,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            AzureOpenAiSecretsSettings.fromMap(secrets)
+            AzureOpenAiSecretsSettings.fromMap(secrets, inferenceEntityId)
         );
     }
 
@@ -72,7 +72,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
     }
 
     public AzureOpenAiEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets, (AzureOpenAiRateLimitServiceSettings) modelConfigurations.getServiceSettings());
+        super(modelConfigurations, modelSecrets, (AzureOpenAiServiceSettings) modelConfigurations.getServiceSettings());
         try {
             this.uri = buildUriString();
         } catch (URISyntaxException e) {
@@ -99,11 +99,6 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
     }
 
     @Override
-    public AzureOpenAiSecretsSettings getSecretSettings() {
-        return (AzureOpenAiSecretsSettings) super.getSecretSettings();
-    }
-
-    @Override
     public ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
     }
@@ -126,12 +121,5 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
     @Override
     public String[] operationPathSegments() {
         return new String[] { AzureOpenAiUtils.EMBEDDINGS_PATH };
-    }
-
-    @Override
-    public void validate() {
-        var serviceSettings = getServiceSettings();
-        var secretSettings = getSecretSettings();
-
     }
 }

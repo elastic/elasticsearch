@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
 import org.apache.http.client.methods.HttpRequestBase;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -24,6 +25,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
@@ -44,13 +46,18 @@ public abstract class AzureOpenAiSecretsSettings implements SecretSettings {
     public static final String EXACTLY_ONE_CONFIG_DESCRIPTION =
         "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.";
 
-    // TODO do I need this?
-    protected AzureOpenAiSecretsSettings() {}
+    private static final String UNKNOWN_INFERENCE_ID = "unknown";
+
+    protected final String inferenceId;
+
+    protected AzureOpenAiSecretsSettings(@Nullable String inferenceId) {
+        this.inferenceId = Objects.requireNonNullElse(inferenceId, UNKNOWN_INFERENCE_ID);
+    }
 
     /**
      * Parses the map, validates exactly one auth field, returns the matching secret type.
      */
-    public static AzureOpenAiSecretsSettings fromMap(@Nullable Map<String, Object> map) {
+    public static AzureOpenAiSecretsSettings fromMap(@Nullable Map<String, Object> map, String inferenceId) {
         if (map == null) {
             return null;
         }
@@ -80,12 +87,12 @@ public abstract class AzureOpenAiSecretsSettings implements SecretSettings {
         validationException.throwIfValidationErrorsExist();
 
         if (secureApiToken != null) {
-            return new AzureOpenAiEntraIdApiKeySecrets(secureApiToken, null);
+            return new AzureOpenAiEntraIdApiKeySecrets(inferenceId, secureApiToken, null);
         }
         if (secureEntraId != null) {
-            return new AzureOpenAiEntraIdApiKeySecrets(null, secureEntraId);
+            return new AzureOpenAiEntraIdApiKeySecrets(inferenceId, null, secureEntraId);
         }
-        return new AzureOpenAiOAuth2Secrets(clientSecret);
+        return new AzureOpenAiOAuth2Secrets(inferenceId, clientSecret);
     }
 
     public static class Configuration {
@@ -125,13 +132,21 @@ public abstract class AzureOpenAiSecretsSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return AzureOpenAiSecretsSettings.fromMap(new HashMap<>(newSecrets));
+        return AzureOpenAiSecretsSettings.fromMap(new HashMap<>(newSecrets), inferenceId);
     }
 
     /**
      * Applies this secret to the given HTTP request (e.g. sets API key header or Bearer token).
      */
-    public abstract void applyTo(HttpRequestBase request);
+    public abstract void applyTo(
+        HttpRequestBase request,
+        ActionListener<HttpRequestBase> listener
+    );
 
-    protected abstract void validateServiceSettings(AzureOpenAiServiceSettings serviceSettings);
+    /**
+     * Allows the secret to initialize itself based on the service settings. This is useful for one-time initialization that is expensive
+     * like when building the Azure credential instance for OAuth2.
+     * @param serviceSettings the service settings to use for initialization
+     */
+    public void init(AzureOpenAiServiceSettings serviceSettings) {}
 }

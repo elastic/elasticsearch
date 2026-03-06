@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
+import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.message.BasicHeader;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -19,7 +23,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class AzureOpenAiChatCompletionRequest implements AzureOpenAiRequest {
+public class AzureOpenAiChatCompletionRequest implements Request {
 
     private final UnifiedChatInput chatInput;
 
@@ -32,15 +36,26 @@ public class AzureOpenAiChatCompletionRequest implements AzureOpenAiRequest {
 
     @Override
     public HttpRequest createHttpRequest() {
+        throw new UnsupportedOperationException("use createHttpRequestAsync() instead");
+    }
+
+    @Override
+    public void createHttpRequestAsync(ActionListener<HttpRequest> listener) {
         var httpPost = new HttpPost(getURI());
         var requestEntity = Strings.toString(new AzureOpenAiChatCompletionRequestEntity(chatInput, model.getTaskSettings().user()));
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
 
-        AzureOpenAiRequest.decorateWithAuthHeader(httpPost, model.getSecretSettings());
-
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        // TODO pull this up into a base class
+        httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
+        model.getSecretSettings()
+            .applyTo(
+                httpPost,
+                listener.delegateFailureAndWrap(
+                    (httpRequestActionListener, httpRequestBase) -> new HttpRequest(httpRequestBase, getInferenceEntityId())
+                )
+            );
     }
 
     @Override

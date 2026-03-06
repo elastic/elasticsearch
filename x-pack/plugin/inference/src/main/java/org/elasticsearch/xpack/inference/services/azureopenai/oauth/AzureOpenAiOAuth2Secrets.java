@@ -7,8 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.oauth;
 
+import com.azure.core.credential.TokenRequestContext;
+import com.azure.identity.ClientSecretCredential;
+import com.azure.identity.ClientSecretCredentialBuilder;
+
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,15 +46,34 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretsSettings {
     );
 
     private final SecureString clientSecret;
+    private TokenRequestContext tokenRequestContext;
+    private ClientSecretCredential credential;
 
-    public AzureOpenAiOAuth2Secrets(SecureString clientSecrets) {
+    public AzureOpenAiOAuth2Secrets(String inferenceId, SecureString clientSecrets) {
+        super(inferenceId);
+
         this.clientSecret = Objects.requireNonNull(clientSecrets);
     }
 
     public AzureOpenAiOAuth2Secrets(StreamInput in) throws IOException {
-        this(in.readOptionalSecureString());
+        this(in.readString(), in.readOptionalSecureString());
     }
 
+    @Override
+    public void init(AzureOpenAiServiceSettings serviceSettings) {
+        if (serviceSettings.oAuth2Settings() == null) {
+            throw new ValidationException().addValidationError(REQUIRED_FIELDS_DESCRIPTION);
+        }
+
+        credential = new ClientSecretCredentialBuilder().tenantId(serviceSettings.oAuth2Settings().getTenantId())
+            .clientId(serviceSettings.oAuth2Settings().getClientId())
+            .clientSecret(clientSecret.toString())
+            .build();
+
+        tokenRequestContext = new TokenRequestContext().setScopes(serviceSettings.oAuth2Settings().getScopes());
+    }
+
+    // TODO maybe make this default visibility only for testing
     public SecureString getClientSecret() {
         return clientSecret;
     }
@@ -58,14 +84,33 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretsSettings {
     }
 
     @Override
-    public void applyTo(HttpRequestBase request) {
-        // TODO
-    }
+    public void applyTo(HttpRequestBase request, ActionListener<HttpRequestBase> listener) {
+        assert credential != null && tokenRequestContext != null : "init() must be called before retrieving access token for OAuth2";
 
-    @Override
-    protected void validateServiceSettings(AzureOpenAiServiceSettings serviceSettings) {
-        if (serviceSettings.oAuth2Settings() == null) {
-            throw new ValidationException().addValidationError(REQUIRED_FIELDS_DESCRIPTION);
+        try {
+            credential.getToken(tokenRequestContext).subscribe(token -> {
+                String authorizationHeader = "Bearer " + token.getToken();
+
+                request.setHeader(HttpHeaders.AUTHORIZATION, authorizationHeader);
+                listener.onResponse(request);
+            },
+                e -> listener.onFailure(
+                    new ElasticsearchException(
+                        Strings.format("Failed to retrieve access token for Azure OpenAI request for inference id: [%s]", inferenceId),
+                        e
+                    )
+                )
+            );
+        } catch (Exception e) {
+            listener.onFailure(
+                new ElasticsearchException(
+                    Strings.format(
+                        "Failed attempting to retrieve access token for Azure OpenAI request for inference id: [%s]",
+                        inferenceId
+                    ),
+                    e
+                )
+            );
         }
     }
 
@@ -76,6 +121,7 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretsSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(inferenceId);
         out.writeSecureString(clientSecret);
     }
 
@@ -85,5 +131,17 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretsSettings {
         builder.field(CLIENT_SECRET_FIELD, clientSecret.toString());
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        AzureOpenAiOAuth2Secrets that = (AzureOpenAiOAuth2Secrets) o;
+        return Objects.equals(clientSecret, that.clientSecret) && Objects.equals(inferenceId, that.inferenceId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(clientSecret, inferenceId);
     }
 }

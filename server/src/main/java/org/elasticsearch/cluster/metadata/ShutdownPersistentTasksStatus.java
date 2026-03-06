@@ -33,11 +33,31 @@ public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObjec
 
     public static final TransportVersion SHUTDOWN_PERSISTENT_TASKS_STATUS = TransportVersion.fromName("shutdown_persistent_tasks_status");
 
+    private static final ShutdownPersistentTasksStatus NOT_STARTED_STATUS = new ShutdownPersistentTasksStatus(
+        SingleNodeShutdownMetadata.Status.NOT_STARTED,
+        0,
+        0
+    );
+
     private final SingleNodeShutdownMetadata.Status status;
     private final int persistentTasksRemaining;
     private final int autoReassignedTasksRemaining;
 
-    public ShutdownPersistentTasksStatus(
+    public static ShutdownPersistentTasksStatus inProgressOrComplete(int persistentTasksRemaining, int autoReassignedTasksRemaining) {
+        // Only auto-reassigned persistent tasks will be proactively relocated in response to node shutdown.
+        // Other persistent tasks either handle their own abort or wait to be unassigned then assigned
+        // once the node finishes shutdown.
+        SingleNodeShutdownMetadata.Status status = autoReassignedTasksRemaining == 0
+            ? SingleNodeShutdownMetadata.Status.COMPLETE
+            : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        return new ShutdownPersistentTasksStatus(status, persistentTasksRemaining, autoReassignedTasksRemaining);
+    }
+
+    public static ShutdownPersistentTasksStatus notStarted() {
+        return NOT_STARTED_STATUS;
+    }
+
+    ShutdownPersistentTasksStatus(
         SingleNodeShutdownMetadata.Status status,
         int persistentTasksRemaining,
         int autoReassignedTasksRemaining

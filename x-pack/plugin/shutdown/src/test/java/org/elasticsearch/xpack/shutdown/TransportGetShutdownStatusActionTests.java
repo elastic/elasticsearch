@@ -880,14 +880,9 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .addTask(optOutTaskName + "-2", optOutTaskName, null, new PersistentTasksCustomMetadata.Assignment(LIVE_NODE_ID, "assigned"))
             .build();
 
-        final var state = ClusterState.builder(
-            createTestClusterState(RoutingTable.EMPTY_ROUTING_TABLE, List.of(), SingleNodeShutdownMetadata.Type.REMOVE)
-        )
-            .metadata(
-                Metadata.builder(
-                    createTestClusterState(RoutingTable.EMPTY_ROUTING_TABLE, List.of(), SingleNodeShutdownMetadata.Type.REMOVE).metadata()
-                ).putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks)
-            )
+        final var baseState = createTestClusterState(RoutingTable.EMPTY_ROUTING_TABLE, List.of(), SingleNodeShutdownMetadata.Type.REMOVE);
+        final var state = ClusterState.builder(baseState)
+            .metadata(Metadata.builder(baseState.metadata()).putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks))
             .build();
 
         final var status = TransportGetShutdownStatusAction.persistentTasksStatus(state, SHUTTING_DOWN_NODE_ID, true);

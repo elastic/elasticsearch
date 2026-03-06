@@ -171,24 +171,21 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     // pkg-private for testing
     static ShutdownPersistentTasksStatus persistentTasksStatus(ClusterState state, String nodeId, boolean nodeSeen) {
         if (state.nodes().get(nodeId) == null && nodeSeen == false) {
-            return new ShutdownPersistentTasksStatus(SingleNodeShutdownMetadata.Status.NOT_STARTED, 0, 0);
+            return ShutdownPersistentTasksStatus.notStarted();
         }
-        final int[] statusCounters = { 0, 0 };
-        PersistentTasks.getAllTasks(state)
-            .flatMap(tuple -> tuple.v2().tasks().stream())
-            .filter(task -> nodeId.equals(task.getAssignment().getExecutorNode()))
-            .forEach(task -> {
-                statusCounters[0]++;
-                if (PersistentTasksExecutorRegistry.taskHasReassignmentOnShutdownDisabled(task.getTaskName()) == false) {
-                    statusCounters[1]++;
+        int autoReassignTasks = 0;
+        int persistentTasks = 0;
+        for (final var tuple : PersistentTasks.getAllTasks(state).toList()) {
+            for (final var task : tuple.v2().tasks()) {
+                if (nodeId.equals(task.getAssignment().getExecutorNode())) {
+                    persistentTasks++;
+                    if (PersistentTasksExecutorRegistry.taskHasReassignmentOnShutdownDisabled(task.getTaskName()) == false) {
+                        autoReassignTasks++;
+                    }
                 }
-            });
-        final int remaining = statusCounters[0];
-        final int autoReassign = statusCounters[1];
-        SingleNodeShutdownMetadata.Status status = autoReassign == 0
-            ? SingleNodeShutdownMetadata.Status.COMPLETE
-            : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
-        return new ShutdownPersistentTasksStatus(status, remaining, autoReassign);
+            }
+        }
+        return ShutdownPersistentTasksStatus.inProgressOrComplete(persistentTasks, autoReassignTasks);
     }
 
     // pkg-private for testing

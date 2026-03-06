@@ -4,7 +4,6 @@
 
 `num_words`
 :   (integer) The maximum number of words to return in each snippet.
-This allows better control of inference costs by limiting the size of tokens per snippet.
 
 
 `num_snippets`

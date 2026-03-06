@@ -27,6 +27,7 @@ import java.util.Objects;
  * the subset of those that will be proactively reassigned by the persistent task framework
  * ({@code autoReassignedTasksRemaining}), and an overall {@code status} that is {@code COMPLETE} when no auto
  * reassigned tasks remain or {@code IN_PROGRESS} otherwise.
+ * If the node is not present and has not been seen in the cluster, the status will be {@code NOT_STARTED}.
  */
 public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObject {
 

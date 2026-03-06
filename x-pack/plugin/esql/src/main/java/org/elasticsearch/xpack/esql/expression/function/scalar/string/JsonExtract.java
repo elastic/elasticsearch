@@ -258,8 +258,8 @@ public class JsonExtract extends EsqlScalarFunction {
         if (token == XContentParser.Token.START_OBJECT && segments.get(depth) instanceof JsonPath.Segment.Key key) {
             navigateToField(parser, key, originalPath);
             extractValue(builder, parser, segments, depth + 1, originalPath, rawBytes, rawOffset);
-        } else if (token == XContentParser.Token.START_ARRAY && segments.get(depth) instanceof JsonPath.Segment.Index idx) {
-            navigateToIndex(parser, idx);
+        } else if (token == XContentParser.Token.START_ARRAY && segments.get(depth) instanceof JsonPath.Segment.Index index) {
+            navigateToIndex(parser, index);
             extractValue(builder, parser, segments, depth + 1, originalPath, rawBytes, rawOffset);
         } else {
             throw new IllegalArgumentException("path [" + originalPath + "] does not exist");
@@ -289,10 +289,10 @@ public class JsonExtract extends EsqlScalarFunction {
      * Advances the parser to the element at the given index within the current array.
      * After return, the parser's current token is the value token of the matching element.
      */
-    private static void navigateToIndex(XContentParser parser, JsonPath.Segment.Index idx) throws IOException {
+    private static void navigateToIndex(XContentParser parser, JsonPath.Segment.Index index) throws IOException {
         int currentIndex = 0;
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (currentIndex == idx.index()) {
+            if (currentIndex == index.index()) {
                 return;
             }
             parser.skipChildren();
@@ -310,11 +310,11 @@ public class JsonExtract extends EsqlScalarFunction {
             case VALUE_NUMBER -> {
                 if (rawBytes != null) {
                     // Byte-slice the number literal directly from the input — avoids parser.text() + String allocation.
-                    XContentLocation loc = parser.getTokenLocation();
-                    XContentLocation cur = parser.getCurrentLocation();
-                    if (loc.hasValidByteOffset() && cur.hasValidByteOffset()) {
-                        int start = (int) loc.byteOffset() + rawOffset;
-                        int end = (int) cur.byteOffset() + rawOffset;
+                    XContentLocation tokenLocation = parser.getTokenLocation();
+                    XContentLocation currentLocation = parser.getCurrentLocation();
+                    if (tokenLocation.hasValidByteOffset() && currentLocation.hasValidByteOffset()) {
+                        int start = (int) tokenLocation.byteOffset() + rawOffset;
+                        int end = (int) currentLocation.byteOffset() + rawOffset;
                         builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
                     } else {
                         builder.appendBytesRef(new BytesRef(parser.text()));
@@ -330,12 +330,12 @@ public class JsonExtract extends EsqlScalarFunction {
                     // Zero-copy byte slicing: grab the byte range directly from the input.
                     // getTokenLocation() points to the opening { or [, getCurrentLocation() after
                     // skipChildren() points just past the closing } or ].
-                    XContentLocation startLoc = parser.getTokenLocation();
+                    XContentLocation startLocation = parser.getTokenLocation();
                     parser.skipChildren();
-                    XContentLocation endLoc = parser.getCurrentLocation();
-                    if (startLoc.hasValidByteOffset() && endLoc.hasValidByteOffset()) {
-                        int start = (int) startLoc.byteOffset() + rawOffset;
-                        int end = (int) endLoc.byteOffset() + rawOffset;
+                    XContentLocation endLocation = parser.getCurrentLocation();
+                    if (startLocation.hasValidByteOffset() && endLocation.hasValidByteOffset()) {
+                        int start = (int) startLocation.byteOffset() + rawOffset;
+                        int end = (int) endLocation.byteOffset() + rawOffset;
                         builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
                     } else {
                         // Fallback if offsets are unavailable (shouldn't happen for JSON)

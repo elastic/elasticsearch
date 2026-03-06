@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -676,6 +677,127 @@ public class ExchangeServiceTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             // ensure no cyclic exception
             ElasticsearchException.writeException(err, output);
+        }
+    }
+
+    public void testValidateSinkIndicesNoExpectedIndicesIsNoOp() {
+        BlockFactory blockFactory = blockFactory();
+        ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        try {
+            exchange.validateSinkIndices("ex-1", new String[] { "index-a" });
+            exchange.validateSinkIndices("ex-1", null);
+            exchange.validateSinkIndices("ex-1", new String[0]);
+        } finally {
+            exchange.close();
+        }
+    }
+
+    public void testValidateSinkIndicesMatchingIndices() {
+        BlockFactory blockFactory = blockFactory();
+        ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        try {
+            exchange.setExpectedIndices("ex-1", Set.of("index-a", "index-b"));
+            exchange.validateSinkIndices("ex-1", new String[] { "index-b", "index-a" });
+        } finally {
+            exchange.close();
+        }
+    }
+
+    public void testValidateSinkIndicesMismatchThrows() {
+        BlockFactory blockFactory = blockFactory();
+        ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        try {
+            exchange.setExpectedIndices("ex-1", Set.of("index-a", "index-b"));
+            ResourceNotFoundException e = expectThrows(
+                ResourceNotFoundException.class,
+                () -> exchange.validateSinkIndices("ex-1", new String[] { "index-c" })
+            );
+            assertThat(e.getMessage(), equalTo("exchange sink [ex-1] not found for indices [index-c]"));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    public void testValidateSinkIndicesNullOrEmptyThrows() {
+        BlockFactory blockFactory = blockFactory();
+        ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        try {
+            exchange.setExpectedIndices("ex-1", Set.of("index-a"));
+
+            expectThrows(NullPointerException.class, () -> exchange.validateSinkIndices("ex-1", null));
+            expectThrows(ResourceNotFoundException.class, () -> exchange.validateSinkIndices("ex-1", new String[0]));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    public void testFinishSinkHandlerCleansUpExpectedIndices() {
+        BlockFactory blockFactory = blockFactory();
+        ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        try {
+            ExchangeSinkHandler sinkHandler = exchange.createSinkHandler("ex-1", 10);
+            exchange.setExpectedIndices("ex-1", Set.of("index-a"));
+
+            expectThrows(ResourceNotFoundException.class, () -> exchange.validateSinkIndices("ex-1", new String[] { "wrong" }));
+
+            ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+            sink.finish();
+            sinkHandler.onFailure(new Exception("done"));
+            exchange.finishSinkHandler("ex-1", null);
+
+            exchange.validateSinkIndices("ex-1", new String[] { "anything" });
+        } finally {
+            exchange.close();
+        }
+    }
+
+    public void testValidateSinkIndicesOnResponseMatchingIndices() {
+        BlockFactory blockFactory = blockFactory();
+        ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        try (ExchangeResponse response = new ExchangeResponse(blockFactory, new Page(blockFactory.newConstantIntBlockWith(1, 1)), false)) {
+            exchange.setExpectedIndices("ex-1", Set.of("index-a", "index-b"));
+            exchange.validateSinkIndicesOnResponse("ex-1", new String[] { "index-b", "index-a" }, response);
+        } finally {
+            exchange.close();
+        }
+    }
+
+    public void testValidateSinkIndicesOnResponseMismatchThrows() {
+        BlockFactory blockFactory = blockFactory();
+        ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        try (ExchangeResponse response = new ExchangeResponse(blockFactory, new Page(blockFactory.newConstantIntBlockWith(1, 1)), false)) {
+            exchange.setExpectedIndices("ex-1", Set.of("index-a", "index-b"));
+            ResourceNotFoundException e = expectThrows(
+                ResourceNotFoundException.class,
+                () -> exchange.validateSinkIndicesOnResponse("ex-1", new String[] { "index-c" }, response)
+            );
+            assertThat(e.getMessage(), equalTo("exchange sink [ex-1] not found for indices [index-c]"));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    public void testValidateSinkIndicesOnResponseMissingExpectedIndicesWithDataThrows() {
+        BlockFactory blockFactory = blockFactory();
+        ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        try (ExchangeResponse response = new ExchangeResponse(blockFactory, new Page(blockFactory.newConstantIntBlockWith(1, 1)), false)) {
+            ResourceNotFoundException e = expectThrows(
+                ResourceNotFoundException.class,
+                () -> exchange.validateSinkIndicesOnResponse("ex-1", new String[] { "index-a" }, response)
+            );
+            assertThat(e.getMessage(), equalTo("exchange sink [ex-1] not found for data response"));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    public void testValidateSinkIndicesOnResponseMissingExpectedIndicesWithNoDataIsNoOp() {
+        BlockFactory blockFactory = blockFactory();
+        ExchangeService exchange = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory);
+        try (ExchangeResponse response = new ExchangeResponse(blockFactory, null, false)) {
+            exchange.validateSinkIndicesOnResponse("ex-1", new String[] { "index-a" }, response);
+        } finally {
+            exchange.close();
         }
     }
 

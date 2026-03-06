@@ -27,6 +27,13 @@ public class EsqlFlags {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> ESQL_CCS_EXCHANGE_ENABLED = Setting.boolSetting(
+        "esql.ccs_exchange.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /**
      * The maximum number of rounding points to push down to Lucene for the {@code roundTo} function at cluster level.
      * {@code ReplaceRoundToWithQueryAndTags} checks this threshold before rewriting {@code RoundTo} to range queries.
@@ -49,11 +56,17 @@ public class EsqlFlags {
     );
 
     // this is only used for testing purposes right now
-    public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(ESQL_STRING_LIKE_ON_INDEX, ESQL_ROUNDTO_PUSHDOWN_THRESHOLD);
+    public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(
+        ESQL_STRING_LIKE_ON_INDEX,
+        ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
+        ESQL_CCS_EXCHANGE_ENABLED
+    );
 
     private final boolean stringLikeOnIndex;
 
     private final int roundToPushdownThreshold;
+
+    private final boolean ccsExchangeEnabled;
 
     /**
      * Constructor for tests.
@@ -61,6 +74,7 @@ public class EsqlFlags {
     public EsqlFlags(boolean stringLikeOnIndex) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY);
+        this.ccsExchangeEnabled = ESQL_CCS_EXCHANGE_ENABLED.getDefault(Settings.EMPTY);
     }
 
     /**
@@ -69,6 +83,7 @@ public class EsqlFlags {
     public EsqlFlags(int roundToPushdownThreshold) {
         this.stringLikeOnIndex = ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY);
         this.roundToPushdownThreshold = roundToPushdownThreshold;
+        this.ccsExchangeEnabled = ESQL_CCS_EXCHANGE_ENABLED.getDefault(Settings.EMPTY);
     }
 
     /**
@@ -77,11 +92,13 @@ public class EsqlFlags {
     public EsqlFlags(boolean stringLikeOnIndex, int roundToPushdownThreshold) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
+        this.ccsExchangeEnabled = ESQL_CCS_EXCHANGE_ENABLED.getDefault(Settings.EMPTY);
     }
 
     public EsqlFlags(ClusterSettings settings) {
         this.stringLikeOnIndex = settings.get(ESQL_STRING_LIKE_ON_INDEX);
         this.roundToPushdownThreshold = settings.get(ESQL_ROUNDTO_PUSHDOWN_THRESHOLD);
+        this.ccsExchangeEnabled = settings.get(ESQL_CCS_EXCHANGE_ENABLED);
     }
 
     public boolean stringLikeOnIndex() {
@@ -90,5 +107,9 @@ public class EsqlFlags {
 
     public int roundToPushdownThreshold() {
         return roundToPushdownThreshold;
+    }
+
+    public boolean ccsExchangeEnabled() {
+        return ccsExchangeEnabled;
     }
 }

@@ -9,10 +9,15 @@ package org.elasticsearch.xpack.inference.services.fireworksai;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -23,9 +28,11 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -45,6 +52,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -391,5 +400,110 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
     private static FireworksAiService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new FireworksAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+    }
+
+    public void testGetConfiguration() throws Exception {
+        try (var service = createService()) {
+
+            var dimensionsDescription =
+                "The number of dimensions the resulting output embeddings should have. Only supported by some models. "
+                    + "For more information refer to https://docs.fireworks.ai/guides/querying-embeddings-models.";
+            String content = XContentHelper.stripWhitespace(Strings.format("""
+                {
+                     "service": "fireworksai",
+                     "name": "Fireworks AI",
+                     "task_types": [
+                         "text_embedding",
+                         "completion",
+                         "chat_completion"
+                     ],
+                     "configurations": {
+                         "api_key": {
+                             "description": "API Key for the provider you're connecting to.",
+                             "label": "API Key",
+                             "required": true,
+                             "sensitive": true,
+                             "updatable": true,
+                             "type": "str",
+                             "supported_task_types": [
+                                 "text_embedding",
+                                 "completion",
+                                 "chat_completion"
+                             ]
+                         },
+                         "rate_limit.requests_per_minute": {
+                             "description": "Minimize the number of rate limit errors.",
+                             "label": "Rate Limit",
+                             "required": false,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "int",
+                             "supported_task_types": [
+                                 "text_embedding",
+                                 "completion",
+                                 "chat_completion"
+                             ]
+                         },
+                         "model_id": {
+                             "description": "The model ID to use for Fireworks AI requests.",
+                             "label": "Model ID",
+                             "required": true,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "str",
+                             "supported_task_types": [
+                                 "text_embedding",
+                                 "completion",
+                                 "chat_completion"
+                             ]
+                         },
+                         "url": {
+                             "description": "The URL of the Fireworks AI endpoint. Useful for on-demand deployments.",
+                             "label": "URL",
+                             "required": false,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "str",
+                             "supported_task_types": [
+                                 "text_embedding",
+                                 "completion",
+                                 "chat_completion"
+                             ]
+                         },
+                         "dimensions": {
+                             "description": "%s",
+                             "label": "Dimensions",
+                             "required": false,
+                             "sensitive": false,
+                             "updatable": false,
+                             "type": "int",
+                             "supported_task_types": [
+                                 "text_embedding"
+                             ]
+                         }
+                     }
+                 }
+                """, dimensionsDescription));
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
+    }
+
+    private FireworksAiService createService() {
+        return new FireworksAiService(
+            mock(HttpRequestSender.Factory.class),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
     }
 }

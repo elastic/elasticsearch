@@ -423,6 +423,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143697
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
+  method: testAccumulateSearchLoad
+  issue: https://github.com/elastic/elasticsearch/issues/143708
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testTsIndexConflictingTypes {NONE}
+  issue: https://github.com/elastic/elasticsearch/issues/142477
+- class: org.elasticsearch.xpack.sql.qa.security.CliApiKeyIT
+  method: testCliConnectionWithInvalidApiKey
+  issue: https://github.com/elastic/elasticsearch/issues/143646
+- class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
+  method: testSplitOnSize
+  issue: https://github.com/elastic/elasticsearch/issues/143720
 
 # Examples:
 #

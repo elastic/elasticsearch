@@ -128,10 +128,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     private static boolean assertBooleanClauses(Query query, int numClauses) {
         MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(Integer.MAX_VALUE);
         query.visit(visitor);
-        if (visitor.getNumClauses() != numClauses) {
-            System.err.println("query: " + query);
-            throw new IllegalArgumentException("query: " + query);
-        }
         return visitor.getNumClauses() == numClauses;
     }
 
